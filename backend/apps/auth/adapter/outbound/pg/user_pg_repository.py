@@ -32,7 +32,7 @@ class UserPgRepository(UserRepository):
 
     async def create_with_identity(self, profile: SocialProfile) -> User:
         user = UserOrm(
-            display_name=profile.display_name or "이름 없음",
+            display_name=(profile.display_name or "이름 없음")[:50],
             profile_image_url=profile.profile_image_url,
         )
         self._session.add(user)

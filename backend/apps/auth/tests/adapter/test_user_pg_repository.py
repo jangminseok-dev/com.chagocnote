@@ -39,6 +39,11 @@ async def test_이름이_없는_프로필은_기본_이름으로_만든다(db_se
     assert user.display_name == "이름 없음"
 
 
+async def test_긴_이름은_50자로_잘라_저장한다(db_session):
+    user = await _repo(db_session).create_with_identity(_profile(display_name="가" * 60))
+    assert len(user.display_name) == 50
+
+
 async def test_연결된_로그인_수단_목록을_돌려준다(db_session):
     repo = _repo(db_session)
     user = await repo.create_with_identity(_profile())
