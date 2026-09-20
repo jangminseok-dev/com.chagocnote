@@ -14,6 +14,7 @@ from fastapi import FastAPI
 
 from core.database import dispose_engine, init_engine
 from core.redis import dispose_redis
+from auth.adapter.inbound.api.v1.auth_myself_router import auth_myself_router
 
 
 @asynccontextmanager
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="차곡노트 Auth", lifespan=lifespan)
+app.include_router(auth_myself_router)
 
 
 @app.get("/v1/auth/health")
