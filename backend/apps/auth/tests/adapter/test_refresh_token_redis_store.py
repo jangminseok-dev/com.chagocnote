@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from redis.asyncio import from_url
 
@@ -51,3 +53,13 @@ async def test_토큰_원문은_Redis_키에_남지_않는다(store):
     await store.save("plain-token-value", user_id=7)
     keys = [k async for k in store._redis.scan_iter("*")]
     assert keys and all("plain-token-value" not in k for k in keys)
+
+
+async def test_동시에_같은_토큰을_꺼내면_하나는_ACTIVE_다른_하나는_USED_다(store):
+    await store.save("token-f", user_id=7)
+    first, second = await asyncio.gather(store.take("token-f"), store.take("token-f"))
+    assert sorted((first.status, second.status), key=lambda s: s.value) == [
+        RefreshStatus.ACTIVE,
+        RefreshStatus.USED,
+    ]
+    assert first.user_id == 7 and second.user_id == 7
