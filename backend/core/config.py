@@ -16,7 +16,8 @@ def _b64_pem(name: str) -> str:
     return base64.b64decode(raw).decode() if raw else ""
 
 
-APP_ENV: str = _m.get("APP_ENV", "dev") or "dev"
+# 보안 게이트 기본값은 닫힘이어야 한다 — 운영 배포가 APP_ENV 설정을 빠뜨려도 dev 전용 로그인 제공자가 열리면 안 된다.
+APP_ENV: str = _m.get("APP_ENV", "prod") or "prod"
 DATABASE_URL: str = _m.require("DATABASE_URL")
 REDIS_URL: str = _m.get("REDIS_URL", "redis://redis:6379/0") or "redis://redis:6379/0"
 JWT_PUBLIC_KEY: str = base64.b64decode(_m.require("JWT_PUBLIC_KEY_B64")).decode()
