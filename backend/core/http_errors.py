@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class ApiError(Exception):
@@ -36,3 +38,22 @@ def install_error_handlers(app: FastAPI, domain_errors: dict[type[Exception], in
 
     for exc_type, status_code in domain_errors.items():
         app.add_exception_handler(exc_type, _make(status_code))
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"code": "VALIDATION_ERROR", "message": "요청 형식이 올바르지 않습니다."},
+        )
+
+    _STARLETTE_CODE = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_exception(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "code": _STARLETTE_CODE.get(exc.status_code, "HTTP_ERROR"),
+                "message": str(exc.detail),
+            },
+        )

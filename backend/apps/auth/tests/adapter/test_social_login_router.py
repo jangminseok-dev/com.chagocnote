@@ -61,3 +61,4 @@ async def test_token_이_없으면_422이다():
     async with _client(_StubUseCase()) as client:
         response = await client.post("/v1/auth/social", json={"provider": "dev"})
     assert response.status_code == 422
+    assert response.json() == {"code": "VALIDATION_ERROR", "message": "요청 형식이 올바르지 않습니다."}
