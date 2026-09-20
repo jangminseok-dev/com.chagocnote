@@ -5,6 +5,7 @@ from auth.domain.errors import (
     ProviderVerificationError,
     RefreshTokenReuseError,
     UnsupportedProviderError,
+    UserNotFoundError,
 )
 
 AUTH_ERROR_STATUS: dict[type[Exception], int] = {
@@ -12,5 +13,6 @@ AUTH_ERROR_STATUS: dict[type[Exception], int] = {
     ProviderVerificationError: 401,
     InvalidRefreshTokenError: 401,
     RefreshTokenReuseError: 401,
+    UserNotFoundError: 401,
     AccountSuspendedError: 403,
 }

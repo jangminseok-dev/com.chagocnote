@@ -22,3 +22,7 @@ class InvalidRefreshTokenError(AuthError):
 
 class RefreshTokenReuseError(AuthError):
     code = "UNAUTHENTICATED"
+
+
+class UserNotFoundError(AuthError):
+    code = "UNAUTHENTICATED"
