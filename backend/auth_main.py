@@ -10,6 +10,8 @@ from core.singleton.secret_manager import get_secret_manager
 # 컨테이너는 env_file 로 주입받는다. 이 호출은 컨테이너 밖에서 돌릴 때를 위한 것이다.
 get_secret_manager().load_auth_env()
 
+import core.auth_config  # noqa: F401 — 개인키가 없으면 기동 단계에서 바로 실패하게 한다
+
 from fastapi import FastAPI
 
 from core.database import dispose_engine, init_engine
