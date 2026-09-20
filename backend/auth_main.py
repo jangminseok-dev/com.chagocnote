@@ -14,7 +14,10 @@ from fastapi import FastAPI
 
 from core.database import dispose_engine, init_engine
 from core.redis import dispose_redis
+from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.auth_myself_router import auth_myself_router
+from auth.adapter.inbound.api.v1.social_login_router import social_login_router
+from core.http_errors import install_error_handlers
 
 
 @asynccontextmanager
@@ -29,6 +32,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="차곡노트 Auth", lifespan=lifespan)
 app.include_router(auth_myself_router)
+app.include_router(social_login_router)
+install_error_handlers(app, AUTH_ERROR_STATUS)
 
 
 @app.get("/v1/auth/health")
