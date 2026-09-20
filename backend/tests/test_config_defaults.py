@@ -12,6 +12,7 @@ class _StubSecretManager:
         self._require_values = {
             "DATABASE_URL": "postgresql+asyncpg://u:p@h/db",
             "JWT_PUBLIC_KEY_B64": base64.b64encode(b"test-public-key").decode(),
+            "IDENTITY_TOKEN_ENC_KEY": "test-identity-token-enc-key",
         }
 
     def get(self, name: str, default: str | None = None) -> str | None:
