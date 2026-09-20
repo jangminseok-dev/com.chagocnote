@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.superpowers/
+__pycache__/
+*.pyc
+.pytest_cache/
+.import_linter_cache/
+.DS_Store
+.idea/
+.vscode/
+app/build/
+app/.dart_tool/
