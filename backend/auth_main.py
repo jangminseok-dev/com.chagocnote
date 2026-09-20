@@ -1,0 +1,34 @@
+"""인증 프로세스 — JWT 개인키를 가진 유일한 프로세스. /v1/auth/* 만 맡는다."""
+import os
+import sys
+from contextlib import asynccontextmanager
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "apps"))
+
+from core.singleton.secret_manager import get_secret_manager
+
+# 컨테이너는 env_file 로 주입받는다. 이 호출은 컨테이너 밖에서 돌릴 때를 위한 것이다.
+get_secret_manager().load_auth_env()
+
+from fastapi import FastAPI
+
+from core.database import dispose_engine, init_engine
+from core.redis import dispose_redis
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_engine()
+    try:
+        yield
+    finally:
+        await dispose_engine()
+        await dispose_redis()
+
+
+app = FastAPI(title="차곡노트 Auth", lifespan=lifespan)
+
+
+@app.get("/v1/auth/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok", "process": "auth"}

@@ -1,0 +1,80 @@
+name: chagocnote
+
+x-backend-base: &backend-base
+  build:
+    context: ..
+    dockerfile: infra/docker/Dockerfile
+  image: chagocnote-backend:dev
+  working_dir: /work/backend
+  volumes:
+    - ..:/work
+  environment:
+    PYTHONPATH: /work/backend:/work/backend/apps
+  depends_on:
+    pgvector:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  pgvector:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: chagoc
+      POSTGRES_PASSWORD: chagoc_dev   # 개발 전용. 127.0.0.1 에만 열린다. 운영 구성에 재사용하지 않는다.
+      POSTGRES_DB: chagocnote
+    ports:
+      - "127.0.0.1:5442:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chagoc -d chagocnote"]
+      interval: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6389:6379"
+
+  minio:
+    image: quay.io/minio/minio   # minio/minio 는 Docker Hub에서 내려가 quay.io로 옮겼다 (2026-09-20 확인)
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: chagoc
+      MINIO_ROOT_PASSWORD: chagoc_dev_minio   # 개발 전용
+    ports:
+      - "127.0.0.1:9010:9000"
+      - "127.0.0.1:9011:9001"
+    volumes:
+      - miniodata:/data
+
+  backend:
+    <<: *backend-base
+    env_file:
+      - path: ../.env
+        required: false
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  auth:
+    <<: *backend-base
+    env_file:
+      - path: ../.env
+        required: false
+      - path: ../.env.auth
+        required: false
+    command: uvicorn auth_main:app --host 0.0.0.0 --port 9000 --reload
+
+  gateway:
+    image: caddy:2-alpine
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      - backend
+      - auth
+
+volumes:
+  pgdata:
+  miniodata:
