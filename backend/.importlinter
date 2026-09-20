@@ -1,0 +1,60 @@
+# =============================================================================
+# import-linter — 차곡노트 백엔드 구조 계약
+# =============================================================================
+# (1) 앱 내부  — 헥사고날: adapter → app → domain (역방향 금지)
+# (2) 앱 사이  — 허브-스포크: 스포크끼리 직접 참조 금지, 허브는 스포크를 모른다
+#
+# 실행: cd infra && docker compose run --rm --no-deps backend lint-imports --config .importlinter
+#
+# 계약 "스포크 상호 독립"은 두 번째 스포크(tenancy)가 생기는 계획 2에서 추가한다.
+# 스포크가 하나뿐일 때는 검사할 쌍이 없다.
+# =============================================================================
+
+[importlinter]
+root_packages =
+    hub
+    auth
+include_external_packages = True
+
+[importlinter:contract:clean-architecture]
+name = 클린 아키텍처 계층 (adapter > app > domain)
+type = layers
+layers =
+    (adapter)
+    app
+    (domain)
+containers =
+    hub
+    auth
+
+[importlinter:contract:framework-isolation]
+name = 프레임워크 격리 (app·domain 은 웹·DB·외부 통신 라이브러리를 모른다)
+type = forbidden
+source_modules =
+    hub.app
+    auth.app
+    auth.domain
+forbidden_modules =
+    fastapi
+    sqlalchemy
+    redis
+    httpx
+    jose
+    cryptography
+
+[importlinter:contract:domain-purity]
+name = 도메인 순수성 (domain 은 pydantic 과 core 도 모른다)
+type = forbidden
+source_modules =
+    auth.domain
+forbidden_modules =
+    pydantic
+    core
+
+[importlinter:contract:hub-isolation]
+name = 허브 격리 (hub 는 스포크를 import 하지 않는다)
+type = forbidden
+source_modules =
+    hub
+forbidden_modules =
+    auth
