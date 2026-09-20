@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from typing import Annotated
 
+from fastapi import Depends
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -49,3 +51,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+# 요청 함수가 끝나는 즉시(응답을 보내기 전에) 커밋되도록 function 스코프로 정리한다.
+# 기본 스코프는 응답 본문을 보낸 뒤에 정리되어, 클라이언트가 커밋 전 데이터를 보지 못한 채 200을 받는다.
+DbSession = Annotated[AsyncSession, Depends(get_db, scope="function")]

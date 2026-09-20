@@ -36,24 +36,24 @@ def issuer(monkeypatch):
 async def test_정상_계정은_유저_ID를_돌려준다(db_session, issuer):
     await _insert_user(db_session, id=1)
     token = issuer.issue_access(1).token
-    assert await security.get_current_user_id(_bearer(token), db_session) == 1
+    assert await security.get_current_user_id(db=db_session, credentials=_bearer(token)) == 1
 
 
 async def test_토큰이_없으면_401이다(db_session, issuer):
     with pytest.raises(ApiError) as exc:
-        await security.get_current_user_id(None, db_session)
+        await security.get_current_user_id(db=db_session, credentials=None)
     assert (exc.value.status_code, exc.value.code) == (401, "UNAUTHENTICATED")
 
 
 async def test_정지된_계정은_이미_발급된_토큰으로도_403이다(db_session, issuer):
     await _insert_user(db_session, id=2, suspended_at=datetime(2026, 1, 1, tzinfo=timezone.utc))
     with pytest.raises(ApiError) as exc:
-        await security.get_current_user_id(_bearer(issuer.issue_access(2).token), db_session)
+        await security.get_current_user_id(db=db_session, credentials=_bearer(issuer.issue_access(2).token))
     assert (exc.value.status_code, exc.value.code) == (403, "ACCOUNT_SUSPENDED")
 
 
 async def test_탈퇴한_계정은_401이다(db_session, issuer):
     await _insert_user(db_session, id=3, deleted_at=datetime(2026, 1, 1, tzinfo=timezone.utc))
     with pytest.raises(ApiError) as exc:
-        await security.get_current_user_id(_bearer(issuer.issue_access(3).token), db_session)
+        await security.get_current_user_id(db=db_session, credentials=_bearer(issuer.issue_access(3).token))
     assert exc.value.status_code == 401

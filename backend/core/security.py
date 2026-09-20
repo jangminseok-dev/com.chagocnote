@@ -10,10 +10,9 @@ from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import JWT_PUBLIC_KEY
-from core.database import get_db
+from core.database import DbSession
 from core.http_errors import ApiError
 
 _bearer = HTTPBearer(auto_error=False)
@@ -35,8 +34,8 @@ def decode_access_token(token: str, public_key: str) -> int:
 
 
 async def get_current_user_id(
+    db: DbSession,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    db: AsyncSession = Depends(get_db),
 ) -> int:
     """서명 검증 + 계정 상태 확인. 정지·탈퇴는 이미 발급된 토큰도 즉시 막는다."""
     if credentials is None:
