@@ -19,4 +19,6 @@ async def test_자기소개는_실제_엔드포인트와_제약을_말하고_기
     assert "/v1/auth/social" in result.introduction
     assert "/v1/auth/refresh" in result.introduction
     assert "역할" in result.introduction
+    assert "/v1/auth/identities" in result.introduction
+    assert "/v1/auth/account" in result.introduction
     assert record.records[0][0] == "introduce_myself"
