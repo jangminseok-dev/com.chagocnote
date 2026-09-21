@@ -14,3 +14,4 @@ class RefreshStatus(Enum):
 class RefreshLookup:
     status: RefreshStatus
     user_id: int | None
+    generation: int | None = None  # ACTIVE 일 때만 의미가 있다 — 새 토큰을 이 세대로 저장한다

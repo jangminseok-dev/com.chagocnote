@@ -44,8 +44,8 @@ class _StubSessions:
     def __init__(self):
         self.issued_for = []
 
-    async def issue(self, user_id):
-        self.issued_for.append(user_id)
+    async def issue(self, user_id, generation=None):
+        self.issued_for.append((user_id, generation))
         return TokenPair("new-access", "new-refresh", 900)
 
 
@@ -55,11 +55,11 @@ def _run(lookup, user=None):
     return interactor, store, sessions
 
 
-async def test_유효한_토큰이면_새_토큰_한_쌍을_발급한다():
-    interactor, _, sessions = _run(RefreshLookup(RefreshStatus.ACTIVE, 5), _user())
-    pair = await interactor.refresh(RefreshTokenCommand("old-refresh"))
+async def test_유효한_토큰이면_꺼낼_때의_세대로_새_토큰_한_쌍을_발급한다():
+    interactor, _, sessions = _run(RefreshLookup(RefreshStatus.ACTIVE, 5, 4), _user())
+    pair = await interactor.refresh(RefreshTokenCommand("5.old-refresh"))
     assert pair.refresh_token == "new-refresh"
-    assert sessions.issued_for == [5]
+    assert sessions.issued_for == [(5, 4)]
 
 
 async def test_모르는_토큰은_거절한다():

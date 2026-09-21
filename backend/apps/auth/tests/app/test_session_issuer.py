@@ -8,20 +8,29 @@ class _StubIssuer:
 
 
 class _StubStore:
-    def __init__(self):
+    def __init__(self, generation=0):
+        self.generation = generation
         self.saved = []
 
-    async def save(self, token, user_id):
-        self.saved.append((token, user_id))
+    async def current_generation(self, user_id):
+        return self.generation
+
+    async def save(self, token, user_id, generation):
+        self.saved.append((token, user_id, generation))
 
 
-async def test_액세스_토큰과_새_리프레시_토큰을_함께_발급하고_리프레시를_저장한다():
-    store = _StubStore()
+async def test_로그인은_현재_세대로_리프레시_토큰을_저장한다():
+    store = _StubStore(generation=3)
     pair = await SessionIssuer(_StubIssuer(), store).issue(5)
-    assert pair.access_token == "access-for-5"
-    assert pair.expires_in == 900
-    assert store.saved == [(pair.refresh_token, 5)]
-    assert len(pair.refresh_token) >= 43
+    assert (pair.access_token, pair.expires_in) == ("access-for-5", 900)
+    assert store.saved == [(pair.refresh_token, 5, 3)]
+    assert pair.refresh_token.startswith("5.")
+
+
+async def test_갱신은_꺼낼_때_받은_세대로_저장한다():
+    store = _StubStore(generation=9)
+    pair = await SessionIssuer(_StubIssuer(), store).issue(5, generation=2)
+    assert store.saved == [(pair.refresh_token, 5, 2)]
 
 
 async def test_리프레시_토큰은_매번_다르다():

@@ -35,4 +35,4 @@ class RefreshTokenInteractor(RefreshTokenUseCase):
             raise InvalidRefreshTokenError("다시 로그인해 주세요.")
         if user.is_suspended:
             raise AccountSuspendedError("정지된 계정입니다.")
-        return await self._sessions.issue(user.id)
+        return await self._sessions.issue(user.id, lookup.generation)
