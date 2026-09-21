@@ -1,36 +1,50 @@
 """pytest 루트 설정 — 통합 테스트용 공용 픽스처."""
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
-TEST_DB = "chagocnote_test"
+# 마이그레이션이 넣은 시드(역할·권한)와 버전 표는 테스트 사이에 비우지 않는다.
+_KEEP_TABLES = {"alembic_version", "roles", "permissions", "role_permissions"}
+
+
+@pytest.fixture(scope="session")
+def migrated_test_db() -> str:
+    """별도 데이터베이스 chagocnote_test 를 alembic upgrade head 로 다시 만든다. 세션에 한 번."""
+    from scripts.prepare_test_db import TEST_DATABASE_URL
+
+    subprocess.run(
+        [sys.executable, "scripts/prepare_test_db.py"], check=True, cwd=Path(__file__).parent
+    )
+    return TEST_DATABASE_URL
 
 
 @pytest.fixture
-async def db_session():
-    """별도 데이터베이스 chagocnote_test 에 붙은 세션. 테스트마다 테이블을 새로 만든다."""
+async def db_engine(migrated_test_db):
+    """테스트 DB 에 붙은 엔진. 테스트마다 시드 표를 뺀 모든 표를 비운다."""
     from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.ext.asyncio import create_async_engine
 
-    import auth.adapter.outbound.orm.user_orm  # noqa: F401 — 메타데이터 등록
-    from core.config import DATABASE_URL
-    from core.database import Base
-
-    admin = create_async_engine(DATABASE_URL, isolation_level="AUTOCOMMIT")
-    async with admin.connect() as conn:
-        exists = (
-            await conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = :name"), {"name": TEST_DB}
-            )
-        ).scalar()
-        if not exists:
-            await conn.execute(text(f'CREATE DATABASE "{TEST_DB}"'))
-    await admin.dispose()
-
-    engine = create_async_engine(DATABASE_URL.rsplit("/", 1)[0] + "/" + TEST_DB)
+    engine = create_async_engine(migrated_test_db)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-    async with async_sessionmaker(engine, expire_on_commit=False, autoflush=False)() as session:
-        yield session
+        names = (
+            await conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))
+        ).scalars()
+        targets = [f'"{name}"' for name in names if name not in _KEEP_TABLES]
+        if targets:
+            await conn.execute(
+                text("TRUNCATE " + ", ".join(targets) + " RESTART IDENTITY CASCADE")
+            )
+    yield engine
     await engine.dispose()
+
+
+@pytest.fixture
+async def db_session(db_engine):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    async with async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)() as session:
+        yield session
