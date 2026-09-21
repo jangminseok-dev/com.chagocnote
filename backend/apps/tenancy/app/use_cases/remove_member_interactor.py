@@ -5,6 +5,7 @@ from tenancy.app.ports.input.remove_member_use_case import RemoveMemberUseCase
 from tenancy.app.ports.output.invite_repository import InviteRepository
 from tenancy.app.ports.output.member_repository import MemberRepository
 from tenancy.domain.errors import MemberNotFoundError
+from tenancy.domain.services.actor_guard import ensure_actor_unchanged
 from tenancy.domain.services.owner_guard import ensure_owner_remains
 from tenancy.domain.value_objects.role_code import RoleCode
 
@@ -19,6 +20,9 @@ class RemoveMemberInteractor(RemoveMemberUseCase):
     async def remove(self, command: RemoveMemberCommand) -> None:
         # 대상을 읽기 전에 매장 단위로 직렬화한다. 낡은 역할로 마지막 사장을 내보내지 않게 한다.
         await self._members.lock_membership_changes(command.ctx.shop_id)
+        # 권한 확인과 행위 사이에 행위자가 내보내지거나 낮춰졌을 수 있다. 잠근 뒤에 다시 읽는다.
+        actor = await self._members.get_active(command.ctx, command.ctx.member_id)
+        ensure_actor_unchanged(actor, command.ctx.role)
         target = await self._members.get_active(command.ctx, command.member_id)
         if target is None:
             raise MemberNotFoundError("멤버를 찾을 수 없습니다.")
