@@ -12,4 +12,8 @@ def new_refresh_token(user_id: int) -> str:
 
 def refresh_token_user_id(token: str) -> int | None:
     head, dot, _ = token.partition(".")
-    return int(head) if dot and head.isascii() and head.isdigit() else None
+    # 유저 ID 는 DB 의 정수 PK 라 19자리(64비트 부호 있는 정수 최대치)를 넘지 않는다.
+    # 공격자가 아주 긴 숫자열을 보내면 int() 가 ValueError 를 낸다(3.11+ 는 4300자리로 제한).
+    if not (dot and head.isascii() and 1 <= len(head) <= 19 and head.isdigit()):
+        return None
+    return int(head)

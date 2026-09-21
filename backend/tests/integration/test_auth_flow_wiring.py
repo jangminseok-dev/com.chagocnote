@@ -55,6 +55,15 @@ async def test_모르는_리프레시_토큰은_401_이다(wired):
     assert (response.status_code, response.json()["code"]) == (401, "UNAUTHENTICATED")
 
 
+async def test_아주_긴_숫자_접두사의_리프레시_토큰은_401_이다(wired):
+    huge = "1" * 5000 + ".abc"
+    refreshed = await _refresh(wired, huge)
+    assert (refreshed.status_code, refreshed.json()["code"]) == (401, "UNAUTHENTICATED")
+    # 로그아웃은 토큰을 파싱하지 않고 해시만 쓰므로 그대로 통과한다.
+    logout = await wired.auth.post("/v1/auth/logout", json={"refresh_token": huge})
+    assert logout.status_code == 204
+
+
 async def test_정지된_유저는_갱신도_내_정보도_403_이다(wired):
     login = await wired.login("정지될유저")
     await wired.execute("UPDATE users SET suspended_at = now() WHERE id = :id", id=login["user_id"])

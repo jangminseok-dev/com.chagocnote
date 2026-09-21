@@ -13,5 +13,14 @@ def test_토큰에서_유저_ID_를_읽는다():
 
 
 def test_모양이_다른_토큰은_None_이다():
-    for token in ("", "no-dot", ".abc", "abc.def", "-1.abc", "７.abc"):
+    for token in (
+        "",
+        "no-dot",
+        ".abc",
+        "abc.def",
+        "-1.abc",
+        "７.abc",
+        "1" * 5000 + ".abc",
+        "1" * 20 + ".abc",
+    ):
         assert refresh_token_user_id(token) is None
