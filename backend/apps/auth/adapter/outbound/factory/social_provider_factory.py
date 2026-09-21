@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -26,7 +26,7 @@ class AppleSettings:
     bundle_id: str
     team_id: str
     key_id: str
-    private_key_pem: str
+    private_key_pem: str = field(repr=False)   # 원문이 로그·예외 메시지에 찍히지 않게 막는다
 
 
 class SocialProviderFactory(SocialProviderResolverPort):

@@ -1,5 +1,6 @@
 import pytest
 
+from auth.adapter.outbound.factory.social_provider_factory import AppleSettings
 from auth.app.dtos.link_identity_dto import LinkIdentityCommand
 from auth.app.dtos.logout_dto import LogoutCommand
 from auth.app.dtos.refresh_token_dto import RefreshTokenCommand
@@ -49,6 +50,12 @@ _CARRIERS = [
     ("RefreshTokenCommand", lambda: RefreshTokenCommand(refresh_token=SECRET)),
     ("LogoutCommand", lambda: LogoutCommand(refresh_token=SECRET)),
     ("IdentityRevocation", lambda: IdentityRevocation(Provider.APPLE, "apple-1", SECRET)),
+    (
+        "AppleSettings",
+        lambda: AppleSettings(
+            bundle_id="com.example.app", team_id="TEAM1234", key_id="KEY1", private_key_pem=SECRET
+        ),
+    ),
 ]
 
 
