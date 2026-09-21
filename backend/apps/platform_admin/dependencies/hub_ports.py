@@ -5,7 +5,12 @@
 from __future__ import annotations
 
 from hub.app.ports.operator_directory_port import OperatorDirectoryPort
+from hub.app.ports.shop_provisioning_port import ShopProvisioningPort
 
 
 def get_operator_directory() -> OperatorDirectoryPort:
     raise RuntimeError("OperatorDirectoryPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
+
+
+def get_shop_provisioning() -> ShopProvisioningPort:
+    raise RuntimeError("ShopProvisioningPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
