@@ -133,9 +133,9 @@ cd ../app && flutter analyze && flutter test
 ### 3.3 비밀값
 
 - `.env`는 실제 값을 담고 git에서 제외한다. `.env.example`에는 키 이름만 등록한다.
-- `.env.auth`는 JWT 개인키(`JWT_PRIVATE_KEY_B64`) 전용이다. 자동으로 로드되지 않으며, `load_auth_env()`를 명시적으로 호출한 프로세스(`auth_main.py`, `conftest.py`)만 읽는다.
+- `.env.auth`는 JWT 개인키(`JWT_PRIVATE_KEY_B64`) 전용이다. 자동으로 로드되지 않으며, `load_auth_env()`를 명시적으로 호출한 프로세스(`auth_main.py`)만 읽는다.
 - `load_dotenv`는 `core/singleton/secret_manager.py` 한 곳에서만 호출한다. redoceanmap의 `core/key/`에 해당하는 자리이며, 4.3절의 작명 규칙에 따라 폴더 이름이 바뀌었다. 런타임 코드는 `core/config.py`의 상수만 쓴다. 스크립트와 엔트리포인트는 `get_secret_manager()`를 쓴다.
-- ①에서 필요한 키: `DATABASE_URL`, `REDIS_URL`, `JWT_PUBLIC_KEY_B64`, `JWT_PRIVATE_KEY_B64`, `KAKAO_REST_API_KEY`, `KAKAO_ADMIN_KEY`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY_B64`, `APPLE_BUNDLE_ID`, `GOOGLE_CLIENT_ID_IOS`, `GOOGLE_CLIENT_ID_ANDROID`, `IDENTITY_TOKEN_ENC_KEY`(Apple 리프레시 토큰 암호화용), `S3_*`(minio).
+- ①에서 필요한 키: `DATABASE_URL`, `REDIS_URL`, `JWT_PUBLIC_KEY_B64`, `JWT_PRIVATE_KEY_B64`, `KAKAO_APP_ID`(카카오 토큰이 우리 앱에서 발급됐는지 확인한다), `KAKAO_REST_API_KEY`, `KAKAO_ADMIN_KEY`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY_B64`, `APPLE_BUNDLE_ID`, `GOOGLE_CLIENT_ID_IOS`, `GOOGLE_CLIENT_ID_ANDROID`, `IDENTITY_TOKEN_ENC_KEY`(Apple 리프레시 토큰 암호화용), `S3_*`(minio).
 
 ### 3.4 작업 규칙
 
@@ -182,7 +182,7 @@ cd ../app && flutter analyze && flutter test
 | 위치 | 패턴 | 내용 |
 |---|---|---|
 | `auth/adapter/outbound/strategy/` | Strategy | 카카오·Apple·구글별 `SocialProviderPort` 구현 3개 |
-| `auth/adapter/outbound/factory/` | Factory Method | 제공자 이름으로 알맞은 구현을 골라 돌려준다 |
+| `auth/adapter/outbound/factory/` | Factory | 설정에 따라 제공자 구현을 만들어 담아 두고 이름으로 골라 준다 |
 | `core/singleton/` | Singleton | 비밀값 관리자처럼 프로세스에 하나만 있는 객체 |
 | `app/lib/core/proxy/` | Proxy | 토큰을 붙이고 401이면 갱신 후 재시도하는 API 클라이언트 |
 | `app/lib/design/bridge/` | Bridge | 글래스 구현을 교체하는 지점 |
@@ -196,6 +196,8 @@ cd ../app && flutter analyze && flutter test
 | `auth` | 플랫폼 | 유저, 소셜 신원, 플랫폼 운영자, 리프레시 토큰(Redis) | `myself`, `social_login`, `refresh_token`, `logout`, `get_me`, `link_identity`, `unlink_identity`, `withdraw` |
 | `tenancy` | 플랫폼 | 매장, 역할·권한, 소속, 초대 | `myself`, `create_invite`, `accept_invite`, `list_members`, `change_member_role`, `remove_member`, `get_shop`, `update_shop` |
 | `platform_admin` | 플랫폼 | 없음 (허브 포트만 소비) | `myself`, `create_shop` |
+
+허브 포트를 구현하는 쪽은 HTTP 표면이 없는 슬라이스를 하나씩 더 가진다. tenancy는 `resolve_shop_access`·`provision_shop`·`list_memberships`, auth는 `check_operator`·`get_user_profiles`다. auth의 `grant_operator`도 HTTP 표면이 없고 `scripts/grant_operator.py`가 부른다. 직원용 초대의 역할은 언제나 직원이며, 사장을 늘리려면 합류한 뒤 역할을 바꾼다. 매장 정보 수정은 폼 전체를 보내는 `PUT`이다.
 
 ### 4.5 API 표면
 
@@ -228,7 +230,7 @@ cd ../app && flutter analyze && flutter test
 
 auth와 backend는 별개 프로세스지만 같은 코드베이스와 같은 DB를 쓴다. 각 프로세스는 자기가 쓰는 허브 포트의 구현체를 프로바이더로 주입받는다.
 
-권한 검사는 `require_permission("member:manage")` 형태의 FastAPI 의존성으로 만들고, 안에서 `ShopAccessPort`를 호출한다.
+권한 검사는 `require_permission("member:manage")` 형태의 FastAPI 의존성으로 만들고, 안에서 `ShopAccessPort`를 호출한다. 모든 매장 범위 스포크가 함께 쓰므로 `core/shop_guard.py`에 둔다. 허브 포트의 구현은 진입점이 소비하는 쪽의 자리에 꽂는다(`_docs/decisions/002-hub-port-assembly.md`).
 
 ### 4.7 import-linter 계약 5종
 
@@ -429,7 +431,7 @@ app/
 ## 7. 오류 처리
 
 - 서버 오류 응답은 `{ "code": "INVITE_EXPIRED", "message": "…" }` 형태로 통일한다. 앱은 `code`를 보고 `core/error/`에서 한국어 문구로 바꾼다.
-- 주요 코드: `UNAUTHENTICATED`(401), `LAST_OWNER`(409), `NOT_A_MEMBER`·`PERMISSION_DENIED`·`ACCOUNT_SUSPENDED`·`SHOP_CLOSED`(403), `INVITE_INVALID`·`INVITE_EXPIRED`·`INVITE_EXHAUSTED`(400), `IDENTITY_ALREADY_LINKED`·`LAST_IDENTITY`·`OWNERSHIP_TRANSFER_REQUIRED`·`SHOP_CLOSE_CONFIRM_REQUIRED`(409), `TOO_MANY_ATTEMPTS`(429), `PROVIDER_VERIFICATION_FAILED`(401).
+- 주요 코드: `UNAUTHENTICATED`(401), `LAST_OWNER`·`ALREADY_A_MEMBER`(409), `NOT_A_MEMBER`·`PERMISSION_DENIED`·`ACCOUNT_SUSPENDED`·`SHOP_CLOSED`·`SHOP_SUSPENDED`(403), `MEMBER_NOT_FOUND`(404), `INVITE_INVALID`·`INVITE_EXPIRED`·`INVITE_EXHAUSTED`(400), `IDENTITY_ALREADY_LINKED`·`LAST_IDENTITY`·`OWNERSHIP_TRANSFER_REQUIRED`·`SHOP_CLOSE_CONFIRM_REQUIRED`(409), `TOO_MANY_ATTEMPTS`(429), `PROVIDER_VERIFICATION_FAILED`(401).
 - 도메인 규칙 위반은 도메인 예외로 던지고, 라우터 계층의 예외 핸들러 한 곳에서 HTTP 응답으로 바꾼다. 유스케이스는 HTTP를 모른다.
 - 앱은 리프레시에 실패하면 저장된 토큰을 지우고 로그인 화면으로 보낸다. 네트워크 오류는 다시 시도 버튼이 있는 안내로 보여준다.
 - 일어날 수 없는 상황에 대한 방어 코드는 넣지 않는다.

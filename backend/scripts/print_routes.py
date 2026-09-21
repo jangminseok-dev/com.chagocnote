@@ -30,7 +30,7 @@ def run() -> None:
     for process, method, path, name in collect_routes(
         {"auth": auth_main.app, "backend": api_main.app}
     ):
-        print(f"{process:8} {method:7} {path:28} {name}")
+        print(f"{process:8} {method:7} {path:44} {name}")
 
 
 if __name__ == "__main__":

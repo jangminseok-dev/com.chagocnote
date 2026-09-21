@@ -21,6 +21,8 @@
 
 - **Hiss Haus는 플랫폼 이름이 아니라 첫 입점 매장 이름이다.** 코드·패키지명·문서에서 플랫폼 이름으로 쓰지 않는다.
 - 스포크끼리 직접 import하지 않는다. 교차 협력은 `apps/hub`의 포트를 거친다. 허브는 스포크를 모른다.
+- 스포크의 `dependencies/`도 다른 스포크를 import하지 않는다. 다른 스포크가 구현한 허브 포트는 `dependencies/hub_ports.py`의 자리로 받고, `main.py`가 구현을 꽂는다.
+- 매장 범위의 경로는 `core/shop_guard.py`의 `get_shop_context` 또는 `require_permission`으로 `ShopContext`를 받는다. 매장 범위의 리포지토리 메서드는 `ShopContext`를 첫 인자로 받는다.
 - JWT 개인키는 인증 프로세스(`auth_main.py`)만 가진다. `core/auth_config.py`를 API 프로세스 경로에서 import하지 않는다.
 - `load_dotenv`·`os.getenv`·`os.environ`은 `core/singleton/secret_manager.py`에서만 쓴다.
 - 비밀값을 로그·커밋·문서에 남기지 않는다. `.env*` 파일 내용을 그대로 출력하지 않는다.
@@ -36,3 +38,4 @@
     docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m integration
     docker compose run --rm --no-deps backend lint-imports --config .importlinter
     docker compose run --rm --no-deps auth python scripts/print_routes.py      # 개인키가 필요해서 auth 서비스에서 돌린다
+    docker compose run --rm backend python scripts/grant_operator.py <user_id>   # 플랫폼 운영자 지정 (user_id 는 GET /v1/me 의 id)
