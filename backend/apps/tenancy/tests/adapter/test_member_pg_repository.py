@@ -1,0 +1,109 @@
+import pytest
+from sqlalchemy import text
+
+from hub.app.dtos.shop_context import ShopContext
+from tenancy.adapter.outbound.pg.member_pg_repository import MemberPgRepository
+from tenancy.adapter.outbound.pg.shop_pg_repository import ShopPgRepository
+from tenancy.domain.errors import AlreadyMemberError
+from tenancy.domain.value_objects.role_code import RoleCode
+
+pytestmark = pytest.mark.integration
+
+
+def _ctx(shop_id):
+    return ShopContext(shop_id=shop_id, member_id=0, role="owner", permissions=frozenset())
+
+
+async def _shop(session, name="Hiss Haus"):
+    return await ShopPgRepository(session).create(name, "pet_grooming")
+
+
+async def test_사장의_접근_기록에는_모든_권한이_있다(db_session):
+    shop = await _shop(db_session)
+    repo = MemberPgRepository(db_session)
+    member = await repo.add(shop.id, user_id=7, role=RoleCode.OWNER)
+    record = await repo.find_access(shop.id, user_id=7)
+    assert (record.member_id, record.role) == (member.id, "owner")
+    assert {"member:manage", "shop:update", "sales:read"} <= record.permissions
+    assert (record.shop_suspended, record.shop_closed) == (False, False)
+
+
+async def test_직원의_접근_기록에는_입력_권한만_있다(db_session):
+    shop = await _shop(db_session)
+    repo = MemberPgRepository(db_session)
+    await repo.add(shop.id, user_id=8, role=RoleCode.STAFF)
+    record = await repo.find_access(shop.id, user_id=8)
+    assert record.permissions == {"reservation:write", "customer:write", "record:write", "sales:write"}
+
+
+async def test_멤버가_아니면_접근_기록이_없다(db_session):
+    shop = await _shop(db_session)
+    assert await MemberPgRepository(db_session).find_access(shop.id, user_id=404) is None
+
+
+async def test_닫히거나_정지된_매장은_접근_기록에_표시된다(db_session):
+    shop = await _shop(db_session)
+    repo = MemberPgRepository(db_session)
+    await repo.add(shop.id, user_id=7, role=RoleCode.OWNER)
+    await db_session.execute(
+        text("UPDATE shops SET closed_at = now(), suspended_at = now() WHERE id = :id"), {"id": shop.id}
+    )
+    record = await repo.find_access(shop.id, user_id=7)
+    assert (record.shop_suspended, record.shop_closed) == (True, True)
+
+
+async def test_같은_매장에_두_번_합류할_수_없다(db_session):
+    shop = await _shop(db_session)
+    repo = MemberPgRepository(db_session)
+    await repo.add(shop.id, user_id=7, role=RoleCode.STAFF)
+    with pytest.raises(AlreadyMemberError):
+        await repo.add(shop.id, user_id=7, role=RoleCode.STAFF)
+    # 실패한 뒤에도 세션을 계속 쓸 수 있어야 한다.
+    assert len(await repo.list_active(_ctx(shop.id))) == 1
+
+
+async def test_내보낸_멤버는_접근할_수_없고_다시_합류할_수_있다(db_session):
+    shop = await _shop(db_session)
+    repo = MemberPgRepository(db_session)
+    member = await repo.add(shop.id, user_id=7, role=RoleCode.STAFF)
+    await repo.remove(_ctx(shop.id), member.id)
+    assert await repo.find_access(shop.id, user_id=7) is None
+    assert await repo.list_active(_ctx(shop.id)) == []
+    rejoined = await repo.add(shop.id, user_id=7, role=RoleCode.STAFF)
+    assert rejoined.id != member.id
+
+
+async def test_멤버_목록과_단건_조회는_컨텍스트의_매장만_본다(db_session):
+    a, b = await _shop(db_session, "A 매장"), await _shop(db_session, "B 매장")
+    repo = MemberPgRepository(db_session)
+    a_owner = await repo.add(a.id, user_id=1, role=RoleCode.OWNER)
+    a_staff = await repo.add(a.id, user_id=2, role=RoleCode.STAFF)
+    b_owner = await repo.add(b.id, user_id=3, role=RoleCode.OWNER)
+
+    assert [m.id for m in await repo.list_active(_ctx(a.id))] == [a_owner.id, a_staff.id]
+    assert (await repo.get_active(_ctx(a.id), a_staff.id)).role is RoleCode.STAFF
+    # B 매장의 멤버 ID 를 A 매장의 컨텍스트로는 읽을 수 없다.
+    assert await repo.get_active(_ctx(a.id), b_owner.id) is None
+
+
+async def test_역할_변경과_내보내기는_컨텍스트의_매장만_건드린다(db_session):
+    a, b = await _shop(db_session, "A 매장"), await _shop(db_session, "B 매장")
+    repo = MemberPgRepository(db_session)
+    b_staff = await repo.add(b.id, user_id=3, role=RoleCode.STAFF)
+
+    await repo.change_role(_ctx(a.id), b_staff.id, RoleCode.OWNER)
+    await repo.remove(_ctx(a.id), b_staff.id)
+    assert (await repo.get_active(_ctx(b.id), b_staff.id)).role is RoleCode.STAFF
+
+    await repo.change_role(_ctx(b.id), b_staff.id, RoleCode.OWNER)
+    assert (await repo.get_active(_ctx(b.id), b_staff.id)).role is RoleCode.OWNER
+
+
+async def test_사장_수를_센다(db_session):
+    shop = await _shop(db_session)
+    repo = MemberPgRepository(db_session)
+    await repo.add(shop.id, user_id=1, role=RoleCode.OWNER)
+    await repo.add(shop.id, user_id=2, role=RoleCode.STAFF)
+    removed_owner = await repo.add(shop.id, user_id=3, role=RoleCode.OWNER)
+    await repo.remove(_ctx(shop.id), removed_owner.id)
+    assert await repo.count_owners(_ctx(shop.id)) == 1
