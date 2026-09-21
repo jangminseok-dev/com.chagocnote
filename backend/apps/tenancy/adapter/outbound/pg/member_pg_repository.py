@@ -80,6 +80,21 @@ class MemberPgRepository(MemberRepository):
             for shop_id, name, role in (await self._session.execute(stmt)).all()
         ]
 
+    async def list_active_for_user(self, user_id: int) -> list[Member]:
+        stmt = (
+            select(ShopMemberOrm, RoleOrm.code)
+            .join(RoleOrm, RoleOrm.id == ShopMemberOrm.role_id)
+            .where(ShopMemberOrm.user_id == user_id, ShopMemberOrm.removed_at.is_(None))
+            .order_by(ShopMemberOrm.shop_id)
+        )
+        return [to_member(m, code) for m, code in (await self._session.execute(stmt)).all()]
+
+    async def count_active(self, ctx: ShopContext) -> int:
+        stmt = select(func.count()).select_from(ShopMemberOrm).where(
+            ShopMemberOrm.shop_id == ctx.shop_id, ShopMemberOrm.removed_at.is_(None)
+        )
+        return (await self._session.execute(stmt)).scalar_one()
+
     async def add(self, shop_id: int, user_id: int, role: RoleCode) -> Member:
         row = ShopMemberOrm(shop_id=shop_id, user_id=user_id, role_id=await self._role_id(role))
         try:

@@ -46,3 +46,14 @@ class MemberRepository(ABC):
     @abstractmethod
     async def list_for_user(self, user_id: int) -> list[MembershipSummary]:
         """유저 기준 조회라 매장 컨텍스트가 없다. 내보내진 소속과 닫힌 매장은 뺀다."""
+
+    @abstractmethod
+    async def list_active_for_user(self, user_id: int) -> list[Member]:
+        """탈퇴용. 유저가 지금 속해 있는 모든 소속을 매장 ID 오름차순으로 돌려준다 (닫힌 매장 포함).
+
+        순서가 곧 잠금 순서다. 두 유저의 탈퇴가 서로 다른 순서로 매장을 잠그면 교착한다.
+        """
+
+    @abstractmethod
+    async def count_active(self, ctx: ShopContext) -> int:
+        """지금 속해 있는 멤버 수. lock_membership_changes 뒤에 부른다."""

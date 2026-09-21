@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hub.app.dtos.shop_context import ShopContext
@@ -34,6 +34,11 @@ class ShopPgRepository(ShopRepository):
         row.name, row.phone, row.address = name, phone, address
         await self._session.flush()
         return to_shop(row)
+
+    async def close(self, ctx: ShopContext) -> None:
+        await self._session.execute(
+            update(ShopOrm).where(ShopOrm.id == ctx.shop_id).values(closed_at=func.now())
+        )
 
     async def _row(self, shop_id: int) -> ShopOrm:
         return (

@@ -38,3 +38,12 @@ async def test_수정은_컨텍스트의_매장만_건드린다(db_session):
     b = await repo.create("B 매장", "pet_grooming")
     await repo.update(_ctx(a.id), "A 새 이름", None, None)
     assert (await repo.get_by_id(b.id)).name == "B 매장"
+
+
+async def test_매장을_닫으면_컨텍스트의_매장에만_닫은_시각이_남는다(db_session):
+    repo = ShopPgRepository(db_session)
+    a = await repo.create("A 매장", "pet_grooming")
+    b = await repo.create("B 매장", "pet_grooming")
+    await repo.close(_ctx(a.id))
+    assert (await repo.get_by_id(a.id)).is_closed is True
+    assert (await repo.get_by_id(b.id)).is_closed is False

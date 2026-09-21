@@ -21,3 +21,7 @@ class ShopRepository(ABC):
     async def update(
         self, ctx: ShopContext, name: str, phone: str | None, address: str | None
     ) -> Shop: ...
+
+    @abstractmethod
+    async def close(self, ctx: ShopContext) -> None:
+        """닫은 시각을 남긴다. 닫힌 매장은 소속 확인에서 SHOP_CLOSED 로 막힌다. 데이터는 지우지 않는다."""

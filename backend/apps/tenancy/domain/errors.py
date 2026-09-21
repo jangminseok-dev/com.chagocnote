@@ -42,3 +42,11 @@ class InviteExhaustedError(TenancyError):
 
 class TooManyAttemptsError(TenancyError):
     code = "TOO_MANY_ATTEMPTS"
+
+
+class OwnershipTransferRequiredError(TenancyError):
+    code = "OWNERSHIP_TRANSFER_REQUIRED"
+
+
+class ShopCloseConfirmRequiredError(TenancyError):
+    code = "SHOP_CLOSE_CONFIRM_REQUIRED"

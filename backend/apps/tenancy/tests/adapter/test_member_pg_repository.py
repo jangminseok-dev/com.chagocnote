@@ -182,3 +182,34 @@ async def test_내보내진_소속과_닫힌_매장은_목록에서_빠진다(db
     await db_session.execute(text("UPDATE shops SET closed_at = now() WHERE id = :id"), {"id": b.id})
     await repo.add(c.id, user_id=7, role=RoleCode.STAFF)
     assert [m.shop_id for m in await repo.list_for_user(7)] == [c.id]
+
+
+async def test_유저의_소속을_매장_ID_순으로_돌려준다_닫힌_매장도_포함한다(db_session):
+    a = await _shop(db_session, "A 매장")
+    b = await _shop(db_session, "B 매장")
+    c = await _shop(db_session, "C 매장")
+    repo = MemberPgRepository(db_session)
+    in_c = await repo.add(c.id, user_id=7, role=RoleCode.STAFF)
+    in_a = await repo.add(a.id, user_id=7, role=RoleCode.OWNER)
+    removed = await repo.add(b.id, user_id=7, role=RoleCode.STAFF)
+    await repo.remove(_ctx(b.id), removed.id)
+    await db_session.execute(text("UPDATE shops SET closed_at = now() WHERE id = :id"), {"id": c.id})
+    await repo.add(a.id, user_id=8, role=RoleCode.STAFF)
+
+    memberships = await repo.list_active_for_user(7)
+    assert [(m.id, m.shop_id, m.role) for m in memberships] == [
+        (in_a.id, a.id, RoleCode.OWNER), (in_c.id, c.id, RoleCode.STAFF),
+    ]
+    assert await repo.list_active_for_user(404) == []
+
+
+async def test_지금_속해_있는_멤버_수를_센다(db_session):
+    shop = await _shop(db_session)
+    other = await _shop(db_session, "다른 매장")
+    repo = MemberPgRepository(db_session)
+    await repo.add(shop.id, user_id=1, role=RoleCode.OWNER)
+    await repo.add(shop.id, user_id=2, role=RoleCode.STAFF)
+    gone = await repo.add(shop.id, user_id=3, role=RoleCode.STAFF)
+    await repo.remove(_ctx(shop.id), gone.id)
+    await repo.add(other.id, user_id=4, role=RoleCode.OWNER)
+    assert await repo.count_active(_ctx(shop.id)) == 2
