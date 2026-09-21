@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,3 +63,9 @@ class UserPgRepository(UserRepository):
             .order_by(SocialIdentityOrm.id)
         )
         return [to_identity(r) for r in (await self._session.execute(stmt)).scalars()]
+
+    async def list_by_ids(self, user_ids: Sequence[int]) -> list[User]:
+        if not user_ids:
+            return []
+        stmt = select(UserOrm).where(UserOrm.id.in_(user_ids))
+        return [to_user(row) for row in (await self._session.execute(stmt)).scalars()]

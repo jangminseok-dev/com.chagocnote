@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 from auth.domain.entities.social_identity import SocialIdentity
 from auth.domain.entities.user import User
@@ -20,3 +21,6 @@ class UserRepository(ABC):
 
     @abstractmethod
     async def list_identities(self, user_id: int) -> list[SocialIdentity]: ...
+
+    @abstractmethod
+    async def list_by_ids(self, user_ids: Sequence[int]) -> list[User]: ...

@@ -62,3 +62,13 @@ async def test_제공자_리프레시_토큰은_암호화해서_저장한다(db_
         )
     ).scalar_one()
     assert stored and stored != "plain-token"
+
+
+async def test_여러_유저를_ID_로_한_번에_읽는다(db_session):
+    repo = _repo(db_session)
+    first = await repo.create_with_identity(_profile(provider_user_id="kakao-1", display_name="하나"))
+    second = await repo.create_with_identity(_profile(provider_user_id="kakao-2", display_name="둘"))
+    await repo.create_with_identity(_profile(provider_user_id="kakao-3", display_name="셋"))
+    users = await repo.list_by_ids([second.id, first.id])
+    assert sorted(u.display_name for u in users) == ["둘", "하나"]
+    assert await repo.list_by_ids([]) == []
