@@ -27,6 +27,8 @@ class SocialIdentityOrm(Base):
     __tablename__ = "social_identities"
     __table_args__ = (
         UniqueConstraint("provider", "provider_user_id", name="uq_social_identities_provider_user"),
+        # 한 유저는 제공자마다 신원을 하나만 가진다. DELETE /v1/auth/identities/{provider} 가 성립하려면 필요하다.
+        UniqueConstraint("user_id", "provider", name="uq_social_identities_user_provider"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

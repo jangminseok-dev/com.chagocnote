@@ -36,3 +36,15 @@ class ProviderRevokeError(AuthError):
     """제공자 쪽 연결을 끊지 못했다. HTTP 응답으로 나가지 않는다 — 부르는 쪽이 로그로 남긴다."""
 
     code = "PROVIDER_REVOKE_FAILED"
+
+
+class ProviderAlreadyLinkedError(AuthError):
+    code = "PROVIDER_ALREADY_LINKED"
+
+
+class LastIdentityError(AuthError):
+    code = "LAST_IDENTITY"
+
+
+class IdentityNotFoundError(AuthError):
+    code = "IDENTITY_NOT_FOUND"

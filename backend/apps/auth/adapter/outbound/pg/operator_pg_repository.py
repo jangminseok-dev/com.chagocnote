@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,4 +21,9 @@ class OperatorPgRepository(OperatorRepository):
             insert(PlatformOperatorOrm)
             .values(user_id=user_id)
             .on_conflict_do_nothing(index_elements=["user_id"])
+        )
+
+    async def revoke(self, user_id: int) -> None:
+        await self._session.execute(
+            delete(PlatformOperatorOrm).where(PlatformOperatorOrm.user_id == user_id)
         )

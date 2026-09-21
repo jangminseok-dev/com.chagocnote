@@ -2,7 +2,10 @@
 from auth.domain.errors import (
     AccountSuspendedError,
     IdentityAlreadyLinkedError,
+    IdentityNotFoundError,
     InvalidRefreshTokenError,
+    LastIdentityError,
+    ProviderAlreadyLinkedError,
     ProviderVerificationError,
     RefreshTokenReuseError,
     UnsupportedProviderError,
@@ -17,4 +20,7 @@ AUTH_ERROR_STATUS: dict[type[Exception], int] = {
     UserNotFoundError: 401,
     AccountSuspendedError: 403,
     IdentityAlreadyLinkedError: 409,
+    IdentityNotFoundError: 404,
+    ProviderAlreadyLinkedError: 409,
+    LastIdentityError: 409,
 }

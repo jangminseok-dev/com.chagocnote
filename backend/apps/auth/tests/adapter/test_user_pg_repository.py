@@ -1,10 +1,13 @@
+import asyncio
+
 import pytest
 from cryptography.fernet import Fernet
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from auth.adapter.outbound.gateways.fernet_cipher import FernetCipher
 from auth.adapter.outbound.pg.user_pg_repository import UserPgRepository
-from auth.domain.errors import IdentityAlreadyLinkedError
+from auth.domain.errors import IdentityAlreadyLinkedError, ProviderAlreadyLinkedError
 from auth.domain.value_objects.provider import Provider
 from auth.domain.value_objects.social_profile import SocialProfile
 
@@ -118,3 +121,96 @@ async def test_비어_있는_제공자_토큰만_채운다(db_session):
     assert filled and filled != "first-token"
     await repo.fill_provider_refresh_token(Provider.APPLE, "apple-9", "second-token")
     assert await stored() == filled
+
+
+async def test_로그인_수단을_더_붙이면_붙인_순서대로_나온다(db_session):
+    repo = _repo(db_session)
+    user = await repo.create_with_identity(_profile())
+    await repo.add_identity(user.id, _profile(provider=Provider.APPLE, provider_user_id="apple-1",
+                                              provider_refresh_token="apple-refresh"))
+    assert [i.provider for i in await repo.list_identities(user.id)] == [Provider.KAKAO, Provider.APPLE]
+    found = await repo.find_by_identity(Provider.APPLE, "apple-1")
+    assert found.id == user.id
+
+
+async def test_다른_유저의_신원은_붙일_수_없다(db_session):
+    """G3"""
+    repo = _repo(db_session)
+    await repo.create_with_identity(_profile(provider_user_id="kakao-owned"))
+    me = await repo.create_with_identity(_profile(provider=Provider.GOOGLE, provider_user_id="google-me"))
+    with pytest.raises(IdentityAlreadyLinkedError):
+        await repo.add_identity(me.id, _profile(provider_user_id="kakao-owned"))
+    assert [i.provider for i in await repo.list_identities(me.id)] == [Provider.GOOGLE]
+
+
+async def test_같은_제공자의_신원을_둘_붙일_수_없다(db_session):
+    """G4"""
+    repo = _repo(db_session)
+    me = await repo.create_with_identity(_profile(provider_user_id="kakao-first"))
+    with pytest.raises(ProviderAlreadyLinkedError):
+        await repo.add_identity(me.id, _profile(provider_user_id="kakao-second"))
+    assert len(await repo.list_identities(me.id)) == 1
+
+
+async def test_연결을_끊을_신원을_복호화한_토큰과_함께_돌려준다(db_session):
+    repo = _repo(db_session)
+    user = await repo.create_with_identity(_profile())
+    await repo.add_identity(user.id, _profile(provider=Provider.APPLE, provider_user_id="apple-1",
+                                              provider_refresh_token="apple-refresh"))
+    revocations = await repo.list_revocations(user.id)
+    assert [(r.provider, r.provider_user_id, r.provider_refresh_token) for r in revocations] == [
+        (Provider.KAKAO, "kakao-100", None), (Provider.APPLE, "apple-1", "apple-refresh"),
+    ]
+    assert "apple-refresh" not in repr(revocations[1])
+
+
+async def test_신원_하나를_지우면_그_수단으로는_찾을_수_없다(db_session):
+    repo = _repo(db_session)
+    user = await repo.create_with_identity(_profile())
+    await repo.add_identity(user.id, _profile(provider=Provider.GOOGLE, provider_user_id="google-1"))
+    await repo.delete_identity(user.id, Provider.KAKAO)
+    assert [i.provider for i in await repo.list_identities(user.id)] == [Provider.GOOGLE]
+    assert await repo.find_by_identity(Provider.KAKAO, "kakao-100") is None
+
+
+async def test_익명화하고_신원을_모두_지우면_같은_소셜_계정으로_새로_가입할_수_있다(db_session):
+    repo = _repo(db_session)
+    user = await repo.create_with_identity(_profile(profile_image_url="https://img/1.jpg"))
+    await db_session.execute(text("UPDATE users SET phone = '010-0000-0000' WHERE id = :id"), {"id": user.id})
+    await repo.anonymize(user.id)
+    await repo.delete_identities(user.id)
+
+    gone = await repo.lock(user.id)
+    assert (gone.display_name, gone.profile_image_url, gone.phone) == ("탈퇴한 사용자", None, None)
+    assert gone.is_deleted is True
+    assert await repo.list_identities(user.id) == []
+    again = await repo.create_with_identity(_profile())
+    assert again.id != user.id
+
+
+async def test_유저_행_잠금은_같은_유저의_다른_요청을_기다리게_한다(db_engine):
+    """G1·G2·H5 — 계정을 바꾸는 요청들이 유저 단위로 직렬화된다."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with factory() as setup:
+        user = await _repo(setup).create_with_identity(_profile())
+        other = await _repo(setup).create_with_identity(_profile(provider_user_id="kakao-other"))
+        await setup.commit()
+
+    async with factory() as one, factory() as two:
+        assert (await _repo(one).lock(user.id)).id == user.id
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(_repo(two).lock(user.id), timeout=0.5)
+        await two.rollback()
+        # 다른 유저는 막지 않는다.
+        assert (await asyncio.wait_for(_repo(two).lock(other.id), timeout=0.5)).id == other.id
+        await two.rollback()
+
+        await _repo(one).anonymize(user.id)
+        await one.commit()
+        # 기다리던 쪽은 잠금을 얻은 뒤 최신 값(탈퇴함)을 본다.
+        assert (await asyncio.wait_for(_repo(two).lock(user.id), timeout=0.5)).is_deleted is True
+        await two.rollback()
+
+
+async def test_없는_유저를_잠그면_None_이다(db_session):
+    assert await _repo(db_session).lock(999999) is None

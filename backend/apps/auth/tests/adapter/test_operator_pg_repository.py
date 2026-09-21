@@ -30,3 +30,12 @@ async def test_여러_번_지정해도_행은_하나다(db_session):
     await repo.grant(user_id)
     count = (await db_session.execute(text("SELECT count(*) FROM platform_operators"))).scalar_one()
     assert count == 1
+
+
+async def test_지정을_거두면_운영자가_아니다(db_session):
+    repo = OperatorPgRepository(db_session)
+    user_id = await _user_id(db_session)
+    await repo.grant(user_id)
+    await repo.revoke(user_id)
+    assert await repo.is_operator(user_id) is False
+    await repo.revoke(user_id)   # 여러 번 불러도 같다
