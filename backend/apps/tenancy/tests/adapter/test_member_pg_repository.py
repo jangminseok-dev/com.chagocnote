@@ -1,5 +1,8 @@
+import asyncio
+
 import pytest
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from hub.app.dtos.membership_summary import MembershipSummary
 from hub.app.dtos.shop_context import ShopContext
@@ -121,6 +124,44 @@ async def test_유저가_속한_매장을_매장_ID_순으로_돌려준다(db_se
         MembershipSummary(shop_id=b.id, shop_name="B 매장", role="staff"),
     ]
     assert await repo.list_for_user(404) == []
+
+
+async def _committed_shops(db_engine, *names):
+    """두 세션이 함께 볼 수 있도록 매장을 커밋해 둔다."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with factory() as session:
+        shops = [await ShopPgRepository(session).create(name, "pet_grooming") for name in names]
+        await session.commit()
+    return factory, [shop.id for shop in shops]
+
+
+async def _lock(session, shop_id):
+    await asyncio.wait_for(
+        MemberPgRepository(session).lock_membership_changes(_ctx(shop_id)), timeout=0.5
+    )
+
+
+async def test_같은_매장의_멤버십_변경은_매장_행_잠금으로_직렬화된다(db_engine):
+    factory, (shop_id,) = await _committed_shops(db_engine, "Hiss Haus")
+    async with factory() as one, factory() as two:
+        await _lock(one, shop_id)
+        # 세션 1 이 쥐고 있는 동안 세션 2 는 기다리다 제한 시간을 넘긴다.
+        with pytest.raises(TimeoutError):
+            await _lock(two, shop_id)
+        await two.rollback()
+
+        await one.commit()
+        await _lock(two, shop_id)  # 풀렸으니 이제 얻는다
+        await two.rollback()
+
+
+async def test_다른_매장의_잠금은_서로_막지_않는다(db_engine):
+    factory, (a_id, b_id) = await _committed_shops(db_engine, "A 매장", "B 매장")
+    async with factory() as one, factory() as two:
+        await _lock(one, a_id)
+        await _lock(two, b_id)
+        await one.rollback()
+        await two.rollback()
 
 
 async def test_내보내진_소속과_닫힌_매장은_목록에서_빠진다(db_session):

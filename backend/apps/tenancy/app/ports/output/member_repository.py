@@ -11,6 +11,14 @@ from tenancy.domain.value_objects.role_code import RoleCode
 
 class MemberRepository(ABC):
     @abstractmethod
+    async def lock_membership_changes(self, ctx: ShopContext) -> None:
+        """매장 행을 잠가 같은 매장의 역할 변경·내보내기·이후의 탈퇴를 직렬화한다.
+
+        마지막 사장 규칙을 지키려는 것이다. 읽고 잠그는 사이에 다른 요청이 사장 수를 바꾸면
+        낡은 값으로 판단하게 된다. 대상을 읽기 **전에** 부른다.
+        """
+
+    @abstractmethod
     async def find_access(self, shop_id: int, user_id: int) -> ShopAccessRecord | None:
         """지금 속해 있는 멤버만 찾는다. 내보낸 멤버는 None."""
 
@@ -26,7 +34,7 @@ class MemberRepository(ABC):
 
     @abstractmethod
     async def count_owners(self, ctx: ShopContext) -> int:
-        """사장 행을 잠그고 센다. 두 사장이 동시에 서로를 낮춰 사장이 0명이 되는 일을 막는다."""
+        """지금 살아 있는 사장 행을 잠그고 센다. lock_membership_changes 뒤에 부른다."""
 
     @abstractmethod
     async def change_role(self, ctx: ShopContext, member_id: int, role: RoleCode) -> None: ...

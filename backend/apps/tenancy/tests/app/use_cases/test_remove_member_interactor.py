@@ -18,8 +18,13 @@ class _StubMembers:
         self.target = target
         self.owner_count = owner_count
         self.removed = []
+        self.calls = []
+
+    async def lock_membership_changes(self, ctx):
+        self.calls.append("lock_membership_changes")
 
     async def get_active(self, ctx, member_id):
+        self.calls.append("get_active")
         return self.target
 
     async def count_owners(self, ctx):
@@ -46,6 +51,21 @@ async def test_직원을_내보내고_그가_만든_초대를_무효화한다():
     await RemoveMemberInteractor(members, invites).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
     assert members.removed == [(CTX, 12)]
     assert invites.revoked == [(CTX, 12)]
+
+
+async def test_대상을_읽기_전에_매장_행을_잠근다():
+    members, invites = _StubMembers(_member(RoleCode.STAFF)), _StubInvites()
+    await RemoveMemberInteractor(members, invites).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
+    assert members.calls[:2] == ["lock_membership_changes", "get_active"]
+
+
+async def test_없는_멤버여도_매장_행은_먼저_잠근다():
+    members = _StubMembers(None)
+    with pytest.raises(MemberNotFoundError):
+        await RemoveMemberInteractor(members, _StubInvites()).remove(
+            RemoveMemberCommand(ctx=CTX, member_id=99)
+        )
+    assert members.calls == ["lock_membership_changes", "get_active"]
 
 
 async def test_사장이_둘이면_한_명을_내보낼_수_있다():

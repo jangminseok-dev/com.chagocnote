@@ -25,6 +25,11 @@ class MemberPgRepository(MemberRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def lock_membership_changes(self, ctx: ShopContext) -> None:
+        await self._session.execute(
+            select(ShopOrm.id).where(ShopOrm.id == ctx.shop_id).with_for_update()
+        )
+
     async def find_access(self, shop_id: int, user_id: int) -> ShopAccessRecord | None:
         stmt = (
             select(

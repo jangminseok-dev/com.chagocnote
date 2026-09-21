@@ -19,8 +19,13 @@ class _StubMembers:
         self.owner_count = owner_count
         self.counted = 0
         self.changes = []
+        self.calls = []
+
+    async def lock_membership_changes(self, ctx):
+        self.calls.append("lock_membership_changes")
 
     async def get_active(self, ctx, member_id):
+        self.calls.append("get_active")
         return self.target
 
     async def count_owners(self, ctx):
@@ -54,6 +59,18 @@ async def test_직원을_사장으로_올릴_때는_사장_수를_세지_않고_
     assert members.counted == 0
     assert invites.revoked == []
     assert (result.member_id, result.user_id, result.role) == (12, 2, "owner")
+
+
+async def test_대상을_읽기_전에_매장_행을_잠근다():
+    members, invites = _StubMembers(_member(RoleCode.STAFF)), _StubInvites()
+    await ChangeMemberRoleInteractor(members, invites).change_role(_command("owner"))
+    assert members.calls[:2] == ["lock_membership_changes", "get_active"]
+
+
+async def test_같은_역할로_바꿔도_매장_행은_먼저_잠근다():
+    members, invites = _StubMembers(_member(RoleCode.STAFF)), _StubInvites()
+    await ChangeMemberRoleInteractor(members, invites).change_role(_command("staff"))
+    assert members.calls == ["lock_membership_changes", "get_active"]
 
 
 async def test_사장을_직원으로_낮추면_그가_만든_초대를_무효화한다():
