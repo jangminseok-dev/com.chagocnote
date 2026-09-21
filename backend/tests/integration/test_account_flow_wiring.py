@@ -54,6 +54,18 @@ async def _scalar(wired, sql, **params):
         return (await conn.execute(text(sql), params)).scalar()
 
 
+async def _assert_account_intact(wired, login, shops, identities):
+    """막힌 탈퇴가 아무것도 바꾸지 않았는지 본다 — 계정·소속·신원이 그대로이고 세션도 살아 있다.
+
+    갱신은 리프레시 토큰을 새 토큰으로 바꾸므로 요청 하나에 한 번만 부른다.
+    """
+    me = await _me(wired, login)
+    assert me.status_code == 200
+    assert me.json()["shops"] == shops
+    assert me.json()["identities"] == identities
+    assert (await _refresh(wired, login["refresh_token"])).status_code == 200
+
+
 async def test_수단을_붙이면_그_수단으로도_같은_계정에_로그인된다(wired, fake_kakao):
     login = await wired.login("두부보호자")
     linked = await _link_kakao(wired, login, "DubuKakao")
@@ -146,11 +158,11 @@ async def test_막힌_탈퇴는_아무것도_바꾸지_않는다(wired, fake_kak
     assert error_of(blocked) == (409, "OWNERSHIP_TRANSFER_REQUIRED")
     assert "Hiss Haus" in blocked.json()["message"]
 
-    me = await _me(wired, owner)
-    assert me.status_code == 200
-    assert me.json()["shops"] == [{"shop_id": shop_id, "shop_name": "Hiss Haus", "role": "owner"}]
-    assert me.json()["identities"] == ["dev"]
-    assert (await _refresh(wired, owner["refresh_token"])).status_code == 200
+    await _assert_account_intact(
+        wired, owner,
+        shops=[{"shop_id": shop_id, "shop_name": "Hiss Haus", "role": "owner"}],
+        identities=["dev"],
+    )
     assert fake_kakao.revoked == []
 
     # 사장 권한을 넘기면 풀린다.
@@ -172,6 +184,12 @@ async def test_혼자뿐인_매장은_확인을_받고_함께_닫는다(wired):
         blocked = await _withdraw(wired, owner, confirm=confirm)
         assert error_of(blocked) == (409, "SHOP_CLOSE_CONFIRM_REQUIRED")
     assert await _scalar(wired, "SELECT closed_at FROM shops WHERE id = :id", id=shop_id) is None
+    # H1 — 두 번 막힌 뒤에도 계정·소속·신원과 세션이 그대로다.
+    await _assert_account_intact(
+        wired, owner,
+        shops=[{"shop_id": shop_id, "shop_name": "Hiss Haus", "role": "owner"}],
+        identities=["dev"],
+    )
 
     assert (await _withdraw(wired, owner, confirm=True)).status_code == 204
     assert await _scalar(wired, "SELECT closed_at FROM shops WHERE id = :id", id=shop_id) is not None
@@ -218,7 +236,11 @@ async def test_탈퇴한_운영자의_지정은_남지_않는다(wired):
 
 
 async def test_같은_유저의_탈퇴가_동시에_와도_한_번만_처리된다(wired, fake_kakao):
-    """H5 — 둘째 요청은 잠금 뒤에 이미 탈퇴한 것을 보고 조용히 끝나거나, 인증 단계에서 401 을 받는다."""
+    """H5 — 둘째 요청은 잠금 뒤에 이미 탈퇴한 것을 보고 조용히 끝나거나, 인증 단계에서 401 을 받는다.
+
+    배선 확인용이다. DB 왕복이 너무 빨라 잠금을 빼도 대개 순차 실행처럼 끝나므로 판별력이 낮다 —
+    잠금 자체는 `test_withdraw_vs_withdraw_locking.py` 의 결정적 두 세션 테스트가 본다.
+    """
     login = await wired.login("두부보호자")
     assert (await _link_kakao(wired, login, "DubuKakao")).status_code == 200
     first, second = await asyncio.gather(_withdraw(wired, login), _withdraw(wired, login))
