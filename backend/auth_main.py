@@ -23,6 +23,7 @@ from auth.adapter.inbound.api.v1.link_identity_router import link_identity_route
 from auth.adapter.inbound.api.v1.logout_router import logout_router
 from auth.adapter.inbound.api.v1.refresh_token_router import refresh_token_router
 from auth.adapter.inbound.api.v1.social_login_router import social_login_router
+from auth.adapter.inbound.api.v1.unlink_identity_router import unlink_identity_router
 from core.http_errors import install_error_handlers
 
 
@@ -43,6 +44,7 @@ app.include_router(social_login_router)
 app.include_router(refresh_token_router)
 app.include_router(logout_router)
 app.include_router(link_identity_router)
+app.include_router(unlink_identity_router)
 install_error_handlers(app, AUTH_ERROR_STATUS)
 
 
