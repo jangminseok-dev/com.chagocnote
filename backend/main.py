@@ -24,9 +24,11 @@ from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
 from tenancy.adapter.inbound.api.v1.accept_invite_router import accept_invite_router
 from tenancy.adapter.inbound.api.v1.change_member_role_router import change_member_role_router
 from tenancy.adapter.inbound.api.v1.create_invite_router import create_invite_router
+from tenancy.adapter.inbound.api.v1.get_shop_router import get_shop_router
 from tenancy.adapter.inbound.api.v1.list_members_router import list_members_router
 from tenancy.adapter.inbound.api.v1.remove_member_router import remove_member_router
 from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
+from tenancy.adapter.inbound.api.v1.update_shop_router import update_shop_router
 from tenancy.dependencies.hub_ports import get_user_directory
 from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_case
 from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
@@ -50,6 +52,8 @@ app.include_router(create_invite_router)
 app.include_router(list_members_router)
 app.include_router(change_member_role_router)
 app.include_router(remove_member_router)
+app.include_router(get_shop_router)
+app.include_router(update_shop_router)
 app.include_router(platform_myself_router)
 app.include_router(create_shop_router)
 install_error_handlers(
