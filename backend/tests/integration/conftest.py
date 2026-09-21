@@ -10,7 +10,7 @@ from redis.asyncio import from_url
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from auth.tests.helpers.keys import make_rsa_keypair
-from tests.integration.support import Wired
+from tests.integration.support import FakeKakaoStrategy, Wired
 
 
 @pytest.fixture
@@ -55,3 +55,20 @@ async def wired(db_engine, monkeypatch):
         yield Wired(auth=auth, api=api, engine=db_engine)
     await redis.flushdb()
     await redis.aclose()
+
+
+@pytest.fixture
+async def fake_kakao(wired, monkeypatch):
+    """dev 와 가짜 카카오만 등록된 제공자 목록으로 바꾼다. 연결 끊기 호출이 fake.revoked 에 남는다."""
+    from auth.adapter.outbound.factory.social_provider_factory import SocialProviderFactory
+    from auth.adapter.outbound.strategy.dev_identity_strategy import DevIdentityStrategy
+    from auth.dependencies import auth_wiring
+    from auth.domain.value_objects.provider import Provider
+
+    fake = FakeKakaoStrategy()
+    monkeypatch.setattr(
+        auth_wiring,
+        "_resolver",
+        SocialProviderFactory({Provider.DEV: DevIdentityStrategy(), Provider.KAKAO: fake}),
+    )
+    return fake

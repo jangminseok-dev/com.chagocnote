@@ -1,46 +1,17 @@
 """매장 개설부터 내보내기까지, 그리고 매장 사이의 벽을 실제 배선으로 확인한다."""
 import pytest
 
-from tests.integration.support import bearer
+from tests.integration.support import (
+    accept_invite as _accept,
+    bearer,
+    error_of as _code,
+    make_operator as _operator,
+    open_shop as _open_shop,
+    shop_with_owner as _shop_with_owner,
+    staff_invite as _staff_invite,
+)
 
 pytestmark = pytest.mark.integration
-
-
-async def _operator(wired, name="운영자"):
-    login = await wired.login(name)
-    await wired.execute("INSERT INTO platform_operators (user_id) VALUES (:id)", id=login["user_id"])
-    return login
-
-
-async def _open_shop(wired, operator, name="Hiss Haus"):
-    response = await wired.api.post(
-        "/v1/platform/shops", json={"name": name}, headers=bearer(operator["access_token"])
-    )
-    assert response.status_code == 201, response.text
-    return response.json()
-
-
-async def _accept(wired, login, code):
-    return await wired.api.post(
-        "/v1/invites/accept", json={"code": code}, headers=bearer(login["access_token"])
-    )
-
-
-async def _shop_with_owner(wired, operator, shop_name, owner_name):
-    shop = await _open_shop(wired, operator, shop_name)
-    owner = await wired.login(owner_name)
-    assert (await _accept(wired, owner, shop["owner_invite_code"])).status_code == 200
-    return shop["shop_id"], owner
-
-
-async def _staff_invite(wired, shop_id, owner):
-    response = await wired.api.post(f"/v1/shops/{shop_id}/invites", headers=bearer(owner["access_token"]))
-    assert response.status_code == 201, response.text
-    return response.json()["code"]
-
-
-def _code(response):
-    return (response.status_code, response.json()["code"])
 
 
 async def test_매장_개설부터_내보내기까지_돈다(wired):
