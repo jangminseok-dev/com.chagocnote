@@ -74,3 +74,43 @@ async def test_재조회_함수가_없으면_캐시만_본다():
 
     with pytest.raises(ProviderVerificationError):
         await verify_with_jwks(_token(NEW_PEM, "new-kid"), fetch, ("issuer",), ("app",))
+
+
+async def test_제공자가_죽어_있으면_간격_안에서는_한_번만_두드린다():
+    """D1 — 제공자가 계속 실패해도 실패 기억(음성 캐시)이 있어 60초에 한 번만 두드린다."""
+    clock = {"t": 1000.0}
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(503)
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    fetch, refetch = http_jwks_fetchers(http, "https://provider.test/keys", now=lambda: clock["t"])
+    for _ in range(5):
+        with pytest.raises(ProviderVerificationError):
+            await verify_with_jwks(_token(OLD_PEM, "old-kid"), fetch, ("issuer",), ("app",), refetch)
+    assert len(calls) == 1
+    clock["t"] += 61
+    with pytest.raises(ProviderVerificationError):
+        await verify_with_jwks(_token(OLD_PEM, "old-kid"), fetch, ("issuer",), ("app",), refetch)
+    assert len(calls) == 2
+
+
+async def test_제공자가_살아나면_다시_검증된다():
+    clock = {"t": 1000.0}
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if len(calls) == 1:
+            return httpx.Response(503)
+        return httpx.Response(200, json={"keys": [OLD_JWK]})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    fetch, refetch = http_jwks_fetchers(http, "https://provider.test/keys", now=lambda: clock["t"])
+    with pytest.raises(ProviderVerificationError):
+        await verify_with_jwks(_token(OLD_PEM, "old-kid"), fetch, ("issuer",), ("app",), refetch)
+    clock["t"] += 61
+    claims = await verify_with_jwks(_token(OLD_PEM, "old-kid"), fetch, ("issuer",), ("app",), refetch)
+    assert claims["sub"] == "user-1"

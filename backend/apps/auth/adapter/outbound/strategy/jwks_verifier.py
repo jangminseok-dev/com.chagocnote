@@ -49,17 +49,22 @@ def http_jwks_fetchers(
     """(캐시를 쓰는 조회, 강제 재조회)를 돌려준다. 둘은 같은 캐시를 본다.
 
     강제 재조회는 min_refetch_seconds 에 한 번만 제공자를 부른다. 모르는 kid 를 쏟아붓는 요청이
-    제공자를 계속 두드리게 하지 않으려는 것이다.
+    제공자를 계속 두드리게 하지 않으려는 것이다. 실패도 같은 간격만큼 기억한다(음성 캐시) — 그렇지
+    않으면 제공자가 죽어 있는 동안은 매 요청이 다시 시도해 같은 문제가 생긴다.
     """
-    cache: dict = {"at": 0.0, "value": None}
+    cache: dict = {"at": 0.0, "value": None, "failed_at": None}
 
     async def _load() -> dict:
+        if cache["failed_at"] is not None and now() - cache["failed_at"] < min_refetch_seconds:
+            raise ProviderVerificationError("제공자의 공개키를 가져올 수 없습니다.")
         try:
             response = await http.get(url)
             response.raise_for_status()
         except httpx.HTTPError as exc:
+            cache["failed_at"] = now()
             raise ProviderVerificationError("제공자의 공개키를 가져올 수 없습니다.") from exc
         cache["value"], cache["at"] = response.json(), now()
+        cache["failed_at"] = None
         return cache["value"]
 
     async def fetch() -> dict:
