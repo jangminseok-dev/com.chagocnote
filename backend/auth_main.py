@@ -1,4 +1,7 @@
-"""인증 프로세스 — JWT 개인키를 가진 유일한 프로세스. /v1/auth/* 만 맡는다."""
+"""인증 프로세스 — JWT 개인키를 가진 유일한 프로세스. /v1/auth/* 만 맡는다.
+
+회원 탈퇴가 소속을 정리해야 해서 tenancy 의 MembershipLifecyclePort 구현을 여기서 꽂는다.
+"""
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -24,7 +27,11 @@ from auth.adapter.inbound.api.v1.logout_router import logout_router
 from auth.adapter.inbound.api.v1.refresh_token_router import refresh_token_router
 from auth.adapter.inbound.api.v1.social_login_router import social_login_router
 from auth.adapter.inbound.api.v1.unlink_identity_router import unlink_identity_router
+from auth.adapter.inbound.api.v1.withdraw_router import withdraw_router
+from auth.dependencies.hub_ports import get_membership_lifecycle
 from core.http_errors import install_error_handlers
+from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
+from tenancy.dependencies.apply_withdrawal_provider import get_apply_withdrawal_use_case
 
 
 @asynccontextmanager
@@ -45,7 +52,12 @@ app.include_router(refresh_token_router)
 app.include_router(logout_router)
 app.include_router(link_identity_router)
 app.include_router(unlink_identity_router)
-install_error_handlers(app, AUTH_ERROR_STATUS)
+app.include_router(withdraw_router)
+# 탈퇴가 tenancy 의 소속 정리를 부른다. 그쪽 도메인 오류(409)도 이 프로세스에서 HTTP 로 바뀌어야 한다.
+install_error_handlers(app, {**AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS})
+
+# 허브 포트 조립 — 스포크끼리는 서로를 모른다. 소비하는 쪽의 "자리"에 구현하는 쪽의 프로바이더를 꽂는다.
+app.dependency_overrides[get_membership_lifecycle] = get_apply_withdrawal_use_case
 
 
 @app.get("/v1/auth/health")
