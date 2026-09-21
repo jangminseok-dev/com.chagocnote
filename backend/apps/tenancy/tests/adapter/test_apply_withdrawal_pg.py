@@ -45,6 +45,8 @@ async def test_막힌_탈퇴는_앞서_처리한_매장도_되돌린다(db_engin
     async with factory() as session:
         with pytest.raises(OwnershipTransferRequiredError):
             await _interactor(session).apply_withdrawal(7, close_sole_owned=True)
+        # 막히기 전에 첫 매장은 이미 처리됐다. 그래서 아래의 롤백이 의미가 있다.
+        assert await _active_user_ids(session, first.id) == [1]
         await session.rollback()   # 요청의 get_db 가 예외에서 하는 일
 
     async with factory() as check:
