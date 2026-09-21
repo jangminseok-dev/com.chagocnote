@@ -7,11 +7,14 @@ from auth.domain.value_objects.provider import Provider
 
 
 class _StubProvider:
-    def __init__(self, fail=False):
+    def __init__(self, fail=False, unexpected_error=None):
         self.fail = fail
+        self.unexpected_error = unexpected_error
         self.revoked = []
 
     async def revoke(self, identity):
+        if self.unexpected_error is not None:
+            raise self.unexpected_error
         if self.fail:
             raise ProviderRevokeError("카카오가 거절했습니다.")
         self.revoked.append(identity.provider_user_id)
@@ -48,4 +51,18 @@ async def test_한_제공자가_실패해도_나머지는_끊고_로그에_토�
         ])
     assert apple.revoked == ["apple-1"]
     assert "kakao" in caplog.text and "google" in caplog.text
+    assert "secret-refresh-token" not in caplog.text
+
+
+async def test_예상하지_못한_예외가_나도_나머지는_끊고_예외_메시지를_로그에_남기지_않는다(caplog):
+    kakao = _StubProvider(unexpected_error=RuntimeError("Bearer secret-refresh-token leaked in message"))
+    apple = _StubProvider()
+    revoker = ProviderRevoker(_StubResolver({Provider.KAKAO: kakao, Provider.APPLE: apple}))
+    with caplog.at_level(logging.WARNING):
+        await revoker.revoke_all([
+            IdentityRevocation(Provider.KAKAO, "kakao-1", None),
+            IdentityRevocation(Provider.APPLE, "apple-1", "secret-refresh-token"),
+        ])
+    assert apple.revoked == ["apple-1"]
+    assert "RuntimeError" in caplog.text and "kakao" in caplog.text
     assert "secret-refresh-token" not in caplog.text
