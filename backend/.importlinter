@@ -15,6 +15,7 @@ root_packages =
     hub
     auth
     tenancy
+    platform_admin
 include_external_packages = True
 
 [importlinter:contract:clean-architecture]
@@ -28,6 +29,7 @@ containers =
     hub
     auth
     tenancy
+    platform_admin
 
 [importlinter:contract:spoke-independence]
 name = 스포크 상호 독립 (스포크끼리 import 하지 않는다)
@@ -35,6 +37,7 @@ type = independence
 modules =
     auth
     tenancy
+    platform_admin
 
 [importlinter:contract:framework-isolation]
 name = 프레임워크 격리 (app·domain 은 웹·DB·외부 통신 라이브러리를 모른다)
@@ -45,6 +48,8 @@ source_modules =
     auth.domain
     tenancy.app
     tenancy.domain
+    platform_admin.app
+    platform_admin.domain
 forbidden_modules =
     fastapi
     sqlalchemy
@@ -59,6 +64,7 @@ type = forbidden
 source_modules =
     auth.domain
     tenancy.domain
+    platform_admin.domain
 forbidden_modules =
     pydantic
     core
@@ -71,3 +77,4 @@ source_modules =
 forbidden_modules =
     auth
     tenancy
+    platform_admin
