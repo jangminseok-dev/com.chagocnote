@@ -5,7 +5,11 @@ from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.link_identity_router import link_identity_router
 from auth.app.dtos.link_identity_dto import LinkedIdentities
 from auth.dependencies.link_identity_provider import get_link_identity_use_case
-from auth.domain.errors import IdentityAlreadyLinkedError
+from auth.domain.errors import (
+    IdentityAlreadyLinkedError,
+    ProviderAlreadyLinkedError,
+    UnsupportedProviderError,
+)
 from core.database import get_db
 from core.http_errors import install_error_handlers
 from core.security import get_current_user_id
@@ -62,6 +66,23 @@ async def test_이미_다른_계정에_붙은_신원은_409_다():
 async def test_토큰이_비면_422_다():
     response = await _post(_app(_StubUseCase()), {"provider": "kakao", "token": ""})
     assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
+
+
+async def test_제공자가_비면_422_다():
+    response = await _post(_app(_StubUseCase()), {"provider": "", "token": "x"})
+    assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
+
+
+async def test_이미_연결된_제공자는_409_다():
+    stub = _StubUseCase(ProviderAlreadyLinkedError("kakao 로그인은 이미 연결되어 있습니다."))
+    response = await _post(_app(stub), {"provider": "kakao", "token": "t"})
+    assert (response.status_code, response.json()["code"]) == (409, "PROVIDER_ALREADY_LINKED")
+
+
+async def test_지원하지_않는_제공자는_400_이다():
+    stub = _StubUseCase(UnsupportedProviderError("naver 로그인은 지원하지 않습니다."))
+    response = await _post(_app(stub), {"provider": "naver", "token": "t"})
+    assert (response.status_code, response.json()["code"]) == (400, "PROVIDER_NOT_SUPPORTED")
 
 
 async def test_로그인하지_않으면_401_이다():

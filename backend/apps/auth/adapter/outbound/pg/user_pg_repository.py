@@ -134,7 +134,12 @@ class UserPgRepository(UserRepository):
                             SocialIdentityOrm.provider_user_id == profile.provider_user_id,
                         )
                     )
-                ).scalar_one()
+                ).scalar_one_or_none()
+                if owner_id is None:
+                    # 동시 해제가 그 사이 신원을 지웠다(READ COMMITTED 의 새 스냅샷). 다시 시도하면 된다.
+                    raise IdentityAlreadyLinkedError(
+                        "이미 다른 계정에 연결된 로그인 수단입니다. 그 계정에서 탈퇴한 뒤 다시 연결해 주세요."
+                    ) from exc
                 if owner_id == user_id:
                     raise ProviderAlreadyLinkedError(
                         f"{profile.provider.value} 로그인은 이미 연결되어 있습니다."

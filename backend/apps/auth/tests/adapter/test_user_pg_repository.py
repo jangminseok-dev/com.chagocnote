@@ -2,11 +2,11 @@ import asyncio
 
 import pytest
 from cryptography.fernet import Fernet
-from sqlalchemy import text
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from auth.adapter.outbound.gateways.fernet_cipher import FernetCipher
-from auth.adapter.outbound.orm.user_orm import UserOrm
+from auth.adapter.outbound.orm.user_orm import SocialIdentityOrm, UserOrm
 from auth.adapter.outbound.pg.user_pg_repository import UserPgRepository
 from auth.domain.errors import IdentityAlreadyLinkedError, ProviderAlreadyLinkedError
 from auth.domain.value_objects.provider import Provider
@@ -151,6 +151,31 @@ async def test_같은_제공자의_신원을_둘_붙일_수_없다(db_session):
     with pytest.raises(ProviderAlreadyLinkedError):
         await repo.add_identity(me.id, _profile(provider_user_id="kakao-second"))
     assert len(await repo.list_identities(me.id)) == 1
+
+
+async def test_주인_조회_사이에_신원이_지워지면_IdentityAlreadyLinkedError_로_묶는다(db_engine):
+    """유일 제약 위반 뒤 주인을 다시 찾는 사이 그 신원이 동시에 지워지면(READ COMMITTED 의 새 스냅샷)
+    조회가 빈 결과를 준다. 그 경우도 재시도를 권하는 같은 오류로 묶는다."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with factory() as session:
+        repo = _repo(session)
+        await repo.create_with_identity(_profile())  # kakao-100 의 주인
+        me = await repo.create_with_identity(_profile(provider=Provider.GOOGLE, provider_user_id="google-me"))
+        await session.commit()  # 다른 세션에서 지울 수 있으려면 먼저 커밋해 둬야 한다
+
+        original_execute = session.execute
+
+        async def _delete_owner_then_execute(stmt, *args, **kwargs):
+            async with factory() as other:
+                await other.execute(
+                    delete(SocialIdentityOrm).where(SocialIdentityOrm.provider_user_id == "kakao-100")
+                )
+                await other.commit()
+            return await original_execute(stmt, *args, **kwargs)
+
+        session.execute = _delete_owner_then_execute
+        with pytest.raises(IdentityAlreadyLinkedError):
+            await repo.add_identity(me.id, _profile(provider_user_id="kakao-100"))
 
 
 async def test_이미_내_계정에_붙어_있는_바로_그_신원을_다시_붙이면_PROVIDER_ALREADY_LINKED_다(db_session):

@@ -4,7 +4,7 @@ from auth.app.dtos.link_identity_dto import LinkedIdentities, LinkIdentityComman
 from auth.app.ports.input.link_identity_use_case import LinkIdentityUseCase
 from auth.app.ports.output.social_provider_resolver_port import SocialProviderResolverPort
 from auth.app.ports.output.user_repository import UserRepository
-from auth.domain.errors import UnsupportedProviderError, UserNotFoundError
+from auth.domain.errors import AccountSuspendedError, UnsupportedProviderError, UserNotFoundError
 from auth.domain.value_objects.provider import Provider
 from auth.domain.value_objects.social_credentials import SocialCredentials
 
@@ -31,6 +31,8 @@ class LinkIdentityInteractor(LinkIdentityUseCase):
         user = await self._users.lock(command.user_id)
         if user is None or user.is_deleted:
             raise UserNotFoundError("다시 로그인해 주세요.")
+        if user.is_suspended:
+            raise AccountSuspendedError("정지된 계정입니다.")
         await self._users.add_identity(user.id, profile)
         identities = await self._users.list_identities(user.id)
         return LinkedIdentities(identities=tuple(i.provider.value for i in identities))
