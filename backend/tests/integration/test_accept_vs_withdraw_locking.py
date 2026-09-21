@@ -65,4 +65,5 @@ async def test_탈퇴가_유저_행을_쥔_동안_수락은_기다리고_탈퇴�
     async with factory() as check:
         members = (await check.execute(text("SELECT count(*) FROM shop_members"))).scalar_one()
         used = (await check.execute(text("SELECT used_count FROM shop_invites"))).scalar_one()
+        # 보조 단언이다. 수락 세션은 어느 쪽이든 롤백하므로 이 값은 잠금이 없어도 같다. 판별은 위의 두 raises 가 한다.
         assert (members, used) == (0, 0)

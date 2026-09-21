@@ -51,7 +51,7 @@ class AcceptInviteInteractor(AcceptInviteUseCase):
         shop_id = await self._invites.find_shop_id_by_code_hash(code_hash)
         if shop_id is None:
             raise InviteInvalidError("초대 코드를 확인해 주세요.")
-        # 내보내기·강등·탈퇴와 같은 순서(매장 → 멤버 → 초대)로 잠근다. 순서가 다르면 서로 교착한다.
+        # 유저 행 다음은 내보내기·강등·탈퇴와 같은 순서(매장 → 멤버 → 초대)로 잠근다. 순서가 다르면 서로 교착한다.
         await self._members.lock_membership_changes(shop_id)
         invite = await self._invites.find_by_code_hash_for_update(code_hash)
         invite.ensure_usable(self._now())

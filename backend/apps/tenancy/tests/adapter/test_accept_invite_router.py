@@ -3,7 +3,7 @@ from httpx import ASGITransport, AsyncClient
 from tenancy.adapter.inbound.api.v1.accept_invite_router import accept_invite_router
 from tenancy.app.dtos.accept_invite_dto import AcceptInviteResult
 from tenancy.dependencies.accept_invite_provider import get_accept_invite_use_case
-from tenancy.domain.errors import InviteExpiredError, TooManyAttemptsError
+from tenancy.domain.errors import AccountUnavailableError, InviteExpiredError, TooManyAttemptsError
 from tenancy.tests.helpers.api import build_app
 
 
@@ -41,6 +41,11 @@ async def test_만료된_코드는_400_INVITE_EXPIRED_다():
 async def test_시도가_너무_많으면_429_TOO_MANY_ATTEMPTS_다():
     response = await _post(_StubUseCase(TooManyAttemptsError("잠시 뒤에 다시 시도해 주세요.")), {"code": "ABCD2345"})
     assert (response.status_code, response.json()["code"]) == (429, "TOO_MANY_ATTEMPTS")
+
+
+async def test_잠근_뒤에_보니_탈퇴한_유저면_401_UNAUTHENTICATED_다():
+    response = await _post(_StubUseCase(AccountUnavailableError("다시 로그인해 주세요.")), {"code": "ABCD2345"})
+    assert (response.status_code, response.json()["code"]) == (401, "UNAUTHENTICATED")
 
 
 async def test_코드가_비면_422_다():

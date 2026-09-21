@@ -53,6 +53,10 @@ class ShopCloseConfirmRequiredError(TenancyError):
 
 
 class AccountUnavailableError(TenancyError):
-    """요청 시작 때는 인증을 통과했지만, 유저 행을 잠근 뒤에 보니 탈퇴했거나 정지된 유저다."""
+    """요청 시작 때는 인증을 통과했지만, 유저 행을 잠근 뒤에 보니 탈퇴했거나 정지된 유저다.
+
+    정지도 여기로 들어와 401 이 된다. 인증 가드(`core/security.py`)는 같은 상태를 403 ACCOUNT_SUSPENDED 로
+    돌려주므로, 다시 요청하면 그쪽으로 수렴한다. 가드 조회와 잠금 사이의 좁은 틈에서만 이 오류가 나간다.
+    """
 
     code = "UNAUTHENTICATED"
