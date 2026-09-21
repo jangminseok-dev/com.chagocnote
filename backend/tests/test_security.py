@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
+from jose import jwt
 from sqlalchemy import text
 
 import core.security as security
@@ -57,3 +58,10 @@ async def test_탈퇴한_계정은_401이다(db_session, issuer):
     with pytest.raises(ApiError) as exc:
         await security.get_current_user_id(db=db_session, credentials=_bearer(issuer.issue_access(3).token))
     assert exc.value.status_code == 401
+
+
+def test_만료_시각이_없는_토큰은_받지_않는다():
+    private_pem, public_pem, _ = make_rsa_keypair()
+    token = jwt.encode({"sub": "1", "typ": "access"}, private_pem, algorithm="RS256")
+    with pytest.raises(security.InvalidAccessToken):
+        security.decode_access_token(token, public_pem)

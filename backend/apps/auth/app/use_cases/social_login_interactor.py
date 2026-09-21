@@ -25,8 +25,8 @@ class SocialLoginInteractor(SocialLoginUseCase):
     async def login(self, command: SocialLoginCommand) -> SocialLoginResult:
         try:
             provider = Provider(command.provider)
-        except ValueError:
-            raise UnsupportedProviderError(f"{command.provider} 로그인은 지원하지 않습니다.")
+        except ValueError as exc:
+            raise UnsupportedProviderError(f"{command.provider} 로그인은 지원하지 않습니다.") from exc
         profile = await self._providers.resolve(provider).verify(
             SocialCredentials(
                 token=command.token,

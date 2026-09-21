@@ -13,7 +13,7 @@ from auth.adapter.outbound.strategy.google_identity_strategy import (
     GOOGLE_JWKS_URL,
     GoogleIdentityStrategy,
 )
-from auth.adapter.outbound.strategy.jwks_verifier import http_jwks_fetcher
+from auth.adapter.outbound.strategy.jwks_verifier import http_jwks_fetchers
 from auth.adapter.outbound.strategy.kakao_identity_strategy import KakaoIdentityStrategy
 from auth.app.ports.output.social_provider_port import SocialProviderPort
 from auth.app.ports.output.social_provider_resolver_port import SocialProviderResolverPort
@@ -36,8 +36,10 @@ class SocialProviderFactory(SocialProviderResolverPort):
     def resolve(self, provider: Provider) -> SocialProviderPort:
         try:
             return self._strategies[provider]
-        except KeyError:
-            raise UnsupportedProviderError(f"{provider.value} 로그인은 지금 사용할 수 없습니다.")
+        except KeyError as exc:
+            raise UnsupportedProviderError(
+                f"{provider.value} 로그인은 지금 사용할 수 없습니다."
+            ) from exc
 
 
 def build_social_provider_factory(
@@ -51,12 +53,12 @@ def build_social_provider_factory(
     if kakao_app_id:
         strategies[Provider.KAKAO] = KakaoIdentityStrategy(kakao_app_id, http)
     if google_client_ids:
-        strategies[Provider.GOOGLE] = GoogleIdentityStrategy(
-            google_client_ids, http_jwks_fetcher(http, GOOGLE_JWKS_URL)
-        )
+        fetch, refetch = http_jwks_fetchers(http, GOOGLE_JWKS_URL)
+        strategies[Provider.GOOGLE] = GoogleIdentityStrategy(google_client_ids, fetch, refetch)
     if apple is not None:
+        fetch, refetch = http_jwks_fetchers(http, APPLE_JWKS_URL)
         strategies[Provider.APPLE] = AppleIdentityStrategy(
             apple.bundle_id, apple.team_id, apple.key_id, apple.private_key_pem,
-            http, http_jwks_fetcher(http, APPLE_JWKS_URL),
+            http, fetch, refetch_jwks=refetch,
         )
     return SocialProviderFactory(strategies)

@@ -11,13 +11,17 @@ _ISSUERS = ("https://accounts.google.com", "accounts.google.com")
 
 
 class GoogleIdentityStrategy(SocialProviderPort):
-    def __init__(self, client_ids: tuple[str, ...], fetch_jwks: JwksFetcher) -> None:
+    def __init__(
+        self, client_ids: tuple[str, ...], fetch_jwks: JwksFetcher,
+        refetch_jwks: JwksFetcher | None = None,
+    ) -> None:
         self._client_ids = client_ids
         self._fetch_jwks = fetch_jwks
+        self._refetch_jwks = refetch_jwks
 
     async def verify(self, credentials: SocialCredentials) -> SocialProfile:
         claims = await verify_with_jwks(
-            credentials.token, self._fetch_jwks, _ISSUERS, self._client_ids
+            credentials.token, self._fetch_jwks, _ISSUERS, self._client_ids, self._refetch_jwks
         )
         return SocialProfile(
             provider=Provider.GOOGLE,

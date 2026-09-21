@@ -25,7 +25,9 @@ class InvalidAccessToken(Exception):
 def decode_access_token(token: str, public_key: str) -> int:
     try:
         # 허용 알고리즘은 RS256 리터럴로 고정한다 (알고리즘 혼동 공격 방지).
-        payload = jwt.decode(token, public_key, algorithms=["RS256"])
+        payload = jwt.decode(
+            token, public_key, algorithms=["RS256"], options={"require_exp": True}
+        )
         if payload.get("typ") != "access":
             raise ValueError("typ")
         return int(payload["sub"])

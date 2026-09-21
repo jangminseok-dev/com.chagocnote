@@ -61,3 +61,10 @@ async def test_다른_키로_서명한_토큰은_거절한다():
     )
     with pytest.raises(ProviderVerificationError):
         await _strategy().verify(SocialCredentials(token=forged))
+
+
+async def test_sub_가_없는_토큰은_거절한다():
+    claims = {"iss": "https://accounts.google.com", "aud": "ios-client-id", "exp": int(time.time()) + 600}
+    token = jwt.encode(claims, PRIVATE_PEM, algorithm="RS256", headers={"kid": "google-kid"})
+    with pytest.raises(ProviderVerificationError):
+        await _strategy().verify(SocialCredentials(token=token))

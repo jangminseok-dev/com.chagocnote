@@ -29,6 +29,7 @@ class AppleIdentityStrategy(SocialProviderPort):
         self, bundle_id: str, team_id: str, key_id: str, private_key_pem: str,
         http: httpx.AsyncClient, fetch_jwks: JwksFetcher,
         now: Callable[[], float] = time.time,
+        refetch_jwks: JwksFetcher | None = None,
     ) -> None:
         self._bundle_id = bundle_id
         self._team_id = team_id
@@ -37,10 +38,11 @@ class AppleIdentityStrategy(SocialProviderPort):
         self._http = http
         self._fetch_jwks = fetch_jwks
         self._now = now
+        self._refetch_jwks = refetch_jwks
 
     async def verify(self, credentials: SocialCredentials) -> SocialProfile:
         claims = await verify_with_jwks(
-            credentials.token, self._fetch_jwks, (_ISSUER,), (self._bundle_id,)
+            credentials.token, self._fetch_jwks, (_ISSUER,), (self._bundle_id,), self._refetch_jwks
         )
         expected = hashlib.sha256((credentials.nonce or "").encode()).hexdigest()
         if credentials.nonce is None or claims.get("nonce") != expected:

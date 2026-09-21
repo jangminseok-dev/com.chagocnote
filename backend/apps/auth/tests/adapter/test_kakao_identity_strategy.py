@@ -42,3 +42,14 @@ async def test_다른_앱에서_발급된_토큰은_거절한다():
 async def test_카카오가_사용자_조회를_거절하면_실패한다():
     with pytest.raises(ProviderVerificationError):
         await KakaoIdentityStrategy("1234", _http(me_status=401)).verify(SocialCredentials(token="kakao-token"))
+
+
+async def test_사용자_ID_가_없는_응답은_거절한다():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/user/access_token_info":
+            return httpx.Response(200, json={"app_id": 1234})
+        return httpx.Response(200, json={"kakao_account": {}})
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    with pytest.raises(ProviderVerificationError):
+        await KakaoIdentityStrategy("1234", http).verify(SocialCredentials(token="kakao-token"))

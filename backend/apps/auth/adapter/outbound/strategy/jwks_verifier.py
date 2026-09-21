@@ -12,34 +12,64 @@ from auth.domain.errors import ProviderVerificationError
 JwksFetcher = Callable[[], Awaitable[dict]]
 
 
+def _find_key(jwks: dict, kid: str) -> dict | None:
+    return next((k for k in jwks["keys"] if k.get("kid") == kid), None)
+
+
 async def verify_with_jwks(
-    token: str, fetch_jwks: JwksFetcher, issuers: tuple[str, ...], audiences: tuple[str, ...]
+    token: str, fetch_jwks: JwksFetcher, issuers: tuple[str, ...], audiences: tuple[str, ...],
+    refetch_jwks: JwksFetcher | None = None,
 ) -> dict:
     try:
         kid = jwt.get_unverified_header(token)["kid"]
-        keys = (await fetch_jwks())["keys"]
-        key = next(k for k in keys if k.get("kid") == kid)
+        key = _find_key(await fetch_jwks(), kid)
+        if key is None and refetch_jwks is not None:
+            # 제공자가 서명 키를 바꿨을 수 있다. 캐시를 건너뛰고 한 번만 다시 받아 본다.
+            key = _find_key(await refetch_jwks(), kid)
+        if key is None:
+            raise KeyError(kid)
         # 대상 앱(aud)은 여러 값 중 하나일 수 있어서 아래에서 직접 확인한다.
         claims = jwt.decode(
             token, key, algorithms=["RS256"],
             options={"verify_aud": False, "verify_at_hash": False},
         )
-    except (JWTError, KeyError, StopIteration) as exc:
+    except (JWTError, KeyError) as exc:
         raise ProviderVerificationError("ID 토큰의 서명을 확인할 수 없습니다.") from exc
     if claims.get("iss") not in issuers or claims.get("aud") not in audiences:
         raise ProviderVerificationError("발급자 또는 대상 앱이 일치하지 않습니다.")
+    if not claims.get("sub"):
+        raise ProviderVerificationError("ID 토큰에 사용자 식별자가 없습니다.")
     return claims
 
 
-def http_jwks_fetcher(http: httpx.AsyncClient, url: str, ttl_seconds: int = 3600) -> JwksFetcher:
-    """제공자의 공개키 목록을 가져온다. ttl_seconds 동안은 메모리에 둔 값을 쓴다."""
+def http_jwks_fetchers(
+    http: httpx.AsyncClient, url: str, ttl_seconds: int = 3600, min_refetch_seconds: int = 60,
+    now: Callable[[], float] = time.monotonic,
+) -> tuple[JwksFetcher, JwksFetcher]:
+    """(캐시를 쓰는 조회, 강제 재조회)를 돌려준다. 둘은 같은 캐시를 본다.
+
+    강제 재조회는 min_refetch_seconds 에 한 번만 제공자를 부른다. 모르는 kid 를 쏟아붓는 요청이
+    제공자를 계속 두드리게 하지 않으려는 것이다.
+    """
     cache: dict = {"at": 0.0, "value": None}
 
-    async def _fetch() -> dict:
-        if cache["value"] is None or time.monotonic() - cache["at"] > ttl_seconds:
+    async def _load() -> dict:
+        try:
             response = await http.get(url)
             response.raise_for_status()
-            cache["value"], cache["at"] = response.json(), time.monotonic()
+        except httpx.HTTPError as exc:
+            raise ProviderVerificationError("제공자의 공개키를 가져올 수 없습니다.") from exc
+        cache["value"], cache["at"] = response.json(), now()
         return cache["value"]
 
-    return _fetch
+    async def fetch() -> dict:
+        if cache["value"] is None or now() - cache["at"] > ttl_seconds:
+            return await _load()
+        return cache["value"]
+
+    async def refetch() -> dict:
+        if cache["value"] is not None and now() - cache["at"] < min_refetch_seconds:
+            return cache["value"]
+        return await _load()
+
+    return fetch, refetch

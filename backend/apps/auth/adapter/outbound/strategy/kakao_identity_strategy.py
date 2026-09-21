@@ -32,6 +32,8 @@ class KakaoIdentityStrategy(SocialProviderPort):
         if me.status_code != 200:
             raise ProviderVerificationError("카카오 사용자 정보를 가져올 수 없습니다.")
         body = me.json()
+        if "id" not in body:
+            raise ProviderVerificationError("카카오 응답에 사용자 식별자가 없습니다.")
         account = body.get("kakao_account") or {}
         profile = account.get("profile") or {}
         return SocialProfile(
