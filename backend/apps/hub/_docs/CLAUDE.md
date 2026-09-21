@@ -14,5 +14,6 @@
 | `MembershipDirectoryPort.list_for_user(user_id) → list[MembershipSummary]` | tenancy `list_memberships` | auth `get_me` |
 | `OperatorDirectoryPort.is_operator(user_id) → bool` | auth `check_operator` | platform_admin |
 | `UserDirectoryPort.get_profiles(user_ids) → dict[int, UserProfile]` | auth `get_user_profiles` | tenancy `list_members` |
+| `ActiveUserGuardPort.lock_active(user_id) → bool` | auth `guard_active_user` | tenancy `accept_invite` |
 
 `MembershipLifecyclePort`(회원 탈퇴)는 계획 2-2에서 첫 소비자와 함께 들어온다.

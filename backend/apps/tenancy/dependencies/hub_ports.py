@@ -4,8 +4,13 @@
 """
 from __future__ import annotations
 
+from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
 from hub.app.ports.user_directory_port import UserDirectoryPort
 
 
 def get_user_directory() -> UserDirectoryPort:
     raise RuntimeError("UserDirectoryPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
+
+
+def get_active_user_guard() -> ActiveUserGuardPort:
+    raise RuntimeError("ActiveUserGuardPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")

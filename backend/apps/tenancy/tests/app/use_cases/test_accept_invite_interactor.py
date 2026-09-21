@@ -8,6 +8,7 @@ from tenancy.domain.entities.invite import Invite
 from tenancy.domain.entities.member import Member
 from tenancy.domain.entities.shop import Shop
 from tenancy.domain.errors import (
+    AccountUnavailableError,
     AlreadyMemberError,
     InviteExhaustedError,
     InviteExpiredError,
@@ -79,16 +80,26 @@ class _StubLimiter:
         return self.count
 
 
+class _StubUserGuard:
+    def __init__(self, active=True, calls=None):
+        self.active = active
+        self.calls = calls if calls is not None else []
+
+    async def lock_active(self, user_id):
+        self.calls.append("lock_active")
+        return self.active
+
+
 def _invite(**overrides):
     base = dict(id=9, shop_id=3, role=RoleCode.OWNER, expires_at=NOW + timedelta(days=7),
                 max_uses=1, used_count=0, revoked_at=None)
     return Invite(**{**base, **overrides})
 
 
-def _interactor(invites, members=None, shops=None, limiter=None):
+def _interactor(invites, members=None, shops=None, limiter=None, users=None):
     return AcceptInviteInteractor(
         invites=invites, members=members or _StubMembers(), shops=shops or _StubShops(),
-        limiter=limiter or _StubLimiter(), now=lambda: NOW,
+        limiter=limiter or _StubLimiter(), users=users or _StubUserGuard(), now=lambda: NOW,
     )
 
 
@@ -176,3 +187,35 @@ async def test_모르는_코드면_아무것도_잠그지_않는다():
     with pytest.raises(InviteInvalidError):
         await _interactor(invites, members).accept(AcceptInviteCommand(user_id=5, code="ZZZZ9999"))
     assert calls == ["find_shop_id"]
+
+
+async def test_유저_행을_매장_행보다_먼저_잠근다():
+    """F4 — 잠금 순서는 유저 → 매장 → 멤버 → 초대다."""
+    calls = []
+    invites, members = _StubInvites(_invite(), calls), _StubMembers(calls=calls)
+    await _interactor(invites, members, users=_StubUserGuard(calls=calls)).accept(
+        AcceptInviteCommand(user_id=5, code="ABCD2345")
+    )
+    assert calls == ["lock_active", "find_shop_id", "lock", "find_for_update"]
+
+
+async def test_그_사이_탈퇴했거나_정지된_유저는_합류시키지_않는다():
+    """F4 — 요청 시작 때의 인증 확인은 통과했지만, 잠근 뒤에 보니 활동할 수 없는 유저다."""
+    calls = []
+    invites, members = _StubInvites(_invite(), calls), _StubMembers(calls=calls)
+    with pytest.raises(AccountUnavailableError):
+        await _interactor(invites, members, users=_StubUserGuard(active=False, calls=calls)).accept(
+            AcceptInviteCommand(user_id=5, code="ABCD2345")
+        )
+    assert calls == ["lock_active"]
+    assert members.added == [] and invites.used == []
+
+
+async def test_시도_횟수는_유저_행을_잠그기_전에_센다():
+    calls = []
+    invites = _StubInvites(_invite(), calls)
+    with pytest.raises(TooManyAttemptsError):
+        await _interactor(invites, limiter=_StubLimiter(count=6), users=_StubUserGuard(calls=calls)).accept(
+            AcceptInviteCommand(user_id=5, code="ABCD2345")
+        )
+    assert calls == []

@@ -1,5 +1,6 @@
 """tenancy 도메인 오류 → HTTP 상태 코드. 유스케이스는 HTTP 를 모른다."""
 from tenancy.domain.errors import (
+    AccountUnavailableError,
     AlreadyMemberError,
     InviteExhaustedError,
     InviteExpiredError,
@@ -15,6 +16,7 @@ from tenancy.domain.errors import (
 )
 
 TENANCY_ERROR_STATUS: dict[type[Exception], int] = {
+    AccountUnavailableError: 401,
     InviteInvalidError: 400,
     InviteExpiredError: 400,
     InviteExhaustedError: 400,

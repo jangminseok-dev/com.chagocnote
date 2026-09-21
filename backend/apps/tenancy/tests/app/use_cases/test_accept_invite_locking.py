@@ -22,10 +22,16 @@ class _OpenLimiter:
         return 1
 
 
+class _ActiveUser:
+    async def lock_active(self, user_id):
+        return True
+
+
 def _accept(session, user_id):
     interactor = AcceptInviteInteractor(
         invites=InvitePgRepository(session), members=MemberPgRepository(session),
-        shops=ShopPgRepository(session), limiter=_OpenLimiter(), now=lambda: EXPIRES - timedelta(days=1),
+        shops=ShopPgRepository(session), limiter=_OpenLimiter(), users=_ActiveUser(),
+        now=lambda: EXPIRES - timedelta(days=1),
     )
     return interactor.accept(AcceptInviteCommand(user_id=user_id, code="ABCD2345"))
 
