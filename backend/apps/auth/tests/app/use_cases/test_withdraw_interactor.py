@@ -29,18 +29,18 @@ class _StubUsers:
         self.user = user
 
     async def lock(self, user_id):
-        self.calls.append("lock")
+        self.calls.append(f"lock:{user_id}")
         return self.user
 
     async def list_revocations(self, user_id):
-        self.calls.append("list_revocations")
+        self.calls.append(f"list_revocations:{user_id}")
         return [KAKAO, APPLE]
 
     async def anonymize(self, user_id):
-        self.calls.append("anonymize")
+        self.calls.append(f"anonymize:{user_id}")
 
     async def delete_identities(self, user_id):
-        self.calls.append("delete_identities")
+        self.calls.append(f"delete_identities:{user_id}")
 
 
 class _StubOperators:
@@ -48,7 +48,7 @@ class _StubOperators:
         self.calls = calls
 
     async def revoke(self, user_id):
-        self.calls.append("revoke_operator")
+        self.calls.append(f"revoke_operator:{user_id}")
 
 
 class _StubLifecycle:
@@ -69,7 +69,7 @@ class _StubStore:
         self.calls = calls
 
     async def revoke_all(self, user_id):
-        self.calls.append("revoke_all")
+        self.calls.append(f"revoke_all:{user_id}")
 
 
 def _run(user="default", blocked=False):
@@ -86,8 +86,8 @@ async def test_잠그고_소속을_정리한_뒤에_익명화하고_신원을_�
     interactor, lifecycle, calls = _run()
     result = await interactor.withdraw(WithdrawCommand(user_id=5, confirm_close_shops=True))
     assert calls == [
-        "lock", "apply_withdrawal", "list_revocations",
-        "revoke_operator", "anonymize", "delete_identities", "revoke_all",
+        "lock:5", "apply_withdrawal", "list_revocations:5",
+        "revoke_operator:5", "anonymize:5", "delete_identities:5", "revoke_all:5",
     ]
     assert lifecycle.seen == [(5, True)]
     # 신원을 지우기 전에 읽어 둔 것을 돌려준다. 커밋 뒤에 제공자 쪽 연결을 끊는 데 쓴다.
@@ -98,7 +98,7 @@ async def test_소속_정리가_막히면_계정은_건드리지_않는다():
     interactor, _, calls = _run(blocked=True)
     with pytest.raises(_Blocked):
         await interactor.withdraw(WithdrawCommand(user_id=5, confirm_close_shops=False))
-    assert calls == ["lock", "apply_withdrawal"]
+    assert calls == ["lock:5", "apply_withdrawal"]
 
 
 async def test_이미_탈퇴한_유저면_아무것도_하지_않는다():
@@ -106,7 +106,7 @@ async def test_이미_탈퇴한_유저면_아무것도_하지_않는다():
     for user in (_user(deleted=True), None):
         interactor, _, calls = _run(user=user)
         result = await interactor.withdraw(WithdrawCommand(user_id=5, confirm_close_shops=True))
-        assert calls == ["lock"]
+        assert calls == ["lock:5"]
         assert result.revocations == ()
 
 
@@ -116,5 +116,5 @@ async def test_잠근_뒤에_보니_정지된_유저면_아무것도_하지_않�
     interactor, lifecycle, calls = _run(user=_user(suspended=True))
     with pytest.raises(AccountSuspendedError):
         await interactor.withdraw(WithdrawCommand(user_id=5, confirm_close_shops=True))
-    assert calls == ["lock"]
+    assert calls == ["lock:5"]
     assert lifecycle.seen == []

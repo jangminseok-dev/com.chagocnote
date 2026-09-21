@@ -17,22 +17,25 @@ KAKAO = IdentityRevocation(Provider.KAKAO, "kakao-100", None)
 
 
 class _StubUseCase:
-    def __init__(self, error=None):
+    def __init__(self, error=None, result=None):
         self.error = error
+        self.result = result if result is not None else WithdrawResult(revocations=(KAKAO,))
         self.commands = []
 
     async def withdraw(self, command):
         self.commands.append(command)
         if self.error:
             raise self.error
-        return WithdrawResult(revocations=(KAKAO,))
+        return self.result
 
 
 class _StubRevoker:
     def __init__(self):
         self.revoked = []
+        self.calls = 0
 
     async def revoke_all(self, identities):
+        self.calls += 1
         self.revoked.extend(identities)
 
 
@@ -72,6 +75,44 @@ async def test_본문이_없으면_매장_닫기를_확인하지_않은_것으�
     response = await _delete(_app(stub, _StubRevoker()))
     assert response.status_code == 204
     assert stub.commands[0].confirm_close_shops is False
+
+
+async def test_빈_본문도_매장_닫기를_확인하지_않은_것으로_본다():
+    stub = _StubUseCase()
+    response = await _delete(_app(stub, _StubRevoker()), {})
+    assert response.status_code == 204
+    assert stub.commands[0].confirm_close_shops is False
+
+
+async def test_false를_명시해도_확인하지_않은_것으로_본다():
+    stub = _StubUseCase()
+    response = await _delete(_app(stub, _StubRevoker()), {"confirm_close_shops": False})
+    assert response.status_code == 204
+    assert stub.commands[0].confirm_close_shops is False
+
+
+async def test_문자열_yes는_불리언이_아니라서_422_다():
+    stub = _StubUseCase()
+    response = await _delete(_app(stub, _StubRevoker()), {"confirm_close_shops": "yes"})
+    assert response.status_code == 422
+    assert stub.commands == []
+
+
+async def test_숫자_1도_불리언이_아니라서_422_다():
+    stub = _StubUseCase()
+    response = await _delete(_app(stub, _StubRevoker()), {"confirm_close_shops": 1})
+    assert response.status_code == 422
+    assert stub.commands == []
+
+
+async def test_이미_탈퇴해서_끊을_신원이_없으면_배경_작업을_걸지_않는다():
+    """H5 — 두 번째 탈퇴 요청은 revocations=() 인 채로 끝난다. 빈 목록이어도 배경 작업을
+    거는 것 자체는 낭비다."""
+    stub = _StubUseCase(result=WithdrawResult(revocations=()))
+    revoker = _StubRevoker()
+    response = await _delete(_app(stub, revoker), {"confirm_close_shops": True})
+    assert response.status_code == 204
+    assert revoker.calls == 0
 
 
 async def test_탈퇴가_실패하면_제공자_연결을_끊지_않는다():

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import pytest
 from cryptography.fernet import Fernet
@@ -202,6 +203,25 @@ async def test_연결을_끊을_신원을_복호화한_토큰과_함께_돌려�
     apple_token_decrypted = revocations[1].provider_refresh_token == "apple-refresh"
     assert kakao_has_no_token and apple_token_decrypted
     assert "apple-refresh" not in repr(revocations[1])
+
+
+async def test_다른_키로_암호화된_토큰은_그_신원만_None으로_돌려주고_예외를_던지지_않는다(db_session, caplog):
+    """키 교체나 값 손상으로 복호화할 수 없어도 해제·탈퇴 전체가 500 으로 죽으면 안 된다 —
+    그 유저는 다시 시도해도 영영 탈퇴할 수 없게 된다. 그 신원의 제공자 쪽 폐기만 포기한다."""
+    writer = _repo(db_session)
+    user = await writer.create_with_identity(_profile())
+    await writer.add_identity(user.id, _profile(provider=Provider.APPLE, provider_user_id="apple-1",
+                                                 provider_refresh_token="apple-refresh"))
+
+    reader = _repo(db_session)  # _repo 는 매번 새 무작위 키를 쓴다 — writer 와 다른 키가 된다
+    with caplog.at_level(logging.WARNING):
+        revocations = await reader.list_revocations(user.id)
+
+    assert [(r.provider, r.provider_refresh_token) for r in revocations] == [
+        (Provider.KAKAO, None), (Provider.APPLE, None),
+    ]
+    assert "apple" in caplog.text
+    assert "apple-refresh" not in caplog.text
 
 
 async def test_신원_하나를_지우면_그_수단으로는_찾을_수_없다(db_session):

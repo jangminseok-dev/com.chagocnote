@@ -26,5 +26,7 @@ async def withdraw(
         )
     )
     # 제공자 쪽 연결 끊기는 DB 커밋이 끝난 뒤에 돈다. 실패해도 탈퇴는 이미 끝났다 (로그만 남는다).
-    tasks.add_task(revoker.revoke_all, list(result.revocations))
+    # 이미 탈퇴한 유저의 중복 요청은 revocations 가 비어 있다 — 그때는 빈 배경 작업을 걸지 않는다.
+    if result.revocations:
+        tasks.add_task(revoker.revoke_all, list(result.revocations))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

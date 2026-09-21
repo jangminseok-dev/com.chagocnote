@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth.adapter.outbound.gateways.fernet_cipher import FernetCipher
+from auth.adapter.outbound.gateways.fernet_cipher import DecryptionError, FernetCipher
 from auth.adapter.outbound.mappers.user_mapper import to_identity, to_user
 from auth.adapter.outbound.orm.user_orm import SocialIdentityOrm, UserOrm
 from auth.app.ports.output.user_repository import UserRepository
@@ -16,6 +17,8 @@ from auth.domain.errors import IdentityAlreadyLinkedError, ProviderAlreadyLinked
 from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from auth.domain.value_objects.social_profile import SocialProfile
+
+logger = logging.getLogger(__name__)
 
 
 class UserPgRepository(UserRepository):
@@ -163,13 +166,23 @@ class UserPgRepository(UserRepository):
             IdentityRevocation(
                 provider=Provider(row.provider),
                 provider_user_id=row.provider_user_id,
-                provider_refresh_token=(
-                    self._require_cipher().decrypt(row.provider_refresh_token_enc)
-                    if row.provider_refresh_token_enc else None
-                ),
+                provider_refresh_token=self._decrypt_or_none(row),
             )
             for row in (await self._session.execute(stmt)).scalars()
         ]
+
+    def _decrypt_or_none(self, row: SocialIdentityOrm) -> str | None:
+        """키가 바뀌었거나 값이 손상돼 복호화할 수 없으면 이 신원만 제공자 쪽 폐기를 포기한다.
+        해제·탈퇴 자체를 막지 않는다 — 막으면 그 유저는 영영 탈퇴할 수 없다."""
+        if not row.provider_refresh_token_enc:
+            return None
+        try:
+            return self._require_cipher().decrypt(row.provider_refresh_token_enc)
+        except DecryptionError as exc:
+            logger.warning(
+                "제공자 리프레시 토큰 복호화 실패 | provider=%s | %s", row.provider, type(exc).__name__
+            )
+            return None
 
     async def delete_identity(self, user_id: int, provider: Provider) -> None:
         await self._session.execute(

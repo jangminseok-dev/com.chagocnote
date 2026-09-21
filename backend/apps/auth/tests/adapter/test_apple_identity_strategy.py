@@ -6,7 +6,8 @@ import pytest
 from jose import jwt
 
 from auth.adapter.outbound.strategy.apple_identity_strategy import AppleIdentityStrategy
-from auth.domain.errors import ProviderVerificationError
+from auth.domain.errors import ProviderRevokeError, ProviderVerificationError
+from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from auth.domain.value_objects.social_credentials import SocialCredentials
 from auth.tests.helpers.keys import make_ec_private_pem, make_rsa_keypair
@@ -79,3 +80,12 @@ async def test_코드_교환이_실패하면_로그인도_실패한다():
         await _strategy(exchange_status=400).verify(
             SocialCredentials(token=_id_token(), authorization_code="bad", nonce=RAW_NONCE)
         )
+
+
+async def test_저장된_토큰이_없으면_Apple_을_부르지_않고_거절한다():
+    """복호화 실패로 provider_refresh_token 이 None 인 신원이 여기로 올 수 있다.
+    Apple 에 빈 토큰으로 폐기를 요청하지 않고, 조용히 거절만 한다."""
+    seen = []
+    with pytest.raises(ProviderRevokeError):
+        await _strategy(seen=seen).revoke(IdentityRevocation(Provider.APPLE, "apple-1", None))
+    assert seen == []

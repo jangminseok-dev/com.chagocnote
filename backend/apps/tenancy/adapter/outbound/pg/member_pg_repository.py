@@ -116,9 +116,12 @@ class MemberPgRepository(MemberRepository):
         return [to_member(m, code) for m, code in (await self._session.execute(stmt)).all()]
 
     async def get_active(self, ctx: ShopContext, member_id: int) -> Member | None:
-        row = (
-            await self._session.execute(self._active(ctx).where(ShopMemberOrm.id == member_id))
-        ).first()
+        stmt = (
+            self._active(ctx)
+            .where(ShopMemberOrm.id == member_id)
+            .execution_options(populate_existing=True)  # 매장 행 잠금 뒤 다시 읽을 때 옛 값을 안 본다
+        )
+        row = (await self._session.execute(stmt)).first()
         return to_member(row[0], row[1]) if row else None
 
     async def count_owners(self, ctx: ShopContext) -> int:
