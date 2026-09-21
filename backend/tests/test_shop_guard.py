@@ -58,6 +58,14 @@ async def test_권한이_없으면_403_PERMISSION_DENIED_다():
     assert (response.status_code, response.json()["code"]) == (403, "PERMISSION_DENIED")
 
 
+async def test_int32_를_넘는_shop_id_는_422_다():
+    """DB 에 닿기 전에 걸러야 한다. 닿으면 asyncpg 가 DataError 를 내고 500 이 된다."""
+    stub = _StubAccess([])
+    response = await _get(_app(stub), "/v1/shops/99999999999/open")
+    assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
+    assert stub.calls == []
+
+
 async def test_자리를_채우지_않으면_바로_드러난다():
     with pytest.raises(RuntimeError, match="ShopAccessPort"):
         await _get(_app(None), "/v1/shops/3/open")

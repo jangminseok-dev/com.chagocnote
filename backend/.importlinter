@@ -6,13 +6,14 @@
 #
 # 실행: cd infra && docker compose run --rm --no-deps backend lint-imports --config .importlinter
 #
-# 스포크를 새로 만들면 root_packages 와 다섯 계약 모두에 이름을 더한다.
+# 스포크를 새로 만들면 root_packages 와 스포크를 나열하는 계약 모두에 이름을 더한다.
 # 스포크 사이의 조립은 진입점(main.py, auth_main.py)이 한다. dependencies/ 도 다른 스포크를 import 하지 않는다.
 # =============================================================================
 
 [importlinter]
 root_packages =
     hub
+    core
     auth
     tenancy
     platform_admin
@@ -74,6 +75,16 @@ name = 허브 격리 (hub 는 스포크를 import 하지 않는다)
 type = forbidden
 source_modules =
     hub
+forbidden_modules =
+    auth
+    tenancy
+    platform_admin
+
+[importlinter:contract:core-isolation]
+name = core 격리 (core 는 스포크를 import 하지 않는다)
+type = forbidden
+source_modules =
+    core
 forbidden_modules =
     auth
     tenancy

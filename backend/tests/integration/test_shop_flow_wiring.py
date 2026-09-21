@@ -159,6 +159,33 @@ async def test_다른_매장의_멤버_초대_설정에는_손댈_수_없다(wir
     assert settings.json()["name"] == "B 매장"
 
 
+async def test_정지된_매장은_멤버도_쓸_수_없다(wired):
+    operator = await _operator(wired)
+    shop_id, owner = await _shop_with_owner(wired, operator, "Hiss Haus", "사장님")
+    await wired.execute("UPDATE shops SET suspended_at = now() WHERE id = :id", id=shop_id)
+
+    headers = bearer(owner["access_token"])
+    assert _code(await wired.api.get(f"/v1/shops/{shop_id}/members", headers=headers)) == (403, "SHOP_SUSPENDED")
+    assert _code(await wired.api.get(f"/v1/shops/{shop_id}/settings", headers=headers)) == (403, "SHOP_SUSPENDED")
+
+
+async def test_자기_매장_경로로_다른_매장의_멤버_ID_를_부르면_404_다(wired):
+    """경로의 매장은 내 매장이라 소속 확인은 통과한다. 컨텍스트가 대상을 그 매장 안에서만 찾는다."""
+    operator = await _operator(wired)
+    a_shop_id, a_owner = await _shop_with_owner(wired, operator, "A 매장", "A사장")
+    b_shop_id, b_owner = await _shop_with_owner(wired, operator, "B 매장", "B사장")
+    b_members = await wired.api.get(f"/v1/shops/{b_shop_id}/members", headers=bearer(b_owner["access_token"]))
+    b_owner_id = b_members.json()[0]["member_id"]
+
+    a = bearer(a_owner["access_token"])
+    stolen_path = f"/v1/shops/{a_shop_id}/members/{b_owner_id}"
+    assert _code(await wired.api.patch(stolen_path, json={"role": "staff"}, headers=a)) == (404, "MEMBER_NOT_FOUND")
+    assert _code(await wired.api.delete(stolen_path, headers=a)) == (404, "MEMBER_NOT_FOUND")
+
+    still_there = await wired.api.get(f"/v1/shops/{b_shop_id}/members", headers=bearer(b_owner["access_token"]))
+    assert [(m["member_id"], m["role"]) for m in still_there.json()] == [(b_owner_id, "owner")]
+
+
 async def test_토큰_없는_요청은_표면마다_401_이다(wired):
     requests = [
         ("GET", "/v1/me"), ("POST", "/v1/invites/accept"),

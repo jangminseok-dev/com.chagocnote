@@ -88,6 +88,10 @@ class MemberPgRepository(MemberRepository):
                 self._session.add(row)
                 await self._session.flush()
         except IntegrityError as exc:
+            # 지금 속해 있는 행의 유일 제약일 때만 도메인 오류로 바꾼다. 나머지는 그대로 올린다.
+            # asyncpg 는 제약 이름을 원인 예외에 담고, SQLAlchemy 는 그것을 __cause__ 로 감싼다.
+            if getattr(exc.orig.__cause__, "constraint_name", None) != "uq_shop_members_active":
+                raise
             raise AlreadyMemberError("이미 이 매장의 멤버입니다.") from exc
         await self._session.refresh(row)  # 서버 기본값 joined_at 을 읽어 온다
         return to_member(row, role.value)

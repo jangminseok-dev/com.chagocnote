@@ -5,7 +5,9 @@
 """
 from __future__ import annotations
 
-from fastapi import Depends
+from typing import Annotated
+
+from fastapi import Depends, Path
 
 from core.http_errors import ApiError
 from core.security import get_current_user_id
@@ -19,11 +21,14 @@ def get_shop_access_port() -> ShopAccessPort:
 
 
 async def get_shop_context(
-    shop_id: int,
+    shop_id: Annotated[int, Path(ge=1, le=2_147_483_647)],
     user_id: int = Depends(get_current_user_id),
     access: ShopAccessPort = Depends(get_shop_access_port),
 ) -> ShopContext:
-    """소속만 확인한다. shop_id 는 경로 변수에서 온다."""
+    """소속만 확인한다. shop_id 는 경로 변수에서 온다.
+
+    int32 를 넘는 값은 DB 에 닿기 전에 422 로 막는다. 닿으면 asyncpg 가 DataError 를 내고 500 이 된다.
+    """
     return await access.resolve(user_id, shop_id)
 
 

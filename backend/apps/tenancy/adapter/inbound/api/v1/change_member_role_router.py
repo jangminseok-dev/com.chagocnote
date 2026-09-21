@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path
 
 from core.shop_guard import require_permission
 from hub.app.dtos.shop_context import ShopContext
@@ -17,7 +19,7 @@ change_member_role_router = APIRouter(prefix="/v1/shops", tags=["shops"])
     "/{shop_id}/members/{member_id}", response_model=ChangedMemberResponseSchema
 )
 async def change_member_role(
-    member_id: int,
+    member_id: Annotated[int, Path(ge=1, le=2_147_483_647)],
     body: ChangeMemberRoleRequestSchema,
     ctx: ShopContext = Depends(require_permission("member:manage")),
     use_case: ChangeMemberRoleUseCase = Depends(get_change_member_role_use_case),

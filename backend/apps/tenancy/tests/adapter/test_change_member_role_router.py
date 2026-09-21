@@ -19,10 +19,10 @@ class _StubUseCase:
         return ChangedMember(member_id=command.member_id, user_id=2, role=command.role)
 
 
-async def _patch(stub, access, body):
+async def _patch(stub, access, body, path="/v1/shops/3/members/12"):
     app = build_app(change_member_role_router, get_change_member_role_use_case, stub, access=access)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
-        return await client.patch("/v1/shops/3/members/12", json=body)
+        return await client.patch(path, json=body)
 
 
 async def test_사장은_멤버의_역할을_바꾼다():
@@ -44,6 +44,15 @@ async def test_권한_없는_직원은_403_이다():
 async def test_모르는_역할은_422_다():
     response = await _patch(_StubUseCase(), StubShopAccess(OWNER_PERMISSIONS), {"role": "admin"})
     assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
+
+
+async def test_int32_를_넘는_member_id_는_422_다():
+    stub = _StubUseCase()
+    response = await _patch(
+        stub, StubShopAccess(OWNER_PERMISSIONS), {"role": "staff"}, "/v1/shops/3/members/99999999999"
+    )
+    assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
+    assert stub.commands == []
 
 
 async def test_마지막_사장을_낮추면_409_LAST_OWNER_다():

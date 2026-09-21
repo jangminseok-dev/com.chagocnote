@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path
 
 from core.shop_guard import require_permission
 from hub.app.dtos.shop_context import ShopContext
@@ -11,7 +13,7 @@ remove_member_router = APIRouter(prefix="/v1/shops", tags=["shops"])
 
 @remove_member_router.delete("/{shop_id}/members/{member_id}", status_code=204)
 async def remove_member(
-    member_id: int,
+    member_id: Annotated[int, Path(ge=1, le=2_147_483_647)],
     ctx: ShopContext = Depends(require_permission("member:manage")),
     use_case: RemoveMemberUseCase = Depends(get_remove_member_use_case),
 ) -> None:

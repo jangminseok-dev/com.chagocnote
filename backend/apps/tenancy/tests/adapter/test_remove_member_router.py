@@ -17,10 +17,10 @@ class _StubUseCase:
             raise self.error
 
 
-async def _delete(stub, access):
+async def _delete(stub, access, path="/v1/shops/3/members/12"):
     app = build_app(remove_member_router, get_remove_member_use_case, stub, access=access)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
-        return await client.delete("/v1/shops/3/members/12")
+        return await client.delete(path)
 
 
 async def test_사장은_멤버를_내보내고_204_를_받는다():
@@ -34,6 +34,13 @@ async def test_권한_없는_직원은_403_이다():
     stub = _StubUseCase()
     response = await _delete(stub, StubShopAccess(STAFF_PERMISSIONS, role="staff"))
     assert (response.status_code, response.json()["code"]) == (403, "PERMISSION_DENIED")
+    assert stub.commands == []
+
+
+async def test_int32_를_넘는_member_id_는_422_다():
+    stub = _StubUseCase()
+    response = await _delete(stub, StubShopAccess(OWNER_PERMISSIONS), "/v1/shops/3/members/99999999999")
+    assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
     assert stub.commands == []
 
 

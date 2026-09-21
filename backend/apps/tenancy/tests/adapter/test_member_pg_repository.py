@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from hub.app.dtos.membership_summary import MembershipSummary
@@ -64,6 +65,12 @@ async def test_같은_매장에_두_번_합류할_수_없다(db_session):
         await repo.add(shop.id, user_id=7, role=RoleCode.STAFF)
     # 실패한 뒤에도 세션을 계속 쓸 수 있어야 한다.
     assert len(await repo.list_active(_ctx(shop.id))) == 1
+
+
+async def test_다른_제약_위반은_이미_멤버로_바꾸지_않는다(db_session):
+    """유일 제약(uq_shop_members_active)일 때만 AlreadyMemberError 다. 없는 매장이면 FK 위반이다."""
+    with pytest.raises(IntegrityError):
+        await MemberPgRepository(db_session).add(987654, user_id=7, role=RoleCode.STAFF)
 
 
 async def test_내보낸_멤버는_접근할_수_없고_다시_합류할_수_있다(db_session):
