@@ -14,8 +14,10 @@ from auth.adapter.outbound.factory.social_provider_factory import (
 )
 from auth.adapter.outbound.gateways.fernet_cipher import FernetCipher
 from auth.adapter.outbound.gateways.jwt_token_issuer import JwtTokenIssuer
+from auth.adapter.outbound.pg.operator_pg_repository import OperatorPgRepository
 from auth.adapter.outbound.pg.user_pg_repository import UserPgRepository
 from auth.adapter.outbound.redis.refresh_token_redis_store import RefreshTokenRedisStore
+from auth.app.ports.output.operator_repository import OperatorRepository
 from auth.app.ports.output.refresh_token_store_port import RefreshTokenStorePort
 from auth.app.ports.output.social_provider_resolver_port import SocialProviderResolverPort
 from auth.app.ports.output.user_repository import UserRepository
@@ -29,6 +31,10 @@ _resolver: SocialProviderResolverPort | None = None
 
 def build_user_repository(db: AsyncSession) -> UserRepository:
     return UserPgRepository(db, FernetCipher(config.IDENTITY_TOKEN_ENC_KEY))
+
+
+def build_operator_repository(db: AsyncSession) -> OperatorRepository:
+    return OperatorPgRepository(db)
 
 
 def build_refresh_store() -> RefreshTokenStorePort:

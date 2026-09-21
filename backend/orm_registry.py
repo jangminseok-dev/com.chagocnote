@@ -4,4 +4,5 @@
 core 는 스포크를 import 할 수 없어서 core 밖에 둔다. 새 ORM 모듈을 만들면 여기에 한 줄을 더한다.
 """
 import auth.adapter.outbound.orm.user_orm  # noqa: F401
+import auth.adapter.outbound.orm.operator_orm  # noqa: F401
 import tenancy.adapter.outbound.orm.tenancy_orm  # noqa: F401

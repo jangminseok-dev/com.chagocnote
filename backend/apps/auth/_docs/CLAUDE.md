@@ -1,6 +1,6 @@
 # auth — 신원과 토큰
 
-소유 데이터: `users`, `social_identities`, Redis의 리프레시 토큰.
+소유 데이터: `users`, `social_identities`, `platform_operators`, Redis의 리프레시 토큰.
 
 - User는 플랫폼에 하나만 있는 신원이다. 사장·직원·보호자는 계정 종류가 아니라 매장과의 관계이며 auth는 그 관계를 모른다.
 - 토큰에는 유저 ID만 담는다. 역할과 권한을 넣지 않는다.
@@ -8,3 +8,5 @@
 - 제공자별 검증은 `adapter/outbound/strategy/`에, 제공자를 고르는 코드는 `adapter/outbound/factory/`에 둔다.
 - 개발용 제공자 `dev`는 `APP_ENV=dev`일 때만 등록된다. 이 동작은 테스트로 고정되어 있다.
 - 토큰을 발급하는 코드는 `core/auth_config.py`(개인키)를 함수 안에서 import한다. 모듈 최상단에서 import하면 API 프로세스에서 모듈을 불러올 때 실패한다.
+- 플랫폼 운영자는 유저에 붙는 전역 지정이다. `scripts/grant_operator.py <user_id>`로만 지정한다. 다른 스포크는 허브의 `OperatorDirectoryPort`로 묻는다.
+- 허브 포트 구현은 HTTP 표면이 없는 슬라이스다: `check_operator`, `get_user_profiles`. 인터랙터가 허브 포트 ABC를 직접 상속한다.
