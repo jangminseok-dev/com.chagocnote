@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from hub.app.dtos.membership_summary import MembershipSummary
 from hub.app.dtos.shop_context import ShopContext
 from tenancy.app.dtos.shop_access_record import ShopAccessRecord
 from tenancy.domain.entities.member import Member
@@ -32,3 +33,7 @@ class MemberRepository(ABC):
 
     @abstractmethod
     async def remove(self, ctx: ShopContext, member_id: int) -> None: ...
+
+    @abstractmethod
+    async def list_for_user(self, user_id: int) -> list[MembershipSummary]:
+        """유저 기준 조회라 매장 컨텍스트가 없다. 내보내진 소속과 닫힌 매장은 뺀다."""

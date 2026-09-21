@@ -17,6 +17,7 @@ async def test_로그인부터_로그아웃까지_실제_배선으로_돈다(wir
     assert me.status_code == 200
     assert me.json()["display_name"] == "두부보호자"
     assert me.json()["identities"] == ["dev"]
+    assert me.json()["shops"] == []
 
     rotated = await _refresh(wired, login["refresh_token"])
     assert rotated.status_code == 200

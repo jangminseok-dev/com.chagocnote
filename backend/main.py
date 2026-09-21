@@ -16,6 +16,7 @@ from core.http_errors import install_error_handlers
 from core.shop_guard import get_shop_access_port
 from auth.dependencies.check_operator_provider import get_check_operator_use_case
 from auth.dependencies.get_user_profiles_provider import get_get_user_profiles_use_case
+from auth.dependencies.hub_ports import get_membership_directory
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -30,6 +31,7 @@ from tenancy.adapter.inbound.api.v1.remove_member_router import remove_member_ro
 from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
 from tenancy.adapter.inbound.api.v1.update_shop_router import update_shop_router
 from tenancy.dependencies.hub_ports import get_user_directory
+from tenancy.dependencies.list_memberships_provider import get_list_memberships_use_case
 from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_case
 from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
 
@@ -65,6 +67,7 @@ app.dependency_overrides[get_shop_access_port] = get_resolve_shop_access_use_cas
 app.dependency_overrides[get_operator_directory] = get_check_operator_use_case
 app.dependency_overrides[get_shop_provisioning] = get_provision_shop_use_case
 app.dependency_overrides[get_user_directory] = get_get_user_profiles_use_case
+app.dependency_overrides[get_membership_directory] = get_list_memberships_use_case
 
 
 @app.get("/health")

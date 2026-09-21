@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import text
 
+from hub.app.dtos.membership_summary import MembershipSummary
 from hub.app.dtos.shop_context import ShopContext
 from tenancy.adapter.outbound.pg.member_pg_repository import MemberPgRepository
 from tenancy.adapter.outbound.pg.shop_pg_repository import ShopPgRepository
@@ -107,3 +108,29 @@ async def test_사장_수를_센다(db_session):
     removed_owner = await repo.add(shop.id, user_id=3, role=RoleCode.OWNER)
     await repo.remove(_ctx(shop.id), removed_owner.id)
     assert await repo.count_owners(_ctx(shop.id)) == 1
+
+
+async def test_유저가_속한_매장을_매장_ID_순으로_돌려준다(db_session):
+    a, b = await _shop(db_session, "A 매장"), await _shop(db_session, "B 매장")
+    repo = MemberPgRepository(db_session)
+    await repo.add(b.id, user_id=7, role=RoleCode.STAFF)
+    await repo.add(a.id, user_id=7, role=RoleCode.OWNER)
+    await repo.add(a.id, user_id=8, role=RoleCode.STAFF)
+    assert await repo.list_for_user(7) == [
+        MembershipSummary(shop_id=a.id, shop_name="A 매장", role="owner"),
+        MembershipSummary(shop_id=b.id, shop_name="B 매장", role="staff"),
+    ]
+    assert await repo.list_for_user(404) == []
+
+
+async def test_내보내진_소속과_닫힌_매장은_목록에서_빠진다(db_session):
+    a = await _shop(db_session, "A 매장")
+    b = await _shop(db_session, "B 매장")
+    c = await _shop(db_session, "C 매장")
+    repo = MemberPgRepository(db_session)
+    removed = await repo.add(a.id, user_id=7, role=RoleCode.STAFF)
+    await repo.remove(_ctx(a.id), removed.id)
+    await repo.add(b.id, user_id=7, role=RoleCode.OWNER)
+    await db_session.execute(text("UPDATE shops SET closed_at = now() WHERE id = :id"), {"id": b.id})
+    await repo.add(c.id, user_id=7, role=RoleCode.STAFF)
+    assert [m.shop_id for m in await repo.list_for_user(7)] == [c.id]

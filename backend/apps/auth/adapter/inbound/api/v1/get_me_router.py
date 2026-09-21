@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from auth.adapter.inbound.api.schemas.get_me_schema import MeResponseSchema
+from auth.adapter.inbound.api.schemas.get_me_schema import MeResponseSchema, MeShopSchema
 from auth.app.dtos.get_me_dto import GetMeQuery
 from auth.app.ports.input.get_me_use_case import GetMeUseCase
 from auth.dependencies.get_me_provider import get_get_me_use_case
@@ -20,4 +20,7 @@ async def get_me(
         display_name=me.display_name,
         profile_image_url=me.profile_image_url,
         identities=list(me.identities),
+        shops=[
+            MeShopSchema(shop_id=s.shop_id, shop_name=s.shop_name, role=s.role) for s in me.shops
+        ],
     )

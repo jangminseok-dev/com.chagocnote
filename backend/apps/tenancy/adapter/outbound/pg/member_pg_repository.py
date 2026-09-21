@@ -4,6 +4,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from hub.app.dtos.membership_summary import MembershipSummary
 from hub.app.dtos.shop_context import ShopContext
 from tenancy.adapter.outbound.mappers.tenancy_mapper import to_member
 from tenancy.adapter.outbound.orm.tenancy_orm import (
@@ -55,6 +56,24 @@ class MemberPgRepository(MemberRepository):
             shop_suspended=suspended_at is not None,
             shop_closed=closed_at is not None,
         )
+
+    async def list_for_user(self, user_id: int) -> list[MembershipSummary]:
+        stmt = (
+            select(ShopOrm.id, ShopOrm.name, RoleOrm.code)
+            .select_from(ShopMemberOrm)
+            .join(ShopOrm, ShopOrm.id == ShopMemberOrm.shop_id)
+            .join(RoleOrm, RoleOrm.id == ShopMemberOrm.role_id)
+            .where(
+                ShopMemberOrm.user_id == user_id,
+                ShopMemberOrm.removed_at.is_(None),
+                ShopOrm.closed_at.is_(None),
+            )
+            .order_by(ShopOrm.id)
+        )
+        return [
+            MembershipSummary(shop_id=shop_id, shop_name=name, role=role)
+            for shop_id, name, role in (await self._session.execute(stmt)).all()
+        ]
 
     async def add(self, shop_id: int, user_id: int, role: RoleCode) -> Member:
         row = ShopMemberOrm(shop_id=shop_id, user_id=user_id, role_id=await self._role_id(role))

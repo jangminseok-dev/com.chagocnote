@@ -8,6 +8,7 @@ from auth.dependencies.get_me_provider import get_get_me_use_case
 from core.database import get_db
 from core.http_errors import install_error_handlers
 from core.security import get_current_user_id
+from hub.app.dtos.membership_summary import MembershipSummary
 
 
 class _StubUseCase:
@@ -16,8 +17,11 @@ class _StubUseCase:
 
     async def get_me(self, query):
         self.queries.append(query)
-        return MeResponse(id=query.user_id, display_name="두부 보호자",
-                          profile_image_url=None, identities=("kakao",))
+        return MeResponse(
+            id=query.user_id, display_name="두부 보호자", profile_image_url=None,
+            identities=("kakao",),
+            shops=(MembershipSummary(shop_id=3, shop_name="Hiss Haus", role="owner"),),
+        )
 
 
 async def _no_db():
@@ -42,6 +46,7 @@ async def test_로그인한_유저의_정보를_돌려준다():
     assert response.status_code == 200
     assert response.json() == {
         "id": 5, "display_name": "두부 보호자", "profile_image_url": None, "identities": ["kakao"],
+        "shops": [{"shop_id": 3, "shop_name": "Hiss Haus", "role": "owner"}],
     }
     assert stub.queries[0].user_id == 5
 
