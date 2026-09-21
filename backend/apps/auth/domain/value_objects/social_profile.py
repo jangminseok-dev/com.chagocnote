@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from auth.domain.value_objects.provider import Provider
 
@@ -18,4 +18,4 @@ class SocialProfile:
     email: str | None
     display_name: str | None
     profile_image_url: str | None
-    provider_refresh_token: str | None
+    provider_refresh_token: str | None = field(repr=False)

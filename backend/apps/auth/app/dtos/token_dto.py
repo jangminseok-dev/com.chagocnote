@@ -1,9 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
 class AccessToken:
-    token: str
+    token: str = field(repr=False)   # 원문이 로그·예외 메시지에 찍히지 않게 막는다
     expires_in: int
 
 

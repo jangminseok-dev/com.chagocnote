@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from auth.app.dtos.token_dto import TokenPair
 
@@ -8,8 +8,8 @@ from auth.app.dtos.token_dto import TokenPair
 @dataclass(frozen=True)
 class SocialLoginCommand:
     provider: str
-    token: str
-    authorization_code: str | None
+    token: str = field(repr=False)
+    authorization_code: str | None = field(repr=False)
     nonce: str | None
     display_name: str | None
 

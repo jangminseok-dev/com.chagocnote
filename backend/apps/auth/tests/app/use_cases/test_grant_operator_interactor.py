@@ -11,8 +11,10 @@ from auth.domain.errors import UserNotFoundError
 class _StubUsers:
     def __init__(self, user):
         self.user = user
+        self.locked_ids = []
 
-    async def get(self, user_id):
+    async def lock(self, user_id):
+        self.locked_ids.append(user_id)
         return self.user
 
 
@@ -30,9 +32,10 @@ def _user(deleted_at=None):
 
 
 async def test_있는_유저를_운영자로_지정한다():
-    operators = _StubOperators()
-    await GrantOperatorInteractor(_StubUsers(_user()), operators).grant(GrantOperatorCommand(user_id=5))
+    operators, users = _StubOperators(), _StubUsers(_user())
+    await GrantOperatorInteractor(users, operators).grant(GrantOperatorCommand(user_id=5))
     assert operators.granted == [5]
+    assert users.locked_ids == [5]   # H4 — 겹친 탈퇴가 지나쳐 가지 않게 잠그고 읽는다
 
 
 async def test_없는_유저는_지정하지_않는다():
