@@ -31,6 +31,18 @@
 - 스포크는 허브의 추상에만 의존한다. 스포크끼리 import하지 않고, 허브는 스포크를 import하지 않는다.
 - 스포크를 넘는 외래 키는 걸지 않는다. 다른 스포크의 ID는 인덱스만 있는 정수 컬럼이다.
 - `core/`는 인프라 공유(DB 세션, 설정, 토큰 검증)만 맡는다. `core/security.py`가 `users` 테이블을 원시 SQL로 조회하는 것은 의도한 예외다. core가 스포크의 ORM을 import할 수 없기 때문이다.
+- `core/`는 허브의 추상(포트 ABC와 DTO)을 import할 수 있다. 스포크는 import할 수 없다.
+- 허브 포트를 구현하는 슬라이스는 그 포트를 입력 포트로 삼는다. 인터랙터가 허브 포트 ABC를 직접 상속하고, HTTP 표면이 없으므로 schema와 router를 생략한다.
+
+## 허브 포트 조립
+
+스포크의 `dependencies/`도 다른 스포크를 import하지 않는다. 다른 스포크가 구현한 허브 포트가 필요하면 다음과 같이 한다.
+
+1. 소비하는 스포크의 `dependencies/hub_ports.py`에 "자리" 함수를 둔다. 반환 타입은 허브 포트이고, 호출되면 `RuntimeError`를 던진다.
+2. 프로바이더는 `Depends(자리)`로 포트를 받는다.
+3. 진입점(`main.py`, `auth_main.py`)이 `app.dependency_overrides[자리] = 구현 스포크의 프로바이더`로 채운다.
+
+매장 접근 확인(`ShopAccessPort`) 자리는 모든 매장 범위 스포크가 쓰므로 `core/shop_guard.py`에 있다. 매장 범위의 라우터는 `Depends(get_shop_context)`(소속만 확인) 또는 `Depends(require_permission("…"))`(권한까지 확인)로 `ShopContext`를 받는다. 결정 경위는 `_docs/decisions/002-hub-port-assembly.md`에 있다.
 
 ## 프로세스 배치
 
@@ -46,7 +58,7 @@
 |---|---|---|
 | `core/singleton/` | Singleton | 비밀값 관리자처럼 프로세스에 하나만 있는 객체 |
 | `auth/adapter/outbound/strategy/` | Strategy | 제공자별 `SocialProviderPort` 구현 |
-| `auth/adapter/outbound/factory/` | Factory Method | 제공자 이름으로 구현을 골라 돌려준다 |
+| `auth/adapter/outbound/factory/` | Factory | 설정에 따라 제공자 구현을 만들어 담아 두고 이름으로 골라 준다 |
 | `visit/domain/state/` (예정) | State | 방문 상태 전이 |
 | `core/observer/`, `<app>/adapter/inbound/observer/` (예정) | Observer | 도메인 이벤트 발행과 구독 |
 | `visit/domain/chain/` (예정) | Chain of Responsibility | 예약 체크리스트 규칙 |

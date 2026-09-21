@@ -6,14 +6,15 @@
 #
 # 실행: cd infra && docker compose run --rm --no-deps backend lint-imports --config .importlinter
 #
-# 계약 "스포크 상호 독립"은 두 번째 스포크(tenancy)가 생기는 계획 2에서 추가한다.
-# 스포크가 하나뿐일 때는 검사할 쌍이 없다.
+# 스포크를 새로 만들면 root_packages 와 다섯 계약 모두에 이름을 더한다.
+# 스포크 사이의 조립은 진입점(main.py, auth_main.py)이 한다. dependencies/ 도 다른 스포크를 import 하지 않는다.
 # =============================================================================
 
 [importlinter]
 root_packages =
     hub
     auth
+    tenancy
 include_external_packages = True
 
 [importlinter:contract:clean-architecture]
@@ -26,6 +27,14 @@ layers =
 containers =
     hub
     auth
+    tenancy
+
+[importlinter:contract:spoke-independence]
+name = 스포크 상호 독립 (스포크끼리 import 하지 않는다)
+type = independence
+modules =
+    auth
+    tenancy
 
 [importlinter:contract:framework-isolation]
 name = 프레임워크 격리 (app·domain 은 웹·DB·외부 통신 라이브러리를 모른다)
@@ -34,6 +43,8 @@ source_modules =
     hub.app
     auth.app
     auth.domain
+    tenancy.app
+    tenancy.domain
 forbidden_modules =
     fastapi
     sqlalchemy
@@ -47,6 +58,7 @@ name = 도메인 순수성 (domain 은 pydantic 과 core 도 모른다)
 type = forbidden
 source_modules =
     auth.domain
+    tenancy.domain
 forbidden_modules =
     pydantic
     core
@@ -58,3 +70,4 @@ source_modules =
     hub
 forbidden_modules =
     auth
+    tenancy

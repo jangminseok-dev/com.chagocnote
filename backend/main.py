@@ -12,6 +12,7 @@ from core.redis import dispose_redis
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.get_me_router import get_me_router
+from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
 from core.http_errors import install_error_handlers
 
 
@@ -27,6 +28,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="차곡노트 API", lifespan=lifespan)
 app.include_router(get_me_router)
+app.include_router(tenancy_myself_router)
 install_error_handlers(app, AUTH_ERROR_STATUS)
 
 
