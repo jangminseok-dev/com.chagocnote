@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from core.database import dispose_engine, init_engine
 from core.redis import dispose_redis
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
+from auth.dependencies.auth_wiring import dispose_http
 from auth.adapter.inbound.api.v1.auth_myself_router import auth_myself_router
 from auth.adapter.inbound.api.v1.logout_router import logout_router
 from auth.adapter.inbound.api.v1.refresh_token_router import refresh_token_router
@@ -30,6 +31,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await dispose_http()
         await dispose_engine()
         await dispose_redis()
 

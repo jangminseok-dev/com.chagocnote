@@ -16,9 +16,15 @@ from auth.domain.value_objects.social_profile import SocialProfile
 
 
 class UserPgRepository(UserRepository):
-    def __init__(self, session: AsyncSession, cipher: FernetCipher) -> None:
+    def __init__(self, session: AsyncSession, cipher: FernetCipher | None = None) -> None:
+        """cipher 는 인증 프로세스만 넘긴다. 읽기만 하는 경로(API 프로세스)는 없이 조립한다."""
         self._session = session
         self._cipher = cipher
+
+    def _require_cipher(self) -> FernetCipher:
+        if self._cipher is None:
+            raise RuntimeError("암호화 도구 없이 조립된 리포지토리는 제공자 토큰을 다룰 수 없습니다.")
+        return self._cipher
 
     async def find_by_identity(self, provider: Provider, provider_user_id: str) -> User | None:
         stmt = (
@@ -46,7 +52,7 @@ class UserPgRepository(UserRepository):
                 provider=profile.provider.value,
                 provider_user_id=profile.provider_user_id,
                 email=profile.email,
-                provider_refresh_token_enc=self._cipher.encrypt(token) if token else None,
+                provider_refresh_token_enc=self._require_cipher().encrypt(token) if token else None,
             )
         )
         await self._session.flush()

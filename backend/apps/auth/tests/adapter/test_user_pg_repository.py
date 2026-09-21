@@ -72,3 +72,18 @@ async def test_여러_유저를_ID_로_한_번에_읽는다(db_session):
     users = await repo.list_by_ids([second.id, first.id])
     assert sorted(u.display_name for u in users) == ["둘", "하나"]
     assert await repo.list_by_ids([]) == []
+
+
+async def test_암호화_도구_없이_조립하면_제공자_토큰을_저장하지_못한다(db_session):
+    repo = UserPgRepository(db_session)
+    with pytest.raises(RuntimeError, match="암호화"):
+        await repo.create_with_identity(
+            _profile(provider=Provider.APPLE, provider_user_id="apple-2", provider_refresh_token="plain")
+        )
+
+
+async def test_암호화_도구_없이도_토큰_없는_프로필은_저장하고_읽는다(db_session):
+    repo = UserPgRepository(db_session)
+    created = await repo.create_with_identity(_profile(provider_user_id="kakao-200"))
+    assert (await repo.get(created.id)).display_name == "두부 보호자"
+    assert await repo.get(999999) is None

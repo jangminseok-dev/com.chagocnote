@@ -1,7 +1,7 @@
 """auth 슬라이스 프로바이더들이 함께 쓰는 조립 함수.
 
-개인키가 필요한 조립(build_session_issuer)은 core.auth_config 를 함수 안에서 import 한다.
-모듈 최상단에서 import 하면 개인키가 없는 API 프로세스에서 이 모듈을 불러올 때 실패한다.
+인증 프로세스 전용 비밀값이 필요한 조립은 core.auth_config 를 함수 안에서 import 한다.
+모듈 최상단에서 import 하면 그 값이 없는 API 프로세스에서 이 모듈을 불러올 때 실패한다.
 """
 from __future__ import annotations
 
@@ -25,12 +25,35 @@ from auth.app.services.session_issuer import SessionIssuer
 from core import config
 from core.redis import get_redis
 
-_http = httpx.AsyncClient(timeout=5.0)
+_http: httpx.AsyncClient | None = None
 _resolver: SocialProviderResolverPort | None = None
 
 
+def get_http() -> httpx.AsyncClient:
+    """제공자를 부르는 공용 클라이언트. 처음 쓸 때 만들고 프로세스가 끝날 때 닫는다."""
+    global _http
+    if _http is None:
+        _http = httpx.AsyncClient(timeout=5.0)
+    return _http
+
+
+async def dispose_http() -> None:
+    global _http
+    if _http is not None:
+        await _http.aclose()
+    _http = None
+
+
 def build_user_repository(db: AsyncSession) -> UserRepository:
-    return UserPgRepository(db, FernetCipher(config.IDENTITY_TOKEN_ENC_KEY))
+    """읽기만 하는 경로용. 제공자 토큰을 저장하거나 복호화할 수 없다."""
+    return UserPgRepository(db)
+
+
+def build_user_repository_with_cipher(db: AsyncSession) -> UserRepository:
+    """인증 프로세스 전용. 로그인·연결·해제·탈퇴가 쓴다."""
+    from core.auth_config import IDENTITY_TOKEN_ENC_KEY
+
+    return UserPgRepository(db, FernetCipher(IDENTITY_TOKEN_ENC_KEY))
 
 
 def build_operator_repository(db: AsyncSession) -> OperatorRepository:
@@ -64,6 +87,6 @@ def build_provider_resolver() -> SocialProviderResolverPort:
             kakao_app_id=config.KAKAO_APP_ID,
             google_client_ids=config.GOOGLE_CLIENT_IDS,
             apple=apple,
-            http=_http,
+            http=get_http(),
         )
     return _resolver

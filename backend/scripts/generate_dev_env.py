@@ -31,7 +31,6 @@ def main() -> None:
         "DATABASE_URL=postgresql+asyncpg://chagoc:chagoc_dev@pgvector:5432/chagocnote\n"
         "REDIS_URL=redis://redis:6379/0\n"
         f"JWT_PUBLIC_KEY_B64={base64.b64encode(public_pem).decode()}\n"
-        f"IDENTITY_TOKEN_ENC_KEY={Fernet.generate_key().decode()}\n"
         "S3_ENDPOINT_URL=http://minio:9000\n"
         "S3_ACCESS_KEY=chagoc\n"
         "S3_SECRET_KEY=chagoc_dev_minio\n"
@@ -39,7 +38,8 @@ def main() -> None:
         encoding="utf-8",
     )
     auth_env.write_text(
-        f"JWT_PRIVATE_KEY_B64={base64.b64encode(private_pem).decode()}\n",
+        f"JWT_PRIVATE_KEY_B64={base64.b64encode(private_pem).decode()}\n"
+        f"IDENTITY_TOKEN_ENC_KEY={Fernet.generate_key().decode()}\n",
         encoding="utf-8",
     )
     print("만들었습니다:", env, auth_env)

@@ -33,4 +33,3 @@ APPLE_BUNDLE_ID: str = _m.get("APPLE_BUNDLE_ID", "") or ""
 APPLE_TEAM_ID: str = _m.get("APPLE_TEAM_ID", "") or ""
 APPLE_KEY_ID: str = _m.get("APPLE_KEY_ID", "") or ""
 APPLE_PRIVATE_KEY: str = _b64_pem("APPLE_PRIVATE_KEY_B64")
-IDENTITY_TOKEN_ENC_KEY: str = _m.require("IDENTITY_TOKEN_ENC_KEY")

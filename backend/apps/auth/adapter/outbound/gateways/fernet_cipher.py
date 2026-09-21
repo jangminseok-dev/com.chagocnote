@@ -11,3 +11,6 @@ class FernetCipher:
 
     def encrypt(self, plain: str) -> str:
         return self._fernet.encrypt(plain.encode()).decode()
+
+    def decrypt(self, encrypted: str) -> str:
+        return self._fernet.decrypt(encrypted.encode()).decode()

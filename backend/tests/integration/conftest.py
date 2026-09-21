@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 
 import pytest
+from cryptography.fernet import Fernet
 from httpx import ASGITransport, AsyncClient
 from redis.asyncio import from_url
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -17,6 +18,8 @@ async def wired(db_engine, monkeypatch):
     private_pem, public_pem, _ = make_rsa_keypair()
     # auth_main 은 import 시점에 개인키를 요구한다. 개발용 실제 키 대신 매번 새로 만든 키를 넣는다.
     monkeypatch.setenv("JWT_PRIVATE_KEY_B64", base64.b64encode(private_pem.encode()).decode())
+    enc_key = Fernet.generate_key().decode()
+    monkeypatch.setenv("IDENTITY_TOKEN_ENC_KEY", enc_key)
 
     import core.auth_config
     import core.config
@@ -26,6 +29,8 @@ async def wired(db_engine, monkeypatch):
     from auth.dependencies import auth_wiring
 
     monkeypatch.setattr(core.auth_config, "JWT_PRIVATE_KEY", private_pem)
+    monkeypatch.setattr(core.auth_config, "IDENTITY_TOKEN_ENC_KEY", enc_key)
+    monkeypatch.setattr(core.auth_config, "KAKAO_ADMIN_KEY", "")
     monkeypatch.setattr(core.security, "JWT_PUBLIC_KEY", public_pem)
     monkeypatch.setattr(core.config, "APP_ENV", "dev")
     monkeypatch.setattr(auth_wiring, "_resolver", None)  # APP_ENV 를 바꿨으니 제공자 목록을 다시 만들게 한다
