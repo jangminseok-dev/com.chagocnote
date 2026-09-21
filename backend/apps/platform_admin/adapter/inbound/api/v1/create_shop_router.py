@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
 
-from core.security import get_current_user_id
 from platform_admin.adapter.inbound.api.schemas.create_shop_schema import (
     CreateShopRequestSchema,
     CreateShopResponseSchema,
@@ -8,18 +7,20 @@ from platform_admin.adapter.inbound.api.schemas.create_shop_schema import (
 from platform_admin.app.dtos.create_shop_dto import CreateShopCommand
 from platform_admin.app.ports.input.create_shop_use_case import CreateShopUseCase
 from platform_admin.dependencies.create_shop_provider import get_create_shop_use_case
+from platform_admin.dependencies.operator_guard import require_operator
 
-create_shop_router = APIRouter(prefix="/v1/platform", tags=["platform"])
+create_shop_router = APIRouter(
+    prefix="/v1/platform", tags=["platform"], dependencies=[Depends(require_operator)]
+)
 
 
 @create_shop_router.post("/shops", response_model=CreateShopResponseSchema, status_code=201)
 async def create_shop(
     body: CreateShopRequestSchema,
-    user_id: int = Depends(get_current_user_id),
     use_case: CreateShopUseCase = Depends(get_create_shop_use_case),
 ) -> CreateShopResponseSchema:
     shop = await use_case.create_shop(
-        CreateShopCommand(user_id=user_id, name=body.name, business_type=body.business_type)
+        CreateShopCommand(name=body.name, business_type=body.business_type)
     )
     return CreateShopResponseSchema(
         shop_id=shop.shop_id,

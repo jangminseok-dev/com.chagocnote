@@ -5,7 +5,6 @@ from dataclasses import dataclass
 class PlatformMyselfQuery:
     id: int
     name: str
-    user_id: int
 
 
 @dataclass(frozen=True)
