@@ -38,10 +38,11 @@ def get_http() -> httpx.AsyncClient:
 
 
 async def dispose_http() -> None:
-    global _http
+    global _http, _resolver
     if _http is not None:
         await _http.aclose()
     _http = None
+    _resolver = None  # 캐시된 제공자 목록이 방금 닫은 클라이언트를 붙들고 있으므로 함께 비운다.
 
 
 def build_user_repository(db: AsyncSession) -> UserRepository:
