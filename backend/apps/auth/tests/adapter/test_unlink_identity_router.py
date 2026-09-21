@@ -7,7 +7,7 @@ from auth.app.dtos.token_dto import TokenPair
 from auth.app.dtos.unlink_identity_dto import UnlinkIdentityResult
 from auth.dependencies.provider_revoker_provider import get_provider_revoker
 from auth.dependencies.unlink_identity_provider import get_unlink_identity_use_case
-from auth.domain.errors import LastIdentityError
+from auth.domain.errors import IdentityNotFoundError, LastIdentityError, UnsupportedProviderError
 from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from core.database import get_db
@@ -82,3 +82,19 @@ async def test_마지막_수단이면_409_이고_제공자_연결을_끊지_않�
 async def test_로그인하지_않으면_401_이다():
     response = await _delete(_app(_StubUseCase(), _StubRevoker(), user_id=None))
     assert (response.status_code, response.json()["code"]) == (401, "UNAUTHENTICATED")
+
+
+async def test_모르는_제공자는_400_이고_제공자_연결을_끊지_않는다():
+    revoker = _StubRevoker()
+    error = UnsupportedProviderError("naver 로그인은 지원하지 않습니다.")
+    response = await _delete(_app(_StubUseCase(error), revoker), provider="naver")
+    assert (response.status_code, response.json()["code"]) == (400, "PROVIDER_NOT_SUPPORTED")
+    assert revoker.revoked == []
+
+
+async def test_연결되지_않은_수단은_404_이고_제공자_연결을_끊지_않는다():
+    revoker = _StubRevoker()
+    error = IdentityNotFoundError("google 로그인은 연결되어 있지 않습니다.")
+    response = await _delete(_app(_StubUseCase(error), revoker), provider="google")
+    assert (response.status_code, response.json()["code"]) == (404, "IDENTITY_NOT_FOUND")
+    assert revoker.revoked == []
