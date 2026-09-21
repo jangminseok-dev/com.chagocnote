@@ -44,14 +44,14 @@ class SocialProviderFactory(SocialProviderResolverPort):
 
 def build_social_provider_factory(
     *, app_env: str, kakao_app_id: str, google_client_ids: tuple[str, ...],
-    apple: AppleSettings | None, http: httpx.AsyncClient,
+    apple: AppleSettings | None, http: httpx.AsyncClient, kakao_admin_key: str = "",
 ) -> SocialProviderFactory:
     """설정값이 있는 제공자만 등록한다. dev 제공자는 개발 환경에서만 등록한다."""
     strategies: dict[Provider, SocialProviderPort] = {}
     if app_env == "dev":
         strategies[Provider.DEV] = DevIdentityStrategy()
     if kakao_app_id:
-        strategies[Provider.KAKAO] = KakaoIdentityStrategy(kakao_app_id, http)
+        strategies[Provider.KAKAO] = KakaoIdentityStrategy(kakao_app_id, http, kakao_admin_key)
     if google_client_ids:
         fetch, refetch = http_jwks_fetchers(http, GOOGLE_JWKS_URL)
         strategies[Provider.GOOGLE] = GoogleIdentityStrategy(google_client_ids, fetch, refetch)

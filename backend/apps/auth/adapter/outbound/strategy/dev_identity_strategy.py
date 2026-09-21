@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from auth.app.ports.output.social_provider_port import SocialProviderPort
 from auth.domain.errors import ProviderVerificationError
+from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from auth.domain.value_objects.social_credentials import SocialCredentials
 from auth.domain.value_objects.social_profile import SocialProfile
@@ -22,3 +23,6 @@ class DevIdentityStrategy(SocialProviderPort):
             profile_image_url=None,
             provider_refresh_token=None,
         )
+
+    async def revoke(self, identity: IdentityRevocation) -> None:
+        """개발용 제공자는 바깥에 끊을 연결이 없다."""

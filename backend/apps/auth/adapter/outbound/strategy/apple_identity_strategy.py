@@ -9,7 +9,8 @@ from jose import jwt
 
 from auth.adapter.outbound.strategy.jwks_verifier import JwksFetcher, verify_with_jwks
 from auth.app.ports.output.social_provider_port import SocialProviderPort
-from auth.domain.errors import ProviderVerificationError
+from auth.domain.errors import ProviderRevokeError, ProviderVerificationError
+from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from auth.domain.value_objects.social_credentials import SocialCredentials
 from auth.domain.value_objects.social_profile import SocialProfile
@@ -17,6 +18,7 @@ from auth.domain.value_objects.social_profile import SocialProfile
 APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
 _ISSUER = "https://appleid.apple.com"
 _TOKEN_URL = "https://appleid.apple.com/auth/token"
+_REVOKE_URL = "https://appleid.apple.com/auth/revoke"
 
 
 class AppleIdentityStrategy(SocialProviderPort):
@@ -77,3 +79,19 @@ class AppleIdentityStrategy(SocialProviderPort):
         if response.status_code != 200:
             raise ProviderVerificationError("Apple 인가 코드를 확인할 수 없습니다.")
         return response.json().get("refresh_token")
+
+    async def revoke(self, identity: IdentityRevocation) -> None:
+        """저장해 둔 Apple 리프레시 토큰을 폐기한다 (App Store 심사 가이드라인 5.1.1(v))."""
+        if not identity.provider_refresh_token:
+            raise ProviderRevokeError("저장된 Apple 리프레시 토큰이 없어 연결을 끊을 수 없습니다.")
+        try:
+            response = await self._http.post(_REVOKE_URL, data={
+                "client_id": self._bundle_id,
+                "client_secret": self._client_secret(),
+                "token": identity.provider_refresh_token,
+                "token_type_hint": "refresh_token",
+            })
+        except httpx.HTTPError as exc:
+            raise ProviderRevokeError("Apple 에 연결할 수 없습니다.") from exc
+        if response.status_code != 200:
+            raise ProviderRevokeError(f"Apple 이 토큰 폐기를 거절했습니다 (상태 {response.status_code}).")

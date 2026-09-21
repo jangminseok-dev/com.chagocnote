@@ -30,3 +30,9 @@ class UserNotFoundError(AuthError):
 
 class IdentityAlreadyLinkedError(AuthError):
     code = "IDENTITY_ALREADY_LINKED"
+
+
+class ProviderRevokeError(AuthError):
+    """제공자 쪽 연결을 끊지 못했다. HTTP 응답으로 나가지 않는다 — 부르는 쪽이 로그로 남긴다."""
+
+    code = "PROVIDER_REVOKE_FAILED"

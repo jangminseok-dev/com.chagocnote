@@ -21,6 +21,7 @@ from auth.app.ports.output.operator_repository import OperatorRepository
 from auth.app.ports.output.refresh_token_store_port import RefreshTokenStorePort
 from auth.app.ports.output.social_provider_resolver_port import SocialProviderResolverPort
 from auth.app.ports.output.user_repository import UserRepository
+from auth.app.services.provider_revoker import ProviderRevoker
 from auth.app.services.session_issuer import SessionIssuer
 from core import config
 from core.redis import get_redis
@@ -77,6 +78,8 @@ def build_provider_resolver() -> SocialProviderResolverPort:
     """공개키 캐시를 유지하려고 프로세스에 하나만 만든다."""
     global _resolver
     if _resolver is None:
+        from core.auth_config import KAKAO_ADMIN_KEY
+
         apple = None
         if config.APPLE_BUNDLE_ID and config.APPLE_PRIVATE_KEY:
             apple = AppleSettings(
@@ -89,5 +92,10 @@ def build_provider_resolver() -> SocialProviderResolverPort:
             google_client_ids=config.GOOGLE_CLIENT_IDS,
             apple=apple,
             http=get_http(),
+            kakao_admin_key=KAKAO_ADMIN_KEY,
         )
     return _resolver
+
+
+def build_provider_revoker() -> ProviderRevoker:
+    return ProviderRevoker(build_provider_resolver())
