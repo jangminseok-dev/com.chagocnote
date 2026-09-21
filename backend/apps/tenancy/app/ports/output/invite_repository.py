@@ -25,3 +25,7 @@ class InviteRepository(ABC):
 
     @abstractmethod
     async def mark_used(self, invite_id: int) -> None: ...
+
+    @abstractmethod
+    async def revoke_created_by(self, ctx: ShopContext, member_id: int) -> None:
+        """그 멤버가 만든 미사용 초대를 무효화한다. 내보내거나 사장에서 낮출 때 같은 트랜잭션에서 부른다."""

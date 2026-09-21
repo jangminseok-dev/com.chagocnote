@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hub.app.dtos.shop_context import ShopContext
@@ -40,6 +40,18 @@ class InvitePgRepository(InviteRepository):
             update(ShopInviteOrm)
             .where(ShopInviteOrm.id == invite_id)
             .values(used_count=ShopInviteOrm.used_count + 1)
+        )
+
+    async def revoke_created_by(self, ctx: ShopContext, member_id: int) -> None:
+        await self._session.execute(
+            update(ShopInviteOrm)
+            .where(
+                ShopInviteOrm.shop_id == ctx.shop_id,
+                ShopInviteOrm.created_by_member_id == member_id,
+                ShopInviteOrm.revoked_at.is_(None),
+                ShopInviteOrm.used_count < ShopInviteOrm.max_uses,
+            )
+            .values(revoked_at=func.now())
         )
 
     async def _insert(

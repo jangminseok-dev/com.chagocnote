@@ -29,29 +29,46 @@ class _StubMembers:
         self.removed.append((ctx, member_id))
 
 
+class _StubInvites:
+    def __init__(self):
+        self.revoked = []
+
+    async def revoke_created_by(self, ctx, member_id):
+        self.revoked.append((ctx, member_id))
+
+
 def _member(role):
     return Member(id=12, shop_id=3, user_id=2, role=role, joined_at=JOINED)
 
 
-async def test_직원을_내보낸다():
-    members = _StubMembers(_member(RoleCode.STAFF))
-    await RemoveMemberInteractor(members).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
+async def test_직원을_내보내고_그가_만든_초대를_무효화한다():
+    members, invites = _StubMembers(_member(RoleCode.STAFF)), _StubInvites()
+    await RemoveMemberInteractor(members, invites).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
     assert members.removed == [(CTX, 12)]
+    assert invites.revoked == [(CTX, 12)]
 
 
 async def test_사장이_둘이면_한_명을_내보낼_수_있다():
-    members = _StubMembers(_member(RoleCode.OWNER), owner_count=2)
-    await RemoveMemberInteractor(members).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
+    members, invites = _StubMembers(_member(RoleCode.OWNER), owner_count=2), _StubInvites()
+    await RemoveMemberInteractor(members, invites).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
     assert members.removed == [(CTX, 12)]
+    assert invites.revoked == [(CTX, 12)]
 
 
-async def test_마지막_사장은_내보낼_수_없다():
-    members = _StubMembers(_member(RoleCode.OWNER), owner_count=1)
+async def test_마지막_사장은_내보낼_수_없고_초대도_그대로다():
+    members, invites = _StubMembers(_member(RoleCode.OWNER), owner_count=1), _StubInvites()
     with pytest.raises(LastOwnerError):
-        await RemoveMemberInteractor(members).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
+        await RemoveMemberInteractor(members, invites).remove(
+            RemoveMemberCommand(ctx=CTX, member_id=12)
+        )
     assert members.removed == []
+    assert invites.revoked == []
 
 
-async def test_없는_멤버는_MEMBER_NOT_FOUND_다():
+async def test_없는_멤버는_MEMBER_NOT_FOUND_이고_초대도_그대로다():
+    invites = _StubInvites()
     with pytest.raises(MemberNotFoundError):
-        await RemoveMemberInteractor(_StubMembers(None)).remove(RemoveMemberCommand(ctx=CTX, member_id=99))
+        await RemoveMemberInteractor(_StubMembers(None), invites).remove(
+            RemoveMemberCommand(ctx=CTX, member_id=99)
+        )
+    assert invites.revoked == []

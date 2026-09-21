@@ -103,6 +103,36 @@ async def test_마지막_사장은_낮추거나_내보낼_수_없다(wired):
     assert _code(await wired.api.delete(owner_path, headers=bearer(owner["access_token"]))) == (409, "LAST_OWNER")
 
 
+async def test_내보낸_멤버가_미리_만들어_둔_초대는_쓸_수_없다(wired):
+    operator = await _operator(wired)
+    shop_id, owner = await _shop_with_owner(wired, operator, "Hiss Haus", "사장님")
+    other = await wired.login("다른사람")
+    other_joined = await _accept(wired, other, await _staff_invite(wired, shop_id, owner))
+    other_member_id = other_joined.json()["member_id"]
+    # 사장으로 올려서 초대를 만들게 한 뒤, 그 코드를 쥔 채로 내보낸다.
+    member_path = f"/v1/shops/{shop_id}/members/{other_member_id}"
+    assert (await wired.api.patch(member_path, json={"role": "owner"}, headers=bearer(owner["access_token"]))).status_code == 200
+    stashed = await _staff_invite(wired, shop_id, other)
+    assert (await wired.api.delete(member_path, headers=bearer(owner["access_token"]))).status_code == 204
+
+    comeback = await wired.login("되돌아온사람")
+    assert _code(await _accept(wired, comeback, stashed)) == (400, "INVITE_INVALID")
+
+
+async def test_사장에서_직원으로_낮춘_멤버의_초대도_쓸_수_없다(wired):
+    operator = await _operator(wired)
+    shop_id, owner = await _shop_with_owner(wired, operator, "Hiss Haus", "사장님")
+    other = await wired.login("다른사람")
+    other_joined = await _accept(wired, other, await _staff_invite(wired, shop_id, owner))
+    member_path = f"/v1/shops/{shop_id}/members/{other_joined.json()['member_id']}"
+    assert (await wired.api.patch(member_path, json={"role": "owner"}, headers=bearer(owner["access_token"]))).status_code == 200
+    stashed = await _staff_invite(wired, shop_id, other)
+    assert (await wired.api.patch(member_path, json={"role": "staff"}, headers=bearer(owner["access_token"]))).status_code == 200
+
+    comeback = await wired.login("초대받은사람")
+    assert _code(await _accept(wired, comeback, stashed)) == (400, "INVITE_INVALID")
+
+
 async def test_다른_매장의_멤버_초대_설정에는_손댈_수_없다(wired):
     """테넌트 격리 — A매장 사장이 B매장의 경로를 부르면 전부 403 NOT_A_MEMBER 다."""
     operator = await _operator(wired)

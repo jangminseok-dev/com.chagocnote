@@ -56,3 +56,42 @@ async def test_사용하면_횟수가_오른다(db_session):
     invite = await repo.create(ctx, RoleCode.STAFF, "hash-b", EXPIRES, max_uses=1)
     await repo.mark_used(invite.id)
     assert (await repo.find_by_code_hash_for_update("hash-b")).used_count == 1
+
+
+async def _revoked_at(session, code_hash):
+    return (
+        await session.execute(
+            text("SELECT revoked_at FROM shop_invites WHERE code_hash = :h"), {"h": code_hash}
+        )
+    ).scalar_one()
+
+
+async def test_멤버가_만든_미사용_초대만_무효화한다(db_session):
+    shop, ctx = await _shop_with_owner(db_session)
+    other = await MemberPgRepository(db_session).add(shop.id, user_id=2, role=RoleCode.OWNER)
+    other_ctx = ShopContext(shop_id=shop.id, member_id=other.id, role="owner", permissions=frozenset())
+    repo = InvitePgRepository(db_session)
+    await repo.create(ctx, RoleCode.STAFF, "hash-unused", EXPIRES, max_uses=1)
+    used = await repo.create(ctx, RoleCode.STAFF, "hash-used", EXPIRES, max_uses=1)
+    await repo.mark_used(used.id)
+    await repo.create(other_ctx, RoleCode.STAFF, "hash-other-member", EXPIRES, max_uses=1)
+
+    await repo.revoke_created_by(ctx, ctx.member_id)
+
+    assert await _revoked_at(db_session, "hash-unused") is not None
+    assert await _revoked_at(db_session, "hash-used") is None
+    assert await _revoked_at(db_session, "hash-other-member") is None
+
+
+async def test_다른_매장의_초대는_무효화하지_않는다(db_session):
+    _, a_ctx = await _shop_with_owner(db_session)
+    b_shop = await ShopPgRepository(db_session).create("B 매장", "pet_grooming")
+    b_owner = await MemberPgRepository(db_session).add(b_shop.id, user_id=3, role=RoleCode.OWNER)
+    b_ctx = ShopContext(shop_id=b_shop.id, member_id=b_owner.id, role="owner", permissions=frozenset())
+    repo = InvitePgRepository(db_session)
+    await repo.create(b_ctx, RoleCode.STAFF, "hash-b-shop", EXPIRES, max_uses=1)
+
+    # A 매장의 컨텍스트로는 B 매장 멤버의 초대에 손댈 수 없다.
+    await repo.revoke_created_by(a_ctx, b_owner.id)
+
+    assert await _revoked_at(db_session, "hash-b-shop") is None
