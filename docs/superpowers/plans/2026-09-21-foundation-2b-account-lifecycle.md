@@ -65,6 +65,7 @@
 | F1 | 탈퇴 직전에 다른 사장이 낮춰져서, 확인 때는 사장이 둘이었는데 적용 때는 혼자다 | 미리 조회하지 않는다. 적용이 매장 행을 잠근 뒤 다시 읽고 판단한다 | Task 7 `test_잠근_뒤에_다시_읽은_역할로_판단한다` |
 | F2 | 탈퇴한 사장이 미리 만들어 둔 초대 코드가 살아 있다 | 소속 해제와 같은 트랜잭션에서 그 멤버의 초대를 무효화 | Task 7, Task 12 통합 테스트 |
 | F3 | 두 유저가 서로 다른 순서로 매장을 잠가 교착한다 | 매장 ID 오름차순으로 잠근다 | Task 7 `test_매장을_ID_순서로_잠근다` |
+| F4 | 탈퇴와 겹친 초대 수락이 소속을 되살린다 — 수락은 `users`를 보지도 잠그지도 않아, 탈퇴가 쥔 매장 잠금 뒤에서 기다리다 커밋 직후 합류한다 (Task 7 검토에서 발견) | 수락이 맨 앞에서 `ActiveUserGuardPort.lock_active`로 유저 행을 잠그고 활동 중인지 다시 본다 | Task 8b `test_탈퇴가_유저_행을_쥔_동안_수락은_기다리고_탈퇴한_뒤에는_거절된다` |
 | G1 | 로그인 수단이 둘일 때 서로 다른 수단의 해제가 동시에 와서 0개가 된다 | 유저 행을 먼저 잠그고 다시 센다 | Task 12 `test_동시에_서로_다른_수단을_해제해도_하나는_남는다` |
 | G2 | 탈퇴와 연결이 겹쳐, 탈퇴한 유저에 신원이 붙는다 (그 신원으로 로그인하면 탈퇴한 유저가 나온다) | 연결도 유저 행을 잠근 뒤 탈퇴 여부를 다시 본다 | Task 9 `test_잠근_뒤에_탈퇴한_유저면_붙이지_않는다` |
 | G3 | 남의 소셜 계정을 내 계정에 붙인다 | 제공자에게 직접 검증한 신원만 붙이고, `(provider, provider_user_id)` 유일 제약으로 409 | Task 8·9, Task 12 |
@@ -2919,6 +2920,402 @@ Run: 단위 테스트 전체, 통합 테스트 전체, 구조 계약 → 전부 
 ```bash
 git add backend/apps/auth backend/alembic/versions/0004_social_identities_user_provider_unique.py
 git commit -m "feat(auth): 신원 추가·삭제, 유저 행 잠금, 익명화 — 제공자마다 신원 하나"
+```
+
+---
+
+### Task 8b: 초대 수락이 유저 행을 잠그고 탈퇴 여부를 확인한다
+
+Task 7의 검토에서 위협 점검표에 없던 구멍이 나왔다(새 위협 **F4**).
+
+> **F4 — 탈퇴와 겹친 초대 수락이 소속을 되살린다.** `accept_invite`는 `users`를 보지도 잠그지도 않는다. 탈퇴(Task 11)가 유저 행과 매장 행을 잠그고 소속을 정리하는 동안, 같은 유저의 초대 수락 요청은 (요청 시작 때의 인증 확인은 이미 통과한 채) 매장 행 잠금 뒤에서 기다리다가 탈퇴가 커밋된 직후 `members.add`에 성공한다. 탈퇴한 유저의 소속이 남는다. 사장용 초대였다면 "로그인할 수 없는 사장"이 생기고 `count_owners`를 부풀려, 나중에 진짜 사장이 탈퇴할 때 마지막 사장 보호가 걸리지 않는다 → 살아 있는 사장이 없는 열린 매장.
+
+막는 방법: 초대 수락이 **맨 앞에서 유저 행을 잠그고** 지금 활동할 수 있는 유저인지 다시 본다. 전역 잠금 순서(유저 행 → 매장 행 → 멤버 행 → 초대 행)와 일치한다. 수락이 먼저 잠그면 탈퇴가 기다렸다가 새 소속까지 정리하고, 탈퇴가 먼저 잠그면 수락이 기다렸다가 탈퇴한 것을 보고 거절한다.
+
+tenancy는 `users`를 모르므로 허브 포트를 하나 더한다. auth가 HTTP 표면이 없는 슬라이스 `guard_active_user`로 구현하고(Task 8의 `UserRepository.lock`을 쓴다), tenancy가 자리로 받고, `main.py`가 꽂는다.
+
+**Files:**
+- Create: `backend/apps/hub/app/ports/active_user_guard_port.py`
+- Create: `backend/apps/auth/app/use_cases/guard_active_user_interactor.py`, `backend/apps/auth/dependencies/guard_active_user_provider.py`
+- Modify: `backend/apps/tenancy/domain/errors.py`, `backend/apps/tenancy/adapter/inbound/api/error_map.py`
+- Modify: `backend/apps/tenancy/dependencies/hub_ports.py`, `backend/apps/tenancy/dependencies/accept_invite_provider.py`
+- Modify: `backend/apps/tenancy/app/use_cases/accept_invite_interactor.py`
+- Modify: `backend/main.py`
+- Modify: `backend/apps/tenancy/_docs/CLAUDE.md`, `backend/apps/hub/_docs/CLAUDE.md`
+- Test: `backend/apps/auth/tests/app/use_cases/test_guard_active_user_interactor.py` (새로), `backend/apps/tenancy/tests/app/use_cases/test_accept_invite_interactor.py`·`test_accept_invite_locking.py` (수정), `backend/tests/integration/test_accept_vs_withdraw_locking.py` (새로)
+
+**Interfaces:**
+- Consumes: Task 8의 `UserRepository.lock(user_id) -> User | None`·`anonymize`, `auth.dependencies.auth_wiring.build_user_repository(db)`, Task 6의 수락 순서(선조회 → 매장 잠금 → 잠근 조회)
+- Produces:
+  - `hub.app.ports.active_user_guard_port.ActiveUserGuardPort`: `async lock_active(user_id: int) -> bool`
+  - `auth.dependencies.guard_active_user_provider.get_guard_active_user_use_case(db: DbSession) -> ActiveUserGuardPort`
+  - `tenancy.dependencies.hub_ports.get_active_user_guard() -> ActiveUserGuardPort` — 자리
+  - `tenancy.domain.errors.AccountUnavailableError` (`code = "UNAUTHENTICATED"`, 401)
+  - `AcceptInviteInteractor(invites, members, shops, limiter, users: ActiveUserGuardPort, now=_utcnow)`
+
+- [ ] **Step 1: 허브 포트를 쓴다**
+
+`backend/apps/hub/app/ports/active_user_guard_port.py`:
+```python
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+
+class ActiveUserGuardPort(ABC):
+    """구현: auth. 사용: tenancy (초대 수락)."""
+
+    @abstractmethod
+    async def lock_active(self, user_id: int) -> bool:
+        """유저 행을 잠그고, 지금 활동할 수 있는 유저(있고, 탈퇴하지 않았고, 정지되지 않은)인지 돌려준다.
+
+        잠금은 부르는 쪽의 트랜잭션이 끝날 때 풀린다. 같은 유저의 회원 탈퇴와 겹치지 않게 하려는 것이다 —
+        소속을 새로 만드는 유스케이스는 매장 행을 잠그기 **전에** 이것을 부른다 (잠금 순서: 유저 → 매장).
+        """
+```
+
+- [ ] **Step 2: 실패하는 테스트를 쓴다**
+
+`backend/apps/auth/tests/app/use_cases/test_guard_active_user_interactor.py`:
+```python
+from datetime import datetime, timezone
+
+from auth.app.use_cases.guard_active_user_interactor import GuardActiveUserInteractor
+from auth.domain.entities.user import User
+
+NOW = datetime(2026, 9, 21, tzinfo=timezone.utc)
+
+
+class _StubUsers:
+    def __init__(self, user):
+        self.user = user
+        self.locked = []
+
+    async def lock(self, user_id):
+        self.locked.append(user_id)
+        return self.user
+
+
+def _user(suspended=False, deleted=False):
+    return User(id=5, display_name="두부 보호자", profile_image_url=None, phone=None,
+                suspended_at=NOW if suspended else None, deleted_at=NOW if deleted else None)
+
+
+async def test_활동_중인_유저면_행을_잠그고_참을_돌려준다():
+    users = _StubUsers(_user())
+    assert await GuardActiveUserInteractor(users).lock_active(5) is True
+    assert users.locked == [5]
+
+
+async def test_탈퇴했거나_정지됐거나_없는_유저면_거짓이다():
+    for user in (_user(deleted=True), _user(suspended=True), None):
+        assert await GuardActiveUserInteractor(_StubUsers(user)).lock_active(5) is False
+```
+
+`backend/apps/tenancy/tests/app/use_cases/test_accept_invite_interactor.py`에서 세 곳을 고친다.
+
+(1) 스텁을 하나 더한다 (`_StubLimiter` 다음).
+```python
+class _StubUserGuard:
+    def __init__(self, active=True, calls=None):
+        self.active = active
+        self.calls = calls if calls is not None else []
+
+    async def lock_active(self, user_id):
+        self.calls.append("lock_active")
+        return self.active
+```
+(2) `_interactor` 도우미가 `users` 인자를 받아 넘기게 한다 (기본은 활동 중인 유저).
+```python
+def _interactor(invites, members=None, shops=None, limiter=None, users=None):
+    return AcceptInviteInteractor(
+        invites=invites, members=members or _StubMembers(), shops=shops or _StubShops(),
+        limiter=limiter or _StubLimiter(), users=users or _StubUserGuard(), now=lambda: NOW,
+    )
+```
+(3) import 묶음에 `AccountUnavailableError`를 더하고, 파일 끝에 테스트를 더한다. 그리고 기존 `test_초대_행을_잠그기_전에_매장_행을_먼저_잠근다`의 호출 순서 단언은 그대로 둔다(그 테스트는 `users`에 호출 기록을 넘기지 않는다).
+```python
+
+
+async def test_유저_행을_매장_행보다_먼저_잠근다():
+    """F4 — 잠금 순서는 유저 → 매장 → 멤버 → 초대다."""
+    calls = []
+    invites, members = _StubInvites(_invite(), calls), _StubMembers(calls=calls)
+    await _interactor(invites, members, users=_StubUserGuard(calls=calls)).accept(
+        AcceptInviteCommand(user_id=5, code="ABCD2345")
+    )
+    assert calls == ["lock_active", "find_shop_id", "lock", "find_for_update"]
+
+
+async def test_그_사이_탈퇴했거나_정지된_유저는_합류시키지_않는다():
+    """F4 — 요청 시작 때의 인증 확인은 통과했지만, 잠근 뒤에 보니 활동할 수 없는 유저다."""
+    calls = []
+    invites, members = _StubInvites(_invite(), calls), _StubMembers(calls=calls)
+    with pytest.raises(AccountUnavailableError):
+        await _interactor(invites, members, users=_StubUserGuard(active=False, calls=calls)).accept(
+            AcceptInviteCommand(user_id=5, code="ABCD2345")
+        )
+    assert calls == ["lock_active"]
+    assert members.added == [] and invites.used == []
+
+
+async def test_시도_횟수는_유저_행을_잠그기_전에_센다():
+    calls = []
+    invites = _StubInvites(_invite(), calls)
+    with pytest.raises(TooManyAttemptsError):
+        await _interactor(invites, limiter=_StubLimiter(count=6), users=_StubUserGuard(calls=calls)).accept(
+            AcceptInviteCommand(user_id=5, code="ABCD2345")
+        )
+    assert calls == []
+```
+
+`backend/apps/tenancy/tests/app/use_cases/test_accept_invite_locking.py`에서 `AcceptInviteInteractor`를 만드는 곳에 `users=` 인자를 더한다. 그 파일에 활동 중인 유저로 통과시키는 작은 스텁을 둔다.
+```python
+class _ActiveUser:
+    async def lock_active(self, user_id):
+        return True
+```
+
+`backend/tests/integration/test_accept_vs_withdraw_locking.py` (두 스포크의 실제 구현을 함께 쓰므로 스포크 밖에 둔다):
+```python
+"""F4 — 회원 탈퇴와 겹친 초대 수락이 소속을 되살리지 못한다. 실제 두 세션으로 확인한다."""
+import asyncio
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from auth.adapter.outbound.pg.user_pg_repository import UserPgRepository
+from auth.app.use_cases.guard_active_user_interactor import GuardActiveUserInteractor
+from auth.domain.value_objects.provider import Provider
+from auth.domain.value_objects.social_profile import SocialProfile
+from tenancy.adapter.outbound.pg.invite_pg_repository import InvitePgRepository
+from tenancy.adapter.outbound.pg.member_pg_repository import MemberPgRepository
+from tenancy.adapter.outbound.pg.shop_pg_repository import ShopPgRepository
+from tenancy.app.dtos.accept_invite_dto import AcceptInviteCommand
+from tenancy.app.use_cases.accept_invite_interactor import AcceptInviteInteractor
+from tenancy.domain.errors import AccountUnavailableError
+from tenancy.domain.services.invite_code import hash_invite_code
+
+pytestmark = pytest.mark.integration
+
+EXPIRES = datetime.now(timezone.utc) + timedelta(days=7)
+
+
+class _OpenLimiter:
+    async def hit(self, user_id):
+        return 1
+
+
+def _accept(session, user_id):
+    interactor = AcceptInviteInteractor(
+        invites=InvitePgRepository(session), members=MemberPgRepository(session),
+        shops=ShopPgRepository(session), limiter=_OpenLimiter(),
+        users=GuardActiveUserInteractor(UserPgRepository(session)),
+    )
+    return interactor.accept(AcceptInviteCommand(user_id=user_id, code="ABCD2345"))
+
+
+async def test_탈퇴가_유저_행을_쥔_동안_수락은_기다리고_탈퇴한_뒤에는_거절된다(db_engine):
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with factory() as setup:
+        user = await UserPgRepository(setup).create_with_identity(
+            SocialProfile(Provider.DEV, "leaving", None, "떠나는 사람", None, None)
+        )
+        shop = await ShopPgRepository(setup).create("Hiss Haus", "pet_grooming")
+        await InvitePgRepository(setup).create_owner_invite(shop.id, hash_invite_code("ABCD2345"), EXPIRES)
+        await setup.commit()
+
+    async with factory() as withdrawing, factory() as accepting:
+        users = UserPgRepository(withdrawing)
+        assert (await users.lock(user.id)).id == user.id   # 탈퇴가 맨 앞에서 하는 일
+        await users.anonymize(user.id)
+
+        # 같은 유저의 수락은 유저 행에서 기다린다 — 매장 행이나 초대 행까지 가지 못한다.
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(_accept(accepting, user.id), timeout=0.5)
+        await accepting.rollback()
+
+        await withdrawing.commit()
+        with pytest.raises(AccountUnavailableError):
+            await asyncio.wait_for(_accept(accepting, user.id), timeout=0.5)
+        await accepting.rollback()
+
+    async with factory() as check:
+        members = (await check.execute(text("SELECT count(*) FROM shop_members"))).scalar_one()
+        used = (await check.execute(text("SELECT used_count FROM shop_invites"))).scalar_one()
+        assert (members, used) == (0, 0)
+```
+
+- [ ] **Step 3: 실패를 확인한다**
+
+Run (`infra/`에서): `docker compose run --rm backend pytest apps/auth/tests/app/use_cases/test_guard_active_user_interactor.py apps/tenancy/tests/app/use_cases/test_accept_invite_interactor.py apps/tenancy/tests/app/use_cases/test_accept_invite_locking.py tests/integration/test_accept_vs_withdraw_locking.py -q -p no:cacheprovider`
+Expected: FAIL — `ModuleNotFoundError: No module named 'auth.app.use_cases.guard_active_user_interactor'`, `ImportError: cannot import name 'AccountUnavailableError'`, `TypeError: … unexpected keyword argument 'users'`
+
+**두 세션 테스트의 판별력을 따로 확인한다.** 구현을 끝낸 뒤, 작업 트리에서만 `accept_invite_interactor.py`의 `lock_active` 호출 줄을 잠깐 지우고 `test_accept_vs_withdraw_locking.py`를 돌린다. `TimeoutError`가 나지 않아 실패해야 한다(수락이 유저 행에서 기다리지 않고 끝까지 가서 멤버가 된다). 출력을 보고서에 남기고 `git checkout -- <파일>`로 되돌린다.
+
+- [ ] **Step 4: auth 쪽 슬라이스를 구현한다**
+
+`backend/apps/auth/app/use_cases/guard_active_user_interactor.py`:
+```python
+from __future__ import annotations
+
+from auth.app.ports.output.user_repository import UserRepository
+from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
+
+
+class GuardActiveUserInteractor(ActiveUserGuardPort):
+    """허브의 ActiveUserGuardPort 구현. 입력 포트가 곧 허브 포트다."""
+
+    def __init__(self, users: UserRepository) -> None:
+        self._users = users
+
+    async def lock_active(self, user_id: int) -> bool:
+        user = await self._users.lock(user_id)
+        return user is not None and not user.is_deleted and not user.is_suspended
+```
+
+`backend/apps/auth/dependencies/guard_active_user_provider.py`:
+```python
+from __future__ import annotations
+
+from auth.app.use_cases.guard_active_user_interactor import GuardActiveUserInteractor
+from auth.dependencies.auth_wiring import build_user_repository
+from core.database import DbSession
+from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
+
+
+def get_guard_active_user_use_case(db: DbSession) -> ActiveUserGuardPort:
+    return GuardActiveUserInteractor(users=build_user_repository(db))
+```
+
+- [ ] **Step 5: tenancy 쪽을 고친다**
+
+`backend/apps/tenancy/domain/errors.py`의 끝에 더한다.
+```python
+
+
+class AccountUnavailableError(TenancyError):
+    """요청 시작 때는 인증을 통과했지만, 유저 행을 잠근 뒤에 보니 탈퇴했거나 정지된 유저다."""
+
+    code = "UNAUTHENTICATED"
+```
+
+`backend/apps/tenancy/adapter/inbound/api/error_map.py`의 import와 표에 더한다 (맨 위에 둔다).
+```python
+    AccountUnavailableError: 401,
+```
+
+`backend/apps/tenancy/dependencies/hub_ports.py`에 import와 자리를 더한다.
+```python
+from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
+```
+```python
+def get_active_user_guard() -> ActiveUserGuardPort:
+    raise RuntimeError("ActiveUserGuardPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
+```
+
+`backend/apps/tenancy/app/use_cases/accept_invite_interactor.py`에서 import, 생성자, `accept`의 앞부분을 고친다.
+```python
+from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
+from tenancy.domain.errors import (
+    AccountUnavailableError,
+    InviteInvalidError,
+    ShopClosedError,
+    TooManyAttemptsError,
+)
+```
+```python
+    def __init__(
+        self, invites: InviteRepository, members: MemberRepository, shops: ShopRepository,
+        limiter: InviteAttemptLimiterPort, users: ActiveUserGuardPort,
+        now: Callable[[], datetime] = _utcnow,
+    ) -> None:
+        self._invites = invites
+        self._members = members
+        self._shops = shops
+        self._limiter = limiter
+        self._users = users
+        self._now = now
+```
+`accept`에서 시도 횟수 확인 다음, 초대 선조회 앞에 넣는다.
+```python
+        # 같은 유저의 회원 탈퇴와 겹치지 않게 유저 행을 먼저 잠근다 (잠금 순서: 유저 → 매장 → 멤버 → 초대).
+        # 탈퇴가 먼저였다면 여기서 기다렸다가 탈퇴한 것을 보고 거절한다. 수락이 먼저였다면 탈퇴가 기다렸다가
+        # 새 소속까지 정리한다. 이 확인이 없으면 탈퇴한 유저의 소속이 되살아난다.
+        if not await self._users.lock_active(command.user_id):
+            raise AccountUnavailableError("다시 로그인해 주세요.")
+```
+
+`backend/apps/tenancy/dependencies/accept_invite_provider.py` 전체:
+```python
+from __future__ import annotations
+
+from fastapi import Depends
+
+from core.database import DbSession
+from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
+from tenancy.app.ports.input.accept_invite_use_case import AcceptInviteUseCase
+from tenancy.app.use_cases.accept_invite_interactor import AcceptInviteInteractor
+from tenancy.dependencies.hub_ports import get_active_user_guard
+from tenancy.dependencies.tenancy_wiring import (
+    build_invite_attempt_limiter,
+    build_invite_repository,
+    build_member_repository,
+    build_shop_repository,
+)
+
+
+def get_accept_invite_use_case(
+    db: DbSession, users: ActiveUserGuardPort = Depends(get_active_user_guard)
+) -> AcceptInviteUseCase:
+    return AcceptInviteInteractor(
+        invites=build_invite_repository(db),
+        members=build_member_repository(db),
+        shops=build_shop_repository(db),
+        limiter=build_invite_attempt_limiter(),
+        users=users,
+    )
+```
+
+- [ ] **Step 6: 진입점에서 자리를 채운다**
+
+`backend/main.py`의 import 묶음에 더한다 (같은 스포크끼리 붙여 둔다).
+```python
+from auth.dependencies.guard_active_user_provider import get_guard_active_user_use_case
+from tenancy.dependencies.hub_ports import get_active_user_guard, get_user_directory
+```
+(`get_user_directory`만 import하던 기존 줄은 위 줄로 바꾼다.) 자리 채우기 묶음의 끝에 더한다.
+```python
+app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
+```
+구조 테스트(`tests/test_hub_port_binding.py`)가 새 자리를 자동으로 본다. 자리 채우기 줄을 잠깐 빼면 그 테스트가 실패하는 것을 한 번 확인하고 되돌린다.
+
+- [ ] **Step 7: 통과를 확인한다**
+
+Run: Step 3의 명령 → 전부 통과.
+Run: 단위 테스트 전체, 통합 테스트 전체(특히 `tests/integration/test_shop_flow_wiring.py` — 실제 배선으로 수락이 계속 되는지), 구조 계약 → 전부 통과, `6 kept`.
+Run: `bash ../backend/scripts/check_shop_flow.sh` → `전체 흐름 확인 완료`.
+
+- [ ] **Step 8: 문서를 고친다**
+
+`backend/apps/tenancy/_docs/CLAUDE.md`의 잠금 순서 항목을 바꾼다.
+```markdown
+- 잠금 순서는 언제나 유저 행 → 매장 행 → 멤버 행 → 초대 행이다. 여러 매장을 잠글 때는 매장 ID 오름차순으로 잠근다. 순서를 어기면 다른 경로와 교착한다.
+- 소속을 새로 만드는 유스케이스(초대 수락)는 매장 행을 잠그기 전에 허브의 `ActiveUserGuardPort.lock_active`로 유저 행을 잠그고 활동 중인 유저인지 다시 본다. 이 확인이 없으면 회원 탈퇴와 겹친 수락이 탈퇴한 유저의 소속을 되살린다.
+```
+
+`backend/apps/hub/_docs/CLAUDE.md`의 표에 한 줄을 더한다.
+```markdown
+| `ActiveUserGuardPort.lock_active(user_id) → bool` | auth `guard_active_user` | tenancy `accept_invite` |
+```
+
+- [ ] **Step 9: 커밋**
+
+```bash
+git add backend/apps/hub backend/apps/auth backend/apps/tenancy backend/main.py backend/tests/integration/test_accept_vs_withdraw_locking.py
+git commit -m "fix(tenancy): 초대 수락이 유저 행을 먼저 잠가 탈퇴와 겹친 합류를 막는다"
 ```
 
 ---
