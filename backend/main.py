@@ -21,6 +21,7 @@ from platform_admin.adapter.inbound.api.v1.platform_myself_router import platfor
 from platform_admin.dependencies.hub_ports import get_operator_directory, get_shop_provisioning
 from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
 from tenancy.adapter.inbound.api.v1.accept_invite_router import accept_invite_router
+from tenancy.adapter.inbound.api.v1.create_invite_router import create_invite_router
 from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
 from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_case
 from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
@@ -40,6 +41,7 @@ app = FastAPI(title="차곡노트 API", lifespan=lifespan)
 app.include_router(get_me_router)
 app.include_router(tenancy_myself_router)
 app.include_router(accept_invite_router)
+app.include_router(create_invite_router)
 app.include_router(platform_myself_router)
 app.include_router(create_shop_router)
 install_error_handlers(
