@@ -1,0 +1,72 @@
+from datetime import datetime, timezone
+
+import pytest
+
+from hub.app.dtos.shop_context import ShopContext
+from tenancy.app.dtos.change_member_role_dto import ChangeMemberRoleCommand
+from tenancy.app.use_cases.change_member_role_interactor import ChangeMemberRoleInteractor
+from tenancy.domain.entities.member import Member
+from tenancy.domain.errors import LastOwnerError, MemberNotFoundError
+from tenancy.domain.value_objects.role_code import RoleCode
+
+JOINED = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc)
+CTX = ShopContext(shop_id=3, member_id=11, role="owner", permissions=frozenset({"member:manage"}))
+
+
+class _StubMembers:
+    def __init__(self, target, owner_count=1):
+        self.target = target
+        self.owner_count = owner_count
+        self.counted = 0
+        self.changes = []
+
+    async def get_active(self, ctx, member_id):
+        return self.target
+
+    async def count_owners(self, ctx):
+        self.counted += 1
+        return self.owner_count
+
+    async def change_role(self, ctx, member_id, role):
+        self.changes.append((ctx, member_id, role))
+
+
+def _member(role):
+    return Member(id=12, shop_id=3, user_id=2, role=role, joined_at=JOINED)
+
+
+def _command(role):
+    return ChangeMemberRoleCommand(ctx=CTX, member_id=12, role=role)
+
+
+async def test_직원을_사장으로_올릴_때는_사장_수를_세지_않는다():
+    members = _StubMembers(_member(RoleCode.STAFF))
+    result = await ChangeMemberRoleInteractor(members).change_role(_command("owner"))
+    assert members.changes == [(CTX, 12, RoleCode.OWNER)]
+    assert members.counted == 0
+    assert (result.member_id, result.user_id, result.role) == (12, 2, "owner")
+
+
+async def test_사장이_둘이면_한_명을_직원으로_낮출_수_있다():
+    members = _StubMembers(_member(RoleCode.OWNER), owner_count=2)
+    result = await ChangeMemberRoleInteractor(members).change_role(_command("staff"))
+    assert members.changes == [(CTX, 12, RoleCode.STAFF)]
+    assert result.role == "staff"
+
+
+async def test_마지막_사장은_낮출_수_없다():
+    members = _StubMembers(_member(RoleCode.OWNER), owner_count=1)
+    with pytest.raises(LastOwnerError):
+        await ChangeMemberRoleInteractor(members).change_role(_command("staff"))
+    assert members.changes == []
+
+
+async def test_같은_역할로_바꾸면_아무것도_하지_않는다():
+    members = _StubMembers(_member(RoleCode.STAFF))
+    result = await ChangeMemberRoleInteractor(members).change_role(_command("staff"))
+    assert members.changes == [] and result.role == "staff"
+
+
+async def test_없는_멤버는_MEMBER_NOT_FOUND_다():
+    with pytest.raises(MemberNotFoundError):
+        await ChangeMemberRoleInteractor(_StubMembers(None)).change_role(_command("owner"))
