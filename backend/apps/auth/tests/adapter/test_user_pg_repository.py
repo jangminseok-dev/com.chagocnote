@@ -168,12 +168,14 @@ async def test_연결을_끊을_신원을_복호화한_토큰과_함께_돌려�
     await repo.add_identity(user.id, _profile(provider=Provider.APPLE, provider_user_id="apple-1",
                                               provider_refresh_token="apple-refresh"))
     revocations = await repo.list_revocations(user.id)
-    # 토큰 원문은 실패 메시지에도 찍히면 안 되니 불리언으로만 비교한다.
     assert [(r.provider, r.provider_user_id) for r in revocations] == [
         (Provider.KAKAO, "kakao-100"), (Provider.APPLE, "apple-1"),
     ]
-    assert (revocations[0].provider_refresh_token is None) is True
-    assert (revocations[1].provider_refresh_token == "apple-refresh") is True
+    # 비교 결과를 지역 변수에 먼저 담는다. pytest 의 단언 재작성은 assert 문 안의 비교 노드까지
+    # 그대로 풀어 찍으므로, 여기서 직접 비교하면 실패 출력에 평문 토큰이 찍힌다.
+    kakao_has_no_token = revocations[0].provider_refresh_token is None
+    apple_token_decrypted = revocations[1].provider_refresh_token == "apple-refresh"
+    assert kakao_has_no_token and apple_token_decrypted
     assert "apple-refresh" not in repr(revocations[1])
 
 
