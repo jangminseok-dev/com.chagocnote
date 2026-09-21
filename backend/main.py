@@ -12,8 +12,11 @@ from core.redis import dispose_redis
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.get_me_router import get_me_router
-from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
 from core.http_errors import install_error_handlers
+from core.shop_guard import get_shop_access_port
+from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
+from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
+from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
 
 
 @asynccontextmanager
@@ -29,7 +32,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="차곡노트 API", lifespan=lifespan)
 app.include_router(get_me_router)
 app.include_router(tenancy_myself_router)
-install_error_handlers(app, AUTH_ERROR_STATUS)
+install_error_handlers(app, {**AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS})
+
+# 허브 포트 조립 — 스포크끼리는 서로를 모른다. 소비하는 쪽의 "자리"에 구현하는 쪽의 프로바이더를 꽂는다.
+app.dependency_overrides[get_shop_access_port] = get_resolve_shop_access_use_case
 
 
 @app.get("/health")
