@@ -25,7 +25,11 @@ class InviteRepository(ABC):
 
     @abstractmethod
     async def find_by_code_hash_for_update(self, code_hash: str) -> Invite | None:
-        """행을 잠근다. 1회용 코드를 두 사람이 동시에 넣어도 한 사람만 통과한다."""
+        """행을 잠근다. 1회용 코드를 두 사람이 동시에 넣어도 한 사람만 통과한다.
+
+        수락은 `find_shop_id_by_code_hash`로 있음을 확인하고 매장 행을 잠근 뒤에 부른다.
+        초대 행은 지워지지 않으므로 그때는 반드시 찾는다.
+        """
 
     @abstractmethod
     async def mark_used(self, invite_id: int) -> None: ...

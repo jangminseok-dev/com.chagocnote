@@ -26,6 +26,7 @@ class _StubInvites:
         self.invite = invite
         self.calls = calls if calls is not None else []
         self.lookups = []
+        self.locked_lookups = []
         self.used = []
 
     async def find_shop_id_by_code_hash(self, code_hash):
@@ -35,6 +36,7 @@ class _StubInvites:
 
     async def find_by_code_hash_for_update(self, code_hash):
         self.calls.append("find_for_update")
+        self.locked_lookups.append(code_hash)
         return self.invite
 
     async def mark_used(self, invite_id):
@@ -102,6 +104,7 @@ async def test_입력한_모양이_달라도_같은_해시로_찾는다():
     invites = _StubInvites(_invite())
     await _interactor(invites).accept(AcceptInviteCommand(user_id=5, code=" abcd-2345 "))
     assert invites.lookups == [hash_invite_code("ABCD2345")]
+    assert invites.locked_lookups == [hash_invite_code("ABCD2345")]
 
 
 async def test_분당_다섯_번을_넘으면_코드를_찾아보지도_않는다():
