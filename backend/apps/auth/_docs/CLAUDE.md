@@ -11,3 +11,8 @@
 - 토큰을 발급하는 코드는 `core/auth_config.py`(개인키)를 함수 안에서 import한다. 모듈 최상단에서 import하면 API 프로세스에서 모듈을 불러올 때 실패한다.
 - 플랫폼 운영자는 유저에 붙는 전역 지정이다. `scripts/grant_operator.py <user_id>`로만 지정한다. 다른 스포크는 허브의 `OperatorDirectoryPort`로 묻는다.
 - 허브 포트 구현은 HTTP 표면이 없는 슬라이스다: `check_operator`, `get_user_profiles`. 인터랙터가 허브 포트 ABC를 직접 상속한다.
+- 인증 프로세스 전용 비밀값(JWT 개인키, `IDENTITY_TOKEN_ENC_KEY`, `KAKAO_ADMIN_KEY`)은 `core/auth_config.py`에만 있다. 제공자 토큰을 저장·복호화하는 경로는 `build_user_repository_with_cipher`로, 읽기만 하는 경로는 `build_user_repository`로 조립한다.
+- 한 유저는 제공자마다 신원을 하나만 가진다. 계정을 바꾸는 유스케이스(`link_identity`·`unlink_identity`·`withdraw`)는 맨 앞에서 `UserRepository.lock`으로 유저 행을 잠그고 탈퇴 여부를 다시 본다.
+- 잠금을 쥔 채 외부 HTTP를 부르지 않는다. 제공자 검증은 잠금 전에, 제공자 쪽 연결 끊기는 커밋 뒤 백그라운드 작업(`ProviderRevoker`)으로 한다. 끊지 못해도 탈퇴·해제는 끝난 것이며 로그만 남긴다. 구글은 서버가 끊지 않는다(앱이 `disconnect()`를 부른다).
+- 로그인 수단을 해제하면 모든 세션을 폐기하고 요청한 기기에만 새 토큰을 준다.
+- 탈퇴의 DB 변경은 요청 하나의 트랜잭션이다. 소속 정리는 허브의 `MembershipLifecyclePort`(구현: tenancy)가 같은 세션에서 한다. 이 자리는 `auth_main.py`가 채운다.

@@ -133,7 +133,7 @@ cd ../app && flutter analyze && flutter test
 ### 3.3 비밀값
 
 - `.env`는 실제 값을 담고 git에서 제외한다. `.env.example`에는 키 이름만 등록한다.
-- `.env.auth`는 JWT 개인키(`JWT_PRIVATE_KEY_B64`) 전용이다. 자동으로 로드되지 않으며, `load_auth_env()`를 명시적으로 호출한 프로세스(`auth_main.py`)만 읽는다.
+- `.env.auth`는 인증 프로세스 전용 비밀값(`JWT_PRIVATE_KEY_B64`, `IDENTITY_TOKEN_ENC_KEY`, `KAKAO_ADMIN_KEY`)을 담는다. 코드에서는 `core/auth_config.py`만 이 값들을 읽는다. 자동으로 로드되지 않으며, `load_auth_env()`를 명시적으로 호출한 프로세스(`auth_main.py`)만 읽는다.
 - `load_dotenv`는 `core/singleton/secret_manager.py` 한 곳에서만 호출한다. redoceanmap의 `core/key/`에 해당하는 자리이며, 4.3절의 작명 규칙에 따라 폴더 이름이 바뀌었다. 런타임 코드는 `core/config.py`의 상수만 쓴다. 스크립트와 엔트리포인트는 `get_secret_manager()`를 쓴다.
 - ①에서 필요한 키: `DATABASE_URL`, `REDIS_URL`, `JWT_PUBLIC_KEY_B64`, `JWT_PRIVATE_KEY_B64`, `KAKAO_APP_ID`(카카오 토큰이 우리 앱에서 발급됐는지 확인한다), `KAKAO_REST_API_KEY`, `KAKAO_ADMIN_KEY`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY_B64`, `APPLE_BUNDLE_ID`, `GOOGLE_CLIENT_ID_IOS`, `GOOGLE_CLIENT_ID_ANDROID`, `IDENTITY_TOKEN_ENC_KEY`(Apple 리프레시 토큰 암호화용), `S3_*`(minio).
 
@@ -221,10 +221,13 @@ cd ../app && flutter analyze && flutter test
 |---|---|---|---|
 | `ShopAccessPort.resolve(user_id, shop_id) → ShopContext` | tenancy | 매장 범위의 모든 스포크 | 소속, 역할, 권한, 매장 정지·닫힘 여부를 매 요청마다 DB에서 조회한다. 소속이 아니면 403이다. |
 | `MembershipDirectoryPort.list_for_user(user_id)` | tenancy | auth (`get_me`) | 내가 속한 매장 목록 |
-| `MembershipLifecyclePort.check_withdrawal(user_id)` · `apply_withdrawal(user_id, close_sole_owned)` | tenancy | auth (`withdraw`) | 탈퇴 영향 조회, 소속 해제와 매장 닫기 |
+| `MembershipLifecyclePort.apply_withdrawal(user_id, close_sole_owned)` | tenancy | auth (`withdraw`, 인증 프로세스) | 소속 해제와 매장 닫기. 미리 조회하는 메서드는 두지 않는다 — 조회와 적용 사이에 사장 수가 바뀔 수 있어서, 적용이 매장 행을 잠근 뒤 스스로 확인하고 409로 막는다. |
 | `UserDirectoryPort.get_profiles(user_ids)` | auth | tenancy (`list_members`) | 멤버 이름과 프로필 사진 |
 | `ShopProvisioningPort.create_shop(name, business_type)` | tenancy | platform_admin (`create_shop`) | 매장 생성과 사장용 초대 코드 발급 |
 | `OperatorDirectoryPort.is_operator(user_id)` | auth | platform_admin | 플랫폼 운영자 여부 |
+| `ActiveUserGuardPort.lock_active(user_id)` | auth | tenancy (`accept_invite`) | 초대 수락도 맨 앞에서 유저 행을 잠그고 활동 중인지(탈퇴·정지하지 않았는지) 다시 본다 — 탈퇴와 겹치면 기다렸다가, 탈퇴 뒤에는 거절된다. 유저 행을 보지 않던 옛 수락은 탈퇴와 겹치면 탈퇴한 유저의 소속을 되살렸다. |
+
+계정을 바꾸는 유스케이스(`link_identity`·`unlink_identity`·`withdraw`)와 멤버십을 바꾸는 유스케이스는 맨 앞에서 유저 행 → 매장 행(ID 오름차순) → 멤버 행 → 초대 행 순서로 잠근 뒤 대상을 다시 읽는다. 잠금을 쥔 채 외부 HTTP는 부르지 않는다.
 
 `ShopContext`는 허브 DTO의 값 객체다. 필드는 `shop_id`, `member_id`, `role`, `permissions`다. **이후 만드는 모든 매장 범위 리포지토리 포트는 이 값을 필수 첫 인자로 받는다.** 매장 컨텍스트 없이는 조회할 수 없게 해서, 다른 매장의 데이터가 섞이는 사고를 구조로 막는다.
 
@@ -261,9 +264,9 @@ auth와 backend는 별개 프로세스지만 같은 코드베이스와 같은 DB
 | 소유 앱 | 테이블 | 핵심 컬럼 |
 |---|---|---|
 | auth | `users` | `display_name`, `profile_image_url`, `phone`(선택), `suspended_at`, `deleted_at` |
-| auth | `social_identities` | `user_id`, `provider`(kakao/apple/google), `provider_user_id`, `email`(선택), `provider_refresh_token_enc`(Apple 전용, 암호화) — (`provider`, `provider_user_id`) 유일 |
+| auth | `social_identities` | `user_id`, `provider`(kakao/apple/google), `provider_user_id`, `email`(선택), `provider_refresh_token_enc`(Apple 전용, 암호화) — (`provider`, `provider_user_id`) 유일, (`user_id`, `provider`) 유일(한 유저는 제공자마다 하나) |
 | auth | `platform_operators` | `user_id`(유일), `granted_at` |
-| auth | Redis | `auth:refresh:{jti}` → user_id (30일), `auth:refresh:user:{id}` 역인덱스 집합 |
+| auth | Redis | `auth:refresh:{해시}` → 발급 시점의 세대 (30일), `auth:refresh:used:{해시}` → 쓸 때의 세대, `auth:refresh:gen:{user_id}` → 현재 세대. 토큰은 `{user_id}.{난수}` 모양이고 원문은 저장하지 않는다. |
 | tenancy | `shops` | `name`, `business_type`(기본값 `pet_grooming`), `phone`, `address`, `timezone`(기본값 `Asia/Seoul`), `suspended_at`, `closed_at` |
 | tenancy | `roles` | `code`(owner/staff), `name` |
 | tenancy | `permissions` | `code`, `description` |
@@ -291,7 +294,7 @@ auth와 backend는 별개 프로세스지만 같은 코드베이스와 같은 DB
 
 - JWT는 RS256이다. 개인키는 auth 프로세스만 가지며, API 프로세스는 공개키로 검증만 한다.
 - 액세스 토큰은 15분이다. 클레임은 `sub`(user_id), `jti`, `exp`, `typ`이다. 역할과 권한은 넣지 않는다.
-- 리프레시 토큰은 30일이고, 사용할 때마다 새 토큰으로 교체한다. 이미 사용된 토큰이 다시 들어오면 탈취로 판단해서 그 유저의 모든 세션을 폐기한다.
+- 리프레시 토큰은 30일이고, 사용할 때마다 새 토큰으로 교체한다. 이미 사용된 토큰이 다시 들어오면 탈취로 판단해서 그 유저의 모든 세션을 폐기한다. "모든 세션 폐기"는 유저의 세대를 하나 올리는 것이다. 토큰에 발급 시점의 세대가 찍혀 있어, 폐기와 동시에 발급되던 토큰도 함께 무효가 된다.
 - 정지되거나 탈퇴한 유저는 매 요청의 조회에서 걸러져서 이미 발급된 액세스 토큰으로도 403을 받는다.
 
 ### 5.4 로그인 흐름
@@ -329,22 +332,28 @@ auth와 backend는 별개 프로세스지만 같은 코드베이스와 같은 DB
 
 - `POST /v1/auth/identities { provider, token, … }`: 로그인한 유저에 소셜 신원을 하나 더 붙인다.
 - 연결하려는 소셜 계정이 이미 다른 유저에 붙어 있으면 409로 거절한다. 자동 병합은 하지 않으며, "그 계정에서 탈퇴한 뒤 다시 연결해 주세요"라고 안내한다.
-- `DELETE /v1/auth/identities/{provider}`: 로그인 수단이 두 개 이상일 때만 허용한다. 마지막 하나는 해제할 수 없다. 해제할 때 제공자 쪽 연결도 끊는다(`revoke`).
+- `DELETE /v1/auth/identities/{provider}`: 로그인 수단이 두 개 이상일 때만 허용한다. 마지막 하나는 해제할 수 없다. 해제한 뒤(커밋 뒤) 제공자 쪽 연결도 끊는다(`revoke`). 구글은 서버가 끊지 않고 앱이 `disconnect()`를 부른다.
 - `GET /v1/me` 응답에 연결된 로그인 수단 목록을 넣는다.
+- 한 유저는 제공자마다 신원을 하나만 가진다. 같은 제공자의 두 번째 계정은 409(`PROVIDER_ALREADY_LINKED`)다.
+- 해제하면 모든 세션을 폐기하고, 요청한 기기에만 새 토큰을 응답으로 돌려준다. 해제한 수단으로 만든 세션이 다른 기기에 남지 않게 하려는 것이다.
+- 연결·해제는 맨 앞에서 유저 행을 잠그고 탈퇴·정지 여부를 다시 본다(잠금 순서: 유저 → 매장 → 멤버 → 초대). 제공자 쪽 저장된 토큰을 복호화할 수 없으면 그 신원의 연결 끊기만 포기하고 연결·해제·탈퇴는 그대로 진행한다.
 
 ### 5.7 회원 탈퇴
 
-`DELETE /v1/auth/account { confirm_close_shops: bool }`
+`DELETE /v1/auth/account { confirm_close_shops: bool }` (엄격한 불리언 — `"yes"`·`1` 같은 값은 받지 않고 422다)
 
-1. auth가 `MembershipLifecyclePort.check_withdrawal`로 영향을 조회한다.
-2. **혼자 사장인 매장에 다른 멤버가 있으면** 409로 막고 "사장 권한을 먼저 넘겨 주세요"라고 안내한다. 역할 변경(`change_member_role`)으로 다른 멤버를 사장으로 만들면 풀린다.
-3. **혼자 사장인 매장에 멤버가 본인뿐이면** `confirm_close_shops`가 참일 때만 진행한다. 매장에 `closed_at`을 기록하고 이후 접근을 막는다.
-4. `apply_withdrawal`로 모든 소속을 해제한다.
-5. auth가 유저를 익명화한다. `display_name`은 "탈퇴한 사용자"로 바꾸고, 사진과 전화번호를 지우고, `deleted_at`을 기록한다.
-6. 소셜 신원은 제공자 쪽 연결을 끊은 뒤(`revoke`: Apple 토큰 폐기, 카카오 연결 끊기, 구글 토큰 폐기) 행을 완전히 삭제한다. 같은 소셜 계정으로 새로 가입할 수 있다.
-7. 모든 세션을 폐기한다.
+1. auth가 유저 행을 잠그고 다시 읽는다. 이미 탈퇴했으면 아무것도 하지 않는다.
+2. auth가 `MembershipLifecyclePort.apply_withdrawal`을 부른다. tenancy는 매장마다 행을 잠근 뒤 판단한다.
+   - **혼자 사장인 매장에 다른 멤버가 있으면** 409(`OWNERSHIP_TRANSFER_REQUIRED`)로 막고 "사장 권한을 먼저 넘겨 주세요"라고 안내한다. 역할 변경으로 다른 멤버를 사장으로 만들면 풀린다.
+   - **혼자 사장인 매장에 멤버가 본인뿐이면** `confirm_close_shops`가 참일 때만 진행한다. 아니면 409(`SHOP_CLOSE_CONFIRM_REQUIRED`)다. 진행하면 매장에 `closed_at`을 기록한다.
+   - 그 밖에는 소속을 해제하고, 그 멤버가 만든 미사용 초대를 무효화한다.
+3. auth가 운영자 지정을 거두고, 유저를 익명화한다. `display_name`은 "탈퇴한 사용자"로 바꾸고, 사진과 전화번호를 지우고, `deleted_at`을 기록한다.
+4. 소셜 신원 행을 완전히 삭제한다. 같은 소셜 계정으로 새로 가입할 수 있다.
+5. 모든 세션을 폐기한다.
+6. 1~5는 요청 하나의 트랜잭션이다. 어디서든 실패하면 전부 되돌아간다.
+7. 커밋이 끝난 뒤 제공자 쪽 연결을 끊는다(`revoke`): Apple은 저장해 둔 리프레시 토큰을 REST API로 폐기하고(App Store 5.1.1(v)), 카카오는 어드민 키로 연결을 끊는다. 구글은 서버에 폐기할 토큰이 없어 앱이 `disconnect()`를 부른다.
 
-탈퇴는 즉시 처리되고 되돌릴 수 없다. 각 단계는 여러 번 실행해도 결과가 같게 만들어서, 중간에 실패해도 다시 시도하면 끝까지 완료된다. 제공자 쪽 연결 끊기가 실패해도 탈퇴는 완료하고 실패를 로그로 남긴다. 매장의 업무 기록은 지우지 않으며, 탈퇴한 직원은 "탈퇴한 직원"으로 표시된다.
+DB 변경이 한 트랜잭션이라 중간 상태가 남지 않는다. 같은 유저의 탈퇴가 동시에 두 번 와도 한 번만 처리된다. 제공자 쪽 연결 끊기가 실패해도 탈퇴는 완료하고 실패를 로그로 남긴다. 매장의 업무 기록은 지우지 않으며, 탈퇴한 직원은 "탈퇴한 직원"으로 표시된다.
 
 ---
 
@@ -431,7 +440,7 @@ app/
 ## 7. 오류 처리
 
 - 서버 오류 응답은 `{ "code": "INVITE_EXPIRED", "message": "…" }` 형태로 통일한다. 앱은 `code`를 보고 `core/error/`에서 한국어 문구로 바꾼다.
-- 주요 코드: `UNAUTHENTICATED`(401), `LAST_OWNER`·`ALREADY_A_MEMBER`(409), `NOT_A_MEMBER`·`PERMISSION_DENIED`·`ACCOUNT_SUSPENDED`·`SHOP_CLOSED`·`SHOP_SUSPENDED`(403), `MEMBER_NOT_FOUND`(404), `INVITE_INVALID`·`INVITE_EXPIRED`·`INVITE_EXHAUSTED`(400), `IDENTITY_ALREADY_LINKED`·`LAST_IDENTITY`·`OWNERSHIP_TRANSFER_REQUIRED`·`SHOP_CLOSE_CONFIRM_REQUIRED`(409), `TOO_MANY_ATTEMPTS`(429), `PROVIDER_VERIFICATION_FAILED`(401).
+- 주요 코드: `UNAUTHENTICATED`(401), `LAST_OWNER`·`ALREADY_A_MEMBER`(409), `NOT_A_MEMBER`·`PERMISSION_DENIED`·`ACCOUNT_SUSPENDED`·`SHOP_CLOSED`·`SHOP_SUSPENDED`(403), `MEMBER_NOT_FOUND`·`IDENTITY_NOT_FOUND`(404), `INVITE_INVALID`·`INVITE_EXPIRED`·`INVITE_EXHAUSTED`(400), `IDENTITY_ALREADY_LINKED`·`PROVIDER_ALREADY_LINKED`·`LAST_IDENTITY`·`OWNERSHIP_TRANSFER_REQUIRED`·`SHOP_CLOSE_CONFIRM_REQUIRED`(409), `TOO_MANY_ATTEMPTS`(429), `PROVIDER_VERIFICATION_FAILED`(401).
 - 도메인 규칙 위반은 도메인 예외로 던지고, 라우터 계층의 예외 핸들러 한 곳에서 HTTP 응답으로 바꾼다. 유스케이스는 HTTP를 모른다.
 - 앱은 리프레시에 실패하면 저장된 토큰을 지우고 로그인 화면으로 보낸다. 네트워크 오류는 다시 시도 버튼이 있는 안내로 보여준다.
 - 일어날 수 없는 상황에 대한 방어 코드는 넣지 않는다.
