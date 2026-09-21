@@ -126,6 +126,19 @@ class UserPgRepository(UserRepository):
         except IntegrityError as exc:
             name = _constraint(exc)
             if name == "uq_social_identities_provider_user":
+                # 세이브포인트는 이미 되감겼다. 그 신원의 주인이 나 자신이면 "탈퇴하라"고 안내하면 안 된다.
+                owner_id = (
+                    await self._session.execute(
+                        select(SocialIdentityOrm.user_id).where(
+                            SocialIdentityOrm.provider == profile.provider.value,
+                            SocialIdentityOrm.provider_user_id == profile.provider_user_id,
+                        )
+                    )
+                ).scalar_one()
+                if owner_id == user_id:
+                    raise ProviderAlreadyLinkedError(
+                        f"{profile.provider.value} 로그인은 이미 연결되어 있습니다."
+                    ) from exc
                 raise IdentityAlreadyLinkedError(
                     "이미 다른 계정에 연결된 로그인 수단입니다. 그 계정에서 탈퇴한 뒤 다시 연결해 주세요."
                 ) from exc

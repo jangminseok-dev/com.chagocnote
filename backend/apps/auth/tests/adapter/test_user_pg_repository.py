@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from auth.adapter.outbound.gateways.fernet_cipher import FernetCipher
+from auth.adapter.outbound.orm.user_orm import UserOrm
 from auth.adapter.outbound.pg.user_pg_repository import UserPgRepository
 from auth.domain.errors import IdentityAlreadyLinkedError, ProviderAlreadyLinkedError
 from auth.domain.value_objects.provider import Provider
@@ -152,15 +153,27 @@ async def test_같은_제공자의_신원을_둘_붙일_수_없다(db_session):
     assert len(await repo.list_identities(me.id)) == 1
 
 
+async def test_이미_내_계정에_붙어_있는_바로_그_신원을_다시_붙이면_PROVIDER_ALREADY_LINKED_다(db_session):
+    """두 유일 제약이 동시에 걸릴 때, 자기 자신에게 탈퇴를 권하는 오안내를 하지 않는다."""
+    repo = _repo(db_session)
+    me = await repo.create_with_identity(_profile())
+    with pytest.raises(ProviderAlreadyLinkedError):
+        await repo.add_identity(me.id, _profile())
+    assert len(await repo.list_identities(me.id)) == 1
+
+
 async def test_연결을_끊을_신원을_복호화한_토큰과_함께_돌려준다(db_session):
     repo = _repo(db_session)
     user = await repo.create_with_identity(_profile())
     await repo.add_identity(user.id, _profile(provider=Provider.APPLE, provider_user_id="apple-1",
                                               provider_refresh_token="apple-refresh"))
     revocations = await repo.list_revocations(user.id)
-    assert [(r.provider, r.provider_user_id, r.provider_refresh_token) for r in revocations] == [
-        (Provider.KAKAO, "kakao-100", None), (Provider.APPLE, "apple-1", "apple-refresh"),
+    # 토큰 원문은 실패 메시지에도 찍히면 안 되니 불리언으로만 비교한다.
+    assert [(r.provider, r.provider_user_id) for r in revocations] == [
+        (Provider.KAKAO, "kakao-100"), (Provider.APPLE, "apple-1"),
     ]
+    assert (revocations[0].provider_refresh_token is None) is True
+    assert (revocations[1].provider_refresh_token == "apple-refresh") is True
     assert "apple-refresh" not in repr(revocations[1])
 
 
@@ -176,13 +189,17 @@ async def test_신원_하나를_지우면_그_수단으로는_찾을_수_없다(
 async def test_익명화하고_신원을_모두_지우면_같은_소셜_계정으로_새로_가입할_수_있다(db_session):
     repo = _repo(db_session)
     user = await repo.create_with_identity(_profile(profile_image_url="https://img/1.jpg"))
-    await db_session.execute(text("UPDATE users SET phone = '010-0000-0000' WHERE id = :id"), {"id": user.id})
+    await db_session.execute(
+        text("UPDATE users SET phone = '010-0000-0000', suspended_at = now() WHERE id = :id"),
+        {"id": user.id},
+    )
     await repo.anonymize(user.id)
     await repo.delete_identities(user.id)
 
     gone = await repo.lock(user.id)
     assert (gone.display_name, gone.profile_image_url, gone.phone) == ("탈퇴한 사용자", None, None)
     assert gone.is_deleted is True
+    assert gone.is_suspended is True  # 익명화는 정지 상태를 지우지 않는다.
     assert await repo.list_identities(user.id) == []
     again = await repo.create_with_identity(_profile())
     assert again.id != user.id
@@ -207,9 +224,30 @@ async def test_유저_행_잠금은_같은_유저의_다른_요청을_기다리�
 
         await _repo(one).anonymize(user.id)
         await one.commit()
-        # 기다리던 쪽은 잠금을 얻은 뒤 최신 값(탈퇴함)을 본다.
+        # 기다리던 쪽은 잠금이 풀리자마자 손에 넣는다 — 직렬화를 증명한다.
+        # (최신 값을 보는지는 populate_existing 전용 테스트가 따로 증명한다.)
         assert (await asyncio.wait_for(_repo(two).lock(user.id), timeout=0.5)).is_deleted is True
         await two.rollback()
+
+
+async def test_잠근_뒤에는_같은_세션이_이미_읽어_둔_값이_아니라_최신_값을_본다(db_engine):
+    """populate_existing 이 없으면 identity map 에 남은 옛 값을 그대로 돌려준다."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with factory() as setup:
+        user = await _repo(setup).create_with_identity(_profile())
+        await setup.commit()
+
+    async with factory() as one, factory() as two:
+        # 세션 two 의 identity map 에 옛 값을 지역 변수로 붙들어 GC 되지 않게 한다.
+        held = await two.get(UserOrm, user.id)
+        assert held.display_name == "두부 보호자"
+
+        await _repo(one).anonymize(user.id)
+        await one.commit()
+
+        locked = await _repo(two).lock(user.id)
+        assert locked.is_deleted is True
+        assert locked.display_name == "탈퇴한 사용자"
 
 
 async def test_없는_유저를_잠그면_None_이다(db_session):

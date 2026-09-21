@@ -19,8 +19,8 @@ AUTH_ERROR_STATUS: dict[type[Exception], int] = {
     RefreshTokenReuseError: 401,
     UserNotFoundError: 401,
     AccountSuspendedError: 403,
-    IdentityAlreadyLinkedError: 409,
     IdentityNotFoundError: 404,
+    IdentityAlreadyLinkedError: 409,
     ProviderAlreadyLinkedError: 409,
     LastIdentityError: 409,
 }
