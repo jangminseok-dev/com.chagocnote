@@ -1,19 +1,48 @@
-"""진입점이 허브 포트 자리를 빠짐없이 채웠는지 확인한다. 자리를 새로 만들면 여기에 더한다."""
+"""API 프로세스의 라우트를 훑어 조립·가드 실수를 잡는다. 손으로 관리하는 목록은 두지 않는다."""
+from fastapi import Depends, FastAPI
+
 import main
-from auth.dependencies.hub_ports import get_membership_directory
 from core.shop_guard import get_shop_access_port
-from platform_admin.dependencies.hub_ports import get_operator_directory, get_shop_provisioning
 from tenancy.dependencies.hub_ports import get_user_directory
-
-_API_SLOTS = [
-    get_shop_access_port,
-    get_operator_directory,
-    get_shop_provisioning,
-    get_user_directory,
-    get_membership_directory,
-]
+from tests.route_inspection import find_route_violations
 
 
-def test_API_프로세스는_허브_포트_자리를_모두_채운다():
-    missing = [slot.__name__ for slot in _API_SLOTS if slot not in main.app.dependency_overrides]
-    assert missing == []
+def test_API_프로세스에는_빈_자리도_빠진_가드도_없다():
+    assert find_route_violations(main.app) == []
+
+
+def _app_with(path, dependency=None):
+    app = FastAPI()
+    deps = [Depends(dependency)] if dependency else []
+
+    @app.get(path, dependencies=deps)
+    async def route() -> dict:
+        return {}
+
+    return app
+
+
+def test_채우지_않은_허브_포트_자리를_잡는다():
+    violations = find_route_violations(_app_with("/v1/thing", get_user_directory))
+    assert violations == ["/v1/thing: 허브 포트 자리 get_user_directory 가 비어 있다"]
+
+
+def test_채운_자리는_잡지_않는다():
+    app = _app_with("/v1/thing", get_user_directory)
+    app.dependency_overrides[get_user_directory] = lambda: None
+    assert find_route_violations(app) == []
+
+
+def test_매장_접근_확인_자리도_잡는다():
+    violations = find_route_violations(_app_with("/v1/thing", get_shop_access_port))
+    assert violations == ["/v1/thing: 허브 포트 자리 get_shop_access_port 가 비어 있다"]
+
+
+def test_get_shop_context_를_거치지_않는_매장_범위_경로를_잡는다():
+    violations = find_route_violations(_app_with("/v1/shops/{shop_id}/thing"))
+    assert violations == ["/v1/shops/{shop_id}/thing: 매장 범위 경로인데 get_shop_context 를 거치지 않는다"]
+
+
+def test_require_operator_를_거치지_않는_운영자_경로를_잡는다():
+    violations = find_route_violations(_app_with("/v1/platform/thing"))
+    assert violations == ["/v1/platform/thing: 운영자 표면인데 require_operator 를 거치지 않는다"]

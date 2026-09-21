@@ -13,7 +13,7 @@
 - `backend/main.py`(필요해지면 `auth_main.py`)가 `app.dependency_overrides[자리] = 구현 프로바이더`로 채운다. 진입점은 이미 모든 스포크를 import하는 유일한 곳이다.
 - 구현 프로바이더가 `DbSession`을 받으면 같은 요청의 세션을 공유한다. 스포크를 넘는 작업도 한 트랜잭션으로 묶인다.
 - 매장 접근 확인(`ShopAccessPort`) 자리는 모든 매장 범위 스포크가 쓰므로 `core/shop_guard.py`에 둔다. core가 허브의 추상(ABC·DTO)을 import하는 것은 허용한다. core가 스포크를 import하는 것은 여전히 금지다.
-- 자리를 채우지 않은 실수는 `tests/test_hub_port_binding.py`와 실제 배선 통합 테스트가 잡는다.
+- 자리를 채우지 않은 실수는 구조 테스트가 잡는다. `tests/route_inspection.py`가 두 앱의 라우트 의존성 트리를 훑어 빈 자리를 찾고, `tests/test_hub_port_binding.py`(API 프로세스)와 `tests/integration/test_route_wiring.py`(인증 프로세스)가 그것을 돌린다. 손으로 관리하는 자리 목록은 없다.
 
 ②를 버린 이유: 허브가 "포트와 DTO만 가진다"는 규칙에서 벗어나 상태를 갖게 되고, 요청 단위 DB 세션을 넘길 방법을 따로 만들어야 한다. ③을 버린 이유: 스포크 간 결합이 조립 코드에 숨고 계약이 그만큼 약해진다.
 
