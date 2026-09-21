@@ -20,8 +20,9 @@ class _StubMembers:
         self.removed = []
         self.calls = []
 
-    async def lock_membership_changes(self, ctx):
+    async def lock_membership_changes(self, shop_id):
         self.calls.append("lock_membership_changes")
+        self.locked_shop_id = shop_id
 
     async def get_active(self, ctx, member_id):
         self.calls.append("get_active")
@@ -57,6 +58,7 @@ async def test_대상을_읽기_전에_매장_행을_잠근다():
     members, invites = _StubMembers(_member(RoleCode.STAFF)), _StubInvites()
     await RemoveMemberInteractor(members, invites).remove(RemoveMemberCommand(ctx=CTX, member_id=12))
     assert members.calls[:2] == ["lock_membership_changes", "get_active"]
+    assert members.locked_shop_id == 3
 
 
 async def test_없는_멤버여도_매장_행은_먼저_잠근다():

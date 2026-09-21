@@ -11,11 +11,12 @@ from tenancy.domain.value_objects.role_code import RoleCode
 
 class MemberRepository(ABC):
     @abstractmethod
-    async def lock_membership_changes(self, ctx: ShopContext) -> None:
-        """매장 행을 잠가 같은 매장의 역할 변경·내보내기·이후의 탈퇴를 직렬화한다.
+    async def lock_membership_changes(self, shop_id: int) -> None:
+        """매장 행을 잠가 같은 매장의 역할 변경·내보내기·초대 수락·탈퇴를 직렬화한다.
 
-        마지막 사장 규칙을 지키려는 것이다. 읽고 잠그는 사이에 다른 요청이 사장 수를 바꾸면
-        낡은 값으로 판단하게 된다. 대상을 읽기 **전에** 부른다.
+        마지막 사장 규칙을 지키고, 모든 경로가 매장 → 멤버 → 초대 순으로 잠가 교착하지 않게 하려는 것이다.
+        대상을 읽기 **전에** 부른다. 데이터를 읽는 메서드가 아니라서 ShopContext 를 받지 않는다 —
+        초대 수락과 탈퇴는 컨텍스트 없이 잠가야 한다.
         """
 
     @abstractmethod

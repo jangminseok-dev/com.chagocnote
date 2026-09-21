@@ -144,7 +144,7 @@ async def _committed_shops(db_engine, *names):
 
 async def _lock(session, shop_id):
     await asyncio.wait_for(
-        MemberPgRepository(session).lock_membership_changes(_ctx(shop_id)), timeout=0.5
+        MemberPgRepository(session).lock_membership_changes(shop_id), timeout=0.5
     )
 
 

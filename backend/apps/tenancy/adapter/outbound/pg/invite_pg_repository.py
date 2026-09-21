@@ -25,6 +25,10 @@ class InvitePgRepository(InviteRepository):
     async def create_owner_invite(self, shop_id: int, code_hash: str, expires_at: datetime) -> Invite:
         return await self._insert(shop_id, RoleCode.OWNER, code_hash, None, expires_at, 1)
 
+    async def find_shop_id_by_code_hash(self, code_hash: str) -> int | None:
+        stmt = select(ShopInviteOrm.shop_id).where(ShopInviteOrm.code_hash == code_hash)
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
     async def find_by_code_hash_for_update(self, code_hash: str) -> Invite | None:
         stmt = (
             select(ShopInviteOrm, RoleOrm.code)

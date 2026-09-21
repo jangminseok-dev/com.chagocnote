@@ -22,13 +22,19 @@ NOW = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc)
 
 
 class _StubInvites:
-    def __init__(self, invite):
+    def __init__(self, invite, calls=None):
         self.invite = invite
+        self.calls = calls if calls is not None else []
         self.lookups = []
         self.used = []
 
-    async def find_by_code_hash_for_update(self, code_hash):
+    async def find_shop_id_by_code_hash(self, code_hash):
+        self.calls.append("find_shop_id")
         self.lookups.append(code_hash)
+        return self.invite.shop_id if self.invite else None
+
+    async def find_by_code_hash_for_update(self, code_hash):
+        self.calls.append("find_for_update")
         return self.invite
 
     async def mark_used(self, invite_id):
@@ -36,9 +42,15 @@ class _StubInvites:
 
 
 class _StubMembers:
-    def __init__(self, already_member=False):
+    def __init__(self, already_member=False, calls=None):
         self.already_member = already_member
+        self.calls = calls if calls is not None else []
+        self.locked = []
         self.added = []
+
+    async def lock_membership_changes(self, shop_id):
+        self.calls.append("lock")
+        self.locked.append(shop_id)
 
     async def add(self, shop_id, user_id, role):
         if self.already_member:
@@ -144,3 +156,20 @@ async def test_이미_멤버면_초대를_쓰지_않는다():
             AcceptInviteCommand(user_id=5, code="ABCD2345")
         )
     assert invites.used == []
+
+
+async def test_초대_행을_잠그기_전에_매장_행을_먼저_잠근다():
+    """E1 — 내보내기·강등·탈퇴와 같은 순서(매장 → 멤버 → 초대)로 잠가야 교착하지 않는다."""
+    calls = []
+    invites, members = _StubInvites(_invite(), calls), _StubMembers(calls=calls)
+    await _interactor(invites, members).accept(AcceptInviteCommand(user_id=5, code="ABCD2345"))
+    assert calls == ["find_shop_id", "lock", "find_for_update"]
+    assert members.locked == [3]
+
+
+async def test_모르는_코드면_아무것도_잠그지_않는다():
+    calls = []
+    invites, members = _StubInvites(None, calls), _StubMembers(calls=calls)
+    with pytest.raises(InviteInvalidError):
+        await _interactor(invites, members).accept(AcceptInviteCommand(user_id=5, code="ZZZZ9999"))
+    assert calls == ["find_shop_id"]

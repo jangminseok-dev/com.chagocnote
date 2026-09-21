@@ -20,6 +20,10 @@ class InviteRepository(ABC):
         """운영자가 매장을 개설하며 만드는 사장용 첫 초대. 아직 멤버가 없어 컨텍스트도 없다."""
 
     @abstractmethod
+    async def find_shop_id_by_code_hash(self, code_hash: str) -> int | None:
+        """잠그지 않고 매장 ID 만 읽는다. 수락이 매장 행을 먼저 잠그려면 어느 매장인지 알아야 한다."""
+
+    @abstractmethod
     async def find_by_code_hash_for_update(self, code_hash: str) -> Invite | None:
         """행을 잠근다. 1회용 코드를 두 사람이 동시에 넣어도 한 사람만 통과한다."""
 

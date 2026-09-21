@@ -1,12 +1,17 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from hub.app.dtos.shop_context import ShopContext
 from tenancy.adapter.outbound.pg.invite_pg_repository import InvitePgRepository
 from tenancy.adapter.outbound.pg.member_pg_repository import MemberPgRepository
 from tenancy.adapter.outbound.pg.shop_pg_repository import ShopPgRepository
+from tenancy.app.dtos.accept_invite_dto import AcceptInviteCommand
+from tenancy.app.use_cases.accept_invite_interactor import AcceptInviteInteractor
+from tenancy.domain.services.invite_code import hash_invite_code
 from tenancy.domain.value_objects.role_code import RoleCode
 
 pytestmark = pytest.mark.integration
@@ -95,3 +100,44 @@ async def test_다른_매장의_초대는_무효화하지_않는다(db_session):
     await repo.revoke_created_by(a_ctx, b_owner.id)
 
     assert await _revoked_at(db_session, "hash-b-shop") is None
+
+
+async def test_해시로_매장_ID_만_읽는다(db_session):
+    shop, ctx = await _shop_with_owner(db_session)
+    repo = InvitePgRepository(db_session)
+    await repo.create(ctx, RoleCode.STAFF, "hash-c", EXPIRES, max_uses=1)
+    assert await repo.find_shop_id_by_code_hash("hash-c") == shop.id
+    assert await repo.find_shop_id_by_code_hash("nope") is None
+
+
+class _OpenLimiter:
+    async def hit(self, user_id):
+        return 1
+
+
+def _accept(session, user_id):
+    interactor = AcceptInviteInteractor(
+        invites=InvitePgRepository(session), members=MemberPgRepository(session),
+        shops=ShopPgRepository(session), limiter=_OpenLimiter(), now=lambda: EXPIRES - timedelta(days=1),
+    )
+    return interactor.accept(AcceptInviteCommand(user_id=user_id, code="ABCD2345"))
+
+
+async def test_멤버십_변경이_매장을_잠근_동안_초대_수락은_기다린다(db_engine):
+    """E1 — 수락이 매장 행 잠금을 타는지 실제 두 세션으로 확인한다."""
+    factory = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with factory() as setup:
+        shop = await ShopPgRepository(setup).create("Hiss Haus", "pet_grooming")
+        await InvitePgRepository(setup).create_owner_invite(shop.id, hash_invite_code("ABCD2345"), EXPIRES)
+        await setup.commit()
+
+    async with factory() as one, factory() as two:
+        await MemberPgRepository(one).lock_membership_changes(shop.id)
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(_accept(two, user_id=7), timeout=0.5)
+        await two.rollback()
+
+        await one.commit()
+        result = await asyncio.wait_for(_accept(two, user_id=7), timeout=0.5)
+        assert result.role == "owner"
+        await two.rollback()

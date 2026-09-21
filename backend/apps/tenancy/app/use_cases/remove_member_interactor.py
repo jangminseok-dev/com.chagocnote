@@ -18,7 +18,7 @@ class RemoveMemberInteractor(RemoveMemberUseCase):
 
     async def remove(self, command: RemoveMemberCommand) -> None:
         # 대상을 읽기 전에 매장 단위로 직렬화한다. 낡은 역할로 마지막 사장을 내보내지 않게 한다.
-        await self._members.lock_membership_changes(command.ctx)
+        await self._members.lock_membership_changes(command.ctx.shop_id)
         target = await self._members.get_active(command.ctx, command.member_id)
         if target is None:
             raise MemberNotFoundError("멤버를 찾을 수 없습니다.")
