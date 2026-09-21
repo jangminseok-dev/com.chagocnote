@@ -4,6 +4,7 @@ from sqlalchemy import text
 
 from auth.adapter.outbound.gateways.fernet_cipher import FernetCipher
 from auth.adapter.outbound.pg.user_pg_repository import UserPgRepository
+from auth.domain.errors import IdentityAlreadyLinkedError
 from auth.domain.value_objects.provider import Provider
 from auth.domain.value_objects.social_profile import SocialProfile
 
@@ -87,3 +88,33 @@ async def test_암호화_도구_없이도_토큰_없는_프로필은_저장하�
     created = await repo.create_with_identity(_profile(provider_user_id="kakao-200"))
     assert (await repo.get(created.id)).display_name == "두부 보호자"
     assert await repo.get(999999) is None
+
+
+async def test_이미_있는_신원으로_만들면_IdentityAlreadyLinkedError_이고_세션은_계속_쓸_수_있다(db_session):
+    repo = _repo(db_session)
+    first = await repo.create_with_identity(_profile())
+    with pytest.raises(IdentityAlreadyLinkedError):
+        await repo.create_with_identity(_profile(display_name="늦은 요청"))
+    # 진 쪽이 만들려던 유저 행도 함께 되돌아간다.
+    count = (await db_session.execute(text("SELECT count(*) FROM users"))).scalar_one()
+    assert count == 1
+    assert (await repo.find_by_identity(Provider.KAKAO, "kakao-100")).id == first.id
+
+
+async def test_비어_있는_제공자_토큰만_채운다(db_session):
+    repo = _repo(db_session)
+    await repo.create_with_identity(_profile(provider=Provider.APPLE, provider_user_id="apple-9"))
+
+    async def stored():
+        return (
+            await db_session.execute(
+                text("SELECT provider_refresh_token_enc FROM social_identities WHERE provider_user_id = 'apple-9'")
+            )
+        ).scalar_one()
+
+    assert await stored() is None
+    await repo.fill_provider_refresh_token(Provider.APPLE, "apple-9", "first-token")
+    filled = await stored()
+    assert filled and filled != "first-token"
+    await repo.fill_provider_refresh_token(Provider.APPLE, "apple-9", "second-token")
+    assert await stored() == filled

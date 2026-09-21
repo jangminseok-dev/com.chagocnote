@@ -1,6 +1,7 @@
 """auth 도메인 오류 → HTTP 상태 코드. 유스케이스는 HTTP 를 모른다."""
 from auth.domain.errors import (
     AccountSuspendedError,
+    IdentityAlreadyLinkedError,
     InvalidRefreshTokenError,
     ProviderVerificationError,
     RefreshTokenReuseError,
@@ -15,4 +16,5 @@ AUTH_ERROR_STATUS: dict[type[Exception], int] = {
     RefreshTokenReuseError: 401,
     UserNotFoundError: 401,
     AccountSuspendedError: 403,
+    IdentityAlreadyLinkedError: 409,
 }

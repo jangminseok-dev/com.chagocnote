@@ -26,3 +26,7 @@ class RefreshTokenReuseError(AuthError):
 
 class UserNotFoundError(AuthError):
     code = "UNAUTHENTICATED"
+
+
+class IdentityAlreadyLinkedError(AuthError):
+    code = "IDENTITY_ALREADY_LINKED"
