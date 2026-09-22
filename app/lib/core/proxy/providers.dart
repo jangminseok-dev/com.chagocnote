@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
@@ -24,13 +25,29 @@ final sessionEndedSignalProvider = Provider<SessionEndedSignal>(
   (ref) => SessionEndedSignal(),
 );
 
-final apiClientProvider = Provider<ApiClient>((ref) {
+/// `ApiClient`가 원 요청에 쓰는 `Dio`. `flutter test`는 `TestWidgetsFlutterBinding`이
+/// 뜬 상태에서 진짜 `HttpClient`가 만드는 요청을 전부 400으로 가로채므로(dart:io
+/// 문서 참고), 실제 소켓을 못 쓴다. 그래서 어댑터를 갈아 끼울 자리를 이 프로바이더로
+/// 빼 둔다 — production 은 그대로 두고, 테스트만 `overrideWithValue`로 가짜
+/// 어댑터를 문 `Dio`를 꽂는다(fix round 1: session_ended_wiring_test 판정 참고).
+final dioProvider = Provider<Dio>((ref) {
   final config = ref.watch(appConfigProvider);
+  return Dio(BaseOptions(baseUrl: config.apiBaseUrl));
+});
+
+/// 리프레시 요청 전용 "민짜" `Dio`. 용도는 [ApiClient]의 문서를 참고.
+final refreshDioProvider = Provider<Dio>((ref) {
+  final config = ref.watch(appConfigProvider);
+  return Dio(BaseOptions(baseUrl: config.apiBaseUrl));
+});
+
+final apiClientProvider = Provider<ApiClient>((ref) {
   final tokenStore = ref.watch(tokenStoreProvider);
   final signal = ref.watch(sessionEndedSignalProvider);
   return ApiClient(
     tokenStore: tokenStore,
-    baseUrl: config.apiBaseUrl,
+    dio: ref.watch(dioProvider),
+    refreshDio: ref.watch(refreshDioProvider),
     onSessionEnded: signal.fire,
   );
 });

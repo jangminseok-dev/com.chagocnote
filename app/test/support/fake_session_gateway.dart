@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chagocnote/features/auth/api/social_sign_in.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_gateway.dart';
@@ -20,6 +22,11 @@ class FakeSessionGateway implements SessionGateway {
 
   Me? meOnRefresh;
   Object? refreshMeError;
+
+  /// 설정되어 있으면 refreshMe()는 이 completer가 끝날 때까지 기다린다.
+  /// 갱신 응답을 기다리는 동안 다른 이벤트(예: endSession)가 끼어드는 경합을
+  /// 결정적으로 재현할 때 쓴다.
+  Completer<Me>? refreshMeGate;
 
   bool signOutCalled = false;
   int? writtenShopId;
@@ -45,6 +52,7 @@ class FakeSessionGateway implements SessionGateway {
 
   @override
   Future<Me> refreshMe() async {
+    if (refreshMeGate != null) return refreshMeGate!.future;
     if (refreshMeError != null) throw refreshMeError!;
     return meOnRefresh!;
   }

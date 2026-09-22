@@ -26,17 +26,30 @@ final sessionGatewayProvider = Provider<SessionGateway>((ref) {
 class SessionController extends AsyncNotifier<Session> {
   SessionGateway get _gateway => ref.read(sessionGatewayProvider);
 
+  /// build() 가 실행되는 동안에는 true. 그 사이 endSession 이 불려도 `state`를
+  /// 직접 바꿔봐야 build()의 반환값이 곧 그 위를 덮어써 버리므로(반환값이 이
+  /// 프로바이더의 첫 상태가 된다), `_endedDuringBuild`에 대신 기록해 뒀다가
+  /// build()의 반환값에 반영한다.
+  bool _building = false;
+  bool _endedDuringBuild = false;
+
   @override
   FutureOr<Session> build() async {
-    // `core/proxy`가 `features`를 모르는 채로 "세션 종료"를 알릴 수 있도록,
-    // 이 신호에 콜백을 등록한다. 컨트롤러가 폐기되면 등록을 해제한다.
-    final signal = ref.read(sessionEndedSignalProvider);
-    signal.listener = endSession;
-    ref.onDispose(() => signal.listener = null);
+    _building = true;
+    _endedDuringBuild = false;
+    try {
+      // `core/proxy`가 `features`를 모르는 채로 "세션 종료"를 알릴 수 있도록,
+      // 이 신호에 콜백을 등록한다. 컨트롤러가 폐기되면 등록을 해제한다.
+      final signal = ref.read(sessionEndedSignalProvider);
+      signal.listener = endSession;
+      ref.onDispose(() => signal.listener = null);
 
-    final me = await _gateway.restore();
-    if (me == null) return const SignedOut();
-    return _resolveFromStorage(me);
+      final me = await _gateway.restore();
+      if (me == null) return SignedOut(sessionExpired: _endedDuringBuild);
+      return _resolveFromStorage(me);
+    } finally {
+      _building = false;
+    }
   }
 
   /// 부팅 시점처럼 "현재 상태"가 없을 때 쓰는 선택 규칙: 저장소에 기억해둔
@@ -92,20 +105,29 @@ class SessionController extends AsyncNotifier<Session> {
   }
 
   /// HTTP 계층이 리프레시 실패를 감지했을 때 호출한다. 즉시 로그아웃 상태로
-  /// 만든다.
+  /// 만든다. build()가 진행 중이면 그 반환값이 상태를 덮어쓰므로 여기서
+  /// state를 바꾸지 않고 표시만 해 둔다(build() 참고). 이미 로그아웃
+  /// 상태면 그대로 둔다 — 직접 로그아웃한 뒤에 뒤늦게 도착한 리프레시
+  /// 실패가 만료 띠를 새로 띄우면 안 되기 때문이다.
   void endSession() {
+    if (_building) {
+      _endedDuringBuild = true;
+      return;
+    }
+    if (state.value is SignedOut) return;
     state = const AsyncData(SignedOut(sessionExpired: true));
   }
 
   /// 이미 가지고 있는 [Me]로 상태를 교체한다. `reloadMe`와 같은 선택 규칙을
   /// 쓰지만, 네트워크 호출이 없으므로 동기로 끝낼 수 있다: 현재 선택된
   /// 매장이 새 소속 목록에도 있으면 유지하고, 없으면 매장이 하나뿐일 때만
-  /// 자동 선택하며, 그 외에는 미선택으로 되돌린다.
+  /// 자동 선택하며, 그 외에는 미선택으로 되돌린다. 현재 상태가 SignedIn이
+  /// 아니면(응답을 기다리는 동안 로그아웃되거나 세션이 끝났으면) 아무 일도
+  /// 하지 않는다 — 늦게 도착한 응답이 이미 끝난 세션을 되살리면 안 된다.
   void replaceMe(Me me) {
     final current = state.value;
-    final previousSelectedShopId =
-        current is SignedIn ? current.selectedShopId : null;
-    state = AsyncData(_resolveWith(me, previousSelectedShopId));
+    if (current is! SignedIn) return;
+    state = AsyncData(_resolveWith(me, current.selectedShopId));
   }
 }
 

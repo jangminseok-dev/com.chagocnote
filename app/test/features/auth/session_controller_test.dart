@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:chagocnote/features/auth/api/social_sign_in.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
@@ -220,6 +222,49 @@ void main() {
 
     final state = container.read(sessionControllerProvider).value as SignedOut;
     expect(state.sessionExpired, isTrue);
+  });
+
+  group('endSession 방어 (fix round 1)', () {
+    test(
+      'reloadMe 의 응답을 기다리는 동안 endSession 이 불리면, 응답이 뒤늦게 와도 '
+      '세션은 끝난 채로 남는다',
+      () async {
+        final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
+        final container = _containerWith(gateway);
+        await container.read(sessionControllerProvider.future);
+
+        final gate = Completer<Me>();
+        gateway.refreshMeGate = gate;
+        final notifier = container.read(sessionControllerProvider.notifier);
+        final reloadFuture = notifier.reloadMe();
+
+        notifier.endSession();
+        expect(
+          (container.read(sessionControllerProvider).value as SignedOut)
+              .sessionExpired,
+          isTrue,
+        );
+
+        gate.complete(_me(shops: [_ownerA], name: '새이름'));
+        await reloadFuture;
+
+        final state = container.read(sessionControllerProvider).value as SignedOut;
+        expect(state.sessionExpired, isTrue);
+      },
+    );
+
+    test('signOut 뒤 endSession 이 불려도 sessionExpired 는 false 로 남는다', () async {
+      final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
+      final container = _containerWith(gateway);
+      await container.read(sessionControllerProvider.future);
+
+      final notifier = container.read(sessionControllerProvider.notifier);
+      await notifier.signOut();
+      notifier.endSession();
+
+      final state = container.read(sessionControllerProvider).value as SignedOut;
+      expect(state.sessionExpired, isFalse);
+    });
   });
 
   group('재시도 끄기', () {
