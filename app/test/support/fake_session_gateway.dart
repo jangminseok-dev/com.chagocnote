@@ -36,6 +36,12 @@ class FakeSessionGateway implements SessionGateway {
 
   bool clearLocalCalled = false;
 
+  /// 설정되어 있으면 clearLocal()은 이 completer가 끝날 때까지 기다린다.
+  /// 실기기의 flutter_secure_storage·SharedPreferences 플랫폼 채널 I/O가
+  /// 걸리는 시간 동안 상태가 이미 바뀌어 있는지(만료 띠가 안 보이는지)를
+  /// 결정적으로 재현할 때 쓴다.
+  Completer<void>? clearLocalGate;
+
   @override
   Future<Me?> restore() async {
     restoreCallCount++;
@@ -75,5 +81,6 @@ class FakeSessionGateway implements SessionGateway {
   @override
   Future<void> clearLocal() async {
     clearLocalCalled = true;
+    if (clearLocalGate != null) await clearLocalGate!.future;
   }
 }

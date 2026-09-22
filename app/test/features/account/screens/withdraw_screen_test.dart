@@ -1,6 +1,7 @@
 // 탈퇴 화면을 실제 라우터 + 가짜 HTTP 어댑터로 검증한다. AccountApi/
 // WithdrawController/SessionController는 모두 진짜를 쓰고, 세션 게이트웨이만
 // FakeSessionGateway로 문다.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -128,7 +129,7 @@ void main() {
     expect(setup.adapter.requests.where((r) => r.path == '/v1/auth/logout'), isEmpty);
   });
 
-  testWidgets('401 도 탈퇴 완료로 처리하고, endSession 이 먼저 불려도 만료 배너 없이 로그인 화면으로 간다(S12)', (
+  testWidgets('리프레시 토큰이 없어 갱신 없이 401 이어도 탈퇴 완료로 끝난다(S12)', (
     tester,
   ) async {
     final gateway = FakeSessionGateway()..meOnRestore = _me(['apple']);
@@ -153,23 +154,20 @@ void main() {
   });
 
   testWidgets(
-    '401 이 실제 갱신 시도를 거쳐도(리프레시 토큰이 있어 endSession 이 먼저 불려도) 만료 배너 없이 끝난다(S12)',
+    '리프레시 토큰이 있어 endSession 이 실제로 먼저 불려도, clearLocal() 이 오래 걸리는 동안 '
+    '만료 배너 없이 이미 로그인 화면이다(fix round 1 — S12 순서 판정)',
     (tester) async {
       final gateway = FakeSessionGateway()..meOnRestore = _me(['apple']);
+      final clearLocalGate = Completer<void>();
+      gateway.clearLocalGate = clearLocalGate;
       final tokenStore = MemoryTokenStore();
       await tokenStore.save(access: 'access-1', refresh: 'refresh-1');
-      final adapter = FakeHttpClientAdapter((options, body) {
-        if (options.path == '/v1/auth/refresh') {
-          return const FakeResponse(
-            statusCode: 401,
-            data: {'code': 'UNAUTHENTICATED', 'message': '이미 탈퇴됨'},
-          );
-        }
-        return const FakeResponse(
+      final adapter = FakeHttpClientAdapter(
+        (options, body) => const FakeResponse(
           statusCode: 401,
           data: {'code': 'UNAUTHENTICATED', 'message': '이미 탈퇴됨'},
-        );
-      });
+        ),
+      );
       final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
       final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
       final container = ProviderContainer.test(
@@ -194,13 +192,21 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(_submitButton);
 
-      // 완료(completeWithdrawal)가 최종적으로 상태를 덮어쓰기 전에 중간
-      // 프레임이 생기더라도, 만료 배너가 눈에 보이는 프레임으로 남지
-      // 않는지 pump를 여러 번 나눠 확인한다(끝까지 가지 않고 중간에도 확인).
-      for (var i = 0; i < 10; i++) {
-        await tester.pump();
-        expect(find.text(AppStrings.sessionExpiredBanner), findsNothing);
-      }
+      // DELETE /v1/auth/account 가 401 → 갱신 시도(진짜 리프레시 토큰이
+      // 있으므로 실제로 나간다) → 갱신도 401 → tokenStore.clear() +
+      // onSessionEnded() → endSession() 이 SignedOut(sessionExpired: true)를
+      // 세운다. 그 뒤 AccountApi.withdraw 가 401을 삼키고 completeWithdrawal()
+      // 이 state를 SignedOut()으로 먼저 덮어쓴 다음에야 clearLocal()을
+      // 부르는데, 여기서는 그 clearLocal()이 게이트에 막혀 끝나지 않는다.
+      // 즉 지금 이 시점에는 위 연쇄가 이미 다 일어났고 completeWithdrawal()의
+      // clearLocal() 호출에서 멈춰 있어야 한다 — state는 이미 SignedOut()
+      // (만료 아님)이어야 한다.
+      await tester.pumpAndSettle();
+      expect(gateway.clearLocalCalled, isTrue);
+      expect(find.byKey(ScreenKeys.login), findsOneWidget);
+      expect(find.text(AppStrings.sessionExpiredBanner), findsNothing);
+
+      clearLocalGate.complete();
       await tester.pumpAndSettle();
 
       expect(find.byKey(ScreenKeys.login), findsOneWidget);

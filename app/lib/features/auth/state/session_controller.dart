@@ -123,9 +123,15 @@ class SessionController extends AsyncNotifier<Session> {
   /// 직후에 "보안을 위해 다시 로그인해 주세요" 배너를 보여주는 건 맞지
   /// 않다(401 경로에서는 이미 `endSession()`이 먼저 불렸을 수 있어서, 이
   /// 메서드가 그 상태를 덮어써야 한다).
+  ///
+  /// (fix round 1 — Task 13 검토) `state`를 먼저 덮어쓴 뒤에 `clearLocal()`을
+  /// 부른다. 실기기의 `clearLocal()`은 flutter_secure_storage·SharedPreferences
+  /// 플랫폼 채널 I/O라 수~수십 ms 걸린다 — 그 사이 프레임이 그려지면
+  /// `endSession()`이 먼저 세운 `sessionExpired: true`가 화면에 보일 수
+  /// 있다. `state`를 먼저 바꿔 두면 그 창이 아예 없다.
   Future<void> completeWithdrawal() async {
-    await _gateway.clearLocal();
     state = const AsyncData(SignedOut());
+    await _gateway.clearLocal();
   }
 
   /// 이미 가지고 있는 [Me]로 상태를 교체한다. `reloadMe`와 같은 선택 규칙을

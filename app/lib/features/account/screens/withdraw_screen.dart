@@ -30,6 +30,7 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
   bool _ownershipTransferRequired = false;
 
   Future<void> _withdraw({bool confirmCloseShops = false}) async {
+    if (_busy) return;
     setState(() {
       _busy = true;
       _errorText = null;
