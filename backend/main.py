@@ -19,6 +19,7 @@ from auth.dependencies.get_user_profiles_provider import get_get_user_profiles_u
 from auth.dependencies.guard_active_user_provider import get_guard_active_user_use_case
 from auth.dependencies.hub_ports import get_membership_directory
 from customer.adapter.inbound.api.error_map import CUSTOMER_ERROR_STATUS
+from customer.adapter.inbound.api.v1.add_pet_router import add_pet_router
 from customer.adapter.inbound.api.v1.customer_myself_router import customer_myself_router
 from customer.adapter.inbound.api.v1.delete_customer_router import delete_customer_router
 from customer.adapter.inbound.api.v1.get_customer_router import get_customer_router
@@ -30,6 +31,7 @@ from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
 from customer.adapter.inbound.api.v1.lookup_customer_router import lookup_customer_router
 from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
+from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -82,6 +84,8 @@ app.include_router(register_customer_router)
 app.include_router(update_customer_router)
 app.include_router(delete_customer_router)
 app.include_router(list_customers_router)
+app.include_router(add_pet_router)
+app.include_router(update_pet_router)
 install_error_handlers(
     app,
     {
