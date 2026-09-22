@@ -16,6 +16,10 @@ abstract class SessionGateway {
   Future<Me> refreshMe();
   Future<int?> readLastShopId();
   Future<void> writeLastShopId(int shopId);
+
+  /// 로컬 토큰·설정만 지운다. 서버에 통보하지 않는다 — 회원 탈퇴처럼 계정이
+  /// 이미 사라져서 알릴 서버가 없는 경우에 쓴다.
+  Future<void> clearLocal();
 }
 
 /// [AuthApi]·[MeApi]·[TokenStore]·[PrefsStore]로 만든 실제 구현.
@@ -84,8 +88,7 @@ class HttpSessionGateway implements SessionGateway {
         // 로그아웃은 오프라인에서도 되어야 한다 — 서버 통보 실패는 무시한다.
       }
     }
-    await _tokenStore.clear();
-    await _prefsStore.clear();
+    await clearLocal();
   }
 
   @override
@@ -97,4 +100,10 @@ class HttpSessionGateway implements SessionGateway {
   @override
   Future<void> writeLastShopId(int shopId) =>
       _prefsStore.writeLastShopId(shopId);
+
+  @override
+  Future<void> clearLocal() async {
+    await _tokenStore.clear();
+    await _prefsStore.clear();
+  }
 }

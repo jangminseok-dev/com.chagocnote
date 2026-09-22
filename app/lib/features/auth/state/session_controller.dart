@@ -118,6 +118,16 @@ class SessionController extends AsyncNotifier<Session> {
     state = const AsyncData(SignedOut(sessionExpired: true));
   }
 
+  /// 회원 탈퇴 완료 처리. 계정이 이미 사라졌으므로 서버에 통보하지 않고
+  /// 로컬 토큰·설정만 지운다. `sessionExpired`는 세우지 않는다 — 탈퇴
+  /// 직후에 "보안을 위해 다시 로그인해 주세요" 배너를 보여주는 건 맞지
+  /// 않다(401 경로에서는 이미 `endSession()`이 먼저 불렸을 수 있어서, 이
+  /// 메서드가 그 상태를 덮어써야 한다).
+  Future<void> completeWithdrawal() async {
+    await _gateway.clearLocal();
+    state = const AsyncData(SignedOut());
+  }
+
   /// 이미 가지고 있는 [Me]로 상태를 교체한다. `reloadMe`와 같은 선택 규칙을
   /// 쓰지만, 네트워크 호출이 없으므로 동기로 끝낼 수 있다: 현재 선택된
   /// 매장이 새 소속 목록에도 있으면 유지하고, 없으면 매장이 하나뿐일 때만

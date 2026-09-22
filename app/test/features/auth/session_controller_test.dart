@@ -212,6 +212,39 @@ void main() {
     });
   });
 
+  group('completeWithdrawal', () {
+    test('로컬을 지우고 sessionExpired 가 아닌 SignedOut 으로 만든다', () async {
+      final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
+      final container = _containerWith(gateway);
+      await container.read(sessionControllerProvider.future);
+
+      final notifier = container.read(sessionControllerProvider.notifier);
+      await notifier.completeWithdrawal();
+
+      expect(gateway.clearLocalCalled, isTrue);
+      final state = container.read(sessionControllerProvider).value as SignedOut;
+      expect(state.sessionExpired, isFalse);
+    });
+
+    test('endSession 이 먼저 불렸어도 sessionExpired 를 되돌린다(401 경로)', () async {
+      final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
+      final container = _containerWith(gateway);
+      await container.read(sessionControllerProvider.future);
+
+      final notifier = container.read(sessionControllerProvider.notifier);
+      notifier.endSession();
+      expect(
+        (container.read(sessionControllerProvider).value as SignedOut).sessionExpired,
+        isTrue,
+      );
+
+      await notifier.completeWithdrawal();
+
+      final state = container.read(sessionControllerProvider).value as SignedOut;
+      expect(state.sessionExpired, isFalse);
+    });
+  });
+
   test('endSession 은 즉시 sessionExpired 가 true 인 SignedOut 으로 만든다', () async {
     final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
     final container = _containerWith(gateway);

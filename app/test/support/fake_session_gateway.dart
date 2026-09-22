@@ -34,6 +34,8 @@ class FakeSessionGateway implements SessionGateway {
   bool signOutCalled = false;
   int? writtenShopId;
 
+  bool clearLocalCalled = false;
+
   @override
   Future<Me?> restore() async {
     restoreCallCount++;
@@ -68,5 +70,10 @@ class FakeSessionGateway implements SessionGateway {
   Future<void> writeLastShopId(int shopId) async {
     writtenShopId = shopId;
     lastShopId = shopId;
+  }
+
+  @override
+  Future<void> clearLocal() async {
+    clearLocalCalled = true;
   }
 }

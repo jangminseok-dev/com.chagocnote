@@ -2,6 +2,7 @@ import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
+import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/auth/state/session_gateway.dart';
@@ -77,5 +78,17 @@ void main() {
 
     expect(find.byKey(ScreenKeys.home), findsOneWidget);
     expect(gateway.writtenShopId, _staffB.shopId);
+  });
+
+  testWidgets('매장을 강제로 골라야 하는 경우(매장 2곳, 선택 없음)에는 뒤로 가기 버튼이 없다', (tester) async {
+    final gateway = FakeSessionGateway()..meOnRestore = _me();
+    final container = _containerWith(gateway);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+    expect(find.byType(AppBackButton), findsNothing);
   });
 }

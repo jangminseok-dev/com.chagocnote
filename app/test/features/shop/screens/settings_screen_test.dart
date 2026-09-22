@@ -5,6 +5,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
+import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
@@ -149,6 +150,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+  });
+
+  testWidgets('설정 → 다른 매장으로 들어가면 뒤로 가기 버튼이 있고, 누르면 설정으로 돌아간다', (tester) async {
+    final container = _containerWith(
+      const Me(
+        id: 1,
+        displayName: '민석',
+        profileImageUrl: null,
+        identities: ['apple'],
+        shops: [_hissHaus, _staffShop],
+      ),
+      lastShopId: _hissHaus.shopId,
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.settingsSwitchShop));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+    expect(find.byType(AppBackButton), findsOneWidget);
+
+    await tester.tap(find.byType(AppBackButton));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.settings), findsOneWidget);
   });
 
   testWidgets('멤버를 누르면 멤버 화면으로 간다', (tester) async {

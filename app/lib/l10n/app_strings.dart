@@ -80,6 +80,17 @@ class AppStrings {
   static const unlinkConfirmMessage = '해제하면 다른 모든 기기에서 로그아웃됩니다.';
   static const withdraw = '회원 탈퇴';
 
+  // 회원 탈퇴
+  static const withdrawNoticeIrreversible = '되돌릴 수 없습니다.';
+  static const withdrawNoticeShopRecordsStay = '매장의 기록은 매장에 남습니다.';
+  static const withdrawNoticeMembershipGone = '소속과 초대 코드는 사라집니다.';
+  static const withdrawNoticeNewAccount = '같은 소셜 계정으로 다시 가입하면 새 계정이 됩니다.';
+  static const withdrawConfirmCheckbox = '안내를 확인했습니다';
+  static const withdrawSubmit = '탈퇴하기';
+  static const withdrawShopCloseTitle = '혼자 운영하는 매장도 함께 닫힙니다';
+  static const withdrawShopCloseConfirm = '매장을 닫고 탈퇴';
+  static const goToMembers = '멤버 관리로 이동';
+
   /// 로그인 수단 제공자 코드를 화면에 보여줄 라벨로 바꾼다. 계정 화면과
   /// 재인증 시트(Task 16)가 함께 쓴다.
   static String providerLabel(String provider) => switch (provider) {

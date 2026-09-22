@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/account/screens/account_screen.dart';
+import '../../features/account/screens/withdraw_screen.dart';
 import '../../features/auth/screens/invite_code_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/shop_select_screen.dart';
@@ -13,7 +14,6 @@ import '../../features/home/screens/home_shell.dart';
 import '../../features/shop/screens/members_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
-import 'placeholder_screens.dart';
 
 /// go_router의 `refreshListenable`은 평범한 [Listenable]을 요구한다. 세션이
 /// 바뀔 때마다 이걸로 "redirect를 다시 평가해라"라고 알린다.
@@ -92,7 +92,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/settings/account/withdraw',
-        builder: (context, state) => const SettingsAccountWithdrawScreen(),
+        builder: (context, state) => const WithdrawScreen(),
       ),
     ],
   );
