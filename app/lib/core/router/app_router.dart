@@ -10,6 +10,7 @@ import '../../features/auth/screens/shop_select_screen.dart';
 import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/state/session.dart';
 import '../../features/auth/state/session_controller.dart';
+import '../../features/customer/screens/pet_detail_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/shop/screens/members_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
@@ -23,6 +24,12 @@ class _SessionRefreshListenable extends ChangeNotifier {
 
 /// 매장이 선택되어 있어야만 열리는 경로.
 const _shopScopedSettings = {'/settings', '/settings/members', '/settings/shop'};
+
+/// 고객·반려동물 화면도 매장이 선택되어 있어야 열린다(경로에 ID 가 들어간다).
+bool _isShopScoped(String location) =>
+    _shopScopedSettings.contains(location) ||
+    location.startsWith('/customers/') ||
+    location.startsWith('/pets/');
 
 /// 매장이 없어도(0-shop 사용자도) 열려 있어야 하는 계정 관련 경로 — 로그아웃,
 /// 로그인 수단 해제, 탈퇴는 매장 유무와 무관하게 가능해야 한다.
@@ -94,6 +101,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/account/withdraw',
         builder: (context, state) => const WithdrawScreen(),
       ),
+      GoRoute(
+        path: '/pets/:petId',
+        builder: (context, state) => PetDetailScreen(
+          petId: int.parse(state.pathParameters['petId']!),
+        ),
+      ),
     ],
   );
 
@@ -116,7 +129,7 @@ String? _redirectSignedIn({
     return location == '/shops/select' ? null : '/shops/select';
   }
 
-  if (_shopScopedSettings.contains(location) && selectedShopId == null) {
+  if (_isShopScoped(location) && selectedShopId == null) {
     return '/home';
   }
 

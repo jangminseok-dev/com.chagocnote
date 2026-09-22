@@ -10,6 +10,7 @@ void main() {
       'lib/features/shop/screens/members_screen.dart',
       'lib/features/auth/screens/shop_select_screen.dart',
       'lib/features/account/screens/account_screen.dart',
+      'lib/features/customer/screens/pet_detail_screen.dart',
     ];
     final violations = [
       for (final path in scrollScreens)

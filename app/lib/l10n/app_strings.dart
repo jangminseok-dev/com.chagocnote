@@ -102,6 +102,40 @@ class AppStrings {
   static const sexMale = '남아';
   static const neutered = '중성화';
 
+  static const edit = '수정';
+  static const delete = '삭제';
+  static const more = '더 보기';
+  static const none = '없음';
+  static const petTabBasic = '기본';
+  static const petTabConditions = '질병';
+  static const petTabOwner = '보호자';
+  static const passedAwayBadge = '무지개다리';
+  static const markPassedAway = '무지개다리 표시';
+  static const unmarkPassedAway = '무지개다리 되돌리기';
+  static const markPassedAwayConfirm = '무지개다리를 건넜다고 표시할까요? 목록에서 숨겨지고 기록은 남습니다.';
+  static const deletePet = '반려동물 삭제';
+  static const deletePetConfirm = '잘못 등록한 반려동물을 삭제할까요? 질병 기록도 함께 지워지고 되돌릴 수 없습니다.';
+  static const birthDateLabel = '생일';
+  static const birthYearLabel = '태어난 해';
+  static const ageUnknown = '모름';
+  static const weightLabel = '몸무게';
+  static const petMemoLabel = '특이사항';
+  static const noKnownConditions = '질병 없음';
+  static const noKnownConditionsConfirmed = '질병 없음 — 확인함';
+  static const siblingsLabel = '같은 보호자의 아이';
+  static const ownerNameLabel = '이름';
+  static const ownerPhoneLabel = '전화번호';
+  static const ownerPhoneAltLabel = '보조 연락처';
+  static const marketingConsentLabel = '마케팅 수신';
+  static const marketingAgreed = '동의';
+  static const marketingDeclined = '거부';
+  static const customerMemoLabel = '메모';
+  static const editOwner = '보호자 수정';
+  static const addPet = '반려동물 추가';
+
+  static String conditionCount(int count) => '질병 $count';
+  static String birthYearText(int year) => '$year년생';
+
   static String speciesLabel(String species) => switch (species) {
         'dog' => speciesDog,
         'cat' => speciesCat,
