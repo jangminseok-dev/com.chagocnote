@@ -23,6 +23,7 @@ from customer.adapter.inbound.api.v1.customer_myself_router import customer_myse
 from customer.adapter.inbound.api.v1.delete_customer_router import delete_customer_router
 from customer.adapter.inbound.api.v1.get_customer_router import get_customer_router
 from customer.adapter.inbound.api.v1.get_pet_router import get_pet_router
+from customer.adapter.inbound.api.v1.list_customers_router import list_customers_router
 from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
     list_pet_condition_types_router,
 )
@@ -80,6 +81,7 @@ app.include_router(list_pet_condition_types_router)
 app.include_router(register_customer_router)
 app.include_router(update_customer_router)
 app.include_router(delete_customer_router)
+app.include_router(list_customers_router)
 install_error_handlers(
     app,
     {
