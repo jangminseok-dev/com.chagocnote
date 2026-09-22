@@ -73,6 +73,22 @@ void main() {
     expect(size.height, 44);
   });
 
+  testWidgets('Center 같은 유한 높이 부모 아래서도 높이는 44, 폭은 글자 폭만큼이다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: AppChoiceChip(label: '강아지', selected: false, onTap: () {}),
+          ),
+        ),
+      ),
+    );
+
+    final size = tester.getSize(find.byType(AppChoiceChip));
+    expect(size.width, lessThan(120));
+    expect(size.height, 44);
+  });
+
   testWidgets('AppChoiceChip 골든 — 고른 칩과 안 고른 칩', (tester) async {
     final target = await pumpGoldenFrame(
       tester,

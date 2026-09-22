@@ -39,10 +39,11 @@ class AppChoiceChip extends StatelessWidget {
             width: 1,
           ),
         ),
-        // 높이(Pressable 의 최소 44)는 채우되 가로는 글자 폭만큼만 — `alignment`를
-        // 주면 Wrap·Column 안에서 가로 폭을 다 채워 버린다.
+        // 가로는 글자 폭만큼, 세로는 Pressable 의 최소 44 안에서 가운데다.
+        // `alignment`를 주면 Wrap·Column 안에서 가로 폭을 다 채워 버린다.
         child: Align(
           widthFactor: 1,
+          heightFactor: 1,
           // 이름표는 Pressable 이 읽는다 — 글자를 한 번 더 읽지 않게 뺀다.
           child: ExcludeSemantics(
             child: Text(
