@@ -227,4 +227,76 @@ void main() {
 
     expect(find.byKey(ScreenKeys.invite), findsOneWidget);
   });
+
+  group('뒤로 가기 버튼은 머리 왼쪽에 붙는다(최종 재검토)', () {
+    const me = Me(
+      id: 1,
+      displayName: '민석',
+      profileImageUrl: null,
+      identities: ['apple'],
+      shops: [_hissHaus, _staffShop],
+    );
+
+    void expectLeft(WidgetTester tester) {
+      final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      // 버튼 위젯 자체는 늘어나도 왼쪽 끝이 0 근처라, 실제로 그려지는 아이콘의
+      // 가운데를 잰다.
+      final icon = find.descendant(
+        of: find.byType(AppBackButton),
+        matching: find.byType(Icon),
+      );
+      expect(tester.getCenter(icon).dx, lessThan(width / 4));
+    }
+
+    testWidgets('설정 화면', (tester) async {
+      final container = _containerWith(me, lastShopId: _hissHaus.shopId);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(_appWith(container));
+      await tester.pumpAndSettle();
+      container.read(routerProvider).go('/settings');
+      await tester.pumpAndSettle();
+
+      expectLeft(tester);
+    });
+
+    testWidgets('설정 → 다른 매장(매장 선택 화면)', (tester) async {
+      final container = _containerWith(me, lastShopId: _hissHaus.shopId);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(_appWith(container));
+      await tester.pumpAndSettle();
+      container.read(routerProvider).go('/settings');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.settingsSwitchShop));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+      expectLeft(tester);
+    });
+
+    testWidgets('설정 → 초대 코드로 합류: 검은 AppBar 없이 본문 머리에 있고, 누르면 설정으로 돌아간다', (
+      tester,
+    ) async {
+      final container = _containerWith(me, lastShopId: _hissHaus.shopId);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(_appWith(container));
+      await tester.pumpAndSettle();
+      container.read(routerProvider).go('/settings');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.settingsJoinByInvite));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ScreenKeys.invite), findsOneWidget);
+      expect(find.byType(AppBar), findsNothing);
+      expect(find.byType(AppBackButton), findsOneWidget);
+      expectLeft(tester);
+
+      await tester.tap(find.byType(AppBackButton));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ScreenKeys.settings), findsOneWidget);
+    });
+  });
 }

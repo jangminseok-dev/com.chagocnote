@@ -35,7 +35,11 @@ class ShopSelectScreen extends ConsumerWidget {
               // 뒤로 갈 곳이 없으므로(canPop == false) 버튼을 아예 두지
               // 않는다.
               if (context.canPop()) ...[
-                const AppBackButton(),
+                // ListView 는 자식을 가로로 늘린다 — 왼쪽에 붙인다.
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: AppBackButton(),
+                ),
                 const SizedBox(height: AppSpacing.lg),
               ],
               Text(AppStrings.selectShopTitle, style: AppTypography.titleKo),

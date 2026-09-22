@@ -11,6 +11,7 @@ import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
+import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -300,4 +301,77 @@ void main() {
       hasLength(1),
     );
   });
+
+  testWidgets(
+    '소속 0개 유저: 수락 성공 뒤 재조회가 실패하면 스피너 없이 다시 누를 수 있고, 다시 누르면 '
+    'ALREADY_A_MEMBER → 재조회 성공 → 홈(최종 재검토 F6)',
+    (tester) async {
+      var meCallCount = 0;
+      var acceptCallCount = 0;
+      final adapter = FakeHttpClientAdapter((options, body) {
+        if (options.path == '/v1/me') {
+          meCallCount++;
+          if (meCallCount == 1) {
+            return const FakeResponse(statusCode: 200, data: _meNoShops);
+          }
+          if (meCallCount == 2) {
+            throw DioException.connectionError(
+              requestOptions: options,
+              reason: '연결 실패',
+            );
+          }
+          return const FakeResponse(statusCode: 200, data: _meWithShop);
+        }
+        if (options.path == '/v1/invites/accept') {
+          acceptCallCount++;
+          if (acceptCallCount == 1) {
+            return const FakeResponse(
+              statusCode: 200,
+              data: {
+                'shop_id': 3,
+                'shop_name': 'Hiss Haus',
+                'role': 'staff',
+                'member_id': 21,
+              },
+            );
+          }
+          return const FakeResponse(
+            statusCode: 409,
+            data: {'code': 'ALREADY_A_MEMBER', 'message': '이미 멤버'},
+          );
+        }
+        fail('예상하지 못한 경로: ${options.path}');
+      });
+      final container = _containerWith(adapter);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(_appWith(container));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.invite), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'ABC123');
+      await tester.tap(find.text(AppStrings.inviteSubmit));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ScreenKeys.invite), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      final submit = tester.widget<AppButton>(
+        find.byWidgetPredicate(
+          (w) => w is AppButton && w.label == AppStrings.inviteSubmit,
+        ),
+      );
+      expect(submit.onPressed, isNotNull);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).decoration!.errorText,
+        isNotNull,
+      );
+
+      await tester.tap(find.text(AppStrings.inviteSubmit));
+      await tester.pumpAndSettle();
+
+      expect(acceptCallCount, 2);
+      expect(meCallCount, 3);
+      expect(find.byKey(ScreenKeys.home), findsOneWidget);
+    },
+  );
 }

@@ -31,7 +31,12 @@ class SettingsScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-              const AppBackButton(),
+              // ListView 는 자식을 가로로 늘린다 — 아이콘이 가운데에 그려지지
+              // 않게 왼쪽에 붙인다.
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: AppBackButton(),
+              ),
               const SizedBox(height: AppSpacing.lg),
               if (shop != null) ...[
                 Row(

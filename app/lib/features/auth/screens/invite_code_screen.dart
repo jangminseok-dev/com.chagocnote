@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/api_exception.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
@@ -10,6 +11,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../l10n/app_strings.dart';
+import '../api/invite_api.dart';
 import '../state/auth_providers.dart';
 import '../state/session.dart';
 import '../state/session_controller.dart';
@@ -46,17 +48,41 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
       _errorText = null;
     });
     try {
-      final result = await ref.read(inviteApiProvider).accept(code);
+      // 수락이 ALREADY_A_MEMBER 면 앞선 수락이 서버에서 이미 끝났는데 뒤이은
+      // 재조회만 실패했던 경우다 — 오류로 끝내지 않고 재조회부터 다시 한다
+      // (최종 재검토 F6).
+      InviteAccepted? result;
+      ApiException? alreadyMember;
+      try {
+        result = await ref.read(inviteApiProvider).accept(code);
+      } on ApiException catch (e) {
+        if (e.code != 'ALREADY_A_MEMBER') rethrow;
+        alreadyMember = e;
+      }
       final controller = ref.read(sessionControllerProvider.notifier);
+      Object? reloadError;
       try {
         await controller.reloadMe();
-      } catch (_) {
-        // 수락은 서버에서 이미 끝났다 — 재조회 실패를 수락 실패로 보이면
-        // 사용자가 다시 눌러 ALREADY_A_MEMBER 에 갇힌다. 해제 때처럼 삼키고,
-        // 다음 재조회·라우터 평가로 맞춰지게 둔다(최종 검토 F6).
+      } catch (e) {
+        // 소속이 이미 있으면 홈으로 가도 된다(다음 재조회로 맞춰진다). 소속이
+        // 비어 있으면 아래에서 문구로 보여준다.
+        reloadError = e;
       }
-      await controller.selectShop(result.shopId);
+      if (result != null) await controller.selectShop(result.shopId);
       if (!mounted) return;
+      final session = ref.read(sessionControllerProvider).value;
+      final hasShops = session is SignedIn && session.me.shops.isNotEmpty;
+      if (!hasShops) {
+        // 라우터가 /home 을 /invite 로 되돌려 이 화면(State)이 그대로 남는다
+        // — 스피너를 풀고 다시 누를 수 있게 한다.
+        setState(() {
+          _busy = false;
+          _errorText = messageFor(
+            reloadError ?? alreadyMember ?? StateError('소속 없음'),
+          );
+        });
+        return;
+      }
       context.go('/home');
     } catch (e) {
       if (!mounted) return;
@@ -74,65 +100,74 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
 
     return Scaffold(
       key: ScreenKeys.invite,
-      appBar: hasShops
-          ? AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              leading: AppBackButton(
-                onTap: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go('/settings');
-                  }
-                },
-              ),
-            )
-          : null,
       body: AppBackground(
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(AppStrings.inviteCodeLabel, style: AppTypography.titleKo),
-                  const SizedBox(height: AppSpacing.lg),
-                  TextField(
-                    controller: _codeController,
-                    decoration: InputDecoration(
-                      labelText: AppStrings.inviteCodeLabel,
-                      errorText: _errorText,
-                    ),
+          child: Stack(
+            children: [
+              _buildForm(hasShops),
+              // 소속이 있는 유저(설정에서 들어옴)만 뒤로 갈 수 있다. AppBar 를
+              // 쓰면 테마 색 띠가 깔려 검은 아이콘이 묻힌다 — 다른 설정 화면처럼
+              // 본문 머리 왼쪽에 둔다.
+              if (hasShops)
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: AppBackButton(
+                    onTap: () {
+                      if (context.canPop()) {
+                        context.pop();
+                      } else {
+                        context.go('/settings');
+                      }
+                    },
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AppButton(
-                      label: AppStrings.inviteSubmit,
-                      filled: true,
-                      busy: _busy,
-                      onPressed: _busy ? null : _submit,
-                    ),
-                  ),
-                  if (!hasShops) ...[
-                    const SizedBox(height: AppSpacing.xxl),
-                    AppButton(
-                      label: AppStrings.accountSettings,
-                      onPressed: () => context.go('/settings/account'),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppButton(
-                      label: AppStrings.logout,
-                      onPressed: () =>
-                          ref.read(sessionControllerProvider.notifier).signOut(),
-                    ),
-                  ],
-                ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildForm(bool hasShops) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(AppStrings.inviteCodeLabel, style: AppTypography.titleKo),
+            const SizedBox(height: AppSpacing.lg),
+            TextField(
+              controller: _codeController,
+              decoration: InputDecoration(
+                labelText: AppStrings.inviteCodeLabel,
+                errorText: _errorText,
               ),
             ),
-          ),
+            const SizedBox(height: AppSpacing.lg),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                label: AppStrings.inviteSubmit,
+                filled: true,
+                busy: _busy,
+                onPressed: _busy ? null : _submit,
+              ),
+            ),
+            if (!hasShops) ...[
+              const SizedBox(height: AppSpacing.xxl),
+              AppButton(
+                label: AppStrings.accountSettings,
+                onPressed: () => context.go('/settings/account'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: AppStrings.logout,
+                onPressed: () =>
+                    ref.read(sessionControllerProvider.notifier).signOut(),
+              ),
+            ],
+          ],
         ),
       ),
     );
