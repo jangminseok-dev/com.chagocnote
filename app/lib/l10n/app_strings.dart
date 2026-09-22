@@ -28,4 +28,14 @@ class AppStrings {
   static const selectShopTitle = '매장 선택';
   static const roleOwner = '사장';
   static const roleStaff = '직원';
+
+  // 홈 셸
+  static const settingsLabel = '설정';
+  static const tabCalendar = '캘린더';
+  static const tabCustomers = '고객';
+  static const tabSales = '매출';
+  static const calendarEmptyTitle = '아직 기록이 없습니다';
+  static const calendarEmptyCaption = '예약을 만들면 여기에서 모아 볼 수 있어요.';
+  static const comingSoonEmptyTitle = '준비 중입니다';
+  static const comingSoonSheetText = '예약과 기록은 다음 업데이트에서 만나요';
 }

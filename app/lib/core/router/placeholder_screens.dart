@@ -16,14 +16,6 @@ class _PlaceholderScreen extends StatelessWidget {
   }
 }
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) =>
-      const _PlaceholderScreen(label: 'home', screenKey: ScreenKeys.home);
-}
-
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
