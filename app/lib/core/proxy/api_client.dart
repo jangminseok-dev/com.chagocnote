@@ -183,12 +183,28 @@ class ApiClient {
       // 직접 일으킨 요청에서 한 번 더 시도하게 한다. 여기서 자동으로 다시 보내지는 않는다.
       final reachedBackend = !apiError.isNetwork &&
           !_gatewayFailures.contains(apiError.statusCode);
-      if (reachedBackend) {
-        // 서버가 거절했거나(401·403, 재사용 감지 포함) 처리 중 실패했다(500 — 토큰이 이미
-        // 소모됐을 수 있다). 이 기기의 토큰을 버리고 세션 종료를 알린다.
-        await _tokenStore.clear();
-        _onSessionEnded?.call();
+      if (!reachedBackend) {
+        throw apiError;
       }
+
+      // 이 갱신이 오가는 동안 다른 경로(로그인 수단 해제 등)가 이미 새
+      // 토큰을 저장했을 수 있다(fix round 1 — Task 12 검토에서 드러남).
+      // 그 경우 이 갱신의 실패는 이미 죽은 옛 리프레시 토큰에 대한
+      // 것일 뿐, 이 기기의 세션은 그 다른 경로가 저장한 새 토큰으로
+      // 이미 살아 있다. 비교 없이 지우면 방금 끝난 다른 작업이 만든
+      // 세션을 도로 로그아웃시키는 꼴이 된다. 지우지도, 세션 종료를
+      // 알리지도 않고 이 죽은 갱신 시도만 조용히 끝낸다 — 아직 재시도
+      // 전인 원 요청은 (호출부의 기존 로직대로) 저장소의 새 액세스
+      // 토큰으로 한 번 재시도된다.
+      final currentRefresh = await _tokenStore.readRefresh();
+      if (currentRefresh != refreshToken) {
+        return;
+      }
+
+      // 서버가 거절했거나(401·403, 재사용 감지 포함) 처리 중 실패했다(500 — 토큰이 이미
+      // 소모됐을 수 있다). 이 기기의 토큰을 버리고 세션 종료를 알린다.
+      await _tokenStore.clear();
+      _onSessionEnded?.call();
       throw apiError;
     }
   }

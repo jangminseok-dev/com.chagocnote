@@ -3,6 +3,7 @@
 // 실제 AccountApi/AccountController로 확인한다.
 import 'dart:convert';
 
+import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/core/proxy/api_client.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
@@ -256,6 +257,91 @@ void main() {
     await setup.container.read(accountControllerProvider.notifier).unlink('google');
 
     expect(google.disconnectCallCount, 1);
+  });
+
+  group('fix round 1 — disconnect 위치', () {
+    test('reloadMe 가 던져도 disconnect 는 한 번 불리고 unlink 는 성공으로 끝난다', () async {
+      final gateway = FakeSessionGateway()
+        ..meOnRestore = _me(['apple', 'google'])
+        ..refreshMeError = Exception('네트워크 오류');
+      final google = FakeSocialSignIn('google');
+      final setup = _setUp(
+        gateway: gateway,
+        signIns: [google],
+        handle: (options, body) => const FakeResponse(
+          statusCode: 200,
+          data: {
+            'identities': ['apple'],
+            'access_token': 'new-access',
+            'refresh_token': 'new-refresh',
+            'token_type': 'Bearer',
+            'expires_in': 3600,
+          },
+        ),
+      );
+      addTearDown(setup.container.dispose);
+      await setup.container.read(sessionControllerProvider.future);
+
+      await expectLater(
+        setup.container.read(accountControllerProvider.notifier).unlink('google'),
+        completes,
+      );
+
+      expect(google.disconnectCallCount, 1);
+    });
+
+    test('해제가 실패하면 disconnect 가 불리지 않는다', () async {
+      final gateway = FakeSessionGateway()..meOnRestore = _me(['apple', 'google']);
+      final google = FakeSocialSignIn('google');
+      final setup = _setUp(
+        gateway: gateway,
+        signIns: [google],
+        handle: (options, body) => const FakeResponse(
+          statusCode: 409,
+          data: {'code': 'LAST_IDENTITY', 'message': '마지막 수단'},
+        ),
+      );
+      addTearDown(setup.container.dispose);
+      await setup.container.read(sessionControllerProvider.future);
+
+      await expectLater(
+        setup.container.read(accountControllerProvider.notifier).unlink('google'),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(google.disconnectCallCount, 0);
+      expect(gateway.refreshMeCallCount, 0);
+    });
+
+    test('구글이 아닌 수단 해제는 disconnect 를 부르지 않는다', () async {
+      final gateway = FakeSessionGateway()
+        ..meOnRestore = _me(['apple', 'google', 'kakao'])
+        ..meOnRefresh = _me(['apple', 'google']);
+      final google = FakeSocialSignIn('google');
+      final setup = _setUp(
+        gateway: gateway,
+        signIns: [google],
+        handle: (options, body) {
+          expect(options.path, '/v1/auth/identities/kakao');
+          return const FakeResponse(
+            statusCode: 200,
+            data: {
+              'identities': ['apple', 'google'],
+              'access_token': 'new-access',
+              'refresh_token': 'new-refresh',
+              'token_type': 'Bearer',
+              'expires_in': 3600,
+            },
+          );
+        },
+      );
+      addTearDown(setup.container.dispose);
+      await setup.container.read(sessionControllerProvider.future);
+
+      await setup.container.read(accountControllerProvider.notifier).unlink('kakao');
+
+      expect(google.disconnectCallCount, 0);
+    });
   });
 
   test('로그아웃하면 세션 게이트웨이의 signOut 을 부른다', () async {

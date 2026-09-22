@@ -488,6 +488,58 @@ void main() {
       expect(second, {'ok': true});
       expect(refreshCalls, 2);
     });
+
+    test(
+        '갱신이 진행되는 동안 다른 경로가 새 토큰을 저장하고 갱신이 401로 끝나면, 새 토큰이 남고 '
+        'onSessionEnded는 0번이며 원 요청은 새 토큰으로 재시도된다', () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'stolen-refresh');
+      var sessionEndedCalls = 0;
+      // 갱신 요청이 옛 리프레시 토큰으로 이미 나간 뒤(=이 completer가 끝난
+      // 뒤)에만 다른 경로(예: 로그인 수단 해제)가 새 토큰을 저장하게 해,
+      // "갱신 응답을 기다리는 동안 다른 경로가 먼저 새 토큰을 저장한" 경합을
+      // 결정적으로 재현한다.
+      final refreshRequested = Completer<void>();
+      final refreshGate = Completer<void>();
+      final adapter = FakeHttpClientAdapter((options, body) async {
+        if (options.path == '/v1/auth/refresh') {
+          refreshRequested.complete();
+          await refreshGate.future;
+          // 서버가 이 갱신(옛 리프레시 토큰)은 거절한다 — 그사이 다른 경로가
+          // 이미 새 토큰을 발급받아 저장했다.
+          return const FakeResponse(
+            statusCode: 401,
+            data: {'code': 'UNAUTHENTICATED', 'message': '리프레시 토큰 재사용 탐지'},
+          );
+        }
+        final auth = options.headers['Authorization'];
+        if (auth == 'Bearer new-access') {
+          return const FakeResponse(statusCode: 200, data: {'ok': true});
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(
+        tokenStore: tokenStore,
+        adapter: adapter,
+        onSessionEnded: () => sessionEndedCalls++,
+      );
+
+      final pending = client.get('/protected');
+      await refreshRequested.future;
+      // 다른 경로(로그인 수단 해제 등)가 갱신 응답보다 먼저 새 토큰을 저장한다.
+      await tokenStore.save(access: 'new-access', refresh: 'new-refresh');
+      refreshGate.complete();
+
+      final result = await pending;
+
+      expect(result, {'ok': true});
+      expect(sessionEndedCalls, 0);
+      expect(await tokenStore.readAccess(), 'new-access');
+      expect(await tokenStore.readRefresh(), 'new-refresh');
+    });
   });
 
   group('에러 바디 파싱', () {
