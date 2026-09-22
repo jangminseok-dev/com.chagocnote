@@ -11,6 +11,7 @@ import '../tokens/app_springs.dart';
 ///   스프링 스케일 대신 옅은 페이드로 대체한다.
 /// - `semanticLabel`을 주면 버튼으로 접근성에 노출한다. 의미 노드는 자기
 ///   크기(최소 44×44)로 따로 잡힌다 — 행 안에 두어도 행 전체로 번지지 않는다.
+/// - `selected`를 주면 고를 수 있는 항목(칩·토글)으로 읽히고 선택 여부를 알린다.
 /// - 시각적 크기가 44×44보다 작아도 탭 영역은 `minSize`(기본 44) 이상을
 ///   보장한다.
 class Pressable extends StatefulWidget {
@@ -19,12 +20,14 @@ class Pressable extends StatefulWidget {
     required this.child,
     this.onTap,
     this.semanticLabel,
+    this.selected,
     this.minSize = 44,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final String? semanticLabel;
+  final bool? selected;
   final double minSize;
 
   @override
@@ -90,6 +93,7 @@ class _PressableState extends State<Pressable>
     return Semantics(
       container: true,
       button: widget.onTap != null,
+      selected: widget.selected,
       label: widget.semanticLabel,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
