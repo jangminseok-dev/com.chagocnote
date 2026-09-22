@@ -22,6 +22,7 @@ from customer.adapter.inbound.api.error_map import CUSTOMER_ERROR_STATUS
 from customer.adapter.inbound.api.v1.add_pet_router import add_pet_router
 from customer.adapter.inbound.api.v1.customer_myself_router import customer_myself_router
 from customer.adapter.inbound.api.v1.delete_customer_router import delete_customer_router
+from customer.adapter.inbound.api.v1.delete_pet_router import delete_pet_router
 from customer.adapter.inbound.api.v1.get_customer_router import get_customer_router
 from customer.adapter.inbound.api.v1.get_pet_router import get_pet_router
 from customer.adapter.inbound.api.v1.list_customers_router import list_customers_router
@@ -29,7 +30,11 @@ from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
     list_pet_condition_types_router,
 )
 from customer.adapter.inbound.api.v1.lookup_customer_router import lookup_customer_router
+from customer.adapter.inbound.api.v1.mark_pet_passed_away_router import mark_pet_passed_away_router
 from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
+from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
+    unmark_pet_passed_away_router,
+)
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
@@ -86,6 +91,9 @@ app.include_router(delete_customer_router)
 app.include_router(list_customers_router)
 app.include_router(add_pet_router)
 app.include_router(update_pet_router)
+app.include_router(mark_pet_passed_away_router)
+app.include_router(unmark_pet_passed_away_router)
+app.include_router(delete_pet_router)
 install_error_handlers(
     app,
     {
