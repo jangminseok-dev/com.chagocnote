@@ -1,0 +1,113 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/proxy/providers.dart';
+import '../api/auth_api.dart';
+import '../api/me_api.dart';
+import '../api/social_sign_in.dart';
+import 'session.dart';
+import 'session_gateway.dart';
+
+/// [SessionGateway] 구현을 주입하는 자리. 기본값은 실제 HTTP 구현이다 —
+/// 테스트만 `overrideWithValue`로 가짜 게이트웨이를 꽂는다.
+final sessionGatewayProvider = Provider<SessionGateway>((ref) {
+  final client = ref.watch(apiClientProvider);
+  return HttpSessionGateway(
+    authApi: AuthApi(client),
+    meApi: MeApi(client),
+    tokenStore: ref.watch(tokenStoreProvider),
+    prefsStore: ref.watch(prefsStoreProvider),
+  );
+});
+
+/// 세션 상태를 소유하는 컨트롤러. 코드 생성 없이 plain `AsyncNotifier`로
+/// 작성한다.
+class SessionController extends AsyncNotifier<Session> {
+  SessionGateway get _gateway => ref.read(sessionGatewayProvider);
+
+  @override
+  FutureOr<Session> build() async {
+    // `core/proxy`가 `features`를 모르는 채로 "세션 종료"를 알릴 수 있도록,
+    // 이 신호에 콜백을 등록한다. 컨트롤러가 폐기되면 등록을 해제한다.
+    final signal = ref.read(sessionEndedSignalProvider);
+    signal.listener = endSession;
+    ref.onDispose(() => signal.listener = null);
+
+    final me = await _gateway.restore();
+    if (me == null) return const SignedOut();
+    return _resolveFromStorage(me);
+  }
+
+  /// 부팅 시점처럼 "현재 상태"가 없을 때 쓰는 선택 규칙: 저장소에 기억해둔
+  /// 매장 id를 우선 쓴다.
+  Future<Session> _resolveFromStorage(Me me) async {
+    final lastShopId = await _gateway.readLastShopId();
+    return _resolveWith(me, lastShopId);
+  }
+
+  /// 매장 선택 규칙: [candidateShopId]가 아직 [me]의 소속 목록에 있으면 그것,
+  /// 없고 매장이 정확히 하나면 그것, 그 외에는 미선택(null).
+  Session _resolveWith(Me me, int? candidateShopId) {
+    int? selectedShopId;
+    if (candidateShopId != null &&
+        me.shops.any((shop) => shop.shopId == candidateShopId)) {
+      selectedShopId = candidateShopId;
+    } else if (me.shops.length == 1) {
+      selectedShopId = me.shops.single.shopId;
+    }
+    return SignedIn(me: me, selectedShopId: selectedShopId);
+  }
+
+  /// 로그인. 로딩 상태로 바꾸지 않고, 실패해도 상태를 바꾸지 않는다 —
+  /// 로그인 화면이 예외를 받아 문구를 보여준다.
+  Future<void> signIn(SocialCredential credential) async {
+    final me = await _gateway.signIn(credential);
+    state = AsyncData(await _resolveFromStorage(me));
+  }
+
+  /// 로그아웃. 게이트웨이의 `signOut`은 서버 통보 실패를 스스로 삼키므로
+  /// 이 메서드는 던지지 않는다.
+  Future<void> signOut() async {
+    await _gateway.signOut();
+    state = const AsyncData(SignedOut());
+  }
+
+  /// 매장 전환. [shopId]가 현재 소속 목록에 없으면 아무 일도 하지 않는다.
+  Future<void> selectShop(int shopId) async {
+    final current = state.value;
+    if (current is! SignedIn) return;
+    if (!current.me.shops.any((shop) => shop.shopId == shopId)) return;
+
+    await _gateway.writeLastShopId(shopId);
+    if (!ref.mounted) return;
+    state = AsyncData(current.copyWith(selectedShopId: shopId));
+  }
+
+  /// 본인 정보를 다시 불러온다. 실패하면 상태를 그대로 두고 예외를 던진다.
+  Future<void> reloadMe() async {
+    final me = await _gateway.refreshMe();
+    if (!ref.mounted) return;
+    replaceMe(me);
+  }
+
+  /// HTTP 계층이 리프레시 실패를 감지했을 때 호출한다. 즉시 로그아웃 상태로
+  /// 만든다.
+  void endSession() {
+    state = const AsyncData(SignedOut(sessionExpired: true));
+  }
+
+  /// 이미 가지고 있는 [Me]로 상태를 교체한다. `reloadMe`와 같은 선택 규칙을
+  /// 쓰지만, 네트워크 호출이 없으므로 동기로 끝낼 수 있다: 현재 선택된
+  /// 매장이 새 소속 목록에도 있으면 유지하고, 없으면 매장이 하나뿐일 때만
+  /// 자동 선택하며, 그 외에는 미선택으로 되돌린다.
+  void replaceMe(Me me) {
+    final current = state.value;
+    final previousSelectedShopId =
+        current is SignedIn ? current.selectedShopId : null;
+    state = AsyncData(_resolveWith(me, previousSelectedShopId));
+  }
+}
+
+final sessionControllerProvider =
+    AsyncNotifierProvider<SessionController, Session>(SessionController.new);
