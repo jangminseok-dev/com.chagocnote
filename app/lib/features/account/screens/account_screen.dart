@@ -35,20 +35,33 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   String? _errorText;
   String? _devNameError;
   late final ReauthPromptHolder _reauthPromptHolder;
+  ReauthPrompt? _previousReauthPrompt;
+  late final ReauthPrompt _ownReauthPrompt;
 
   @override
   void initState() {
     super.initState();
-    _reauthPromptHolder = ref.read(reauthPromptProvider)
-      ..prompt = (linked) => showReauthPrompt(context, ref, linked);
+    _reauthPromptHolder = ref.read(reauthPromptProvider);
+    // 이 화면 위에 다른 화면(탈퇴 화면 등)이 push되면 그 화면이 자기
+    // initState에서 이 프롬프트를 덮어쓴다. 그 화면이 dispose될 때(뒤로
+    // 오면) 자신이 덮어쓴 값일 때만 이 값으로 되돌려야, 계정 화면이
+    // 여전히 살아있는 동안(dispose되지 않았으므로) 재인증 프롬프트가
+    // 사라지지 않는다 — fix round 1.
+    _previousReauthPrompt = _reauthPromptHolder.prompt;
+    _ownReauthPrompt = (linked) => showReauthPrompt(context, ref, linked);
+    _reauthPromptHolder.prompt = _ownReauthPrompt;
   }
 
   @override
   void dispose() {
     // `dispose()` 안에서는 `ref.read`가 안전하지 않다(Riverpod이 위젯이
     // 해제되는 동안 사용을 막는다) — `initState`에서 잡아 둔 홀더를 직접
-    // 비운다.
-    _reauthPromptHolder.prompt = null;
+    // 쓴다. 홀더의 값이 여전히 이 화면의 클로저일 때만 이전 값으로
+    // 되돌린다 — 그 사이 다른 화면이 다시 덮어썼다면 그 값을 건드리지
+    // 않는다.
+    if (identical(_reauthPromptHolder.prompt, _ownReauthPrompt)) {
+      _reauthPromptHolder.prompt = _previousReauthPrompt;
+    }
     _devNameController.dispose();
     super.dispose();
   }

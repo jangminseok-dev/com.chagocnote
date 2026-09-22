@@ -188,6 +188,97 @@ void main() {
     expect(find.text(AppStrings.unlinkOnlyOneCaption), findsOneWidget);
   });
 
+  testWidgets(
+    '탈퇴 화면을 열었다가 뒤로 와도 계정 화면의 재인증 프롬프트가 살아 있다(fix round 1)',
+    (tester) async {
+      final gateway = FakeSessionGateway()
+        ..meOnRestore = _me(['apple', 'kakao'])
+        ..meOnRefresh = _me(['apple']);
+      final apple = FakeSocialSignIn('apple')
+        ..credentialToReturn =
+            const SocialCredential(provider: 'apple', token: 'tok');
+      var unlinkCallCount = 0;
+      final setup = _setUp(
+        gateway,
+        (options, body) {
+          if (options.path == '/v1/auth/social') {
+            return const FakeResponse(
+              statusCode: 200,
+              data: {
+                'access_token': 'reauth-access',
+                'refresh_token': 'reauth-refresh',
+                'token_type': 'Bearer',
+                'expires_in': 3600,
+                'user_id': 1,
+                'is_new_user': false,
+              },
+            );
+          }
+          if (options.path == '/v1/auth/identities/kakao' &&
+              options.method == 'DELETE') {
+            unlinkCallCount++;
+            if (unlinkCallCount == 1) {
+              return const FakeResponse(
+                statusCode: 403,
+                data: {'code': 'REAUTH_REQUIRED', 'message': '다시 로그인'},
+              );
+            }
+            return const FakeResponse(
+              statusCode: 200,
+              data: {
+                'identities': ['apple'],
+                'access_token': 'unlink-access',
+                'refresh_token': 'unlink-refresh',
+                'token_type': 'Bearer',
+                'expires_in': 3600,
+              },
+            );
+          }
+          fail('예상하지 못한 요청: ${options.method} ${options.path}');
+        },
+        signIns: [apple],
+      );
+      addTearDown(setup.container.dispose);
+
+      await tester.pumpWidget(_appWith(setup.container));
+      await tester.pumpAndSettle();
+      setup.container.read(routerProvider).go('/settings/account');
+      await tester.pumpAndSettle();
+
+      // 탈퇴 화면을 열었다가 뒤로 온다 — 계정 화면은 dispose되지 않는다
+      // (go_router 가 push한 화면 밑에 그대로 남아 있다).
+      await tester.tap(find.text(AppStrings.withdraw));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.settingsAccountWithdraw), findsOneWidget);
+
+      setup.container.read(routerProvider).pop();
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.settingsAccount), findsOneWidget);
+
+      await tester.tap(_unlinkRowButton('kakao'));
+      await tester.pumpAndSettle();
+      await tester.tap(_confirmUnlinkButton);
+      // 재인증 시트를 기다리는 동안 계속 busy(스피너)라 pumpAndSettle이
+      // 절대 안 멈춘다 — 정해진 만큼만 pump한다.
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 1000));
+
+      // 탈퇴 화면이 dispose되며 프롬프트를 비워버렸다면(고치기 전 버그)
+      // 여기서 시트가 뜨지 않고 REAUTH_REQUIRED 오류 문구만 보인다.
+      expect(find.text(AppStrings.reauthPromptTitle), findsOneWidget);
+
+      final sheetAppleButton = find.byWidgetPredicate(
+        (widget) => widget is AppButton && widget.label == AppStrings.providerApple,
+      );
+      await tester.tap(sheetAppleButton);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 1000));
+
+      expect(unlinkCallCount, 2);
+      expect(gateway.refreshMeCallCount, 1);
+    },
+  );
+
   testWidgets('연결 요청이 IDENTITY_ALREADY_LINKED 를 받으면 문구를 보여준다', (tester) async {
     final gateway = FakeSessionGateway()..meOnRestore = _me(['apple']);
     final kakao = FakeSocialSignIn('kakao')

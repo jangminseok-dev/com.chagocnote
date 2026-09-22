@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/providers.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
@@ -47,6 +48,7 @@ class _ReauthSheetContent extends StatefulWidget {
 
 class _ReauthSheetContentState extends State<_ReauthSheetContent> {
   final _devNameController = TextEditingController();
+  String? _errorText;
 
   @override
   void dispose() {
@@ -54,9 +56,18 @@ class _ReauthSheetContentState extends State<_ReauthSheetContent> {
     super.dispose();
   }
 
+  /// `signIn.signIn()`이 던지면(네이티브 SDK 오류 등) 그대로 두면 처리되지
+  /// 않은 비동기 예외가 된다 — 잡아서 시트에 문구만 보여주고 시트는 열어
+  /// 둔다(닫지 않는다, 취소와 다르게 다시 시도할 수 있게). 예외 원문은
+  /// 화면에 내지 않는다(`messageFor`가 알려진 코드만 문구로 바꾸고 그
+  /// 밖은 공용 문구로 감춘다) (fix round 1).
   Future<void> _signInWith(SocialSignIn signIn) async {
-    final credential = await signIn.signIn();
-    if (mounted) Navigator.of(context).pop(credential);
+    try {
+      final credential = await signIn.signIn();
+      if (mounted) Navigator.of(context).pop(credential);
+    } catch (e) {
+      if (mounted) setState(() => _errorText = messageFor(e));
+    }
   }
 
   void _signInDev() {
@@ -97,6 +108,10 @@ class _ReauthSheetContentState extends State<_ReauthSheetContent> {
             width: double.infinity,
             child: AppButton(label: AppStrings.devSignIn, onPressed: _signInDev),
           ),
+        ],
+        if (_errorText != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(_errorText!, style: AppTypography.caption),
         ],
       ],
     );

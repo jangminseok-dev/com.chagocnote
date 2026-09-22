@@ -196,6 +196,47 @@ void main() {
     );
   });
 
+  test(
+    '세션이 SignedIn 이 아니면(me == null) socialLogin 을 부르지 않고 원래 오류를 그대로 던진다'
+    '(S6 방어, fix round 1)',
+    () async {
+      // meOnRestore 를 두지 않으면 세션은 SignedOut 으로 끝난다.
+      final gateway = FakeSessionGateway();
+      final setup = _setUp(
+        gateway: gateway,
+        handle: (options, body) {
+          if (options.path == '/probe') {
+            return const FakeResponse(
+              statusCode: 403,
+              data: {'code': 'REAUTH_REQUIRED', 'message': '다시 로그인'},
+            );
+          }
+          fail('예상하지 못한 요청: ${options.path}');
+        },
+        // 프롬프트는 자격 증명을 돌려주지만(세션이 없어도 홀더에 콜백이
+        // 남아있을 수 있다), me == null 이면 이 자격 증명으로 소셜 로그인을
+        // 시도해서는 안 된다.
+        prompt: (linked) async =>
+            const SocialCredential(provider: 'apple', token: 'tok'),
+      );
+      addTearDown(setup.container.dispose);
+      await setup.container.read(sessionControllerProvider.future);
+
+      await expectLater(
+        setup.container.read(reauthCoordinatorProvider).run(
+              () => setup.container.read(apiClientProvider).get('/probe'),
+            ),
+        throwsA(
+          isA<ApiException>().having((e) => e.code, 'code', 'REAUTH_REQUIRED'),
+        ),
+      );
+      expect(
+        setup.adapter.requests.where((r) => r.path == '/v1/auth/social'),
+        isEmpty,
+      );
+    },
+  );
+
   test('재시도에서도 REAUTH_REQUIRED 면 다시 프롬프트하지 않고 그대로 던진다(루프 없음)', () async {
     var promptCallCount = 0;
     final gateway = FakeSessionGateway()..meOnRestore = _me(['apple']);

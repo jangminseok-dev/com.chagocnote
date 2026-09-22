@@ -61,8 +61,14 @@ class ReauthCoordinator {
       final credential = prompt == null ? null : await prompt(linkedProviders);
       if (credential == null) rethrow;
 
+      // 방어: 세션이 SignedIn이 아니면(예: 그 사이 로그아웃됨) 비교할 계정이
+      // 없다 — user_id 비교를 건너뛰고 새 토큰을 그대로 저장하면 S6 방어가
+      // 무력화된다. socialLogin을 부르기 전에 원래 오류를 그대로 던진다
+      // (fix round 1).
+      if (me == null) rethrow;
+
       final tokens = await _ref.read(authApiProvider).socialLogin(credential);
-      if (me != null && tokens.userId != me.id) {
+      if (tokens.userId != me.id) {
         // 다른 계정의 세션이다 — 여기 머물게 두면 안 되니 베스트 에포트로
         // 로그아웃시키고, 우리 쪽 토큰은 그대로 둔다(S6).
         try {

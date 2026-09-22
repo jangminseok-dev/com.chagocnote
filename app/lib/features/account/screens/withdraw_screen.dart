@@ -31,19 +31,29 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
   String? _errorText;
   bool _ownershipTransferRequired = false;
   late final ReauthPromptHolder _reauthPromptHolder;
+  ReauthPrompt? _previousReauthPrompt;
+  late final ReauthPrompt _ownReauthPrompt;
 
   @override
   void initState() {
     super.initState();
-    _reauthPromptHolder = ref.read(reauthPromptProvider)
-      ..prompt = (linked) => showReauthPrompt(context, ref, linked);
+    _reauthPromptHolder = ref.read(reauthPromptProvider);
+    // 계정 화면 위에 push되어 있으므로(계정 화면은 dispose되지 않는다),
+    // 이 화면이 사라질 때(뒤로 가면) 계정 화면의 프롬프트를 되살려야
+    // 한다 — 이 화면이 덮어쓰기 전의 값을 기억해 둔다(fix round 1).
+    _previousReauthPrompt = _reauthPromptHolder.prompt;
+    _ownReauthPrompt = (linked) => showReauthPrompt(context, ref, linked);
+    _reauthPromptHolder.prompt = _ownReauthPrompt;
   }
 
   @override
   void dispose() {
     // `dispose()` 안에서는 `ref.read`가 안전하지 않다 — `initState`에서
-    // 잡아 둔 홀더를 직접 비운다.
-    _reauthPromptHolder.prompt = null;
+    // 잡아 둔 홀더를 직접 쓴다. 홀더의 값이 여전히 이 화면의 클로저일
+    // 때만 이전 값으로 되돌린다.
+    if (identical(_reauthPromptHolder.prompt, _ownReauthPrompt)) {
+      _reauthPromptHolder.prompt = _previousReauthPrompt;
+    }
     super.dispose();
   }
 
