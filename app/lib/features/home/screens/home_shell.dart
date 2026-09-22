@@ -61,7 +61,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return Scaffold(
       key: ScreenKeys.home,
       extendBody: true,
-      floatingActionButton: AppFab(onPressed: _openComingSoonSheet),
+      floatingActionButton: _tabIndex == _customersTab
+          ? AppFab(
+              semanticLabel: AppStrings.registerCustomer,
+              onPressed: () => context.push('/customers/new'),
+            )
+          : AppFab(onPressed: _openComingSoonSheet),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg,

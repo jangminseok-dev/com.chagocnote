@@ -199,6 +199,18 @@ class AppStrings {
   static const deleteCustomer = '고객 삭제';
   static const deleteCustomerConfirm = '고객을 삭제할까요? 보호자의 이름·전화번호·메모와 반려동물의 이름·질병 기록이 지워지고 되돌릴 수 없습니다.';
 
+  static const registerCustomer = '고객 등록';
+  static const registerStepPhone = '전화번호';
+  static const registerStepOwner = '보호자';
+  static const registerStepPet = '반려동물';
+  static const next = '다음';
+  static const addPetToExisting = '이 보호자에게 반려동물 추가';
+
+  static String registerStepTitle(String step, int index) => '$step $index / 3';
+  static String lookupFound(String name, List<String> petNames) => petNames.isEmpty
+      ? '이미 등록된 번호예요 — $name'
+      : '이미 등록된 번호예요 — $name (${petNames.join(', ')})';
+
   static String speciesLabel(String species) => switch (species) {
         'dog' => speciesDog,
         'cat' => speciesCat,
