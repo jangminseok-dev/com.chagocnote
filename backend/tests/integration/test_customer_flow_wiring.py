@@ -45,6 +45,9 @@ async def test_다른_매장의_고객과_반려동물에는_손댈_수_없다(w
     b_customer, b_pet = await _register(wired, b_shop, b)
     a = bearer(a_owner["access_token"])
     body = {"customer": CUSTOMER, "pet": PET}
+    # B 에 이미 저장된 값과 다르게 해서, 필터가 빠지면 실제로 값이 바뀌는 결함이 드러나게 한다.
+    invasive_customer = {**CUSTOMER, "name": "침입자", "phone": "01000000001", "marketing_consent": False}
+    invasive_pet = {**PET, "name": "침입", "weight_kg": 9.9}
 
     their_shop = [
         await wired.api.get(f"/v1/shops/{b_shop}/customers", headers=a),
@@ -67,23 +70,35 @@ async def test_다른_매장의_고객과_반려동물에는_손댈_수_없다(w
     # 경로의 매장은 내 매장이라 소속 확인은 통과한다. 대상은 컨텍스트의 매장 안에서만 찾는다(C9).
     own_shop = [
         (await wired.api.get(f"/v1/shops/{a_shop}/customers/{b_customer}", headers=a), "CUSTOMER_NOT_FOUND"),
-        (await wired.api.put(f"/v1/shops/{a_shop}/customers/{b_customer}", json=CUSTOMER, headers=a), "CUSTOMER_NOT_FOUND"),
+        (await wired.api.put(f"/v1/shops/{a_shop}/customers/{b_customer}", json=invasive_customer, headers=a), "CUSTOMER_NOT_FOUND"),
         (await wired.api.delete(f"/v1/shops/{a_shop}/customers/{b_customer}", headers=a), "CUSTOMER_NOT_FOUND"),
-        (await wired.api.post(f"/v1/shops/{a_shop}/customers/{b_customer}/pets", json=PET, headers=a), "CUSTOMER_NOT_FOUND"),
+        (await wired.api.post(f"/v1/shops/{a_shop}/customers/{b_customer}/pets", json=invasive_pet, headers=a), "CUSTOMER_NOT_FOUND"),
         (await wired.api.get(f"/v1/shops/{a_shop}/pets/{b_pet}", headers=a), "PET_NOT_FOUND"),
-        (await wired.api.put(f"/v1/shops/{a_shop}/pets/{b_pet}", json=PET, headers=a), "PET_NOT_FOUND"),
+        (await wired.api.put(f"/v1/shops/{a_shop}/pets/{b_pet}", json=invasive_pet, headers=a), "PET_NOT_FOUND"),
         (await wired.api.post(f"/v1/shops/{a_shop}/pets/{b_pet}/passed-away", headers=a), "PET_NOT_FOUND"),
+    ]
+    assert [error_of(r) for r, _ in own_shop] == [(404, code) for _, code in own_shop]
+
+    # 무지개다리 표시 시도가 필터를 빠뜨렸다면 여기서 이미 죽은 것으로 보일 것이다 — 되돌리기 전에 확인한다.
+    mid_check = await wired.api.get(f"/v1/shops/{b_shop}/pets/{b_pet}", headers=b)
+    assert mid_check.json()["pet"]["passed_away_at"] is None
+
+    rest = [
         (await wired.api.delete(f"/v1/shops/{a_shop}/pets/{b_pet}/passed-away", headers=a), "PET_NOT_FOUND"),
         (await wired.api.delete(f"/v1/shops/{a_shop}/pets/{b_pet}", headers=a), "PET_NOT_FOUND"),
         (await wired.api.get(f"/v1/shops/{a_shop}/customers/lookup?phone=01012345678", headers=a), "CUSTOMER_NOT_FOUND"),
     ]
-    assert [error_of(r) for r, _ in own_shop] == [(404, code) for _, code in own_shop]
+    assert [error_of(r) for r, _ in rest] == [(404, code) for _, code in rest]
     assert (await _list(wired, a_shop, a))["items"] == []
 
-    # B 매장의 가족은 그대로다.
+    # B 매장의 가족은 값까지 그대로다 — 침입 본문이 하나도 먹지 않았는지 확인한다.
     detail = await wired.api.get(f"/v1/shops/{b_shop}/customers/{b_customer}", headers=b)
-    assert detail.json()["customer"]["name"] == "김민지"
-    assert [(p["name"], p["passed_away_at"]) for p in detail.json()["pets"]] == [("콩이", None)]
+    customer = detail.json()["customer"]
+    assert (customer["name"], customer["phone"], customer["marketing_consent"]) == ("김민지", "01012345678", True)
+    pet = detail.json()["pets"][0]
+    assert (pet["name"], pet["weight_kg"], pet["passed_away_at"]) == ("콩이", 3.2, None)
+    assert [c["customer_id"] for c in (await _list(wired, b_shop, b, "?q=김민지"))["items"]] == [b_customer]
+    assert (await _list(wired, b_shop, b, "?q=침입자"))["items"] == []
 
 
 async def test_등록부터_익명화까지_돈다(wired):
@@ -109,11 +124,17 @@ async def test_등록부터_익명화까지_돈다(wired):
         ("슬개골 탈구", None), ("기타", "눈물 자국"),
     ]
 
-    listed = await _list(wired, shop_id, headers)
+    listed_response = await wired.api.get(f"/v1/shops/{shop_id}/customers", headers=headers)
+    assert listed_response.status_code == 200 and "01012345678" not in listed_response.text
+    listed = listed_response.json()
     assert listed["pet_count"] == 2
     card = listed["items"][0]
+    assert "phone" not in card
     assert (card["name"], card["phone_masked"]) == ("김민지", "010-12··-5678")
     assert [(p["name"], p["has_conditions"]) for p in card["pets"]] == [("콩이", False), ("두부", True)]
+
+    pet_detail = await wired.api.get(f"/v1/shops/{shop_id}/pets/{dubu}", headers=headers)
+    assert "01012345678" not in pet_detail.text and pet_detail.json()["owner"]["phone_masked"] == "010-12··-5678"
 
     detail = await wired.api.get(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)
     assert (detail.json()["customer"]["phone"], detail.json()["customer"]["phone_alt"]) == ("01012345678", "021234567")
@@ -219,8 +240,12 @@ async def test_같은_번호와_질병_규칙_위반은_설계의_오류다(wire
     )) == (422, "VALIDATION_ERROR")
     assert error_of(await post(customer={"phone": "5678"})) == (422, "VALIDATION_ERROR")
     assert error_of(await post(customer={"phone": "01055556666"}, pet={"birth_date": "2021-01-01"})) == (422, "VALIDATION_ERROR")
-    assert (await _list(wired, shop_id, headers))["pet_count"] == 2   # 실패한 등록은 아무것도 남기지 않는다
-    assert first != second
+    listed = await _list(wired, shop_id, headers)
+    assert listed["pet_count"] == 2 and len(listed["items"]) == 2   # 실패한 등록은 아무것도 남기지 않는다
+    assert error_of(await wired.api.get(
+        f"/v1/shops/{shop_id}/customers/lookup?phone=01055556666", headers=headers,
+    )) == (404, "CUSTOMER_NOT_FOUND")
+    assert {c["customer_id"] for c in listed["items"]} == {first, second}
 
 
 async def test_뒷자리_초성_여러_낱말_특수_문자로_찾는다(wired):
