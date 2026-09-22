@@ -252,4 +252,52 @@ void main() {
     expect(find.text(AppStrings.accountSettings), findsNothing);
     expect(find.text(AppStrings.logout), findsNothing);
   });
+
+  testWidgets('수락은 성공했는데 뒤이은 본인 정보 재조회가 실패해도 오류를 띄우지 않고 홈으로 간다(F6)', (
+    tester,
+  ) async {
+    var meCallCount = 0;
+    final adapter = FakeHttpClientAdapter((options, body) {
+      if (options.path == '/v1/me') {
+        meCallCount++;
+        if (meCallCount == 1) {
+          return const FakeResponse(statusCode: 200, data: _meWithShop);
+        }
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: '연결 실패',
+        );
+      }
+      if (options.path == '/v1/invites/accept') {
+        return const FakeResponse(
+          statusCode: 200,
+          data: {
+            'shop_id': 5,
+            'shop_name': '두 번째 매장',
+            'role': 'staff',
+            'member_id': 30,
+          },
+        );
+      }
+      fail('예상하지 못한 경로: ${options.path}');
+    });
+    final container = _containerWith(adapter);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/invite');
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'ABC123');
+    await tester.tap(find.text(AppStrings.inviteSubmit));
+    await tester.pumpAndSettle();
+
+    // 수락은 서버에서 이미 끝났다 — 다시 누르게 두면 ALREADY_A_MEMBER 에 갇힌다.
+    expect(find.byKey(ScreenKeys.home), findsOneWidget);
+    expect(
+      adapter.requests.where((r) => r.path == '/v1/invites/accept'),
+      hasLength(1),
+    );
+  });
 }

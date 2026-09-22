@@ -60,7 +60,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
         children: [
           Text(
             invite.code,
-            style: AppTypography.bigNumeral.copyWith(fontSize: 40),
+            style: AppTypography.inviteCode,
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(

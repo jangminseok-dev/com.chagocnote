@@ -11,6 +11,13 @@ void main() {
     expect(messageFor(_error('REAUTH_REQUIRED', status: 403)), '보안을 위해 다시 로그인해 주세요.');
   });
 
+  test('IDENTITY_ALREADY_LINKED 는 그 계정에서 탈퇴한 뒤 다시 연결하라고 안내한다(설계 5.6)', () {
+    expect(
+      messageFor(_error('IDENTITY_ALREADY_LINKED', status: 409)),
+      '다른 계정에 연결된 로그인 수단입니다. 그 계정에서 탈퇴한 뒤 다시 연결해 주세요.',
+    );
+  });
+
   test('모르는 코드는 서버 문구를 쓴다', () {
     expect(messageFor(_error('SOMETHING_NEW', message: '새로 생긴 안내')), '새로 생긴 안내');
   });

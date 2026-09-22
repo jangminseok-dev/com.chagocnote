@@ -48,7 +48,13 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
     try {
       final result = await ref.read(inviteApiProvider).accept(code);
       final controller = ref.read(sessionControllerProvider.notifier);
-      await controller.reloadMe();
+      try {
+        await controller.reloadMe();
+      } catch (_) {
+        // 수락은 서버에서 이미 끝났다 — 재조회 실패를 수락 실패로 보이면
+        // 사용자가 다시 눌러 ALREADY_A_MEMBER 에 갇힌다. 해제 때처럼 삼키고,
+        // 다음 재조회·라우터 평가로 맞춰지게 둔다(최종 검토 F6).
+      }
       await controller.selectShop(result.shopId);
       if (!mounted) return;
       context.go('/home');

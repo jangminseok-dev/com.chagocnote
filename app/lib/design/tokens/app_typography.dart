@@ -66,6 +66,17 @@ abstract final class AppTypography {
     color: AppColors.ink,
   );
 
+  /// 초대 코드(8자리 영숫자). 사람이 보고 옮겨 적으므로 [bigNumeral]과 달리
+  /// 자간을 벌려 글자가 겹치지 않게 한다.
+  static const inviteCode = TextStyle(
+    fontFamily: _bodoniModa,
+    fontSize: 36,
+    height: 1.1,
+    letterSpacing: 2,
+    fontWeight: FontWeight.w400,
+    color: AppColors.ink,
+  );
+
   /// 영문 월·요일처럼 기울인 세리프 라벨.
   static const italicLabel = TextStyle(
     fontFamily: _bodoniModa,

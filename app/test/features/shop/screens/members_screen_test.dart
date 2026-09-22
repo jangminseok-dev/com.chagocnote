@@ -10,6 +10,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
+import 'package:chagocnote/design/tokens/app_typography.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
@@ -185,6 +186,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ABC123'), findsOneWidget);
+    // 사람이 옮겨 적는 코드라 글자가 겹치면 안 된다 — 날짜용 bigNumeral(음수
+    // 자간)이 아니라 초대 코드용 스타일을 쓴다(F4).
+    final codeStyle = tester.widget<Text>(find.text('ABC123')).style!;
+    expect(codeStyle, AppTypography.inviteCode);
+    expect(codeStyle.letterSpacing, greaterThanOrEqualTo(0));
     final invitePosts = setup.adapter.requests
         .where((r) => r.path == '/v1/shops/3/invites' && r.method == 'POST');
     expect(invitePosts, hasLength(1));

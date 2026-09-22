@@ -301,7 +301,10 @@ void main() {
     await tester.tap(find.text(AppStrings.providerKakao));
     await tester.pumpAndSettle();
 
-    expect(find.text('다른 계정에 연결된 로그인 수단입니다.'), findsOneWidget);
+    expect(
+      find.text('다른 계정에 연결된 로그인 수단입니다. 그 계정에서 탈퇴한 뒤 다시 연결해 주세요.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('해제 확정이 LAST_IDENTITY 를 받으면 문구를 보여주고 목록은 그대로다', (tester) async {

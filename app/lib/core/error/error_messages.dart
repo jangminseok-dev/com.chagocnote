@@ -21,7 +21,7 @@ const Map<String, String> _messages = {
   'INVITE_EXHAUSTED': '이미 사용된 초대 코드입니다. 새 코드를 받아 주세요.',
   'LAST_OWNER': '매장에는 사장이 한 명 이상 있어야 합니다.',
   'ALREADY_A_MEMBER': '이미 이 매장의 멤버입니다.',
-  'IDENTITY_ALREADY_LINKED': '다른 계정에 연결된 로그인 수단입니다.',
+  'IDENTITY_ALREADY_LINKED': '다른 계정에 연결된 로그인 수단입니다. 그 계정에서 탈퇴한 뒤 다시 연결해 주세요.',
   'PROVIDER_ALREADY_LINKED': '같은 종류의 로그인 수단이 이미 연결되어 있습니다.',
   'LAST_IDENTITY': '마지막 로그인 수단은 해제할 수 없습니다.',
   'OWNERSHIP_TRANSFER_REQUIRED': '혼자 사장인 매장에 다른 멤버가 있습니다. 먼저 다른 사장을 지정해 주세요.',
