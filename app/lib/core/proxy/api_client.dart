@@ -141,8 +141,10 @@ class ApiClient {
   Future<void> _performRefresh() async {
     final refreshToken = await _tokenStore.readRefresh();
     if (refreshToken == null) {
-      await _tokenStore.clear();
-      _onSessionEnded?.call();
+      // 지울 세션도, 끝낼 세션도 없다 — 이미 로그아웃됐거나(다른 요청의 갱신
+      // 실패, 로그아웃, 탈퇴 등) 애초에 로그인한 적이 없다. 여기서
+      // clear()·onSessionEnded 를 또 부르면, 이미 끝난 세션 뒤에 뒤늦게
+      // 도착한 요청마다 "다시 로그인" 안내가 반복해서 뜬다.
       throw ApiException(
         statusCode: 401,
         code: 'UNAUTHENTICATED',
@@ -156,6 +158,20 @@ class ApiClient {
         data: {'refresh_token': refreshToken},
       );
       final body = response.data!;
+      // 갱신이 오가는 동안 다른 경로(로그아웃, 해제, 탈퇴 등)로 이 기기의
+      // 세션이 이미 끝났을 수 있다. 그 경우 저장소의 리프레시 토큰은 이번
+      // 갱신에 쓴 토큰과 달라져(대개 null로) 있다. 이를 보지 않고 새 토큰을
+      // 저장하면 이미 끝난 세션이 되살아난다 — 저장하지 않는다. 세션을
+      // 끝낸 쪽이 onSessionEnded 를 이미 불렀을 것이므로 여기서는 다시
+      // 부르지 않고, 원 요청도 재시도하지 않는다.
+      final currentRefresh = await _tokenStore.readRefresh();
+      if (currentRefresh != refreshToken) {
+        throw ApiException(
+          statusCode: 401,
+          code: 'UNAUTHENTICATED',
+          message: '갱신 중 세션이 종료되었습니다.',
+        );
+      }
       await _tokenStore.save(
         access: body['access_token'] as String,
         refresh: body['refresh_token'] as String,

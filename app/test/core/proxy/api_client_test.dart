@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -303,6 +304,189 @@ void main() {
       expect(refreshCalls, 1);
       expect(await tokenStore.readAccess(), 'expired');
       expect(await tokenStore.readRefresh(), 'refresh-1');
+    });
+  });
+
+  group('리프레시 — 검토 수정(fix round 1)', () {
+    test(
+        '갱신이 진행되는 동안 다른 경로로 세션이 끝나면(로그아웃) 갱신 응답이 늦게 와도 '
+        '새 토큰을 저장하지 않는다', () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'stolen-refresh');
+      var sessionEndedCalls = 0;
+      // 갱신 요청이 이미 옛 리프레시 토큰을 읽어 네트워크로 나간 뒤(=이
+      // completer가 끝난 뒤)에만 로그아웃이 일어나게 해, "요청을 보낸 뒤
+      // 응답을 받기 전에 세션이 끝난" 경합을 결정적으로 재현한다.
+      final refreshRequested = Completer<void>();
+      final refreshGate = Completer<void>();
+      final adapter = FakeHttpClientAdapter((options, body) async {
+        if (options.path == '/v1/auth/refresh') {
+          refreshRequested.complete();
+          await refreshGate.future;
+          return const FakeResponse(
+            statusCode: 200,
+            data: {
+              'access_token': 'new-access',
+              'refresh_token': 'new-refresh',
+              'token_type': 'bearer',
+              'expires_in': 3600,
+            },
+          );
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(
+        tokenStore: tokenStore,
+        adapter: adapter,
+        onSessionEnded: () => sessionEndedCalls++,
+      );
+
+      final pending = client.get('/protected');
+      await refreshRequested.future;
+      await tokenStore.clear();
+      refreshGate.complete();
+
+      await expectLater(
+        pending,
+        throwsA(
+          isA<ApiException>().having((e) => e.code, 'code', 'UNAUTHENTICATED'),
+        ),
+      );
+      expect(sessionEndedCalls, 0, reason: '세션을 끝낸 쪽이 이미 알렸다');
+      expect(await tokenStore.readRefresh(), isNull);
+      expect(await tokenStore.readAccess(), isNull);
+    });
+
+    test('갱신이 401로 끝난 뒤 이미 나가 있던 요청의 401이 늦게 와도 onSessionEnded는 합계 1번',
+        () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'stolen-refresh');
+      var sessionEndedCalls = 0;
+      final adapter = FakeHttpClientAdapter((options, body) {
+        if (options.path == '/v1/auth/refresh') {
+          return const FakeResponse(
+            statusCode: 401,
+            data: {'code': 'UNAUTHENTICATED', 'message': '리프레시 토큰 재사용 탐지'},
+          );
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(
+        tokenStore: tokenStore,
+        adapter: adapter,
+        onSessionEnded: () => sessionEndedCalls++,
+      );
+
+      // 첫 요청이 갱신을 마치고(세션 종료) 토큰을 지운 뒤에, 옛 토큰으로
+      // 각각 온전히 끝날 때까지 순서대로 기다린다 — 단일 비행 필드가 매번
+      // 초기화되므로, /b·/c는 /a가 이미 지운 토큰을 보고 "리프레시 토큰
+      // 없음" 경로를 각자 새로 탄다. 이 경로가 매번 onSessionEnded를 부르면
+      // 안 된다(이미 끝난 세션이다).
+      for (final path in ['/a', '/b', '/c']) {
+        await expectLater(
+          client.get(path),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.code, 'code', 'UNAUTHENTICATED'),
+          ),
+        );
+      }
+
+      expect(sessionEndedCalls, 1);
+    });
+
+    test('리프레시 토큰이 없는 상태의 보호된 요청이 401을 받아도 onSessionEnded를 부르지 않는다',
+        () async {
+      final tokenStore = MemoryTokenStore();
+      var sessionEndedCalls = 0;
+      final adapter = FakeHttpClientAdapter((options, body) {
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(
+        tokenStore: tokenStore,
+        adapter: adapter,
+        onSessionEnded: () => sessionEndedCalls++,
+      );
+
+      await expectLater(
+        client.get('/protected'),
+        throwsA(
+          isA<ApiException>().having((e) => e.code, 'code', 'UNAUTHENTICATED'),
+        ),
+      );
+
+      expect(sessionEndedCalls, 0);
+    });
+
+    test('갱신이 타임아웃된 뒤 다음 요청은 갱신을 새로 시도한다(단일 비행 필드가 초기화된다)',
+        () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'refresh-1');
+      var refreshCalls = 0;
+      final adapter = FakeHttpClientAdapter((options, body) {
+        if (options.path == '/v1/auth/refresh') {
+          refreshCalls++;
+          throw DioException.connectionTimeout(
+            timeout: const Duration(seconds: 5),
+            requestOptions: options,
+          );
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(tokenStore: tokenStore, adapter: adapter);
+
+      await expectLater(client.get('/a'), throwsA(isA<ApiException>()));
+      await expectLater(client.get('/b'), throwsA(isA<ApiException>()));
+
+      expect(refreshCalls, 2);
+    });
+
+    test('갱신 성공 뒤 다시 401이 오면 두 번째 갱신이 나간다(단일 비행 필드가 초기화된다)',
+        () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'refresh-1');
+      var refreshCalls = 0;
+      final adapter = FakeHttpClientAdapter((options, body) {
+        if (options.path == '/v1/auth/refresh') {
+          refreshCalls++;
+          return FakeResponse(
+            statusCode: 200,
+            data: {
+              'access_token': 'access-$refreshCalls',
+              'refresh_token': 'refresh-$refreshCalls',
+              'token_type': 'bearer',
+              'expires_in': 3600,
+            },
+          );
+        }
+        final auth = options.headers['Authorization'];
+        if (auth == 'Bearer access-2') {
+          return const FakeResponse(statusCode: 200, data: {'ok': true});
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(tokenStore: tokenStore, adapter: adapter);
+
+      await expectLater(client.get('/a'), throwsA(isA<ApiException>()));
+      final second = await client.get('/b');
+
+      expect(second, {'ok': true});
+      expect(refreshCalls, 2);
     });
   });
 
