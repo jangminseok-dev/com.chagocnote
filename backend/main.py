@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "apps"))
 
 from fastapi import FastAPI
 
+from core.access_log import redact_access_log_queries
 from core.database import dispose_engine, init_engine
 from core.redis import dispose_redis
 
@@ -65,6 +66,9 @@ async def lifespan(app: FastAPI):
         await dispose_engine()
         await dispose_redis()
 
+
+# 고객 검색어·번호 조회가 쿼리 문자열로 오므로 접근 로그에서 가린다(설계 9절 C7).
+redact_access_log_queries()
 
 app = FastAPI(title="차곡노트 API", lifespan=lifespan)
 app.include_router(get_me_router)
