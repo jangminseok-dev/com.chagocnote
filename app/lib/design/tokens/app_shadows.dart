@@ -11,4 +11,9 @@ abstract final class AppShadows {
   static const floating = [
     BoxShadow(color: Color(0x33000000), blurRadius: 20, offset: Offset(0, 8)),
   ];
+
+  /// 사진 타일의 숫자 동그라미처럼 아주 작은 배지에 얹는 그림자.
+  static const badge = [
+    BoxShadow(color: Color(0x33000000), blurRadius: 3, offset: Offset(0, 1)),
+  ];
 }
