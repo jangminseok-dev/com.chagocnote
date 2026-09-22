@@ -52,9 +52,8 @@ String formatWeight(double kg) => '${weightText(kg)}kg';
 bool isValidBirthYear(int year, DateTime today) =>
     year <= today.year && year >= today.year - 40;
 
-/// 생일로 고를 수 있는 가장 이른 날(40년 전 오늘).
-DateTime earliestBirthDate(DateTime today) =>
-    DateTime(today.year - 40, today.month, today.day);
+/// 생일로 고를 수 있는 가장 이른 날. 서버(`pet_age.check_birth`)처럼 해만 본다 — 40년 전 해의 1월 1일.
+DateTime earliestBirthDate(DateTime today) => DateTime(today.year - 40);
 
 /// 앞뒤 공백을 없애고, 비었으면 null.
 String? optionalText(String raw) {
@@ -63,7 +62,7 @@ String? optionalText(String raw) {
 }
 
 /// 생일 입력(`2021.03.04`, `2021-03-04`, `20210304`)을 날짜로 바꾼다. 없는 날짜,
-/// 오늘보다 늦은 날, 40년보다 이른 날은 null.
+/// 오늘보다 늦은 날, 40년 전 해보다 이른 날은 null.
 DateTime? parseBirthDate(String raw, DateTime today) {
   final digits = raw.replaceAll(RegExp(r'[.\-/\s]'), '');
   if (!RegExp(r'^\d{8}$').hasMatch(digits)) return null;

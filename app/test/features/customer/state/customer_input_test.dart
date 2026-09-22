@@ -67,7 +67,7 @@ void main() {
     expect(isValidBirthYear(1986, today), isTrue);
     expect(isValidBirthYear(1985, today), isFalse);
     expect(isValidBirthYear(2027, today), isFalse);
-    expect(earliestBirthDate(today), DateTime(1986, 9, 22));
+    expect(earliestBirthDate(today), DateTime(1986, 1, 1));
   });
 
   test('빈 선택 입력은 null', () {
@@ -75,18 +75,19 @@ void main() {
     expect(optionalText(' 메모 '), '메모');
   });
 
-  test('생일은 여러 모양으로 받고, 없는 날·미래·40년 전보다 이른 날은 거절한다', () {
+  test('생일은 여러 모양으로 받고, 없는 날·미래·40년 전 해보다 이른 날은 거절한다', () {
     final today = DateTime(2026, 9, 22);
     expect(parseBirthDate('2021.03.04', today), DateTime(2021, 3, 4));
     expect(parseBirthDate('2021-03-04', today), DateTime(2021, 3, 4));
     expect(parseBirthDate('20210304', today), DateTime(2021, 3, 4));
     expect(parseBirthDate('2026.09.22', today), DateTime(2026, 9, 22));
     expect(parseBirthDate('1986.09.22', today), DateTime(1986, 9, 22));
+    expect(parseBirthDate('1986.01.01', today), DateTime(1986, 1, 1));
     for (final bad in [
       '',
       '2021.02.30',
       '2026.09.23',
-      '1986.09.21',
+      '1985.12.31',
       '21.03.04',
       'abcd',
     ]) {
