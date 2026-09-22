@@ -118,3 +118,36 @@ async def test_탈퇴한_계정은_최근_로그인이어도_401_이다(db_sessi
     with pytest.raises(ApiError) as exc:
         await security.require_recent_login(db=db_session, credentials=_bearer(token))
     assert exc.value.status_code == 401
+
+
+def _freeze_now(monkeypatch, at):
+    monkeypatch.setattr(security, "_utcnow", lambda: at)
+
+
+async def test_로그인한_지_정확히_300초면_통과하고_301초면_403_이다(db_session, issuer, monkeypatch):
+    await _insert_user(db_session, id=17)
+    logged_in = datetime.now(timezone.utc).replace(microsecond=0)
+    auth_time = int(logged_in.timestamp())
+    token = issuer.issue_access(17, auth_time=auth_time).token
+
+    _freeze_now(monkeypatch, logged_in + timedelta(seconds=security.RECENT_LOGIN_SECONDS))
+    recent = await security.require_recent_login(db=db_session, credentials=_bearer(token))
+    assert recent.auth_time == auth_time
+
+    _freeze_now(monkeypatch, logged_in + timedelta(seconds=security.RECENT_LOGIN_SECONDS + 1))
+    with pytest.raises(ApiError) as exc:
+        await security.require_recent_login(db=db_session, credentials=_bearer(token))
+    assert (exc.value.status_code, exc.value.code) == (403, "REAUTH_REQUIRED")
+
+
+async def test_로그인_시각이_60초_넘게_미래면_403_이다(db_session, issuer, monkeypatch):
+    await _insert_user(db_session, id=18)
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    _freeze_now(monkeypatch, now)
+    at_limit = issuer.issue_access(18, auth_time=int(now.timestamp()) + 60).token
+    assert (await security.require_recent_login(db=db_session, credentials=_bearer(at_limit))).user_id == 18
+
+    too_far = issuer.issue_access(18, auth_time=int(now.timestamp()) + 61).token
+    with pytest.raises(ApiError) as exc:
+        await security.require_recent_login(db=db_session, credentials=_bearer(too_far))
+    assert (exc.value.status_code, exc.value.code) == (403, "REAUTH_REQUIRED")

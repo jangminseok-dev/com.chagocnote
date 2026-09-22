@@ -33,6 +33,15 @@ def _calls(dependant: Dependant) -> Iterator[Any]:
         yield from _calls(sub)
 
 
+def routes_calling(app: FastAPI, dependency: Any) -> set[str]:
+    """dependency 를 의존성 트리 어딘가에서 거치는 경로를 "METHOD path" 로 돌려준다."""
+    found = set()
+    for ctx in iter_route_contexts(app.routes):
+        if isinstance(ctx.original_route, APIRoute) and dependency in set(_calls(ctx.dependant)):
+            found.update(f"{method} {ctx.path}" for method in ctx.original_route.methods)
+    return found
+
+
 def find_route_violations(app: FastAPI) -> list[str]:
     """위반을 사람이 읽을 수 있는 줄로 돌려준다. 빈 목록이면 문제가 없다."""
     violations = []

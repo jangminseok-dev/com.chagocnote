@@ -1,7 +1,10 @@
 """재인증(최근 로그인 확인)이 실제 배선에서 도는지 본다."""
+from datetime import datetime, timezone
+
 import pytest
 from jose import jwt
 
+from auth.adapter.outbound.gateways.jwt_token_issuer import JwtTokenIssuer
 from tests.integration.support import bearer, error_of
 
 pytestmark = pytest.mark.integration
@@ -45,15 +48,21 @@ async def test_다시_로그인하면_탈퇴할_수_있다(wired):
 
 
 async def test_해제가_준_토큰은_원래_로그인_시각을_물려받는다(wired, fake_kakao):
+    """로그인과 해제가 같은 초에 끝나면 fresh_login 으로 퇴행해도 값이 같아 보인다.
+    그래서 100초 전에 로그인한 토큰을 직접 서명해 해제하고, 새 토큰이 정확히 그 값을 물려받는지 본다."""
+    import core.auth_config   # 인증 프로세스 전용 비밀값 — 함수 안에서만 import 한다
+
     login = await wired.login("두부")
-    headers = bearer(login["access_token"])
+    auth_time = int(datetime.now(timezone.utc).timestamp()) - 100
+    older = JwtTokenIssuer(core.auth_config.JWT_PRIVATE_KEY, ttl_seconds=900).issue_access(
+        login["user_id"], auth_time=auth_time
+    ).token
+    headers = bearer(older)
     linked = await wired.auth.post(
         "/v1/auth/identities", json={"provider": "kakao", "token": "kakao-token-for-dubu"}, headers=headers
     )
     assert linked.status_code == 200, linked.text
     unlinked = await wired.auth.delete("/v1/auth/identities/kakao", headers=headers)
     assert unlinked.status_code == 200, unlinked.text
-    before = jwt.get_unverified_claims(login["access_token"])["auth_time"]
-    after = jwt.get_unverified_claims(unlinked.json()["access_token"])["auth_time"]
-    same = before == after          # 토큰 값이 단언 메시지에 찍히지 않게 불리언으로 비교한다
-    assert same
+    inherited = jwt.get_unverified_claims(unlinked.json()["access_token"])["auth_time"] == auth_time
+    assert inherited   # 토큰 값이 단언 메시지에 찍히지 않게 불리언으로 비교한다

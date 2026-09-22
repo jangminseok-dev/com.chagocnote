@@ -4,7 +4,8 @@ auth_main 은 import 시점에 JWT 개인키를 요구하므로 키를 넣어 �
 """
 import pytest
 
-from tests.route_inspection import find_route_violations
+from core.security import require_recent_login
+from tests.route_inspection import find_route_violations, routes_calling
 
 pytestmark = pytest.mark.integration
 
@@ -13,3 +14,14 @@ async def test_인증_프로세스에는_빈_자리도_빠진_가드도_없다(w
     import auth_main
 
     assert find_route_violations(auth_main.app) == []
+
+
+async def test_연결_해제_탈퇴는_실제로_최근_로그인_가드를_거친다(wired):
+    """접두어 규칙은 경로 이름이 바뀌면 아무것도 검사하지 않고 조용히 통과한다. 그래서 대상을 직접 못 박는다."""
+    import auth_main
+
+    assert routes_calling(auth_main.app, require_recent_login) >= {
+        "POST /v1/auth/identities",
+        "DELETE /v1/auth/identities/{provider}",
+        "DELETE /v1/auth/account",
+    }

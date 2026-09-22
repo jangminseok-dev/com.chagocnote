@@ -26,6 +26,8 @@ class InvalidAccessToken(Exception):
 
 
 RECENT_LOGIN_SECONDS = 300
+# 발급 프로세스와 검증 프로세스의 시계 차로 봐줄 수 있는 폭. 이보다 먼 미래의 로그인 시각은 믿지 않는다.
+MAX_CLOCK_SKEW_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -100,9 +102,9 @@ async def require_recent_login(
     """로그인 수단 연결·해제와 회원 탈퇴 앞의 재인증. 소셜 로그인한 지 RECENT_LOGIN_SECONDS 안의
     토큰만 받는다. 훔친 액세스 토큰 하나로 계정을 빼앗는 것을 막는다 — 갱신으로 받은 토큰은 통과하지 못한다."""
     claims = await _authenticate(db, credentials)
-    if (
-        claims.auth_time is None
-        or int(_utcnow().timestamp()) - claims.auth_time > RECENT_LOGIN_SECONDS
-    ):
+    if claims.auth_time is None:
+        raise ApiError(403, "REAUTH_REQUIRED", "보안을 위해 다시 로그인해 주세요.")
+    elapsed = int(_utcnow().timestamp()) - claims.auth_time
+    if elapsed > RECENT_LOGIN_SECONDS or elapsed < -MAX_CLOCK_SKEW_SECONDS:
         raise ApiError(403, "REAUTH_REQUIRED", "보안을 위해 다시 로그인해 주세요.")
     return RecentLogin(user_id=claims.user_id, auth_time=claims.auth_time)
