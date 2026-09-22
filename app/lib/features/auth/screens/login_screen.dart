@@ -107,7 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(AppStrings.appName, style: AppTypography.titleEn),
+                  Text(AppStrings.appName, style: AppTypography.titleKo),
                   const SizedBox(height: AppSpacing.xxl),
                   if (expired) ...[
                     Text(

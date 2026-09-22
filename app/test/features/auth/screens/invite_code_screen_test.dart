@@ -201,4 +201,55 @@ void main() {
 
     expect(find.byKey(ScreenKeys.login), findsOneWidget);
   });
+
+  testWidgets(
+    '소속이 없는 유저는 계정 설정·로그아웃 버튼이 있고, 로그아웃하면 로그인 화면으로 간다',
+    (tester) async {
+      final adapter = FakeHttpClientAdapter((options, body) {
+        if (options.path == '/v1/me') {
+          return const FakeResponse(statusCode: 200, data: _meNoShops);
+        }
+        if (options.path == '/v1/auth/logout') {
+          return const FakeResponse(statusCode: 200);
+        }
+        fail('예상하지 못한 경로: ${options.path}');
+      });
+      final container = _containerWith(adapter);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(_appWith(container));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.invite), findsOneWidget);
+
+      expect(find.text(AppStrings.accountSettings), findsOneWidget);
+      expect(find.text(AppStrings.logout), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.logout));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ScreenKeys.login), findsOneWidget);
+    },
+  );
+
+  testWidgets('소속이 있는 유저는 계정 설정·로그아웃 버튼이 없다', (tester) async {
+    final adapter = FakeHttpClientAdapter((options, body) {
+      if (options.path == '/v1/me') {
+        return const FakeResponse(statusCode: 200, data: _meWithShop);
+      }
+      fail('예상하지 못한 경로: ${options.path}');
+    });
+    final container = _containerWith(adapter);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.home), findsOneWidget);
+
+    container.read(routerProvider).go('/invite');
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.invite), findsOneWidget);
+
+    expect(find.text(AppStrings.accountSettings), findsNothing);
+    expect(find.text(AppStrings.logout), findsNothing);
+  });
 }
