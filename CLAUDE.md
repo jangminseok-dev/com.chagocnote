@@ -32,7 +32,7 @@
 
 ## 명령어
 
-전부 `infra/`에서 실행한다. 맥에 파이썬 환경을 만들지 않는다.
+백엔드는 전부 `infra/`에서 실행한다. 맥에 파이썬 환경을 만들지 않는다.
 
     docker compose up -d                          # 전체 기동 (게이트웨이 http://127.0.0.1:8080)
     docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m "not integration and not network"
@@ -40,3 +40,9 @@
     docker compose run --rm --no-deps backend lint-imports --config .importlinter
     docker compose run --rm --no-deps auth python scripts/print_routes.py      # 개인키가 필요해서 auth 서비스에서 돌린다
     docker compose run --rm backend python scripts/grant_operator.py <user_id>   # 플랫폼 운영자 지정 (user_id 는 GET /v1/me 의 id)
+
+앱은 전부 `app/`에서 실행한다.
+
+    flutter analyze                               # 경고 0
+    flutter test                                  # 골든 포함
+    app/tool/run_dev.sh                           # 개발용 실행 (APP_ENV=dev, 게이트웨이 http://127.0.0.1:8080)

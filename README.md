@@ -5,7 +5,7 @@
 | 영역 | 스택 | 위치 |
 |---|---|---|
 | 백엔드 | Python 3.13 · FastAPI · SQLAlchemy 2.0(asyncio) · Alembic | `backend/` |
-| 앱 | Flutter 3.41 이상 | `app/` (아직 없음) |
+| 앱 | Flutter 3.41 이상 | `app/` |
 | 개발 환경 | Docker Compose (pgvector · redis · minio · backend · auth · gateway) | `infra/` |
 | 설계·계획 | 서브 프로젝트별 문서 | `docs/superpowers/` |
 
@@ -21,9 +21,12 @@
 
 개발 환경에서는 제공자 `dev`로 이름만 넣어 로그인한다. 운영자는 `docker compose run --rm backend python scripts/grant_operator.py <user_id>`로 지정한다.
 
+백엔드가 떠 있으면 `app/tool/run_dev.sh`로 앱을 켠다(iOS 시뮬레이터 기준, `app/CLAUDE.md` 참고).
+
 ## 더 읽을 것
 
 - `CLAUDE.md` — 꼭 지킬 규칙과 명령어
+- `app/CLAUDE.md` — 앱에만 해당하는 규칙과 명령어
 - `_docs/architecture.md` — 계층, 수직 슬라이스, 허브-스포크, 허브 포트 조립, 폴더 작명 규칙
 - `_docs/harness.md` — 검증 명령
 - `_docs/decisions/` — 결정 기록

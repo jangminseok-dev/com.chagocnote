@@ -394,7 +394,7 @@ app/
 - 앱은 서버 데이터를 보여주는 얇은 클라이언트다. 기능 폴더 안은 화면, 상태, API 클라이언트 세 층만 둔다.
 - 서버 응답의 필드명은 변환하지 않는다. 모델은 평범한 클래스에 `fromJson`을 직접 쓰며, 코드 생성기는 도입하지 않는다.
 - 화면 코드는 글래스 패키지를 직접 import하지 않고 `design/widgets`만 쓴다.
-- 의존 패키지: `flutter_riverpod`, `go_router`, `dio`, `flutter_secure_storage`, `kakao_flutter_sdk_user`, `sign_in_with_apple`, `google_sign_in`, `liquid_glass_widgets`, `flutter_animate`. Rive와 Lottie는 도입하지 않는다.
+- 의존 패키지: `flutter_riverpod`, `go_router`, `dio`, `flutter_secure_storage`, `kakao_flutter_sdk_user`, `sign_in_with_apple`, `google_sign_in`, `liquid_glass_widgets`, `flutter_animate`, `crypto`(Apple 로그인 nonce의 SHA-256 확인용, 계획 3에서 열 번째로 더했다 — 결정 기록 004). Rive와 Lottie는 도입하지 않는다.
 
 ### 6.2 디자인 방향
 
@@ -476,7 +476,7 @@ app/
 |---|---|
 | 위젯 테스트 | 로그인 후 분기(소속 0곳·1곳·2곳 이상), 초대 코드 오류 표시, 권한에 따른 메뉴 노출, 탈퇴 확인 흐름 |
 | ApiClient 테스트 | 401 → 갱신 → 재시도 성공, 갱신 실패 → 로그아웃. 가짜 어댑터로 검증한다. |
-| 골든 테스트 | 기본 위젯 9개. 글래스 위젯은 "투명도 줄이기" 대체 모습도 찍는다. |
+| 골든 테스트 | 기본 위젯 9개. `flutter test` 환경의 셰이더를 믿을 수 없어 글래스 위젯은 "투명도 줄이기" 대체(불투명 면) 모습만 찍는다 — 결정 기록 004. |
 | 정적 분석 | `flutter analyze` 경고 0 |
 
 ### 8.3 사용자가 미리 준비해야 하는 것

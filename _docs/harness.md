@@ -1,6 +1,6 @@
 # 검증 장치
 
-모든 명령은 `infra/`에서 실행한다.
+백엔드 명령은 `infra/`에서, 앱 명령은 `app/`에서 실행한다.
 
 | 무엇을 | 명령 |
 |---|---|
@@ -12,6 +12,10 @@
 | 매장 개설·합류 흐름 (게이트웨이 경유) | `bash ../backend/scripts/check_shop_flow.sh` — 개발 DB에 확인용 매장과 유저가 남는다 |
 | 회원 탈퇴 흐름 (게이트웨이 경유) | `bash ../backend/scripts/check_account_flow.sh` — 개발 DB에 "탈퇴한 사용자" 행이 남는다 |
 | 플랫폼 운영자 지정 | `docker compose run --rm backend python scripts/grant_operator.py <user_id>` |
+| 앱 정적 분석 | `flutter analyze` (`app/`에서, 경고 0) |
+| 앱 테스트 (위젯·골든·`ApiClient` 포함) | `flutter test` (`app/`에서) |
+| 앱 골든 갱신 | `flutter test --update-goldens` (`app/`에서, 의도해서 바꿀 때만) |
+| 앱 개발용 실행 | `app/tool/run_dev.sh` (백엔드를 `infra/`에서 먼저 띄운 뒤) |
 
 - 통합 테스트는 별도 데이터베이스 `chagocnote_test`를 쓴다. 개발 데이터를 건드리지 않는다. pytest가 세션마다 한 번 `scripts/prepare_test_db.py`를 돌려 스키마를 비우고 `alembic upgrade head`로 다시 만든다. 테스트 사이에는 시드 표(`roles`, `permissions`, `role_permissions`)와 마이그레이션 버전 표(`alembic_version`)를 뺀 모든 표를 비운다.
 - 마이그레이션은 손으로 쓴다. `tests/test_schema_drift.py`가 마이그레이션 결과와 ORM이 어긋나면 실패한다. 새 ORM 모듈은 `backend/orm_registry.py`에 등록한다.
