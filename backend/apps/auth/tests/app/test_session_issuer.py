@@ -3,7 +3,11 @@ from auth.app.services.session_issuer import SessionIssuer
 
 
 class _StubIssuer:
-    def issue_access(self, user_id):
+    def __init__(self):
+        self.seen = []
+
+    def issue_access(self, user_id, *, auth_time=None, fresh_login=False):
+        self.seen.append((user_id, auth_time, fresh_login))
         return AccessToken(token=f"access-for-{user_id}", expires_in=900)
 
 
@@ -36,3 +40,17 @@ async def test_갱신은_꺼낼_때_받은_세대로_저장한다():
 async def test_리프레시_토큰은_매번_다르다():
     issuer = SessionIssuer(_StubIssuer(), _StubStore())
     assert (await issuer.issue(5)).refresh_token != (await issuer.issue(5)).refresh_token
+
+
+async def test_기본_발급은_로그인_시각을_찍지_않는다():
+    issuer = _StubIssuer()
+    await SessionIssuer(issuer, _StubStore()).issue(5, generation=2)
+    assert issuer.seen == [(5, None, False)]
+
+
+async def test_새_로그인과_물려받은_시각을_발급기에_그대로_넘긴다():
+    issuer = _StubIssuer()
+    sessions = SessionIssuer(issuer, _StubStore())
+    await sessions.issue(5, fresh_login=True)
+    await sessions.issue(5, auth_time=1_700_000_000)
+    assert issuer.seen == [(5, None, True), (5, 1_700_000_000, False)]

@@ -10,6 +10,7 @@ from auth.domain.value_objects.identity_revocation import IdentityRevocation
 class UnlinkIdentityCommand:
     user_id: int
     provider: str
+    auth_time: int   # 요청 토큰의 로그인 시각. 새 토큰이 그대로 물려받는다 (해제를 되풀이해 늘릴 수 없게)
 
 
 @dataclass(frozen=True)

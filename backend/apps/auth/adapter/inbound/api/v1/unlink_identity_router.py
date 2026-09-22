@@ -6,7 +6,7 @@ from auth.app.ports.input.unlink_identity_use_case import UnlinkIdentityUseCase
 from auth.app.services.provider_revoker import ProviderRevoker
 from auth.dependencies.provider_revoker_provider import get_provider_revoker
 from auth.dependencies.unlink_identity_provider import get_unlink_identity_use_case
-from core.security import get_current_user_id
+from core.security import RecentLogin, require_recent_login
 
 unlink_identity_router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -17,11 +17,15 @@ unlink_identity_router = APIRouter(prefix="/v1/auth", tags=["auth"])
 async def unlink_identity(
     provider: str,
     tasks: BackgroundTasks,
-    user_id: int = Depends(get_current_user_id),
+    recent: RecentLogin = Depends(require_recent_login),
     use_case: UnlinkIdentityUseCase = Depends(get_unlink_identity_use_case),
     revoker: ProviderRevoker = Depends(get_provider_revoker),
 ) -> UnlinkIdentityResponseSchema:
-    result = await use_case.unlink(UnlinkIdentityCommand(user_id=user_id, provider=provider))
+    result = await use_case.unlink(
+        UnlinkIdentityCommand(
+            user_id=recent.user_id, provider=provider, auth_time=recent.auth_time
+        )
+    )
     # 제공자 쪽 연결 끊기는 DB 커밋이 끝난 뒤에 돈다. 잠금을 쥔 채 외부 HTTP 를 부르지 않는다.
     tasks.add_task(revoker.revoke_all, [result.revocation])
     return UnlinkIdentityResponseSchema(

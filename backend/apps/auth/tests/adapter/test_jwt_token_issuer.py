@@ -5,7 +5,7 @@ from jose import jwt
 
 from auth.adapter.outbound.gateways.jwt_token_issuer import JwtTokenIssuer
 from auth.tests.helpers.keys import make_rsa_keypair
-from core.security import InvalidAccessToken, decode_access_token
+from core.security import InvalidAccessToken, decode_access_claims, decode_access_token
 
 
 def test_발급한_액세스_토큰은_공개키로_검증되고_유저_ID를_돌려준다():
@@ -42,3 +42,40 @@ def test_액세스_토큰이_아닌_토큰은_거절한다():
     forged = jwt.encode({"sub": "42", "typ": "other"}, private_pem, algorithm="RS256")
     with pytest.raises(InvalidAccessToken):
         decode_access_token(forged, public_pem)
+
+
+def test_새_로그인으로_발급하면_발급_시각이_auth_time_이다():
+    private_pem, public_pem, _ = make_rsa_keypair()
+    fixed = datetime(2026, 9, 22, 12, 0, tzinfo=timezone.utc)
+    future_safe = lambda: fixed
+    token = JwtTokenIssuer(private_pem, ttl_seconds=10**9, now=future_safe).issue_access(
+        42, fresh_login=True
+    ).token
+    claims = jwt.get_unverified_claims(token)
+    assert claims["auth_time"] == claims["iat"] == int(fixed.timestamp())
+    assert decode_access_claims(token, public_pem).auth_time == int(fixed.timestamp())
+
+
+def test_물려받은_auth_time_은_그대로_담긴다():
+    private_pem, public_pem, _ = make_rsa_keypair()
+    token = JwtTokenIssuer(private_pem, ttl_seconds=900).issue_access(42, auth_time=1_700_000_000).token
+    assert decode_access_claims(token, public_pem).auth_time == 1_700_000_000
+
+
+def test_기본_발급에는_auth_time_이_없다():
+    private_pem, public_pem, _ = make_rsa_keypair()
+    token = JwtTokenIssuer(private_pem, ttl_seconds=900).issue_access(42).token
+    assert "auth_time" not in jwt.get_unverified_claims(token)
+    assert decode_access_claims(token, public_pem).auth_time is None
+
+
+def test_auth_time_이_정수가_아니면_거절한다():
+    private_pem, public_pem, _ = make_rsa_keypair()
+    now = int(datetime.now(timezone.utc).timestamp())
+    for bad in (True, "1700000000", 1.5):
+        forged = jwt.encode(
+            {"sub": "42", "typ": "access", "exp": now + 60, "auth_time": bad},
+            private_pem, algorithm="RS256",
+        )
+        with pytest.raises(InvalidAccessToken):
+            decode_access_claims(forged, public_pem)

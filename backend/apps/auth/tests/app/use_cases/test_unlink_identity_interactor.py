@@ -57,8 +57,8 @@ class _StubSessions:
     def __init__(self, calls):
         self.calls = calls
 
-    async def issue(self, user_id, generation=None):
-        self.calls.append(f"issue:{user_id}:{generation}")
+    async def issue(self, user_id, generation=None, *, auth_time=None, fresh_login=False):
+        self.calls.append(f"issue:{user_id}:{generation}:{auth_time}:{fresh_login}")
         return TokenPair("new-access", "5.new-refresh", 900)
 
 
@@ -71,10 +71,14 @@ def _run(revocations=(KAKAO, APPLE), user=None):
 async def test_수단을_해제하면_모든_세션을_끊고_새_토큰과_끊을_신원을_돌려준다():
     """G5"""
     interactor, calls = _run()
-    result = await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="apple"))
+    result = await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="apple", auth_time=1_700_000_000))
     # generation 이 None 인 채로 issue 가 불린다 — revoke_all(세대를 올림) 이후 issue 가 "그 뒤" 세대를
     # 다시 읽는다는 뜻이다. 예전 세대를 들고 있다가 넘기면 방금 발급한 토큰이 곧장 무효가 된다.
-    assert calls == ["lock:5", "list_revocations:5", "delete:5:apple", "revoke_all:5", "issue:5:None"]
+    # 해제는 fresh_login 으로 발급하지 않고 요청 토큰의 로그인 시각을 그대로 물려준다 (해제를 되풀이해 늘릴 수 없게).
+    assert calls == [
+        "lock:5", "list_revocations:5", "delete:5:apple", "revoke_all:5",
+        "issue:5:None:1700000000:False",
+    ]
     assert result.identities == ("kakao",)
     assert result.tokens.refresh_token == "5.new-refresh"
     assert result.revocation == APPLE
@@ -83,28 +87,28 @@ async def test_수단을_해제하면_모든_세션을_끊고_새_토큰과_끊�
 async def test_마지막_로그인_수단은_해제할_수_없다():
     interactor, calls = _run(revocations=(KAKAO,))
     with pytest.raises(LastIdentityError):
-        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="kakao"))
+        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="kakao", auth_time=1_700_000_000))
     assert calls == ["lock:5", "list_revocations:5"]
 
 
 async def test_연결되지_않은_수단은_IDENTITY_NOT_FOUND_다():
     interactor, calls = _run(revocations=(KAKAO, APPLE))
     with pytest.raises(IdentityNotFoundError):
-        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="google"))
+        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="google", auth_time=1_700_000_000))
     assert calls == ["lock:5", "list_revocations:5"]
 
 
 async def test_모르는_제공자_이름은_거절한다():
     interactor, calls = _run()
     with pytest.raises(UnsupportedProviderError):
-        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="naver"))
+        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="naver", auth_time=1_700_000_000))
     assert calls == []
 
 
 async def test_잠근_뒤에_탈퇴한_유저면_아무것도_하지_않는다():
     interactor, calls = _run(user=_user(deleted=True))
     with pytest.raises(UserNotFoundError):
-        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="apple"))
+        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="apple", auth_time=1_700_000_000))
     assert calls == ["lock:5"]
 
 
@@ -113,5 +117,5 @@ async def test_잠근_뒤에_보니_정지된_유저면_아무것도_하지_않�
     거절하지 않으면 세션 전부를 폐기하고 방금 정지된 유저에게 새 토큰을 내주게 된다."""
     interactor, calls = _run(user=_user(suspended=True))
     with pytest.raises(AccountSuspendedError):
-        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="apple"))
+        await interactor.unlink(UnlinkIdentityCommand(user_id=5, provider="apple", auth_time=1_700_000_000))
     assert calls == ["lock:5"]

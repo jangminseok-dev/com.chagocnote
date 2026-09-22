@@ -12,8 +12,12 @@ from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, iter_route_contexts
 
+from core.security import require_recent_login
 from core.shop_guard import get_shop_access_port, get_shop_context
 from platform_admin.dependencies.operator_guard import require_operator
+
+# 계정을 빼앗는 데 쓰일 수 있는 경로. 새로 더하는 민감 경로도 여기에 적는다.
+_RECENT_LOGIN_PREFIXES = ("/v1/auth/identities", "/v1/auth/account")
 
 
 def _is_slot(call: Any) -> bool:
@@ -43,4 +47,6 @@ def find_route_violations(app: FastAPI) -> list[str]:
             violations.append(f"{path}: 매장 범위 경로인데 get_shop_context 를 거치지 않는다")
         if path.startswith("/v1/platform/") and require_operator not in calls:
             violations.append(f"{path}: 운영자 표면인데 require_operator 를 거치지 않는다")
+        if path.startswith(_RECENT_LOGIN_PREFIXES) and require_recent_login not in calls:
+            violations.append(f"{path}: 민감한 계정 경로인데 require_recent_login 을 거치지 않는다")
     return sorted(violations)

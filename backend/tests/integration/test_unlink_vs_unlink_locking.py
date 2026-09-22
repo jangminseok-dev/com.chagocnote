@@ -25,7 +25,9 @@ pytestmark = pytest.mark.integration
 
 
 class _StubTokenIssuer(TokenIssuerPort):
-    def issue_access(self, user_id: int) -> AccessToken:
+    def issue_access(
+        self, user_id: int, *, auth_time: int | None = None, fresh_login: bool = False
+    ) -> AccessToken:
         return AccessToken(token=f"access-{user_id}", expires_in=900)
 
 
@@ -51,7 +53,7 @@ def _unlink(session, user_id, provider):
         users=UserPgRepository(session), store=_StubRefreshStore(),
         sessions=SessionIssuer(_StubTokenIssuer(), _StubRefreshStore()),
     )
-    return interactor.unlink(UnlinkIdentityCommand(user_id=user_id, provider=provider))
+    return interactor.unlink(UnlinkIdentityCommand(user_id=user_id, provider=provider, auth_time=1_700_000_000))
 
 
 async def test_동시에_서로_다른_수단을_해제해도_하나는_남는다(db_engine):

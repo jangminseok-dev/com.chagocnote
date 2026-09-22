@@ -44,7 +44,7 @@ class UnlinkIdentityInteractor(UnlinkIdentityUseCase):
         await self._users.delete_identity(user.id, provider)
         # 해제한 수단으로 만든 세션이 다른 기기에 남지 않게 전부 끊고, 요청한 기기에만 새 토큰을 준다.
         await self._store.revoke_all(user.id)
-        tokens = await self._sessions.issue(user.id)
+        tokens = await self._sessions.issue(user.id, auth_time=command.auth_time)
         return UnlinkIdentityResult(
             identities=tuple(r.provider.value for r in revocations if r.provider is not provider),
             tokens=tokens,

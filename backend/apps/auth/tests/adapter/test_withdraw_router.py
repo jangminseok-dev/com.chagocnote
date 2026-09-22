@@ -11,7 +11,7 @@ from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from core.database import get_db
 from core.http_errors import install_error_handlers
-from core.security import get_current_user_id
+from core.security import RecentLogin, require_recent_login
 
 KAKAO = IdentityRevocation(Provider.KAKAO, "kakao-100", None)
 
@@ -51,7 +51,7 @@ def _app(stub, revoker, user_id=5):
     app.dependency_overrides[get_provider_revoker] = lambda: revoker
     app.dependency_overrides[get_db] = _no_db
     if user_id is not None:
-        app.dependency_overrides[get_current_user_id] = lambda: user_id
+        app.dependency_overrides[require_recent_login] = lambda: RecentLogin(user_id=user_id, auth_time=1_700_000_000)
     return app
 
 

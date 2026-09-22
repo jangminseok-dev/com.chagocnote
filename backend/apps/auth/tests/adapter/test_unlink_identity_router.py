@@ -12,7 +12,7 @@ from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from core.database import get_db
 from core.http_errors import install_error_handlers
-from core.security import get_current_user_id
+from core.security import RecentLogin, require_recent_login
 
 APPLE = IdentityRevocation(Provider.APPLE, "apple-1", "apple-refresh")
 
@@ -51,7 +51,7 @@ def _app(stub, revoker, user_id=5):
     app.dependency_overrides[get_provider_revoker] = lambda: revoker
     app.dependency_overrides[get_db] = _no_db
     if user_id is not None:
-        app.dependency_overrides[get_current_user_id] = lambda: user_id
+        app.dependency_overrides[require_recent_login] = lambda: RecentLogin(user_id=user_id, auth_time=1_700_000_000)
     return app
 
 
@@ -69,6 +69,7 @@ async def test_해제하면_남은_수단과_새_토큰을_돌려주고_제공�
         "token_type": "Bearer", "expires_in": 900,
     }
     assert (stub.commands[0].user_id, stub.commands[0].provider) == (5, "apple")
+    assert stub.commands[0].auth_time == 1_700_000_000   # 요청 토큰의 로그인 시각을 그대로 넘긴다
     assert revoker.revoked == [APPLE]
 
 

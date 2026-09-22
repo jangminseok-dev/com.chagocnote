@@ -6,7 +6,7 @@ from auth.app.ports.input.withdraw_use_case import WithdrawUseCase
 from auth.app.services.provider_revoker import ProviderRevoker
 from auth.dependencies.provider_revoker_provider import get_provider_revoker
 from auth.dependencies.withdraw_provider import get_withdraw_use_case
-from core.security import get_current_user_id
+from core.security import RecentLogin, require_recent_login
 
 withdraw_router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -15,13 +15,13 @@ withdraw_router = APIRouter(prefix="/v1/auth", tags=["auth"])
 async def withdraw(
     tasks: BackgroundTasks,
     body: WithdrawRequestSchema | None = None,
-    user_id: int = Depends(get_current_user_id),
+    recent: RecentLogin = Depends(require_recent_login),
     use_case: WithdrawUseCase = Depends(get_withdraw_use_case),
     revoker: ProviderRevoker = Depends(get_provider_revoker),
 ) -> Response:
     result = await use_case.withdraw(
         WithdrawCommand(
-            user_id=user_id,
+            user_id=recent.user_id,
             confirm_close_shops=body.confirm_close_shops if body else False,
         )
     )

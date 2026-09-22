@@ -293,7 +293,8 @@ auth와 backend는 별개 프로세스지만 같은 코드베이스와 같은 DB
 ### 5.3 토큰
 
 - JWT는 RS256이다. 개인키는 auth 프로세스만 가지며, API 프로세스는 공개키로 검증만 한다.
-- 액세스 토큰은 15분이다. 클레임은 `sub`(user_id), `jti`, `exp`, `typ`이다. 역할과 권한은 넣지 않는다.
+- 액세스 토큰은 15분이다. 클레임은 `sub`(user_id), `jti`, `iat`, `exp`, `typ`이고, 소셜 로그인으로 받은 토큰에만 `auth_time`(로그인 시각)이 더 들어간다. 갱신으로 받은 토큰에는 없다. 역할과 권한은 넣지 않는다.
+- 연결·해제·탈퇴는 로그인 300초 이내의 토큰만 받는다(`core/security.py`의 `require_recent_login`). 아니면 403(`REAUTH_REQUIRED`)이고, 앱은 다시 로그인한 뒤 한 번 재요청한다. 해제가 준 새 토큰은 원래 `auth_time`을 물려받는다 — 해제를 되풀이해 "최근 로그인"을 늘릴 수 없다.
 - 리프레시 토큰은 30일이고, 사용할 때마다 새 토큰으로 교체한다. 이미 사용된 토큰이 다시 들어오면 탈취로 판단해서 그 유저의 모든 세션을 폐기한다. "모든 세션 폐기"는 유저의 세대를 하나 올리는 것이다. 토큰에 발급 시점의 세대가 찍혀 있어, 폐기와 동시에 발급되던 토큰도 함께 무효가 된다.
 - 정지되거나 탈퇴한 유저는 매 요청의 조회에서 걸러진다. 이미 발급된 액세스 토큰으로도 탈퇴한 유저는 401(`UNAUTHENTICATED`), 정지된 유저는 403(`ACCOUNT_SUSPENDED`)을 받는다(`core/security.py`).
 
@@ -334,6 +335,7 @@ auth와 backend는 별개 프로세스지만 같은 코드베이스와 같은 DB
 
 ### 5.6 계정 연결과 해제
 
+- 연결·해제 모두 먼저 최근 로그인을 확인한다(5.3). 로그인한 지 300초가 넘은 토큰이나 갱신으로 받은 토큰이면 403(`REAUTH_REQUIRED`)이다.
 - `POST /v1/auth/identities { provider, token, … }`: 로그인한 유저에 소셜 신원을 하나 더 붙인다.
 - 연결하려는 소셜 계정이 이미 다른 유저에 붙어 있으면 409로 거절한다. 자동 병합은 하지 않으며, "그 계정에서 탈퇴한 뒤 다시 연결해 주세요"라고 안내한다.
 - `DELETE /v1/auth/identities/{provider}`: 로그인 수단이 두 개 이상일 때만 허용한다. 마지막 하나는 해제할 수 없다. 해제한 뒤(커밋 뒤) 제공자 쪽 연결도 끊는다(`revoke`). 구글은 서버가 끊지 않고 앱이 `disconnect()`를 부른다.
@@ -346,7 +348,7 @@ auth와 backend는 별개 프로세스지만 같은 코드베이스와 같은 DB
 
 `DELETE /v1/auth/account { confirm_close_shops: bool }` (엄격한 불리언 — `"yes"`·`1` 같은 값은 받지 않고 422다)
 
-1. auth가 유저 행을 잠그고 다시 읽는다. 이미 탈퇴했으면 아무것도 하지 않는다.
+1. 최근 로그인을 확인한다(5.3). 아니면 403(`REAUTH_REQUIRED`)이다. 그다음 auth가 유저 행을 잠그고 다시 읽는다. 이미 탈퇴했으면 아무것도 하지 않는다.
 2. auth가 `MembershipLifecyclePort.apply_withdrawal`을 부른다. tenancy는 매장마다 행을 잠근 뒤 판단한다.
    - **혼자 사장인 매장에 다른 멤버가 있으면** 409(`OWNERSHIP_TRANSFER_REQUIRED`)로 막고 "사장 권한을 먼저 넘겨 주세요"라고 안내한다. 역할 변경으로 다른 멤버를 사장으로 만들면 풀린다.
    - **혼자 사장인 매장에 멤버가 본인뿐이면** `confirm_close_shops`가 참일 때만 진행한다. 아니면 409(`SHOP_CLOSE_CONFIRM_REQUIRED`)다. 진행하면 매장에 `closed_at`을 기록한다.
@@ -444,7 +446,7 @@ app/
 ## 7. 오류 처리
 
 - 서버 오류 응답은 `{ "code": "INVITE_EXPIRED", "message": "…" }` 형태로 통일한다. 앱은 `code`를 보고 `core/error/`에서 한국어 문구로 바꾼다.
-- 주요 코드: `UNAUTHENTICATED`(401), `LAST_OWNER`·`ALREADY_A_MEMBER`(409), `NOT_A_MEMBER`·`PERMISSION_DENIED`·`ACCOUNT_SUSPENDED`·`SHOP_CLOSED`·`SHOP_SUSPENDED`(403), `MEMBER_NOT_FOUND`·`IDENTITY_NOT_FOUND`(404), `INVITE_INVALID`·`INVITE_EXPIRED`·`INVITE_EXHAUSTED`(400), `IDENTITY_ALREADY_LINKED`·`PROVIDER_ALREADY_LINKED`·`LAST_IDENTITY`·`OWNERSHIP_TRANSFER_REQUIRED`·`SHOP_CLOSE_CONFIRM_REQUIRED`(409), `TOO_MANY_ATTEMPTS`(429), `PROVIDER_VERIFICATION_FAILED`(401).
+- 주요 코드: `UNAUTHENTICATED`(401), `LAST_OWNER`·`ALREADY_A_MEMBER`(409), `NOT_A_MEMBER`·`PERMISSION_DENIED`·`ACCOUNT_SUSPENDED`·`REAUTH_REQUIRED`·`SHOP_CLOSED`·`SHOP_SUSPENDED`(403), `MEMBER_NOT_FOUND`·`IDENTITY_NOT_FOUND`(404), `INVITE_INVALID`·`INVITE_EXPIRED`·`INVITE_EXHAUSTED`(400), `IDENTITY_ALREADY_LINKED`·`PROVIDER_ALREADY_LINKED`·`LAST_IDENTITY`·`OWNERSHIP_TRANSFER_REQUIRED`·`SHOP_CLOSE_CONFIRM_REQUIRED`(409), `TOO_MANY_ATTEMPTS`(429), `PROVIDER_VERIFICATION_FAILED`(401).
 - 도메인 규칙 위반은 도메인 예외로 던지고, 라우터 계층의 예외 핸들러 한 곳에서 HTTP 응답으로 바꾼다. 유스케이스는 HTTP를 모른다.
 - 앱은 리프레시에 실패하면 저장된 토큰을 지우고 로그인 화면으로 보낸다. 네트워크 오류는 다시 시도 버튼이 있는 안내로 보여준다.
 - 일어날 수 없는 상황에 대한 방어 코드는 넣지 않는다.

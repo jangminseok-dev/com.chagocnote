@@ -43,9 +43,11 @@ class _StubUsers:
 class _StubSessions:
     def __init__(self):
         self.issued_for = []
+        self.login_marks = []
 
-    async def issue(self, user_id, generation=None):
+    async def issue(self, user_id, generation=None, *, auth_time=None, fresh_login=False):
         self.issued_for.append((user_id, generation))
+        self.login_marks.append((auth_time, fresh_login))
         return TokenPair("new-access", "new-refresh", 900)
 
 
@@ -90,3 +92,9 @@ async def test_정지된_유저에게는_발급하지_않는다():
     with pytest.raises(AccountSuspendedError):
         await interactor.refresh(RefreshTokenCommand("old-refresh"))
     assert sessions.issued_for == []
+
+
+async def test_갱신은_로그인_시각을_찍지_않는다():
+    interactor, _, sessions = _run(RefreshLookup(RefreshStatus.ACTIVE, 5, 4), _user())
+    await interactor.refresh(RefreshTokenCommand("5.old-refresh"))
+    assert sessions.login_marks == [(None, False)]

@@ -88,9 +88,11 @@ class _StubUsers:
 class _StubSessions:
     def __init__(self):
         self.issued_for = []
+        self.fresh_logins = []
 
-    async def issue(self, user_id):
+    async def issue(self, user_id, generation=None, *, auth_time=None, fresh_login=False):
         self.issued_for.append(user_id)
+        self.fresh_logins.append(fresh_login)
         return TokenPair("access", "refresh", 900)
 
 
@@ -105,6 +107,7 @@ async def test_처음_보는_신원이면_유저를_만들고_토큰을_발급�
     assert (result.user_id, result.is_new_user) == (77, True)
     assert len(users.created) == 1
     assert sessions.issued_for == [77]
+    assert sessions.fresh_logins == [True]   # 소셜 로그인만 로그인 시각을 새로 찍는다
     assert result.tokens.refresh_token == "refresh"
     assert "lock" not in users.calls   # 방금 만든 행은 아직 남에게 보이지 않아 잠글 것이 없다
 
@@ -114,6 +117,7 @@ async def test_이미_있는_신원이면_새로_만들지_않는다():
     result = await SocialLoginInteractor(_StubResolver(_StubProvider()), users, sessions).login(_command())
     assert (result.user_id, result.is_new_user) == (5, False)
     assert users.created == []
+    assert sessions.fresh_logins == [True]
 
 
 async def test_앱이_보낸_토큰을_제공자_검증에_그대로_넘긴다():

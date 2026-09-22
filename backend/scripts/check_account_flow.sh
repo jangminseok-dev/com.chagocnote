@@ -14,6 +14,13 @@ status() { curl -s -o /dev/null -w '%{http_code}' -X "$1" "$BASE$2" -H "Authoriz
 first=$(login "$NAME"); token=$(echo "$first" | field access_token); refresh=$(echo "$first" | field refresh_token)
 first_id=$(echo "$first" | field user_id)
 
+# 다른 기기 세션을 하나 더 열어 갱신한다 (위의 리프레시 토큰은 아래 확인에 그대로 쓴다).
+other=$(login "$NAME")
+refreshed=$(curl -s -X POST "$BASE/v1/auth/refresh" -H 'Content-Type: application/json' \
+  -d "{\"refresh_token\":\"$(echo "$other" | field refresh_token)\"}" | field access_token)
+expect "갱신으로 받은 토큰으로는 탈퇴할 수 없다 (REAUTH_REQUIRED)" \
+  "$(curl -s -X DELETE "$BASE/v1/auth/account" -H "Authorization: Bearer $refreshed" | field code)" "REAUTH_REQUIRED"
+
 expect "같은 제공자를 또 붙일 수는 없다" "$(status POST /v1/auth/identities "$token" "{\"provider\":\"dev\",\"token\":\"$NAME-2\"}")" "409"
 expect "마지막 로그인 수단은 해제할 수 없다" "$(status DELETE /v1/auth/identities/dev "$token")" "409"
 expect "탈퇴는 204" "$(status DELETE /v1/auth/account "$token")" "204"

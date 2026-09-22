@@ -89,5 +89,5 @@ class SocialLoginInteractor(SocialLoginUseCase):
         return locked
 
     async def _issue(self, user_id: int, is_new_user: bool) -> SocialLoginResult:
-        tokens = await self._sessions.issue(user_id)
+        tokens = await self._sessions.issue(user_id, fresh_login=True)
         return SocialLoginResult(user_id=user_id, is_new_user=is_new_user, tokens=tokens)

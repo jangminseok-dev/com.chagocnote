@@ -49,7 +49,9 @@ _KAKAO_SUB = f"kakao-{_KAKAO_TOKEN.lower()}"
 
 
 class _StubTokenIssuer(TokenIssuerPort):
-    def issue_access(self, user_id: int) -> AccessToken:
+    def issue_access(
+        self, user_id: int, *, auth_time: int | None = None, fresh_login: bool = False
+    ) -> AccessToken:
         return AccessToken(token=f"access-{user_id}", expires_in=900)
 
 
@@ -96,7 +98,7 @@ def _unlink(session, user_id, provider, store):
         users=UserPgRepository(session), store=store,
         sessions=SessionIssuer(_StubTokenIssuer(), store),
     )
-    return interactor.unlink(UnlinkIdentityCommand(user_id=user_id, provider=provider))
+    return interactor.unlink(UnlinkIdentityCommand(user_id=user_id, provider=provider, auth_time=1_700_000_000))
 
 
 def _withdraw(session, user_id, store):
