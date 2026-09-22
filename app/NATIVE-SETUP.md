@@ -201,7 +201,7 @@ ID(Service ID)는 웹/안드로이드 플로우 전용이라 iOS 전용인 이 �
 키가 생기면:
 1. 위 iOS 항목을 `ios/Runner/Info.plist` + Xcode capability로 넣는다.
 2. `flutter build ios --simulator --debug`로 컴파일이 여전히 되는지 먼저
-   확인한다(Task 14에서 이미 15.0으로 올린 `IPHONEOS_DEPLOYMENT_TARGET`
+   확인한다(Task 1에서 이미 15.0으로 올린 `IPHONEOS_DEPLOYMENT_TARGET`
    기준으로는 통과했다).
 3. 실기기(카카오톡 앱 전환은 시뮬레이터에서 확인 불가)에서 세 개 공급자를
    각각 로그인 → 취소 → 재로그인 순서로 눌러 보고, 이 문서의 취소 코드

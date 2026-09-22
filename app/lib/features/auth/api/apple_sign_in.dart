@@ -25,13 +25,17 @@ class AppleSignIn implements SocialSignIn {
         ],
         nonce: hashNonce(rawNonce),
       );
+      final identityToken = credential.identityToken;
+      if (identityToken == null) {
+        throw StateError('애플 로그인에서 ID 토큰을 받지 못했습니다.');
+      }
       final displayName = [
         credential.givenName,
         credential.familyName,
       ].whereType<String>().join();
       return SocialCredential(
         provider: provider,
-        token: credential.identityToken!,
+        token: identityToken,
         authorizationCode: credential.authorizationCode,
         nonce: rawNonce,
         displayName: displayName.isEmpty ? null : displayName,
