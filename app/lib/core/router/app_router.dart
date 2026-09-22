@@ -2,6 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/screens/invite_code_screen.dart';
+import '../../features/auth/screens/login_screen.dart';
+import '../../features/auth/screens/shop_select_screen.dart';
+import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/state/session.dart';
 import '../../features/auth/state/session_controller.dart';
 import 'placeholder_screens.dart';
@@ -59,7 +63,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/invite', builder: (context, state) => const InviteScreen()),
+      GoRoute(path: '/invite', builder: (context, state) => const InviteCodeScreen()),
       GoRoute(
         path: '/shops/select',
         builder: (context, state) => const ShopSelectScreen(),

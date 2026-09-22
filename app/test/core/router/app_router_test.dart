@@ -1,5 +1,5 @@
 import 'package:chagocnote/core/router/app_router.dart';
-import 'package:chagocnote/core/router/placeholder_screens.dart';
+import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/auth/state/session_gateway.dart';
