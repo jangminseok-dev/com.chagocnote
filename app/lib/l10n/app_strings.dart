@@ -95,6 +95,25 @@ class AppStrings {
   static const withdrawShopCloseConfirm = '매장을 닫고 탈퇴';
   static const goToMembers = '멤버 관리로 이동';
 
+  // 고객·반려동물
+  static const speciesDog = '강아지';
+  static const speciesCat = '고양이';
+  static const sexFemale = '여아';
+  static const sexMale = '남아';
+  static const neutered = '중성화';
+
+  static String speciesLabel(String species) => switch (species) {
+        'dog' => speciesDog,
+        'cat' => speciesCat,
+        _ => species,
+      };
+
+  static String sexLabel(String sex) => switch (sex) {
+        'female' => sexFemale,
+        'male' => sexMale,
+        _ => sex,
+      };
+
   /// 로그인 수단 제공자 코드를 화면에 보여줄 라벨로 바꾼다. 계정 화면과
   /// 재인증 시트(Task 16)가 함께 쓴다.
   static String providerLabel(String provider) => switch (provider) {
