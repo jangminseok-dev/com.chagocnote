@@ -41,3 +41,8 @@ async def test_없으면_404_CUSTOMER_NOT_FOUND_다():
 async def test_번호가_없으면_422_다():
     response = await _get(_StubUseCase(), "/v1/shops/3/customers/lookup")
     assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
+
+
+async def test_번호에_NUL_문자가_있으면_422_다():
+    response = await _get(_StubUseCase(), "/v1/shops/3/customers/lookup?phone=%00")
+    assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")

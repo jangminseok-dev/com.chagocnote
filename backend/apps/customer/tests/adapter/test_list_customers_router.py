@@ -47,3 +47,8 @@ async def test_모르는_정렬이나_너무_긴_검색어는_422_다():
     for path in ("/v1/shops/3/customers?sort=visit", "/v1/shops/3/customers?q=" + "가" * 51):
         response = await _get(_StubUseCase(), path)
         assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")
+
+
+async def test_검색어에_NUL_문자가_있으면_422_다():
+    response = await _get(_StubUseCase(), "/v1/shops/3/customers?q=%00")
+    assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR")

@@ -63,7 +63,17 @@ async def test_형식이_틀리면_422_VALIDATION_ERROR_다():
         {"customer": CUSTOMER_BODY, "pet": {**PET_BODY, "name": "가" * 51}},
         {"customer": CUSTOMER_BODY, "pet": {**PET_BODY, "memo": "가" * 501}},
         {"customer": CUSTOMER_BODY, "pet": {**PET_BODY, "conditions": [{"type_code": "other", "custom_label": "가" * 31}]}},
+        {"customer": {**CUSTOMER_BODY, "name": "김민지\u0000"}, "pet": PET_BODY},  # NUL 문자
+        {"customer": CUSTOMER_BODY, "pet": {**PET_BODY, "breed": "말티즈\x01"}},   # 제어 문자
     ]
     for body in cases:
         response = await _post(_StubUseCase(), body)
         assert (response.status_code, response.json()["code"]) == (422, "VALIDATION_ERROR"), body
+
+
+async def test_메모의_개행은_허용된다():
+    stub = _StubUseCase()
+    body = {"customer": {**CUSTOMER_BODY, "memo": "1차\n2차"}, "pet": PET_BODY}
+    response = await _post(stub, body)
+    assert response.status_code == 201
+    assert stub.commands[0].customer.memo == "1차\n2차"

@@ -2,27 +2,45 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from functools import partial
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StrictBool, StringConstraints
+from pydantic import AfterValidator, BaseModel, Field, StrictBool, StringConstraints
 
+from customer.adapter.inbound.api.schemas.text_validators import reject_control_chars
 from customer.app.dtos.customer_input_dto import CustomerInput, PetInput
 from customer.domain.value_objects.condition_entry import ConditionEntry
 
-Required50 = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
+_NoControlChars = AfterValidator(reject_control_chars)
+# 메모만 개행을 허용한다.
+_NoControlCharsAllowNewline = AfterValidator(partial(reject_control_chars, allow_newline=True))
+
+Required50 = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50), _NoControlChars
+]
 
 # 앞뒤 공백을 없앤 선택 문자열. 빈 문자열은 to_input 이 None 으로 바꾼다.
-Optional20 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=20)] | None
-Optional30 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)] | None
-Optional100 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)] | None
-Optional500 = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None
+Optional20 = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=20), _NoControlChars
+] | None
+Optional30 = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=30), _NoControlChars
+] | None
+Optional100 = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=100), _NoControlChars
+] | None
+Optional500 = Annotated[
+    str, StringConstraints(strip_whitespace=True, max_length=500), _NoControlCharsAllowNewline
+] | None
 
 
 class CustomerFieldsSchema(BaseModel):
     """보호자 폼. 전화번호는 하이픈을 넣어 보내도 되고, 서버가 숫자만 남겨 검증한다."""
 
     name: Required50
-    phone: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+    phone: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20), _NoControlChars
+    ]
     phone_alt: Optional20 = None
     marketing_consent: StrictBool
     memo: Optional500 = None
@@ -35,7 +53,7 @@ class CustomerFieldsSchema(BaseModel):
 
 
 class ConditionSchema(BaseModel):
-    type_code: Annotated[str, StringConstraints(min_length=1, max_length=30)]
+    type_code: Annotated[str, StringConstraints(min_length=1, max_length=30), _NoControlChars]
     custom_label: Optional30 = None
     note: Optional100 = None
 
