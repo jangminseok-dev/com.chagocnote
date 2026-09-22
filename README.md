@@ -18,6 +18,7 @@
     bash ../backend/scripts/check_auth_flow.sh                                      # 로그인 흐름 확인
     bash ../backend/scripts/check_shop_flow.sh                                      # 매장 개설·합류 흐름 확인
     bash ../backend/scripts/check_account_flow.sh                                   # 회원 탈퇴 흐름 확인
+    bash ../backend/scripts/check_customer_flow.sh                                  # 고객·반려동물 흐름 확인
 
 개발 환경에서는 제공자 `dev`로 이름만 넣어 로그인한다. 운영자는 `docker compose run --rm backend python scripts/grant_operator.py <user_id>`로 지정한다.
 
