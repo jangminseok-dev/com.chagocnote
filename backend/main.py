@@ -18,6 +18,13 @@ from auth.dependencies.check_operator_provider import get_check_operator_use_cas
 from auth.dependencies.get_user_profiles_provider import get_get_user_profiles_use_case
 from auth.dependencies.guard_active_user_provider import get_guard_active_user_use_case
 from auth.dependencies.hub_ports import get_membership_directory
+from customer.adapter.inbound.api.error_map import CUSTOMER_ERROR_STATUS
+from customer.adapter.inbound.api.v1.customer_myself_router import customer_myself_router
+from customer.adapter.inbound.api.v1.get_customer_router import get_customer_router
+from customer.adapter.inbound.api.v1.get_pet_router import get_pet_router
+from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
+    list_pet_condition_types_router,
+)
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -59,8 +66,18 @@ app.include_router(get_shop_router)
 app.include_router(update_shop_router)
 app.include_router(platform_myself_router)
 app.include_router(create_shop_router)
+# customer — /customers/myself 와 /customers/lookup 은 /customers/{customer_id} 보다 먼저 붙인다.
+# 늦게 붙이면 {customer_id} 가 먼저 걸려 정수 변환 실패(422)가 된다.
+app.include_router(customer_myself_router)
+app.include_router(get_customer_router)
+app.include_router(get_pet_router)
+app.include_router(list_pet_condition_types_router)
 install_error_handlers(
-    app, {**AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS}
+    app,
+    {
+        **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
+        **CUSTOMER_ERROR_STATUS,
+    },
 )
 
 # 허브 포트 조립 — 스포크끼리는 서로를 모른다. 소비하는 쪽의 "자리"에 구현하는 쪽의 프로바이더를 꽂는다.
