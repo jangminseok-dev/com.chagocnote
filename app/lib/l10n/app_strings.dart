@@ -187,6 +187,18 @@ class AppStrings {
   static const dogBreeds = ['말티즈', '푸들', '포메라니안', '비숑', '시츄', '요크셔테리어', '치와와', '믹스'];
   static const catBreeds = ['코리안 숏헤어', '러시안 블루', '페르시안', '브리티시 숏헤어', '스코티시 폴드', '믹스'];
 
+  static const ownerNameHint = '예: 김민지, 콩이 보호자';
+  static const phoneHint = '예: 010-1234-5678';
+  static const phoneAltHint = '보조 연락처 (선택)';
+  static const customerMemoHint = '메모 (선택)';
+  static const ownerNameRequired = '이름을 입력해 주세요.';
+  static const phoneInvalid = '전화번호를 확인해 주세요.';
+  static const phoneAltInvalid = '보조 연락처를 확인해 주세요.';
+  static const consentRequired = '마케팅 수신 동의 여부를 골라 주세요.';
+  static const editOwnerTitle = '보호자 수정';
+  static const deleteCustomer = '고객 삭제';
+  static const deleteCustomerConfirm = '고객을 삭제할까요? 보호자의 이름·전화번호·메모와 반려동물의 이름·질병 기록이 지워지고 되돌릴 수 없습니다.';
+
   static String speciesLabel(String species) => switch (species) {
         'dog' => speciesDog,
         'cat' => speciesCat,
