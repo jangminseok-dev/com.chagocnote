@@ -10,7 +10,7 @@ import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
-import '../../../design/widgets/app_glass_card.dart';
+import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/api/social_sign_in.dart';
@@ -175,7 +175,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                 for (final provider in identities)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: AppGlassCard(
+                    child: AppCard(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

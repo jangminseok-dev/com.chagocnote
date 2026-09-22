@@ -9,8 +9,8 @@ import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
+import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
-import '../../../design/widgets/app_glass_card.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
@@ -235,7 +235,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                               ? () => _openMemberActions(member)
                               : null,
                           semanticLabel: member.displayName,
-                          child: AppGlassCard(
+                          child: AppCard(
                             child: Row(
                               children: [
                                 AppPhotoTile(

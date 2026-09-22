@@ -7,8 +7,8 @@ import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
+import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
-import '../../../design/widgets/app_glass_card.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../state/session.dart';
@@ -51,7 +51,7 @@ class ShopSelectScreen extends ConsumerWidget {
                           .selectShop(shop.shopId);
                       if (context.mounted) context.go('/home');
                     },
-                    child: AppGlassCard(
+                    child: AppCard(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

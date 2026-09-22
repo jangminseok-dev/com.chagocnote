@@ -22,6 +22,10 @@ abstract final class AppColors {
   /// 사진 테두리·글래스 채움·FAB 아이콘에만 쓰는 흰색.
   static const white = Color(0xFFFFFFFF);
 
+  /// 시트 뒤에 까는 옅은 막(검정 26%). 뒤 화면이 비치되 시트의 흰 면과
+  /// 또렷이 구분될 만큼만 어둡게 한다.
+  static const scrim = Color(0x42000000);
+
   /// 배경에 쓰는 세로 방향 그라데이션.
   static const backgroundGradient = LinearGradient(
     begin: Alignment.topCenter,

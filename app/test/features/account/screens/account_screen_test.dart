@@ -9,7 +9,7 @@ import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
-import 'package:chagocnote/design/widgets/app_glass_card.dart';
+import 'package:chagocnote/design/widgets/app_card.dart';
 import 'package:chagocnote/features/auth/api/social_sign_in.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
@@ -45,7 +45,7 @@ String _labelFor(String provider) => switch (provider) {
 Finder _unlinkRowButton(String provider) => find.descendant(
       of: find.ancestor(
         of: find.text(_labelFor(provider)),
-        matching: find.byType(AppGlassCard),
+        matching: find.byType(AppCard),
       ),
       matching: find.text(AppStrings.unlink),
     );
