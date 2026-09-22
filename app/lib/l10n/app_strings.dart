@@ -150,6 +150,43 @@ class AppStrings {
 
   static String petCountText(int count) => '$count마리';
 
+  static const petNameLabel = '이름';
+  static const speciesLabelText = '종류';
+  static const breedLabel = '품종';
+  static const sexLabelText = '성별';
+  static const neuteredYes = '중성화 했어요';
+  static const neuteredNo = '안 했어요';
+  static const ageLabel = '나이';
+  static const ageByBirthDate = '생일';
+  static const ageByBirthYear = '태어난 해';
+  static const birthDateHint = 'YYYY.MM.DD';
+  static const birthYearHint = '예: 2021';
+  static const weightHint = '예: 3.2';
+  static const weightUnit = 'kg';
+  static const conditionsLabel = '질병';
+  static const conditionOther = '기타';
+  static const conditionOtherHint = '질병 이름';
+  static const conditionNoteHint = '메모 (선택)';
+  static const removeCondition = '이 질병 빼기';
+  static const petMemoHint = '특이사항 (선택)';
+  static const petNameRequired = '이름을 입력해 주세요.';
+  static const speciesRequired = '종류를 골라 주세요.';
+  static const breedRequired = '품종을 입력해 주세요.';
+  static const sexRequired = '성별을 골라 주세요.';
+  static const neuteredRequired = '중성화 여부를 골라 주세요.';
+  static const ageRequired = '생일·태어난 해·모름 중 하나를 골라 주세요.';
+  static const birthDateInvalid = '생일을 YYYY.MM.DD 로 입력해 주세요(오늘까지, 40년 전부터).';
+  static const birthYearInvalid = '태어난 해를 확인해 주세요(올해까지, 40년 전부터).';
+  static const weightInvalid = '몸무게를 kg 으로 입력해 주세요(예: 3.2).';
+  static const healthRequired = '질병을 고르거나 "질병 없음"을 눌러 주세요.';
+  static const otherLabelRequired = '기타 질병의 이름을 입력해 주세요.';
+  static const addPetTitle = '반려동물 추가';
+  static const editPetTitle = '반려동물 수정';
+
+  /// 품종 입력 칸 아래에 보이는 추천(누르면 채운다).
+  static const dogBreeds = ['말티즈', '푸들', '포메라니안', '비숑', '시츄', '요크셔테리어', '치와와', '믹스'];
+  static const catBreeds = ['코리안 숏헤어', '러시안 블루', '페르시안', '브리티시 숏헤어', '스코티시 폴드', '믹스'];
+
   static String speciesLabel(String species) => switch (species) {
         'dog' => speciesDog,
         'cat' => speciesCat,

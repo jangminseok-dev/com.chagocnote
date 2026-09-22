@@ -11,6 +11,7 @@ import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/state/session.dart';
 import '../../features/auth/state/session_controller.dart';
 import '../../features/customer/screens/pet_detail_screen.dart';
+import '../../features/customer/screens/pet_form_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/shop/screens/members_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
@@ -105,6 +106,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/pets/:petId',
         builder: (context, state) => PetDetailScreen(
           petId: int.parse(state.pathParameters['petId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/pets/:petId/edit',
+        builder: (context, state) => PetFormScreen.edit(
+          petId: int.parse(state.pathParameters['petId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/customers/:customerId/pets/new',
+        builder: (context, state) => PetFormScreen.add(
+          customerId: int.parse(state.pathParameters['customerId']!),
         ),
       ),
     ],
