@@ -108,6 +108,20 @@ class ApiClient {
     } on ApiException catch (refreshError) {
       handler.reject(err.copyWith(error: refreshError));
       return;
+    } catch (_) {
+      // 갱신 응답이 예상과 다르면(200 인데 토큰이 없는 본문 등) 여기로 온다.
+      // 이것도 잡아 요청을 끝낸다 — 놓치면 요청이 끝나지 않거나 응답 없는
+      // 오류(NETWORK)로 잘못 보인다.
+      handler.reject(
+        err.copyWith(
+          error: ApiException(
+            statusCode: null,
+            code: 'HTTP_ERROR',
+            message: '갱신 응답을 처리할 수 없습니다.',
+          ),
+        ),
+      );
+      return;
     }
 
     options.extra['_retried'] = true;
@@ -158,20 +172,9 @@ class ApiClient {
         data: {'refresh_token': refreshToken},
       );
       final body = response.data!;
-      // 갱신이 오가는 동안 다른 경로(로그아웃, 해제, 탈퇴 등)로 이 기기의
-      // 세션이 이미 끝났을 수 있다. 그 경우 저장소의 리프레시 토큰은 이번
-      // 갱신에 쓴 토큰과 달라져(대개 null로) 있다. 이를 보지 않고 새 토큰을
-      // 저장하면 이미 끝난 세션이 되살아난다 — 저장하지 않는다. 세션을
-      // 끝낸 쪽이 onSessionEnded 를 이미 불렀을 것이므로 여기서는 다시
-      // 부르지 않고, 원 요청도 재시도하지 않는다.
-      final currentRefresh = await _tokenStore.readRefresh();
-      if (currentRefresh != refreshToken) {
-        throw ApiException(
-          statusCode: 401,
-          code: 'UNAUTHENTICATED',
-          message: '갱신 중 세션이 종료되었습니다.',
-        );
-      }
+      // 갱신이 오가는 동안 다른 경로가 저장소를 바꿨으면 이 응답은 저장하지
+      // 않는다(실패 갈래와 같은 규칙 — [_storeChangedDuringRefresh]).
+      if (await _storeChangedDuringRefresh(refreshToken)) return;
       await _tokenStore.save(
         access: body['access_token'] as String,
         refresh: body['refresh_token'] as String,
@@ -190,23 +193,47 @@ class ApiClient {
       // 이 갱신이 오가는 동안 다른 경로(로그인 수단 해제 등)가 이미 새
       // 토큰을 저장했을 수 있다(fix round 1 — Task 12 검토에서 드러남).
       // 그 경우 이 갱신의 실패는 이미 죽은 옛 리프레시 토큰에 대한
-      // 것일 뿐, 이 기기의 세션은 그 다른 경로가 저장한 새 토큰으로
-      // 이미 살아 있다. 비교 없이 지우면 방금 끝난 다른 작업이 만든
-      // 세션을 도로 로그아웃시키는 꼴이 된다. 지우지도, 세션 종료를
-      // 알리지도 않고 이 죽은 갱신 시도만 조용히 끝낸다 — 아직 재시도
-      // 전인 원 요청은 (호출부의 기존 로직대로) 저장소의 새 액세스
-      // 토큰으로 한 번 재시도된다.
-      final currentRefresh = await _tokenStore.readRefresh();
-      if (currentRefresh != refreshToken) {
-        return;
-      }
+      // 것일 뿐이다. 비교 없이 지우면 방금 끝난 다른 작업이 만든 세션을
+      // 도로 로그아웃시키는 꼴이 된다([_storeChangedDuringRefresh]).
+      if (await _storeChangedDuringRefresh(refreshToken)) return;
 
       // 서버가 거절했거나(401·403, 재사용 감지 포함) 처리 중 실패했다(500 — 토큰이 이미
       // 소모됐을 수 있다). 이 기기의 토큰을 버리고 세션 종료를 알린다.
       await _tokenStore.clear();
       _onSessionEnded?.call();
-      throw apiError;
+      // 이 401(또는 403·500)은 원 요청이 처리됐다는 뜻이 아니라 세션이
+      // 끝났다는 뜻이다 — 호출부(예: 탈퇴)가 구분할 수 있게 표시한다.
+      throw ApiException(
+        statusCode: apiError.statusCode,
+        code: apiError.code,
+        message: apiError.message,
+        sessionEnded: true,
+      );
     }
+  }
+
+  /// 갱신 응답(성공이든 실패든)을 받은 뒤, 그사이 다른 경로가 저장소를
+  /// 바꿨는지 본다. 두 갈래가 같은 규칙을 쓴다(최종 검토 E).
+  ///
+  /// - 저장소의 리프레시 토큰이 `null` 이면 다른 경로(로그아웃·탈퇴·다른
+  ///   요청의 갱신 실패)가 세션을 이미 끝냈다. 새 토큰을 저장하면 끝난
+  ///   세션이 되살아나고, 재시도하면 헤더 없는 요청이 나간다. UNAUTHENTICATED
+  ///   를 던진다 — 세션을 끝낸 쪽이 이미 알렸으므로 onSessionEnded 는 부르지
+  ///   않는다.
+  /// - 갱신에 쓴 값과 다른 토큰이 있으면 다른 경로(해제 등)가 새 토큰을
+  ///   저장했다. 저장도 삭제도 하지 않고 `true` 를 돌려준다 — 원 요청은
+  ///   호출부에서 저장소의 새 액세스 토큰으로 한 번 재시도된다.
+  /// - 그대로면 `false`.
+  Future<bool> _storeChangedDuringRefresh(String usedRefreshToken) async {
+    final currentRefresh = await _tokenStore.readRefresh();
+    if (currentRefresh == null) {
+      throw ApiException(
+        statusCode: 401,
+        code: 'UNAUTHENTICATED',
+        message: '갱신 중 세션이 종료되었습니다.',
+      );
+    }
+    return currentRefresh != usedRefreshToken;
   }
 
   ApiException _toApiException(DioException e) {

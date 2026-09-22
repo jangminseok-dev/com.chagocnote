@@ -5,9 +5,10 @@ import '../../auth/state/social_sign_ins.dart';
 import 'account_controller.dart';
 import 'reauth.dart';
 
-/// 탈퇴 화면의 동작을 담당한다. `AccountApi.withdraw`가 204/401을 모두
-/// 성공으로 취급하므로, 이 메서드가 던지지 않고 끝나면 곧 탈퇴가 끝난
-/// 것이다 — 세션을 로컬에서만 정리한다. 서버가 추가 확인을 요구하면
+/// 탈퇴 화면의 동작을 담당한다. `AccountApi.withdraw`가 204와 갱신 없이 온
+/// 401을 성공으로 취급하므로, 이 메서드가 던지지 않고 끝나면 곧 탈퇴가 끝난
+/// 것이다 — 세션을 로컬에서만 정리한다. 갱신까지 실패해 세션이 끝난 401은
+/// `sessionEnded` 예외로 그대로 올라가고, 여기서 완료 처리를 하지 않는다. 서버가 추가 확인을 요구하면
 /// (매장 함께 닫기 등) 화면이 오류 코드를 보고 [confirmCloseShops]를 담아
 /// 다시 부른다.
 class WithdrawController extends Notifier<AsyncValue<void>> {

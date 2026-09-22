@@ -73,6 +73,12 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
       if (mounted) setState(() => _busy = false);
     } on ApiException catch (e) {
       if (!mounted) return;
+      // 갱신까지 실패해 세션이 끝났다(최종 검토 B). 탈퇴 실패 문구를 띄우지
+      // 않는다 — 라우터가 로그인 화면과 만료 띠로 보낸다.
+      if (e.sessionEnded) {
+        setState(() => _busy = false);
+        return;
+      }
       if (e.code == 'SHOP_CLOSE_CONFIRM_REQUIRED') {
         setState(() => _busy = false);
         final confirmed = await _confirmShopClose();

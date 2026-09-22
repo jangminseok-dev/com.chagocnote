@@ -32,9 +32,10 @@ class AccountApi {
     return (data['identities'] as List).cast<String>();
   }
 
-  /// 회원 탈퇴. 경합하는 두 번째 요청이 401을 받는 것도(이미 다른 요청이
-  /// 탈퇴를 완료시킨 것) 성공으로 취급한다(S12) — 그 외 오류는 그대로
-  /// 던진다.
+  /// 회원 탈퇴. 경합하는 두 번째 요청이 갱신 없이 401을 받는 것은(이미 다른
+  /// 요청이 탈퇴를 완료시킨 것) 성공으로 취급한다(S12). 갱신까지 실패해
+  /// `ApiClient`가 세션을 끝낸 401(`sessionEnded`)은 탈퇴 완료가 아니라 세션
+  /// 만료이므로 그대로 던진다(최종 검토 B) — 그 외 오류도 그대로 던진다.
   Future<void> withdraw({bool confirmCloseShops = false}) async {
     try {
       await _client.delete(
@@ -42,7 +43,7 @@ class AccountApi {
         data: confirmCloseShops ? {'confirm_close_shops': true} : null,
       );
     } on ApiException catch (e) {
-      if (e.statusCode == 401) return;
+      if (e.statusCode == 401 && !e.sessionEnded) return;
       rethrow;
     }
   }

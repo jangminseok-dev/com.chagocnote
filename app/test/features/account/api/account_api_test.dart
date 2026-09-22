@@ -174,15 +174,38 @@ void main() {
       await expectLater(api.withdraw(), completes);
     });
 
-    test('401 은 이미 완료된 탈퇴로 보고 정상 종료한다(S12)', () async {
+    test('갱신 없이 온 401(리프레시 토큰 없음)은 이미 완료된 탈퇴로 보고 정상 종료한다(S12)', () async {
       final api = _build(
         (options, body) => const FakeResponse(
           statusCode: 401,
           data: {'code': 'UNAUTHENTICATED', 'message': '이미 탈퇴됨'},
         ),
+        tokenStore: MemoryTokenStore(),
       );
 
       await expectLater(api.withdraw(), completes);
+    });
+
+    test('갱신까지 401 로 실패해 세션이 끝난 401 은 완료가 아니라 그대로 던진다(최종 검토 B)', () async {
+      final store = MemoryTokenStore()
+        ..save(access: 'old-access', refresh: 'old-refresh');
+      final api = _build(
+        (options, body) => const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '거절'},
+        ),
+        tokenStore: store,
+      );
+
+      await expectLater(
+        api.withdraw(),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.statusCode, 'statusCode', 401)
+              .having((e) => e.sessionEnded, 'sessionEnded', isTrue),
+        ),
+      );
+      expect(await store.readRefresh(), isNull);
     });
 
     test('409 OWNERSHIP_TRANSFER_REQUIRED 는 그대로 던진다', () async {

@@ -65,6 +65,34 @@ final Finder _submitButton = find.byWidgetPredicate(
   return (container: container, adapter: adapter);
 }
 
+/// 진짜 리프레시 토큰이 든 저장소로 구성한다 — 갱신이 실제로 나가는 경로를
+/// 볼 때 쓴다.
+({ProviderContainer container, FakeHttpClientAdapter adapter}) _setUpWithStore(
+  FakeSessionGateway gateway,
+  TokenStore tokenStore,
+  FakeHandler handle,
+) {
+  final adapter = FakeHttpClientAdapter(handle);
+  final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
+  final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
+  final container = ProviderContainer.test(
+    retry: (retryCount, error) => null,
+    overrides: [
+      sessionGatewayProvider.overrideWithValue(gateway),
+      tokenStoreProvider.overrideWithValue(tokenStore),
+      apiClientProvider.overrideWith(
+        (ref) => ApiClient(
+          tokenStore: tokenStore,
+          dio: dio,
+          refreshDio: refreshDio,
+          onSessionEnded: ref.read(sessionEndedSignalProvider).fire,
+        ),
+      ),
+    ],
+  );
+  return (container: container, adapter: adapter);
+}
+
 Widget _appWith(ProviderContainer container) {
   return UncontrolledProviderScope(
     container: container,
@@ -157,53 +185,70 @@ void main() {
   });
 
   testWidgets(
-    '리프레시 토큰이 있어 endSession 이 실제로 먼저 불려도, clearLocal() 이 오래 걸리는 동안 '
-    '만료 배너 없이 이미 로그인 화면이다(fix round 1 — S12 순서 판정)',
+    '탈퇴 401 → 갱신도 401 이면 탈퇴 완료가 아니라 세션 만료다 — 만료 띠가 보이고 '
+    'completeWithdrawal 을 부르지 않는다(최종 검토 B)',
+    (tester) async {
+      final gateway = FakeSessionGateway()..meOnRestore = _me(['apple']);
+      final tokenStore = MemoryTokenStore();
+      await tokenStore.save(access: 'access-1', refresh: 'refresh-1');
+      final setup = _setUpWithStore(
+        gateway,
+        tokenStore,
+        (options, body) => const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '거절'},
+        ),
+      );
+      addTearDown(setup.container.dispose);
+
+      await _openWithdrawScreen(tester, setup.container);
+      await tester.tap(find.text(AppStrings.withdrawConfirmCheckbox));
+      await tester.pumpAndSettle();
+      await tester.tap(_submitButton);
+      await tester.pumpAndSettle();
+
+      // DELETE /v1/auth/account 401 → 갱신(진짜 리프레시 토큰이 있으므로
+      // 실제로 나간다)도 401 → ApiClient 가 토큰을 지우고 endSession() 이
+      // SignedOut(sessionExpired: true)를 세운다. 탈퇴 경로는 이 상태를
+      // 덮어쓰지 않는다.
+      expect(
+        setup.adapter.requests.where((r) => r.path == '/v1/auth/refresh'),
+        hasLength(1),
+      );
+      expect(find.byKey(ScreenKeys.login), findsOneWidget);
+      expect(find.text(AppStrings.sessionExpiredBanner), findsOneWidget);
+      expect(gateway.clearLocalCalled, isFalse);
+      expect(
+        setup.container.read(sessionControllerProvider).value,
+        isA<SignedOut>().having((s) => s.sessionExpired, 'sessionExpired', isTrue),
+      );
+    },
+  );
+
+  testWidgets(
+    '204 경로에서 clearLocal() 이 오래 걸려도 그동안 이미 로그인 화면이다 — '
+    'completeWithdrawal 이 상태를 먼저 바꾼다(fix round 1 — S12 순서 판정)',
     (tester) async {
       final gateway = FakeSessionGateway()..meOnRestore = _me(['apple']);
       final clearLocalGate = Completer<void>();
       gateway.clearLocalGate = clearLocalGate;
       final tokenStore = MemoryTokenStore();
       await tokenStore.save(access: 'access-1', refresh: 'refresh-1');
-      final adapter = FakeHttpClientAdapter(
-        (options, body) => const FakeResponse(
-          statusCode: 401,
-          data: {'code': 'UNAUTHENTICATED', 'message': '이미 탈퇴됨'},
-        ),
+      final setup = _setUpWithStore(
+        gateway,
+        tokenStore,
+        (options, body) => const FakeResponse(statusCode: 204),
       );
-      final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
-      final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
-      final container = ProviderContainer.test(
-        retry: (retryCount, error) => null,
-        overrides: [
-          sessionGatewayProvider.overrideWithValue(gateway),
-          tokenStoreProvider.overrideWithValue(tokenStore),
-          apiClientProvider.overrideWith(
-            (ref) => ApiClient(
-              tokenStore: tokenStore,
-              dio: dio,
-              refreshDio: refreshDio,
-              onSessionEnded: ref.read(sessionEndedSignalProvider).fire,
-            ),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+      addTearDown(setup.container.dispose);
 
-      await _openWithdrawScreen(tester, container);
+      await _openWithdrawScreen(tester, setup.container);
       await tester.tap(find.text(AppStrings.withdrawConfirmCheckbox));
       await tester.pumpAndSettle();
       await tester.tap(_submitButton);
 
-      // DELETE /v1/auth/account 가 401 → 갱신 시도(진짜 리프레시 토큰이
-      // 있으므로 실제로 나간다) → 갱신도 401 → tokenStore.clear() +
-      // onSessionEnded() → endSession() 이 SignedOut(sessionExpired: true)를
-      // 세운다. 그 뒤 AccountApi.withdraw 가 401을 삼키고 completeWithdrawal()
-      // 이 state를 SignedOut()으로 먼저 덮어쓴 다음에야 clearLocal()을
-      // 부르는데, 여기서는 그 clearLocal()이 게이트에 막혀 끝나지 않는다.
-      // 즉 지금 이 시점에는 위 연쇄가 이미 다 일어났고 completeWithdrawal()의
-      // clearLocal() 호출에서 멈춰 있어야 한다 — state는 이미 SignedOut()
-      // (만료 아님)이어야 한다.
+      // 실기기의 clearLocal() 은 플랫폼 채널 I/O 라 수~수십 ms 걸린다. 여기서는
+      // 게이트에 막혀 끝나지 않는다 — 그래도 state 는 이미 SignedOut() 이라
+      // 라우터가 로그인 화면으로 보냈어야 한다.
       await tester.pumpAndSettle();
       expect(gateway.clearLocalCalled, isTrue);
       expect(find.byKey(ScreenKeys.login), findsOneWidget);

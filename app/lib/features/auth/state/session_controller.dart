@@ -121,14 +121,13 @@ class SessionController extends AsyncNotifier<Session> {
   /// 회원 탈퇴 완료 처리. 계정이 이미 사라졌으므로 서버에 통보하지 않고
   /// 로컬 토큰·설정만 지운다. `sessionExpired`는 세우지 않는다 — 탈퇴
   /// 직후에 "보안을 위해 다시 로그인해 주세요" 배너를 보여주는 건 맞지
-  /// 않다(401 경로에서는 이미 `endSession()`이 먼저 불렸을 수 있어서, 이
-  /// 메서드가 그 상태를 덮어써야 한다).
+  /// 않다. (갱신까지 실패해 `endSession()`이 세션을 끝낸 401은 탈퇴 완료가
+  /// 아니므로 이 메서드까지 오지 않는다 — 최종 검토 B.)
   ///
   /// (fix round 1 — Task 13 검토) `state`를 먼저 덮어쓴 뒤에 `clearLocal()`을
   /// 부른다. 실기기의 `clearLocal()`은 flutter_secure_storage·SharedPreferences
-  /// 플랫폼 채널 I/O라 수~수십 ms 걸린다 — 그 사이 프레임이 그려지면
-  /// `endSession()`이 먼저 세운 `sessionExpired: true`가 화면에 보일 수
-  /// 있다. `state`를 먼저 바꿔 두면 그 창이 아예 없다.
+  /// 플랫폼 채널 I/O라 수~수십 ms 걸린다 — 그동안 이미 탈퇴한 계정의 화면이
+  /// 남아 있지 않도록 `state`를 먼저 바꿔 둔다.
   Future<void> completeWithdrawal() async {
     state = const AsyncData(SignedOut());
     await _gateway.clearLocal();

@@ -542,6 +542,183 @@ void main() {
     });
   });
 
+  group('리프레시 — 최종 검토 수정', () {
+    test(
+        '갱신 200 이 오는 동안 다른 경로가 새 토큰을 저장했으면, 갱신 응답을 저장하지 않고 '
+        '원 요청을 새 토큰으로 한 번 재시도한다(E)', () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'refresh-1');
+      var sessionEndedCalls = 0;
+      final refreshRequested = Completer<void>();
+      final refreshGate = Completer<void>();
+      final adapter = FakeHttpClientAdapter((options, body) async {
+        if (options.path == '/v1/auth/refresh') {
+          refreshRequested.complete();
+          await refreshGate.future;
+          return const FakeResponse(
+            statusCode: 200,
+            data: {
+              'access_token': 'refreshed-access',
+              'refresh_token': 'refreshed-refresh',
+              'token_type': 'bearer',
+              'expires_in': 3600,
+            },
+          );
+        }
+        final auth = options.headers['Authorization'];
+        if (auth == 'Bearer other-access') {
+          return const FakeResponse(statusCode: 200, data: {'ok': true});
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(
+        tokenStore: tokenStore,
+        adapter: adapter,
+        onSessionEnded: () => sessionEndedCalls++,
+      );
+
+      final pending = client.get('/protected');
+      await refreshRequested.future;
+      // 다른 경로(로그인 수단 해제 등)가 갱신 응답보다 먼저 새 토큰을 저장한다.
+      await tokenStore.save(access: 'other-access', refresh: 'other-refresh');
+      refreshGate.complete();
+
+      final result = await pending;
+
+      expect(result, {'ok': true});
+      expect(sessionEndedCalls, 0);
+      expect(await tokenStore.readAccess(), 'other-access');
+      expect(await tokenStore.readRefresh(), 'other-refresh');
+      final protectedRequests =
+          adapter.requests.where((r) => r.path == '/protected').toList();
+      expect(protectedRequests, hasLength(2));
+      expect(
+        protectedRequests.last.headers['Authorization'],
+        'Bearer other-access',
+      );
+    });
+
+    test(
+        '갱신이 401 로 끝나는 동안 다른 경로가 세션을 끝냈으면(저장소 null) 헤더 없는 재시도를 '
+        '보내지 않고 UNAUTHENTICATED 로 끝난다(E)', () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'refresh-1');
+      var sessionEndedCalls = 0;
+      final refreshRequested = Completer<void>();
+      final refreshGate = Completer<void>();
+      final adapter = FakeHttpClientAdapter((options, body) async {
+        if (options.path == '/v1/auth/refresh') {
+          refreshRequested.complete();
+          await refreshGate.future;
+          return const FakeResponse(
+            statusCode: 401,
+            data: {'code': 'UNAUTHENTICATED', 'message': '리프레시 토큰 재사용 탐지'},
+          );
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(
+        tokenStore: tokenStore,
+        adapter: adapter,
+        onSessionEnded: () => sessionEndedCalls++,
+      );
+
+      final pending = client.get('/protected');
+      await refreshRequested.future;
+      await tokenStore.clear();
+      refreshGate.complete();
+
+      await expectLater(
+        pending,
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'UNAUTHENTICATED')
+              .having((e) => e.sessionEnded, 'sessionEnded', isFalse),
+        ),
+      );
+      expect(sessionEndedCalls, 0, reason: '세션을 끝낸 쪽이 이미 알렸다');
+      expect(
+        adapter.requests.where((r) => r.path == '/protected'),
+        hasLength(1),
+        reason: '헤더 없는 재시도가 나가면 안 된다',
+      );
+    });
+
+    test('갱신이 401 로 세션을 끝내면 원 요청의 예외에 sessionEnded 가 실린다(B)', () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'refresh-1');
+      final adapter = FakeHttpClientAdapter((options, body) {
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '거절'},
+        );
+      });
+      final client = _buildClient(tokenStore: tokenStore, adapter: adapter);
+
+      await expectLater(
+        client.get('/protected'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.statusCode, 'statusCode', 401)
+              .having((e) => e.sessionEnded, 'sessionEnded', isTrue),
+        ),
+      );
+    });
+
+    test('갱신 없이 끝난 401(리프레시 토큰 없음)은 sessionEnded 가 false 다(B)', () async {
+      final adapter = FakeHttpClientAdapter((options, body) {
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '거절'},
+        );
+      });
+      final client = _buildClient(tokenStore: MemoryTokenStore(), adapter: adapter);
+
+      await expectLater(
+        client.get('/protected'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.statusCode, 'statusCode', 401)
+              .having((e) => e.sessionEnded, 'sessionEnded', isFalse),
+        ),
+      );
+    });
+
+    test('갱신이 200 인데 본문에 토큰이 없으면 원 요청이 오류로 끝난다(F1 — 영원히 걸리지 않는다)',
+        () async {
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'expired', refresh: 'refresh-1');
+      final adapter = FakeHttpClientAdapter((options, body) {
+        if (options.path == '/v1/auth/refresh') {
+          return const FakeResponse(statusCode: 200, data: {'unexpected': true});
+        }
+        return const FakeResponse(
+          statusCode: 401,
+          data: {'code': 'UNAUTHENTICATED', 'message': '토큰이 만료되었습니다.'},
+        );
+      });
+      final client = _buildClient(tokenStore: tokenStore, adapter: adapter);
+
+      // dio 5.11 은 인터셉터 안의 비동기 예외를 스스로 붙잡지만, 그 결과는
+      // 응답 없는 오류라 NETWORK 로 보인다(사용자에게 "연결을 확인하세요"가
+      // 뜬다). ApiClient 가 직접 잡아 HTTP_ERROR 로 끝내야 한다.
+      await expectLater(
+        client.get('/protected').timeout(const Duration(seconds: 2)),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.code, 'code', 'HTTP_ERROR')
+              .having((e) => e.sessionEnded, 'sessionEnded', isFalse),
+        ),
+      );
+    });
+  });
+
   group('에러 바디 파싱', () {
     test('{code,message} JSON 바디는 그대로 ApiException으로 파싱된다', () async {
       final adapter = FakeHttpClientAdapter((options, body) {

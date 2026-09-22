@@ -10,6 +10,7 @@ class ApiException implements Exception {
     required this.statusCode,
     required this.code,
     required this.message,
+    this.sessionEnded = false,
   });
 
   /// 네트워크 오류(연결 실패, 타임아웃)를 나타내는 [ApiException]을 만든다.
@@ -78,6 +79,11 @@ class ApiException implements Exception {
   final int? statusCode;
   final String code;
   final String message;
+
+  /// `ApiClient` 가 이 요청의 갱신 실패(서버 거절·처리 실패)를 보고 이 기기의
+  /// 세션을 끝냈으면 true. 그때의 401 은 "요청이 이미 처리됐다"가 아니라
+  /// "세션이 만료됐다"는 뜻이다 — 예를 들어 탈퇴는 이 401 을 완료로 보지 않는다.
+  final bool sessionEnded;
 
   bool get isNetwork => code == 'NETWORK';
 
