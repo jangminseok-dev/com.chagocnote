@@ -1,3 +1,6 @@
+import base64
+import json
+
 import pytest
 from sqlalchemy import text
 
@@ -154,3 +157,20 @@ async def test_다른_정렬의_커서는_VALIDATION_ERROR_다(db_session):
     recent = await _find(db_session, "", sort="recent", limit=1)
     with pytest.raises(CustomerInputError):
         await _find(db_session, "", sort="name", cursor=recent.next_cursor)
+
+
+def _forged_cursor(key, customer_id) -> str:
+    """정상 흐름으로는 만들 수 없는 값을 담은 커서 — 조작을 흉내 낸다."""
+    raw = json.dumps(["name", key, customer_id]).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+@pytest.mark.parametrize("customer_id", [0, -1, 2**63])
+async def test_customer_id가_bigint_범위를_벗어난_커서는_VALIDATION_ERROR_다(db_session, customer_id):
+    with pytest.raises(CustomerInputError):
+        await _find(db_session, "", sort="name", cursor=_forged_cursor("김민지", customer_id))
+
+
+async def test_key에_NUL이_있는_커서는_VALIDATION_ERROR_다(db_session):
+    with pytest.raises(CustomerInputError):
+        await _find(db_session, "", sort="name", cursor=_forged_cursor("김민\x00지", 1))

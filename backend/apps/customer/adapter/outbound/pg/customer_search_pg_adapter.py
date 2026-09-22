@@ -34,7 +34,13 @@ def _decode_cursor(cursor: str, sort: SortKey) -> tuple[str | datetime, int]:
     try:
         raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
         cursor_sort, key, customer_id = json.loads(raw)
-        if cursor_sort != sort or not isinstance(key, str) or type(customer_id) is not int:
+        if (
+            cursor_sort != sort
+            or not isinstance(key, str)
+            or "\x00" in key
+            or type(customer_id) is not int
+            or not (1 <= customer_id <= 2**63 - 1)
+        ):
             raise ValueError
         return (datetime.fromisoformat(key) if sort == "recent" else key), customer_id
     except (ValueError, TypeError, binascii.Error, UnicodeDecodeError):
