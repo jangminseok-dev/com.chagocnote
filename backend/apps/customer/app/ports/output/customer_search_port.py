@@ -1,0 +1,31 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from customer.app.dtos.customer_search_dto import SearchPage, SearchRequest
+from customer.domain.services.search_terms import SearchWord
+from hub.app.dtos.shop_context import ShopContext
+
+
+class CustomerSearchPort(ABC):
+    """가족 단위 검색. 지금 구현은 PostgreSQL(pg_trgm)이고, 전용 검색 엔진으로 바꿀 때 어댑터만 교체한다.
+
+    검색 결과는 고객 ID 뿐이다. 화면에 보여 줄 보호자·반려동물 정보는 원본 표에서 읽는다.
+    """
+
+    @abstractmethod
+    async def rebuild_search_entry(self, ctx: ShopContext, customer_id: int) -> None:
+        """그 가족의 검색 줄을 원본에서 다시 만든다. 고객이 익명화됐거나 없으면 줄을 지운다.
+
+        가족(고객·반려동물·질병)을 바꾸는 모든 유스케이스가 같은 트랜잭션 안에서 부른다.
+        """
+
+    @abstractmethod
+    async def search(self, ctx: ShopContext, request: SearchRequest) -> SearchPage:
+        """커서가 올바르지 않으면 CustomerInputError."""
+
+    @abstractmethod
+    async def count_pets(
+        self, ctx: ShopContext, words: tuple[SearchWord, ...], include_passed: bool
+    ) -> int:
+        """검색에 걸린 가족들의 반려동물 수(목록 제목의 'N마리'). 쪽과 상관없이 전체를 센다."""
