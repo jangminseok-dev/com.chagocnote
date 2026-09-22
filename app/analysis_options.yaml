@@ -1,0 +1,12 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # 토큰이 로그에 남는 사고를 막는다. print 는 오류로 취급한다.
+    avoid_print: error
+
+linter:
+  rules:
+    avoid_print: true
+    prefer_single_quotes: true
+    require_trailing_commas: false

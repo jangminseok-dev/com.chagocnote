@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 개발용 게이트웨이(http://10.0.2.2:8080)에 붙기 위한 평문 허용. 릴리스 매니페스트에는 없다. -->
+    <application android:usesCleartextTraffic="true"/>
+</manifest>
