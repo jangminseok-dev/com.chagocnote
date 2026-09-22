@@ -27,9 +27,10 @@ ThemeData appTheme() {
     useMaterial3: true,
     colorScheme: colorScheme,
     fontFamily: 'Pretendard',
-    // 배경 그라데이션은 AppBackground가 그리므로 스캐폴드 자체는 투명하게
-    // 비워둔다.
-    scaffoldBackgroundColor: Colors.transparent,
+    // 배경 그라데이션은 AppBackground가 본문 안에 그린다. 스캐폴드 바탕은
+    // 그라데이션의 아래쪽 색으로 칠한다 — 투명이면 키보드가 올라와 본문이
+    // 줄어들 때 그 아래(키보드 모서리 뒤, 시트 막 아래)가 검게 보인다.
+    scaffoldBackgroundColor: AppColors.backgroundBottom,
     // Pressable이 스케일+햅틱으로 자체 눌림 피드백을 주므로, Material
     // 기본 잉크 리플/하이라이트는 새 색조를 들이지 않게 꺼둔다.
     splashFactory: NoSplash.splashFactory,
@@ -47,8 +48,8 @@ ThemeData appTheme() {
 
 /// 화면 배경에 세로 그라데이션(`#f5f5f5` → `#ececec`)을 깔아주는 위젯.
 ///
-/// `Scaffold`는 투명 배경으로 두고, 이 위젯으로 감싸서 그 뒤에 그라데이션이
-/// 보이게 한다.
+/// `Scaffold` 본문을 이 위젯으로 감싸 그라데이션을 깐다(스캐폴드 바탕은
+/// 그라데이션 아래쪽 색으로 칠해져 있다 — [appTheme] 참고).
 class AppBackground extends StatelessWidget {
   const AppBackground({super.key, required this.child});
 
