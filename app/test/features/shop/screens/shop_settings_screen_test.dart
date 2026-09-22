@@ -164,6 +164,9 @@ void main() {
       utf8.decode(sentBody!),
       '{"name":"새 이름","phone":null,"address":null}',
     );
+    // 저장에 성공하면 이름이 바뀌었을 수 있으니 본인 정보를 다시 불러온다
+    // (shop_settings_controller.dart save() 의 reloadMe 호출).
+    expect(gateway.refreshMeCallCount, 1);
   });
 
   testWidgets('이름이 비어 있으면 요청 없이 검증만 한다', (tester) async {
