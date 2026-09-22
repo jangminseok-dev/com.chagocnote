@@ -3,7 +3,6 @@ import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
-import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/auth/state/session_gateway.dart';
@@ -273,9 +272,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(ScreenKeys.settings), findsOneWidget);
 
-      // 설정의 뒤로 가기는 목록 행 안에서 왼쪽에 붙는다 — 의미 노드는 행 전체라
-      // 그 가운데를 누르면 버튼이 아니다. 위젯을 직접 누른다.
-      await tester.tap(find.byType(AppBackButton));
+      await tester.tap(find.bySemanticsLabel(AppStrings.back));
       await tester.pumpAndSettle();
 
       expect(find.byKey(ScreenKeys.home), findsOneWidget);

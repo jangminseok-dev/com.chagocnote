@@ -12,6 +12,8 @@ Opacity _findOpacity(WidgetTester tester) =>
     tester.widget<Opacity>(find.byType(Opacity));
 
 void main() {
+  _semanticsBoundaryTests();
+
   testWidgets('누르는 중간에는 스케일이 1보다 작아진다', (tester) async {
     await tester.pumpWidget(
       CupertinoApp(
@@ -78,5 +80,42 @@ void main() {
     final size = tester.getSize(find.byType(Pressable));
     expect(size.width, greaterThanOrEqualTo(44));
     expect(size.height, greaterThanOrEqualTo(44));
+  });
+}
+
+void _semanticsBoundaryTests() {
+  // 목록 행 안에서 왼쪽에 붙인 작은 버튼 — 설정 화면의 뒤로 가기와 같은 배치다.
+  Widget rowWithButton(VoidCallback onTap) => CupertinoApp(
+        home: ListView(
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Pressable(
+                semanticLabel: '뒤로',
+                onTap: onTap,
+                child: const SizedBox(width: 24, height: 24),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  testWidgets('의미 노드는 행 전체가 아니라 버튼 크기다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(rowWithButton(() {}));
+
+    final node = tester.getSemantics(find.bySemanticsLabel('뒤로'));
+    expect(node.rect.size, const Size(44, 44));
+    handle.dispose();
+  });
+
+  testWidgets('이름표로 찾아 누르면 버튼이 눌린다', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(rowWithButton(() => taps++));
+
+    await tester.tap(find.bySemanticsLabel('뒤로'));
+    await tester.pumpAndSettle();
+
+    expect(taps, 1);
   });
 }

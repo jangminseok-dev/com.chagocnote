@@ -9,7 +9,8 @@ import '../tokens/app_springs.dart';
 /// - 누르는 순간 가벼운 햅틱을 준다.
 /// - `MediaQuery.disableAnimationsOf`가 true(시스템 "동작 줄이기")이면
 ///   스프링 스케일 대신 옅은 페이드로 대체한다.
-/// - `semanticLabel`을 주면 버튼으로 접근성에 노출한다.
+/// - `semanticLabel`을 주면 버튼으로 접근성에 노출한다. 의미 노드는 자기
+///   크기(최소 44×44)로 따로 잡힌다 — 행 안에 두어도 행 전체로 번지지 않는다.
 /// - 시각적 크기가 44×44보다 작아도 탭 영역은 `minSize`(기본 44) 이상을
 ///   보장한다.
 class Pressable extends StatefulWidget {
@@ -83,7 +84,11 @@ class _PressableState extends State<Pressable>
 
   @override
   Widget build(BuildContext context) {
+    // container: true — 자기 의미 노드를 따로 만든다. 없으면 이름표와 버튼
+    // 표시가 조상 노드(예: ListView 의 행)에 합쳐져, 스크린리더 포커스와
+    // 이름표로 찾은 탭 위치가 행 전체 폭으로 잡힌다.
     return Semantics(
+      container: true,
       button: widget.onTap != null,
       label: widget.semanticLabel,
       child: GestureDetector(
