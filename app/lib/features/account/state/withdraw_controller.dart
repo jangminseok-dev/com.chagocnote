@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/state/session_controller.dart';
 import '../../auth/state/social_sign_ins.dart';
 import 'account_controller.dart';
+import 'reauth.dart';
 
 /// 탈퇴 화면의 동작을 담당한다. `AccountApi.withdraw`가 204/401을 모두
 /// 성공으로 취급하므로, 이 메서드가 던지지 않고 끝나면 곧 탈퇴가 끝난
@@ -21,9 +22,11 @@ class WithdrawController extends Notifier<AsyncValue<void>> {
     // 탈퇴 뒤에도 SDK 연결을 끊어야 하는데, 그때는 이미 로그아웃 상태라
     // `Me.identities`를 더 읽을 수 없다.
     final identities = ref.read(accountIdentitiesProvider);
-    await ref
-        .read(accountApiProvider)
-        .withdraw(confirmCloseShops: confirmCloseShops);
+    await ref.read(reauthCoordinatorProvider).run(
+          () => ref
+              .read(accountApiProvider)
+              .withdraw(confirmCloseShops: confirmCloseShops),
+        );
     await _session.completeWithdrawal();
     // 구글 연결 끊기는 계정 화면(unlink)과 같은 공용 함수를 쓴다
     // (social_sign_ins.dart) — 로직을 여기서 복제하지 않는다.

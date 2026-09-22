@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:chagocnote/core/config/app_config.dart';
 import 'package:chagocnote/core/proxy/api_client.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/router/app_router.dart';
@@ -38,8 +39,9 @@ final Finder _submitButton = find.byWidgetPredicate(
 
 ({ProviderContainer container, FakeHttpClientAdapter adapter}) _setUp(
   FakeSessionGateway gateway,
-  FakeHandler handle,
-) {
+  FakeHandler handle, {
+  AppConfig? config,
+}) {
   final adapter = FakeHttpClientAdapter(handle);
   final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
   final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
@@ -49,6 +51,7 @@ final Finder _submitButton = find.byWidgetPredicate(
     overrides: [
       sessionGatewayProvider.overrideWithValue(gateway),
       tokenStoreProvider.overrideWithValue(tokenStore),
+      if (config != null) appConfigProvider.overrideWithValue(config),
       apiClientProvider.overrideWith(
         (ref) => ApiClient(
           tokenStore: tokenStore,
@@ -296,6 +299,66 @@ void main() {
     expect(find.text('혼자 사장인 매장에 다른 멤버가 있습니다. 먼저 다른 사장을 지정해 주세요.'), findsOneWidget);
     expect(find.text(AppStrings.goToMembers), findsOneWidget);
     expect(setup.adapter.requests, hasLength(1));
+  });
+
+  testWidgets('REAUTH_REQUIRED 를 받으면 재인증 시트에서 dev 로 다시 로그인해 탈퇴를 끝낸다', (
+    tester,
+  ) async {
+    final gateway = FakeSessionGateway()..meOnRestore = _me(['dev']);
+    var withdrawCallCount = 0;
+    final setup = _setUp(
+      gateway,
+      (options, body) {
+        if (options.path == '/v1/auth/social') {
+          expect(jsonDecode(utf8.decode(body!)), {
+            'provider': 'dev',
+            'token': '민석',
+          });
+          return const FakeResponse(
+            statusCode: 200,
+            data: {
+              'access_token': 'reauth-access',
+              'refresh_token': 'reauth-refresh',
+              'token_type': 'Bearer',
+              'expires_in': 3600,
+              'user_id': 1,
+              'is_new_user': false,
+            },
+          );
+        }
+        if (options.path == '/v1/auth/account') {
+          withdrawCallCount++;
+          if (withdrawCallCount == 1) {
+            return const FakeResponse(
+              statusCode: 403,
+              data: {'code': 'REAUTH_REQUIRED', 'message': '다시 로그인해 주세요'},
+            );
+          }
+          return const FakeResponse(statusCode: 204);
+        }
+        fail('예상하지 못한 요청: ${options.path}');
+      },
+      config: const AppConfig(apiBaseUrl: '', appEnv: 'dev'),
+    );
+    addTearDown(setup.container.dispose);
+
+    await _openWithdrawScreen(tester, setup.container);
+    await tester.tap(find.text(AppStrings.withdrawConfirmCheckbox));
+    await tester.pumpAndSettle();
+    await tester.tap(_submitButton);
+    // 재인증 시트를 기다리는 동안 탈퇴 버튼이 계속 busy(스피너)라
+    // pumpAndSettle이 절대 안 멈춘다 — 정해진 만큼만 pump 한다.
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 1000));
+
+    expect(find.text(AppStrings.reauthPromptTitle), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '민석');
+    await tester.tap(find.text(AppStrings.devSignIn));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 1000));
+
+    expect(withdrawCallCount, 2);
+    expect(find.byKey(ScreenKeys.login), findsOneWidget);
   });
 }
 

@@ -18,6 +18,8 @@ import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
 import '../../auth/state/social_sign_ins.dart';
 import '../state/account_controller.dart';
+import '../state/reauth.dart';
+import 'reauth_sheet.dart';
 
 /// 계정 화면 — 로그인 수단 연결/해제, 로그아웃, 회원 탈퇴로 가는 입구.
 class AccountScreen extends ConsumerStatefulWidget {
@@ -32,9 +34,21 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
   bool _busy = false;
   String? _errorText;
   String? _devNameError;
+  late final ReauthPromptHolder _reauthPromptHolder;
+
+  @override
+  void initState() {
+    super.initState();
+    _reauthPromptHolder = ref.read(reauthPromptProvider)
+      ..prompt = (linked) => showReauthPrompt(context, ref, linked);
+  }
 
   @override
   void dispose() {
+    // `dispose()` 안에서는 `ref.read`가 안전하지 않다(Riverpod이 위젯이
+    // 해제되는 동안 사용을 막는다) — `initState`에서 잡아 둔 홀더를 직접
+    // 비운다.
+    _reauthPromptHolder.prompt = null;
     _devNameController.dispose();
     super.dispose();
   }
@@ -48,6 +62,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
       await action();
       if (!mounted) return;
       setState(() => _busy = false);
+    } on ReauthMismatchException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _errorText = e.message;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {

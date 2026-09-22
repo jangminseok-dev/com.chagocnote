@@ -6,6 +6,7 @@ import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
 import '../../auth/state/social_sign_ins.dart';
 import '../api/account_api.dart';
+import 'reauth.dart';
 
 final accountApiProvider = Provider<AccountApi>(
   (ref) => AccountApi(
@@ -29,6 +30,8 @@ class AccountController extends Notifier<AsyncValue<void>> {
   SessionController get _session =>
       ref.read(sessionControllerProvider.notifier);
 
+  ReauthCoordinator get _reauth => ref.read(reauthCoordinatorProvider);
+
   @override
   AsyncValue<void> build() => const AsyncData(null);
 
@@ -37,13 +40,16 @@ class AccountController extends Notifier<AsyncValue<void>> {
   Future<void> link(SocialSignIn signIn) async {
     final credential = await signIn.signIn();
     if (credential == null) return;
-    await _api.link(credential);
-    await _session.reloadMe();
+    await _linkWithReauth(credential);
   }
 
   /// 개발용 로그인 수단을 이름으로 연결한다.
   Future<void> linkDev(String name) async {
-    await _api.link(SocialCredential(provider: 'dev', token: name));
+    await _linkWithReauth(SocialCredential(provider: 'dev', token: name));
+  }
+
+  Future<void> _linkWithReauth(SocialCredential credential) async {
+    await _reauth.run(() => _api.link(credential));
     await _session.reloadMe();
   }
 
@@ -60,7 +66,7 @@ class AccountController extends Notifier<AsyncValue<void>> {
   /// 끝났으므로, 본인 정보 재조회가 실패했다고 화면에 오류를 보이거나
   /// 이 메서드를 실패로 끝내지 않는다.
   Future<void> unlink(String provider) async {
-    await _api.unlink(provider);
+    await _reauth.run(() => _api.unlink(provider));
     if (provider == 'google') {
       await disconnectGoogle(ref);
     }

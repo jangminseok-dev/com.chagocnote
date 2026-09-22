@@ -80,6 +80,10 @@ class AppStrings {
   static const unlinkConfirmMessage = '해제하면 다른 모든 기기에서 로그아웃됩니다.';
   static const withdraw = '회원 탈퇴';
 
+  // 재인증
+  static const reauthPromptTitle = '보안을 위해 다시 로그인해 주세요';
+  static const reauthMismatch = '다른 계정입니다. 이 계정에 연결된 로그인 수단으로 다시 로그인해 주세요.';
+
   // 회원 탈퇴
   static const withdrawNoticeIrreversible = '되돌릴 수 없습니다.';
   static const withdrawNoticeShopRecordsStay = '매장의 기록은 매장에 남습니다.';

@@ -12,7 +12,9 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../l10n/app_strings.dart';
+import '../state/reauth.dart';
 import '../state/withdraw_controller.dart';
+import 'reauth_sheet.dart';
 
 /// 회원 탈퇴 화면. 안내를 확인해야 탈퇴 버튼이 활성화되고, 서버가 추가
 /// 확인을 요구하면(매장 함께 닫기) 시트로 물어본 뒤 다시 요청한다.
@@ -28,6 +30,22 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
   bool _busy = false;
   String? _errorText;
   bool _ownershipTransferRequired = false;
+  late final ReauthPromptHolder _reauthPromptHolder;
+
+  @override
+  void initState() {
+    super.initState();
+    _reauthPromptHolder = ref.read(reauthPromptProvider)
+      ..prompt = (linked) => showReauthPrompt(context, ref, linked);
+  }
+
+  @override
+  void dispose() {
+    // `dispose()` 안에서는 `ref.read`가 안전하지 않다 — `initState`에서
+    // 잡아 둔 홀더를 직접 비운다.
+    _reauthPromptHolder.prompt = null;
+    super.dispose();
+  }
 
   Future<void> _withdraw({bool confirmCloseShops = false}) async {
     if (_busy) return;
@@ -57,6 +75,12 @@ class _WithdrawScreenState extends ConsumerState<WithdrawScreen> {
         _busy = false;
         _errorText = messageFor(e);
         _ownershipTransferRequired = e.code == 'OWNERSHIP_TRANSFER_REQUIRED';
+      });
+    } on ReauthMismatchException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _errorText = e.message;
       });
     } catch (e) {
       if (!mounted) return;
