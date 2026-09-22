@@ -75,6 +75,24 @@ void main() {
       expect(await tokenStore.readRefresh(), isNull);
     });
 
+    test('/v1/me 가 403 ACCOUNT_SUSPENDED 면 null 을 반환하고 토큰을 지운다', () async {
+      final adapter = FakeHttpClientAdapter((options, body) {
+        return const FakeResponse(
+          statusCode: 403,
+          data: {'code': 'ACCOUNT_SUSPENDED', 'message': '정지된 계정'},
+        );
+      });
+      final tokenStore = MemoryTokenStore()
+        ..save(access: 'access-1', refresh: 'refresh-1');
+      final gateway = _buildGateway(adapter: adapter, tokenStore: tokenStore);
+
+      final me = await gateway.restore();
+
+      expect(me, isNull);
+      expect(await tokenStore.readAccess(), isNull);
+      expect(await tokenStore.readRefresh(), isNull);
+    });
+
     test('연결 오류가 나면 NETWORK 예외를 다시 던지고 토큰은 그대로 둔다', () async {
       final adapter = FakeHttpClientAdapter((options, body) {
         throw DioException.connectionTimeout(

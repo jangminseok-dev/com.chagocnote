@@ -189,4 +189,34 @@ void main() {
 
     expect(find.byKey(ScreenKeys.invite), findsOneWidget);
   });
+
+  testWidgets(
+    '매장 전환 뒤에도 라우터는 다시 만들어지지 않고 현재 화면에 그대로 머무른다',
+    (tester) async {
+      // 이 테스트는 "redirect 안에서는 ref.read만 쓴다" 규칙을 지킨다.
+      // routerProvider 본문에서 세션을 ref.watch 하면 세션이 바뀔 때마다
+      // GoRouter가 새로 만들어지므로(=내비게이션 스택이 리셋되므로) 이
+      // identical 비교가 실패한다.
+      final gateway = FakeSessionGateway()
+        ..meOnRestore = _me(shops: [_ownerA, _staffB])
+        ..lastShopId = _ownerA.shopId;
+      final container = _containerWith(gateway);
+
+      await tester.pumpWidget(_appWith(container));
+      await tester.pumpAndSettle();
+
+      final router = container.read(routerProvider);
+      router.go('/settings/members');
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.settingsMembers), findsOneWidget);
+
+      await container
+          .read(sessionControllerProvider.notifier)
+          .selectShop(_staffB.shopId);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ScreenKeys.settingsMembers), findsOneWidget);
+      expect(identical(container.read(routerProvider), router), isTrue);
+    },
+  );
 }

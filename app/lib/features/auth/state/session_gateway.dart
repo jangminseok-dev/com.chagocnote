@@ -40,7 +40,12 @@ class HttpSessionGateway implements SessionGateway {
     try {
       return await _meApi.fetch();
     } on ApiException catch (e) {
-      if (e.code == 'UNAUTHENTICATED') {
+      // ACCOUNT_SUSPENDED 는 액세스 토큰 자체는 유효하지만 계정이 정지됐다는
+      // 뜻이다. UNAUTHENTICATED 와 마찬가지로 이 기기의 세션을 끝내야 한다 —
+      // 안 그러면 이 예외가 아래에서 다시 던져져 세션이 AsyncError로 남고,
+      // 라우터가 모든 경로를 스플래시에 묶어 둬서 로그아웃도 재로그인도
+      // 못 하게 된다.
+      if (e.code == 'UNAUTHENTICATED' || e.code == 'ACCOUNT_SUSPENDED') {
         await _tokenStore.clear();
         return null;
       }
