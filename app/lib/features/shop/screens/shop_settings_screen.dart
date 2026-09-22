@@ -6,6 +6,7 @@ import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
+import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/session.dart';
@@ -114,9 +115,15 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      AppStrings.settingsShopInfo,
-                      style: AppTypography.titleKo,
+                    Row(
+                      children: [
+                        const AppBackButton(),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          AppStrings.settingsShopInfo,
+                          style: AppTypography.titleKo,
+                        ),
+                      ],
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     TextField(

@@ -7,6 +7,7 @@ import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
+import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../l10n/app_strings.dart';
 import '../state/auth_providers.dart';
@@ -71,8 +72,8 @@ class _InviteCodeScreenState extends ConsumerState<InviteCodeScreen> {
           ? AppBar(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              leading: BackButton(
-                onPressed: () {
+              leading: AppBackButton(
+                onTap: () {
                   if (context.canPop()) {
                     context.pop();
                   } else {

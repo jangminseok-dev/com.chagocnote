@@ -7,6 +7,7 @@ class AppStrings {
 
   static const appName = '차곡노트';
   static const retry = '다시 시도';
+  static const back = '뒤로';
 
   // 로그인
   static const continueWithKakao = '카카오로 계속하기';

@@ -7,6 +7,7 @@ import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
+import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_chip.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
@@ -30,6 +31,8 @@ class SettingsScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
+              const AppBackButton(),
+              const SizedBox(height: AppSpacing.lg),
               if (shop != null) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

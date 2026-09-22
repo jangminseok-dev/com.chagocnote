@@ -102,7 +102,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
                     ),
                     Pressable(
                       semanticLabel: AppStrings.settingsLabel,
-                      onTap: () => context.go('/settings'),
+                      onTap: () => context.push('/settings'),
                       child: const Icon(Icons.settings_outlined),
                     ),
                   ],

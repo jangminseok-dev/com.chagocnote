@@ -6,6 +6,7 @@ import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/auth/state/session_gateway.dart';
+import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -248,4 +249,114 @@ void main() {
       expect(identical(container.read(routerProvider), router), isTrue);
     },
   );
+
+  testWidgets(
+    '홈 → 설정 버튼 → 설정 화면 → 뒤로 → 홈 (홈은 쌓인 채라 탭 상태를 유지한다)',
+    (tester) async {
+      // 설정으로 갈 때 push(쌓기)를 쓰는지 확인하려고, 홈에서 탭을 바꿔 둔
+      // 뒤 설정에 들어갔다 돌아왔을 때도 그 탭이 그대로인지를 본다. go로
+      // 이동했다면 홈이 통째로 다시 만들어져 탭이 첫 화면으로 리셋된다.
+      final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
+      final container = _containerWith(gateway);
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(_appWith(container));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.home), findsOneWidget);
+
+      await tester.tap(find.text(AppStrings.tabCustomers));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.settingsLabel));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.settings), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.back));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(ScreenKeys.home), findsOneWidget);
+      expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
+    },
+  );
+
+  testWidgets('설정 → 멤버 → 뒤로 → 설정', (tester) async {
+    final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
+    final adapter = FakeHttpClientAdapter(
+      (options, body) =>
+          const FakeResponse(statusCode: 200, data: <dynamic>[]),
+    );
+    final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
+    final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
+    final container = _containerWith(
+      gateway,
+      apiClientBuilder: (ref) => ApiClient(
+        tokenStore: MemoryTokenStore(),
+        dio: dio,
+        refreshDio: refreshDio,
+        onSessionEnded: ref.read(sessionEndedSignalProvider).fire,
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.settingsMembers));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.settingsMembers), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.back));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.settings), findsOneWidget);
+  });
+
+  testWidgets('설정 → 매장 정보 → 뒤로 → 설정', (tester) async {
+    final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
+    final adapter = FakeHttpClientAdapter((options, body) {
+      if (options.path == '/v1/shops/1/settings' && options.method == 'GET') {
+        return const FakeResponse(
+          statusCode: 200,
+          data: {
+            'shop_id': 1,
+            'name': 'A매장',
+            'business_type': 'grooming',
+            'phone': null,
+            'address': null,
+            'timezone': 'Asia/Seoul',
+          },
+        );
+      }
+      fail('예상하지 못한 경로: ${options.method} ${options.path}');
+    });
+    final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
+    final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
+    final container = _containerWith(
+      gateway,
+      apiClientBuilder: (ref) => ApiClient(
+        tokenStore: MemoryTokenStore(),
+        dio: dio,
+        refreshDio: refreshDio,
+        onSessionEnded: ref.read(sessionEndedSignalProvider).fire,
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.settingsShopInfo));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.settingsShop), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.back));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.settings), findsOneWidget);
+  });
 }
