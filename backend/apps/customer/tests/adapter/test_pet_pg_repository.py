@@ -1,8 +1,10 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import update
 
+from customer.adapter.outbound.orm.customer_orm import PetOrm
 from customer.adapter.outbound.pg.condition_type_pg_repository import ConditionTypePgRepository
 from customer.adapter.outbound.pg.customer_pg_repository import CustomerPgRepository
 from customer.adapter.outbound.pg.pet_pg_repository import PetPgRepository
@@ -85,8 +87,12 @@ async def test_무지개다리는_처음_시각을_지키고_되돌릴_수_있�
     repo = PetPgRepository(db_session)
     pet = await repo.add(A, await _family(db_session), pet_profile())
     first = await repo.set_passed_away(A, pet.id, True)
+    # 같은 트랜잭션 안의 두 호출은 PostgreSQL now() 가 같아 coalesce 없이도 우연히 통과한다.
+    # 처음 시각을 과거로 직접 바꿔 두 번째 호출이 그 값을 덮지 않는지 본다.
+    old_time = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    await db_session.execute(update(PetOrm).where(PetOrm.id == pet.id).values(passed_away_at=old_time))
     again = await repo.set_passed_away(A, pet.id, True)
-    assert first.passed_away and again.passed_away_at == first.passed_away_at
+    assert first.passed_away and again.passed_away_at == old_time
     assert (await repo.set_passed_away(A, pet.id, False)).passed_away is False
 
 
@@ -100,6 +106,16 @@ async def test_삭제하면_질병도_함께_지워지고_수를_센다(db_sessi
     await repo.delete(A, first.id)
     assert await repo.count_for_customer(A, customer_id) == 1
     assert [p.name for p in await repo.list_for_customers(A, [customer_id])] == ["두부"]
+
+
+async def test_무지개다리_아이도_수에_들어간다(db_session):
+    """마지막 판단(LAST_PET)에 무지개다리 아이도 세야 반려동물 없는 가족이 남지 않는다(새로 정한 것 10번)."""
+    repo = PetPgRepository(db_session)
+    customer_id = await _family(db_session)
+    await repo.add(A, customer_id, pet_profile())
+    passed = await repo.add(A, customer_id, pet_profile(name="별이"))
+    await repo.set_passed_away(A, passed.id, True)
+    assert await repo.count_for_customer(A, customer_id) == 2
 
 
 async def test_익명화한_고객의_반려동물은_없는_것과_같다(db_session):
