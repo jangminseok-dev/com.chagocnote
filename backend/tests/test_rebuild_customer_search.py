@@ -2,12 +2,30 @@
 import pytest
 from sqlalchemy import text
 
+import scripts.rebuild_customer_search as rebuild_customer_search
 from customer.adapter.outbound.pg.customer_pg_repository import CustomerPgRepository
 from customer.adapter.outbound.pg.pet_pg_repository import PetPgRepository
 from customer.tests.helpers.profiles import ctx, customer_profile, pet_profile
 from scripts.rebuild_customer_search import rebuild_all
 
 pytestmark = pytest.mark.integration
+
+
+async def test_재생성_스크립트의_엔진도_hide_parameters를_켠다(migrated_test_db, monkeypatch):
+    """오류 로그에 이름·전화가 새지 않도록 이 스크립트의 엔진도 core/database.py 와 같게 켠다."""
+    captured = {}
+    original_create = rebuild_customer_search.create_async_engine
+
+    def _spy(url, **kwargs):
+        captured.update(kwargs)
+        return original_create(url, **kwargs)
+
+    monkeypatch.setattr(rebuild_customer_search, "create_async_engine", _spy)
+    monkeypatch.setattr(rebuild_customer_search, "DATABASE_URL", migrated_test_db)
+
+    await rebuild_customer_search._run()
+
+    assert captured.get("hide_parameters") is True
 
 
 async def test_어긋난_검색_줄을_원본에서_다시_만든다(db_session):

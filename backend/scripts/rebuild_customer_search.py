@@ -38,7 +38,7 @@ async def rebuild_all(session: AsyncSession) -> int:
 
 
 async def _run() -> int:
-    engine = create_async_engine(DATABASE_URL)
+    engine = create_async_engine(DATABASE_URL, hide_parameters=True)
     try:
         async with async_sessionmaker(engine, expire_on_commit=False)() as session:
             return await rebuild_all(session)

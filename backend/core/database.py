@@ -27,7 +27,8 @@ def init_engine() -> None:
     global engine, _session_factory
     if engine is not None:
         return
-    engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, echo=False)
+    # hide_parameters: SQLAlchemy 의 오류 문자열이 바인드 값(이름·전화·메모)을 [parameters: …]로 남기지 않게 한다.
+    engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, echo=False, hide_parameters=True)
     _session_factory = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
 
 
