@@ -264,7 +264,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(ScreenKeys.home), findsOneWidget);
 
-      await tester.tap(find.text(AppStrings.tabCustomers));
+      // 고객 탭은 머리에 설정 버튼이 없다(자기 머리를 쓴다) — 매출 탭으로 본다.
+      await tester.tap(find.text(AppStrings.tabSales));
       await tester.pumpAndSettle();
       expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
 

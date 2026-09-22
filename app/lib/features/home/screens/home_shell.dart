@@ -14,6 +14,7 @@ import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
+import '../../customer/screens/customer_list_tab.dart';
 import '../state/today_provider.dart';
 
 /// 홈 화면. 헤더(날짜 + 매장 이름 + 설정), 탭별 본문, 하단 유리 탭바로
@@ -26,6 +27,8 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
+  static const _customersTab = 1;
+
   int _tabIndex = 0;
 
   static const _items = [
@@ -80,34 +83,36 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           bottom: false,
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AppBigDate(date: today),
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(shopName, style: AppTypography.titleKo),
-                        ],
+              // 고객 탭은 자기 머리(제목·반려동물 수·보기 전환)를 쓴다(목업 A안).
+              if (_tabIndex != _customersTab)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    AppSpacing.md,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AppBigDate(date: today),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(shopName, style: AppTypography.titleKo),
+                          ],
+                        ),
                       ),
-                    ),
-                    Pressable(
-                      semanticLabel: AppStrings.settingsLabel,
-                      onTap: () => context.push('/settings'),
-                      child: const Icon(Icons.settings_outlined),
-                    ),
-                  ],
+                      Pressable(
+                        semanticLabel: AppStrings.settingsLabel,
+                        onTap: () => context.push('/settings'),
+                        child: const Icon(Icons.settings_outlined),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
               Expanded(child: _TabBody(index: _tabIndex)),
             ],
           ),
@@ -124,6 +129,7 @@ class _TabBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (index == _HomeShellState._customersTab) return const CustomerListTab();
     return Center(
       child: index == 0
           ? const _EmptyState(

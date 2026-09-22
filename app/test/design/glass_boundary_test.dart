@@ -11,6 +11,8 @@ void main() {
       'lib/features/auth/screens/shop_select_screen.dart',
       'lib/features/account/screens/account_screen.dart',
       'lib/features/customer/screens/pet_detail_screen.dart',
+      'lib/features/customer/screens/customer_list_tab.dart',
+      'lib/features/customer/screens/family_card_view.dart',
     ];
     final violations = [
       for (final path in scrollScreens)

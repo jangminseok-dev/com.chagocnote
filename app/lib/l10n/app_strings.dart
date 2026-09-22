@@ -136,6 +136,20 @@ class AppStrings {
   static String conditionCount(int count) => '질병 $count';
   static String birthYearText(int year) => '$year년생';
 
+  static const customersTitle = '고객';
+  static const viewAsList = '목록으로 보기';
+  static const viewAsGrid = '격자로 보기';
+  static const sortRecent = '최근순';
+  static const sortName = '가나다순';
+  static const includePassed = '무지개다리 포함';
+  static const customerSearchHint = '번호 뒷자리, 이름, 반려동물 (초성 가능)';
+  static const customersEmpty = '등록된 고객이 없어요';
+  static const customersEmptyCaption = '+ 버튼으로 첫 고객을 등록해 보세요.';
+  static const customersNoMatch = '찾는 고객이 없어요';
+  static const conditionsBadge = '질병';
+
+  static String petCountText(int count) => '$count마리';
+
   static String speciesLabel(String species) => switch (species) {
         'dog' => speciesDog,
         'cat' => speciesCat,
