@@ -7,8 +7,10 @@ from pathlib import Path
 
 import pytest
 
-# 마이그레이션이 넣은 시드(역할·권한)와 버전 표는 테스트 사이에 비우지 않는다.
-_KEEP_TABLES = {"alembic_version", "roles", "permissions", "role_permissions"}
+# 마이그레이션이 넣은 시드(역할·권한·질병 종류)와 버전 표는 테스트 사이에 비우지 않는다.
+_KEEP_TABLES = {
+    "alembic_version", "roles", "permissions", "role_permissions", "pet_condition_types",
+}
 
 
 @pytest.fixture(scope="session")
