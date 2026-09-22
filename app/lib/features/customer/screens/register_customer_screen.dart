@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/api_exception.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
@@ -49,6 +50,9 @@ class _RegisterCustomerScreenState
   /// 번호 조회는 입력마다 나갈 수 있다 — 늦게 온 옛 번호의 결과를 버리려고 센다.
   int _lookupSeq = 0;
 
+  /// 마지막으로 본 입력(숫자만). 커서만 옮긴 변경은 건너뛴다.
+  String _lastDigits = '';
+
   CustomerFields? _customer;
   bool _busy = false;
   String? _errorText;
@@ -72,14 +76,14 @@ class _RegisterCustomerScreenState
     super.dispose();
   }
 
-  /// 마지막으로 본 입력(숫자만). 커서만 옮긴 변경은 건너뛴다.
-  String _lastDigits = '';
-
   void _onPhoneChanged() {
     final digits = _digits;
     if (digits == _lastDigits) return;
     _lastDigits = digits;
+    // 번호가 바뀔 때마다 순번을 올려, 도는 중인 옛 조회의 결과를 버린다(A2).
+    _lookupSeq++;
     setState(() {
+      _checking = false;
       _checkedPhone = null;
       _found = null;
       _errorText = null;
@@ -90,7 +94,7 @@ class _RegisterCustomerScreenState
   Future<void> _lookup(String digits) async {
     final shopId = _shopId;
     if (shopId == null) return;
-    final seq = ++_lookupSeq;
+    final seq = _lookupSeq;
     setState(() => _checking = true);
     try {
       final found = await ref
@@ -139,6 +143,10 @@ class _RegisterCustomerScreenState
       setState(() {
         _busy = false;
         _errorText = messageFor(e);
+        // 그사이 같은 번호가 등록됐으면(C2) 1단계로 돌아가 다시 조회되게 한다.
+        if (e is ApiException && e.code == 'CUSTOMER_PHONE_TAKEN') {
+          _checkedPhone = null;
+        }
       });
     }
   }

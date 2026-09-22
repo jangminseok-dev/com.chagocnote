@@ -106,6 +106,40 @@ void main() {
     );
   });
 
+  test('반려동물을 지우면 siblingIds 로 넘긴 형제의 상세는 다시 부르고, 지운 아이의 상세는 다시 부르지 않는다', () async {
+    final setup = CustomerTestSetup((options, body) {
+      final key = '${options.method} ${options.path}';
+      switch (key) {
+        case 'GET /v1/shops/3/pets/11':
+          return FakeResponse(statusCode: 200, data: petDetailJson());
+        case 'GET /v1/shops/3/pets/12':
+          return FakeResponse(
+            statusCode: 200,
+            data: petDetailJson(pet: petJson(petId: 12, name: '두부')),
+          );
+        case 'DELETE /v1/shops/3/pets/11':
+          return const FakeResponse(statusCode: 204);
+      }
+      fail('예상하지 못한 요청: $key');
+    });
+    addTearDown(setup.container.dispose);
+    final c = setup.container;
+    const siblingKey = (shopId: _shop, petId: 12);
+    c.listen(petDetailProvider(_petKey), (_, _) {});
+    c.listen(petDetailProvider(siblingKey), (_, _) {});
+    await c.read(petDetailProvider(_petKey).future);
+    await c.read(petDetailProvider(siblingKey).future);
+    setup.adapter.requests.clear();
+
+    await c
+        .read(customerCommandsProvider)
+        .deletePet(_shop, 11, siblingIds: [12]);
+    await c.read(petDetailProvider(siblingKey).future);
+
+    expect(setup.calls, contains('GET /v1/shops/3/pets/12'));
+    expect(setup.calls, isNot(contains('GET /v1/shops/3/pets/11')));
+  });
+
   test('고객을 지우면 목록만 다시 부른다', () async {
     final setup = await _watchingEverything((options, body) {
       expect(

@@ -45,26 +45,41 @@ class CustomerCommands {
   Future<PetDetail> unmarkPassedAway(int shopId, int petId) =>
       _write(() => _api.unmarkPassedAway(shopId, petId));
 
-  /// 반려동물 삭제. 지운 아이의 상세는 다시 부르지 않고, 보호자 상세는 다시 부른다.
-  Future<void> deletePet(int shopId, int petId) =>
-      _write(() => _api.deletePet(shopId, petId), refreshPets: false);
+  /// 반려동물 삭제. 지운 아이의 상세는 다시 부르지 않고, 보호자 상세는 다시
+  /// 부른다. `siblingIds`(지운 아이를 뺀 같은 보호자의 다른 아이)의 상세도
+  /// 하나씩 다시 부른다 — 그 상세 화면의 "같은 보호자의 아이" 목록이 지운
+  /// 아이를 계속 들고 있지 않게 한다.
+  Future<void> deletePet(
+    int shopId,
+    int petId, {
+    Iterable<int> siblingIds = const [],
+  }) async {
+    final result = await _write(
+      () => _api.deletePet(shopId, petId),
+      refreshPetDetails: false,
+    );
+    for (final siblingId in siblingIds) {
+      _ref.invalidate(petDetailProvider((shopId: shopId, petId: siblingId)));
+    }
+    return result;
+  }
 
   /// 고객 익명화 삭제. 그 고객의 상세는 모두 사라지므로 목록만 다시 부른다.
   Future<void> deleteCustomer(int shopId, int customerId) => _write(
     () => _api.deleteCustomer(shopId, customerId),
-    refreshPets: false,
-    refreshCustomers: false,
+    refreshPetDetails: false,
+    refreshCustomerDetails: false,
   );
 
   Future<T> _write<T>(
     Future<T> Function() action, {
-    bool refreshPets = true,
-    bool refreshCustomers = true,
+    bool refreshPetDetails = true,
+    bool refreshCustomerDetails = true,
   }) async {
     final result = await runShopScoped(_ref, action);
     _ref.invalidate(customerListControllerProvider);
-    if (refreshPets) _ref.invalidate(petDetailProvider);
-    if (refreshCustomers) _ref.invalidate(customerDetailProvider);
+    if (refreshPetDetails) _ref.invalidate(petDetailProvider);
+    if (refreshCustomerDetails) _ref.invalidate(customerDetailProvider);
     return result;
   }
 }

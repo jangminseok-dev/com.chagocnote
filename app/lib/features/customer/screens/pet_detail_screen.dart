@@ -68,7 +68,7 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
     if (action == 'passed') {
       await _togglePassedAway(detail.pet);
     } else {
-      await _delete();
+      await _delete(detail.siblings);
     }
   }
 
@@ -88,7 +88,7 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
     await _run(() => commands.markPassedAway(shopId, pet.petId));
   }
 
-  Future<void> _delete() async {
+  Future<void> _delete(List<Sibling> siblings) async {
     final shopId = _shopId;
     if (shopId == null) return;
     final confirmed = await _confirm(
@@ -97,7 +97,13 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
     );
     if (confirmed != true || !mounted) return;
     final deleted = await _run(
-      () => ref.read(customerCommandsProvider).deletePet(shopId, widget.petId),
+      () => ref
+          .read(customerCommandsProvider)
+          .deletePet(
+            shopId,
+            widget.petId,
+            siblingIds: siblings.map((s) => s.petId),
+          ),
     );
     if (deleted && mounted) {
       if (context.canPop()) {

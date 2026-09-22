@@ -274,6 +274,40 @@ void main() {
     );
   });
 
+  testWidgets('번호를 형식 밖으로 줄이면 늦게 온 옛 번호의 조회 결과를 버린다(A2)', (tester) async {
+    _tallView(tester);
+    final slow = Completer<FakeResponse>();
+    final setup = CustomerTestSetup(
+      _routes(lookup: (phone) => slow.future),
+      overrides: _today,
+    );
+    addTearDown(setup.container.dispose);
+    await _openFromFab(tester, setup);
+
+    await tester.enterText(_onStage(find.byType(TextField)), '01012345678');
+    // 느린 조회가 도는 동안 번호를 형식 밖(9자리)으로 줄인다.
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.enterText(_onStage(find.byType(TextField)), '010123456');
+    await _settle(tester);
+    slow.complete(
+      const FakeResponse(
+        statusCode: 200,
+        data: {
+          'customer_id': 7,
+          'name': '김민지',
+          'pet_names': ['콩이'],
+        },
+      ),
+    );
+    await _settle(tester);
+
+    expect(find.text(AppStrings.lookupFound('김민지', ['콩이'])), findsNothing);
+    expect(
+      tester.widget<AppButton>(_onStage(_button(AppStrings.next))).onPressed,
+      isNull,
+    );
+  });
+
   testWidgets('앞 단계로 돌아가도 적은 값이 남는다', (tester) async {
     _tallView(tester);
     final setup = CustomerTestSetup(_routes(), overrides: _today);
@@ -334,6 +368,60 @@ void main() {
 
     expect(find.text('이미 등록된 전화번호입니다.'), findsOneWidget);
     expect(find.byKey(ScreenKeys.registerCustomer), findsOneWidget);
+  });
+
+  testWidgets('CUSTOMER_PHONE_TAKEN 뒤 1단계로 돌아가면 번호를 다시 조회한다', (tester) async {
+    _tallView(tester);
+    var lookupCalls = 0;
+    final setup = CustomerTestSetup(
+      _routes(
+        lookup: (phone) {
+          lookupCalls++;
+          return const FakeResponse(
+            statusCode: 404,
+            data: {'code': 'CUSTOMER_NOT_FOUND', 'message': 'x'},
+          );
+        },
+        register: const FakeResponse(
+          statusCode: 409,
+          data: {'code': 'CUSTOMER_PHONE_TAKEN', 'message': 'x'},
+        ),
+      ),
+      overrides: _today,
+    );
+    addTearDown(setup.container.dispose);
+    await _openFromFab(tester, setup);
+    await tester.enterText(_onStage(find.byType(TextField)), '01012345678');
+    await _settle(tester);
+    await tester.tap(_onStage(_button(AppStrings.next)));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      _onStage(find.widgetWithText(TextField, AppStrings.ownerNameLabel)),
+      '김민지',
+    );
+    await _tapChip(tester, AppStrings.marketingAgreed);
+    await tester.tap(_onStage(_button(AppStrings.next)));
+    await tester.pumpAndSettle();
+    await _fillPet(tester);
+
+    await tester.tap(_onStage(_button(AppStrings.save)));
+    await tester.pumpAndSettle();
+    expect(lookupCalls, 1);
+
+    // 3단계 → 2단계 → 1단계로 돌아간다.
+    await tester.tap(find.bySemanticsLabel(AppStrings.back));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel(AppStrings.back));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(AppStrings.registerStepTitle(AppStrings.registerStepPhone, 1)),
+      findsOneWidget,
+    );
+
+    await tester.tap(_onStage(_button(AppStrings.next)));
+    await _settle(tester);
+
+    expect(lookupCalls, 2);
   });
 
   testWidgets('등록 3단계 골든', (tester) async {

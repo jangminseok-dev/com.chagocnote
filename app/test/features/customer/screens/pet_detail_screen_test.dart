@@ -179,6 +179,53 @@ void main() {
     );
   });
 
+  testWidgets('형제 상세를 쌓아 연 뒤 그 형제를 지우면, 돌아온 상세의 형제 목록에서 사라진다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var deleted = false;
+    final setup = CustomerTestSetup((options, body) {
+      switch ('${options.method} ${options.path}') {
+        case 'GET /v1/shops/3/pets/11':
+          return FakeResponse(
+            statusCode: 200,
+            data: petDetailJson(
+              siblings: deleted ? [] : [siblingJson(petId: 12, name: '두부')],
+            ),
+          );
+        case 'GET /v1/shops/3/pets/12':
+          return FakeResponse(
+            statusCode: 200,
+            data: petDetailJson(
+              pet: petJson(petId: 12, name: '두부'),
+              siblings: [siblingJson(petId: 11, name: '콩이')],
+            ),
+          );
+        case 'DELETE /v1/shops/3/pets/12':
+          deleted = true;
+          return const FakeResponse(statusCode: 204);
+      }
+      fail('예상하지 못한 요청: ${options.method} ${options.path}');
+    });
+    addTearDown(setup.container.dispose);
+    await _openPet(tester, setup, 11);
+    // A 상세 위에 C 상세를 쌓아 연다(형제 줄을 눌러 바꿔 끼우는 것과 달리, 뒤로
+    // 가면 A 로 돌아온다).
+    setup.container.read(routerProvider).push('/pets/12');
+    await tester.pumpAndSettle();
+
+    await _chooseAction(tester, AppStrings.deletePet);
+    await tester.tap(_button(AppStrings.delete));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.petDetail), findsOneWidget);
+    expect(find.text('콩이'), findsOneWidget);
+    expect(find.text('두부'), findsNothing);
+  });
+
   testWidgets('마지막 반려동물이면(LAST_PET) 문구를 보이고 화면에 남는다', (tester) async {
     final setup = CustomerTestSetup((options, body) {
       switch ('${options.method} ${options.path}') {
