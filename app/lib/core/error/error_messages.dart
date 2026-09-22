@@ -28,6 +28,12 @@ const Map<String, String> _messages = {
   'SHOP_CLOSE_CONFIRM_REQUIRED': '탈퇴하면 혼자 운영하는 매장도 함께 닫힙니다.',
   'VALIDATION_ERROR': '입력한 내용을 확인해 주세요.',
   'TOO_MANY_ATTEMPTS': '시도가 너무 잦습니다. 잠시 뒤에 다시 해 주세요.',
+  'CUSTOMER_NOT_FOUND': '고객을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.',
+  'PET_NOT_FOUND': '반려동물을 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.',
+  'CUSTOMER_PHONE_TAKEN': '이미 등록된 전화번호입니다.',
+  'LAST_PET': '마지막 반려동물은 삭제할 수 없습니다. 고객 삭제를 이용해 주세요.',
+  'PET_HEALTH_REQUIRED': '질병을 고르거나 "질병 없음"을 눌러 주세요.',
+  'PET_HEALTH_CONFLICT': '질병과 "질병 없음"을 함께 고를 수 없습니다.',
 };
 
 const String _fallback = '문제가 생겼습니다. 잠시 뒤에 다시 시도해 주세요.';

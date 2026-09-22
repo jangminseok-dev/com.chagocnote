@@ -45,4 +45,15 @@ void main() {
       expect(messageFor(_error(code, message: '서버 문구')), isNot('서버 문구'), reason: code);
     }
   });
+
+  test('고객·반려동물 코드(설계 5절)는 모두 앱의 문구가 있다', () {
+    const codes = [
+      'CUSTOMER_NOT_FOUND', 'PET_NOT_FOUND', 'CUSTOMER_PHONE_TAKEN', 'LAST_PET',
+      'PET_HEALTH_REQUIRED', 'PET_HEALTH_CONFLICT',
+    ];
+    for (final code in codes) {
+      expect(messageFor(_error(code, message: '서버 문구')), isNot('서버 문구'), reason: code);
+    }
+    expect(messageFor(_error('LAST_PET', status: 409)), contains('고객 삭제'));
+  });
 }

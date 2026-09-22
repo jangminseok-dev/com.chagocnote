@@ -1,0 +1,431 @@
+/// 고객·반려동물 API 의 응답·요청 모델.
+///
+/// `fromJson`은 서버의 스네이크케이스 키를 그대로 읽는다. 전화번호·이름이
+/// 로그에 찍히지 않도록 `toString`을 오버라이드하지 않는다.
+library;
+
+/// 목록의 반려동물 한 줄.
+class PetSummary {
+  const PetSummary({
+    required this.petId,
+    required this.name,
+    required this.species,
+    required this.breed,
+    required this.ageLabel,
+    required this.hasConditions,
+    required this.passedAway,
+  });
+
+  factory PetSummary.fromJson(Map<String, dynamic> json) => PetSummary(
+    petId: json['pet_id'] as int,
+    name: json['name'] as String,
+    species: json['species'] as String,
+    breed: json['breed'] as String,
+    ageLabel: json['age_label'] as String,
+    hasConditions: json['has_conditions'] as bool,
+    passedAway: json['passed_away'] as bool,
+  );
+
+  final int petId;
+  final String name;
+
+  /// 'dog' | 'cat'
+  final String species;
+  final String breed;
+  final String ageLabel;
+  final bool hasConditions;
+  final bool passedAway;
+}
+
+/// 목록의 가족 카드 하나(보호자 한 명과 그 아이들). 번호는 가린 값만 있다.
+class FamilyCard {
+  const FamilyCard({
+    required this.customerId,
+    required this.name,
+    required this.phoneMasked,
+    required this.pets,
+  });
+
+  factory FamilyCard.fromJson(Map<String, dynamic> json) => FamilyCard(
+    customerId: json['customer_id'] as int,
+    name: json['name'] as String,
+    phoneMasked: json['phone_masked'] as String,
+    pets: (json['pets'] as List)
+        .map((e) => PetSummary.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final int customerId;
+  final String name;
+
+  /// `010-12··-5678` 모양.
+  final String phoneMasked;
+  final List<PetSummary> pets;
+}
+
+/// 목록 한 페이지.
+class CustomerPage {
+  const CustomerPage({
+    required this.items,
+    required this.nextCursor,
+    required this.petCount,
+  });
+
+  factory CustomerPage.fromJson(Map<String, dynamic> json) => CustomerPage(
+    items: (json['items'] as List)
+        .map((e) => FamilyCard.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    nextCursor: json['next_cursor'] as String?,
+    petCount: json['pet_count'] as int,
+  );
+
+  final List<FamilyCard> items;
+
+  /// 다음 페이지 커서. 해석하지 않고 그대로 돌려보낸다. 없으면 마지막 페이지.
+  final String? nextCursor;
+
+  /// 검색·무지개다리 조건에 맞는 반려동물 수("고객 N마리").
+  final int petCount;
+}
+
+/// 등록 1단계의 번호 조회 결과.
+class CustomerLookup {
+  const CustomerLookup({
+    required this.customerId,
+    required this.name,
+    required this.petNames,
+  });
+
+  factory CustomerLookup.fromJson(Map<String, dynamic> json) => CustomerLookup(
+    customerId: json['customer_id'] as int,
+    name: json['name'] as String,
+    petNames: (json['pet_names'] as List).cast<String>(),
+  );
+
+  final int customerId;
+  final String name;
+
+  /// 무지개다리 아이는 들어 있지 않다.
+  final List<String> petNames;
+}
+
+/// 반려동물의 질병 한 항목.
+class PetCondition {
+  const PetCondition({
+    required this.typeCode,
+    required this.label,
+    required this.customLabel,
+    required this.note,
+  });
+
+  factory PetCondition.fromJson(Map<String, dynamic> json) => PetCondition(
+    typeCode: json['type_code'] as String,
+    label: json['label'] as String,
+    customLabel: json['custom_label'] as String?,
+    note: json['note'] as String?,
+  );
+
+  final String typeCode;
+
+  /// 정해진 질병의 이름(기타면 "기타").
+  final String label;
+
+  /// 기타일 때만 있는 직접 입력 이름.
+  final String? customLabel;
+  final String? note;
+
+  /// 화면에 보일 이름 — 기타면 직접 입력한 이름.
+  String get displayLabel => customLabel ?? label;
+}
+
+/// 반려동물 전체.
+class Pet {
+  const Pet({
+    required this.petId,
+    required this.customerId,
+    required this.name,
+    required this.species,
+    required this.breed,
+    required this.sex,
+    required this.neutered,
+    required this.birthDate,
+    required this.birthYear,
+    required this.ageLabel,
+    required this.weightKg,
+    required this.noKnownConditions,
+    required this.hasConditions,
+    required this.conditions,
+    required this.memo,
+    required this.passedAwayAt,
+  });
+
+  factory Pet.fromJson(Map<String, dynamic> json) => Pet(
+    petId: json['pet_id'] as int,
+    customerId: json['customer_id'] as int,
+    name: json['name'] as String,
+    species: json['species'] as String,
+    breed: json['breed'] as String,
+    sex: json['sex'] as String,
+    neutered: json['neutered'] as bool,
+    birthDate: json['birth_date'] == null
+        ? null
+        : DateTime.parse(json['birth_date'] as String),
+    birthYear: json['birth_year'] as int?,
+    ageLabel: json['age_label'] as String,
+    weightKg: (json['weight_kg'] as num).toDouble(),
+    noKnownConditions: json['no_known_conditions'] as bool,
+    hasConditions: json['has_conditions'] as bool,
+    conditions: (json['conditions'] as List)
+        .map((e) => PetCondition.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    memo: json['memo'] as String?,
+    passedAwayAt: json['passed_away_at'] == null
+        ? null
+        : DateTime.parse(json['passed_away_at'] as String),
+  );
+
+  final int petId;
+  final int customerId;
+  final String name;
+
+  /// 'dog' | 'cat'
+  final String species;
+  final String breed;
+
+  /// 'female' | 'male'
+  final String sex;
+  final bool neutered;
+
+  /// 날짜만 쓴다(시각은 자정).
+  final DateTime? birthDate;
+  final int? birthYear;
+  final String ageLabel;
+  final double weightKg;
+  final bool noKnownConditions;
+  final bool hasConditions;
+  final List<PetCondition> conditions;
+  final String? memo;
+  final DateTime? passedAwayAt;
+
+  bool get passedAway => passedAwayAt != null;
+}
+
+/// 보호자 전체. 전체 번호가 들어 있는 유일한 모델이다.
+class Customer {
+  const Customer({
+    required this.customerId,
+    required this.name,
+    required this.phone,
+    required this.phoneAlt,
+    required this.marketingConsent,
+    required this.marketingConsentChangedAt,
+    required this.memo,
+  });
+
+  factory Customer.fromJson(Map<String, dynamic> json) => Customer(
+    customerId: json['customer_id'] as int,
+    name: json['name'] as String,
+    phone: json['phone'] as String,
+    phoneAlt: json['phone_alt'] as String?,
+    marketingConsent: json['marketing_consent'] as bool,
+    marketingConsentChangedAt: DateTime.parse(
+      json['marketing_consent_changed_at'] as String,
+    ),
+    memo: json['memo'] as String?,
+  );
+
+  final int customerId;
+  final String name;
+
+  /// 숫자만(`01012345678`).
+  final String phone;
+  final String? phoneAlt;
+  final bool marketingConsent;
+  final DateTime marketingConsentChangedAt;
+  final String? memo;
+}
+
+/// 고객 상세 — 보호자 전체와 반려동물 전체.
+class CustomerDetail {
+  const CustomerDetail({required this.customer, required this.pets});
+
+  factory CustomerDetail.fromJson(Map<String, dynamic> json) => CustomerDetail(
+    customer: Customer.fromJson(json['customer'] as Map<String, dynamic>),
+    pets: (json['pets'] as List)
+        .map((e) => Pet.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final Customer customer;
+  final List<Pet> pets;
+}
+
+/// 반려동물 상세의 보호자 요약. 번호는 가린 값이다.
+class OwnerSummary {
+  const OwnerSummary({
+    required this.customerId,
+    required this.name,
+    required this.phoneMasked,
+  });
+
+  factory OwnerSummary.fromJson(Map<String, dynamic> json) => OwnerSummary(
+    customerId: json['customer_id'] as int,
+    name: json['name'] as String,
+    phoneMasked: json['phone_masked'] as String,
+  );
+
+  final int customerId;
+  final String name;
+  final String phoneMasked;
+}
+
+/// 같은 보호자의 다른 아이.
+class Sibling {
+  const Sibling({
+    required this.petId,
+    required this.name,
+    required this.species,
+    required this.passedAway,
+  });
+
+  factory Sibling.fromJson(Map<String, dynamic> json) => Sibling(
+    petId: json['pet_id'] as int,
+    name: json['name'] as String,
+    species: json['species'] as String,
+    passedAway: json['passed_away'] as bool,
+  );
+
+  final int petId;
+  final String name;
+  final String species;
+  final bool passedAway;
+}
+
+/// 반려동물 상세 — 반려동물 전체, 보호자 요약, 같은 보호자의 다른 아이.
+class PetDetail {
+  const PetDetail({
+    required this.pet,
+    required this.owner,
+    required this.siblings,
+  });
+
+  factory PetDetail.fromJson(Map<String, dynamic> json) => PetDetail(
+    pet: Pet.fromJson(json['pet'] as Map<String, dynamic>),
+    owner: OwnerSummary.fromJson(json['owner'] as Map<String, dynamic>),
+    siblings: (json['siblings'] as List)
+        .map((e) => Sibling.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  final Pet pet;
+  final OwnerSummary owner;
+  final List<Sibling> siblings;
+}
+
+/// 정해진 질병 종류 하나.
+class ConditionType {
+  const ConditionType({
+    required this.code,
+    required this.label,
+    required this.sortOrder,
+  });
+
+  factory ConditionType.fromJson(Map<String, dynamic> json) => ConditionType(
+    code: json['code'] as String,
+    label: json['label'] as String,
+    sortOrder: json['sort_order'] as int,
+  );
+
+  static const otherCode = 'other';
+
+  final String code;
+  final String label;
+  final int sortOrder;
+}
+
+/// 보호자 폼(등록 2단계·보호자 수정). 전화번호는 숫자만 보낸다.
+class CustomerFields {
+  const CustomerFields({
+    required this.name,
+    required this.phone,
+    required this.phoneAlt,
+    required this.marketingConsent,
+    required this.memo,
+  });
+
+  final String name;
+  final String phone;
+  final String? phoneAlt;
+  final bool marketingConsent;
+  final String? memo;
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'phone': phone,
+    'phone_alt': phoneAlt,
+    'marketing_consent': marketingConsent,
+    'memo': memo,
+  };
+}
+
+/// 반려동물 폼에 넣는 질병 한 항목.
+class ConditionEntry {
+  const ConditionEntry({required this.typeCode, this.customLabel, this.note});
+
+  final String typeCode;
+  final String? customLabel;
+  final String? note;
+
+  Map<String, dynamic> toJson() => {
+    'type_code': typeCode,
+    'custom_label': customLabel,
+    'note': note,
+  };
+}
+
+/// 반려동물 폼(등록 3단계·반려동물 추가·수정). 생일과 태어난 해는 하나만,
+/// 둘 다 없으면 "나이 모름"이다. 질병은 목록 전체를 보낸다.
+class PetFields {
+  const PetFields({
+    required this.name,
+    required this.species,
+    required this.breed,
+    required this.sex,
+    required this.neutered,
+    required this.birthDate,
+    required this.birthYear,
+    required this.weightKg,
+    required this.noKnownConditions,
+    required this.conditions,
+    required this.memo,
+  });
+
+  final String name;
+  final String species;
+  final String breed;
+  final String sex;
+  final bool neutered;
+  final DateTime? birthDate;
+  final int? birthYear;
+  final double weightKg;
+  final bool noKnownConditions;
+  final List<ConditionEntry> conditions;
+  final String? memo;
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'species': species,
+    'breed': breed,
+    'sex': sex,
+    'neutered': neutered,
+    'birth_date': birthDate == null ? null : _isoDate(birthDate!),
+    'birth_year': birthYear,
+    'weight_kg': weightKg,
+    'no_known_conditions': noKnownConditions,
+    'conditions': [for (final c in conditions) c.toJson()],
+    'memo': memo,
+  };
+
+  static String _isoDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
