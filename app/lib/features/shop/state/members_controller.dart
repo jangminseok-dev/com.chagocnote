@@ -16,7 +16,8 @@ class MembersController extends AsyncNotifier<List<ShopMember>> {
   ShopApi get _api => ref.read(shopApiProvider);
 
   @override
-  Future<List<ShopMember>> build() => _api.members(shopId);
+  Future<List<ShopMember>> build() =>
+      runShopScoped(ref, () => _api.members(shopId));
 
   Future<void> _reload() async {
     state = AsyncData(await _api.members(shopId));

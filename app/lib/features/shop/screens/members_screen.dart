@@ -63,7 +63,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            '${AppStrings.inviteExpiresAtLabel} ${_formatDate(invite.expiresAt)}',
+            '${AppStrings.inviteExpiresAtLabel} ${_formatDateTime(invite.expiresAt)}',
             style: AppTypography.caption,
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -156,8 +156,17 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
     }
   }
 
-  static String _formatDate(DateTime date) =>
-      '${date.year}.${date.month.toString().padLeft(2, '0')}.${date.day.toString().padLeft(2, '0')}';
+  // 서버는 UTC로 날짜를 준다(`Z` 접미사). `toLocal()` 없이 년·월·일을
+  // 그대로 찍으면 한국 시간 기준으로 하루 이른 날짜가 보일 수 있다.
+  static String _formatDate(DateTime date) {
+    final local = date.toLocal();
+    return '${local.year}.${local.month.toString().padLeft(2, '0')}.${local.day.toString().padLeft(2, '0')}';
+  }
+
+  static String _formatDateTime(DateTime date) {
+    final local = date.toLocal();
+    return '${_formatDate(date)} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {

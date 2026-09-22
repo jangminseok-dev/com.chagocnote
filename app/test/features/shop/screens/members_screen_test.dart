@@ -124,6 +124,16 @@ void main() {
 
     expect(find.byKey(ScreenKeys.settingsMembers), findsOneWidget);
     expect(find.text(AppStrings.createInvite), findsNothing);
+
+    // 헤더 버튼뿐 아니라 행 자체도 관리 동작을 열지 않는다 — `canManage`가
+    // `!isSelf`만으로 느슨해져도 이 단언이 잡아내도록, 자기 자신이 아닌
+    // 다른 멤버('민석')의 행을 누른다.
+    await tester.tap(find.text('민석'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.promoteToOwner), findsNothing);
+    expect(find.text(AppStrings.demoteToStaff), findsNothing);
+    expect(find.text(AppStrings.removeMember), findsNothing);
   });
 
   testWidgets('사장은 초대 코드 만들기 버튼을 본다', (tester) async {
@@ -378,6 +388,88 @@ void main() {
       expect(find.byKey(ScreenKeys.invite), findsOneWidget);
     },
   );
+
+  testWidgets(
+    '목록 조회 자체가 NOT_A_MEMBER 를 받아도 reloadMe 를 부른다 — 매장이 사라졌으면 라우터가 내보낸다',
+    (tester) async {
+      // S8: build()도 runShopScoped를 거쳐야 한다. 내보내진 직원이 멤버
+      // 화면에 들어오면 첫 목록 GET부터 403 NOT_A_MEMBER를 받을 수 있다.
+      final gateway = FakeSessionGateway()..meOnRestore = _ownerMe();
+      final setup = _setUp(gateway, (options, body) {
+        if (options.path == '/v1/shops/3/members') {
+          return const FakeResponse(
+            statusCode: 403,
+            data: {'code': 'NOT_A_MEMBER', 'message': '멤버 아님'},
+          );
+        }
+        fail('예상하지 못한 경로: ${options.method} ${options.path}');
+      });
+      // 제거됨 — 더는 이 매장의 멤버가 아니다.
+      gateway.meOnRefresh = const Me(
+        id: 99,
+        displayName: '민석',
+        profileImageUrl: null,
+        identities: ['apple'],
+        shops: [],
+      );
+      addTearDown(setup.container.dispose);
+
+      await tester.pumpWidget(_appWith(setup.container));
+      await tester.pumpAndSettle();
+      setup.container.read(routerProvider).go('/settings/members');
+      await tester.pumpAndSettle();
+
+      expect(gateway.refreshMeCallCount, 1);
+      expect(find.byKey(ScreenKeys.invite), findsOneWidget);
+    },
+  );
+
+  testWidgets('초대 만료 시각은 기기 로컬 시간으로 보여준다', (tester) async {
+    // 서버는 UTC로 만료 시각을 준다. 테스트 환경의 시간대에 의존하지
+    // 않도록, 기대 문자열도 같은 `toLocal()`로 계산한다.
+    const expiresAtIso = '2026-09-28T20:00:00Z';
+    final expiresAt = DateTime.parse(expiresAtIso);
+    final gateway = FakeSessionGateway()..meOnRestore = _ownerMe();
+    final setup = _setUp(gateway, (options, body) {
+      if (options.path == '/v1/shops/3/members') {
+        return const FakeResponse(statusCode: 200, data: _membersJson);
+      }
+      if (options.path == '/v1/shops/3/invites') {
+        return const FakeResponse(
+          statusCode: 201,
+          data: {
+            'code': 'XYZ789',
+            'role': 'staff',
+            'expires_at': expiresAtIso,
+          },
+        );
+      }
+      fail('예상하지 못한 경로: ${options.path}');
+    });
+    addTearDown(setup.container.dispose);
+
+    await tester.pumpWidget(_appWith(setup.container));
+    await tester.pumpAndSettle();
+    setup.container.read(routerProvider).go('/settings/members');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.createInvite));
+    await tester.pumpAndSettle();
+
+    final local = expiresAt.toLocal();
+    final expectedDate = '${local.year}.'
+        '${local.month.toString().padLeft(2, '0')}.'
+        '${local.day.toString().padLeft(2, '0')}';
+    final expectedTime = '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+
+    expect(
+      find.text(
+        '${AppStrings.inviteExpiresAtLabel} $expectedDate $expectedTime',
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 class _NoopTokenStore implements TokenStore {
