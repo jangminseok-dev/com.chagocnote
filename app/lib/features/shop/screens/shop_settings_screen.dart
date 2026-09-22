@@ -107,74 +107,104 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
       key: ScreenKeys.settingsShop,
       body: AppBackground(
         child: SafeArea(
-          child: settingsAsync.when(
-            data: (settings) {
-              _initFields(settings);
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 머리는 로딩·오류 상태에서도 보인다 — 오류에 갇혀도 뒤로 갈 수
+              // 있어야 한다(최종 검토 C).
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                  0,
+                ),
+                child: Row(
                   children: [
-                    Row(
+                    const AppBackButton(),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      AppStrings.settingsShopInfo,
+                      style: AppTypography.titleKo,
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: settingsAsync.when(
+                  data: (settings) {
+                    _initFields(settings);
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: AppSpacing.sm),
+                          TextField(
+                            controller: _nameController,
+                            enabled: isOwner,
+                            decoration: InputDecoration(
+                              labelText: AppStrings.shopName,
+                              errorText: _nameError,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          TextField(
+                            controller: _phoneController,
+                            enabled: isOwner,
+                            decoration: const InputDecoration(
+                              labelText: AppStrings.shopPhone,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          TextField(
+                            controller: _addressController,
+                            enabled: isOwner,
+                            decoration: const InputDecoration(
+                              labelText: AppStrings.shopAddress,
+                            ),
+                          ),
+                          if (isOwner) ...[
+                            const SizedBox(height: AppSpacing.xl),
+                            AppButton(
+                              label: AppStrings.save,
+                              filled: true,
+                              busy: _busy,
+                              onPressed: _busy ? null : _save,
+                            ),
+                          ],
+                          if (_errorText != null) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            Text(_errorText!, style: AppTypography.caption),
+                          ],
+                          if (_successText != null) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            Text(_successText!, style: AppTypography.caption),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, _) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const AppBackButton(),
-                        const SizedBox(width: AppSpacing.sm),
-                        Text(
-                          AppStrings.settingsShopInfo,
-                          style: AppTypography.titleKo,
+                        Text(messageFor(error), style: AppTypography.body),
+                        const SizedBox(height: AppSpacing.lg),
+                        AppButton(
+                          label: AppStrings.retry,
+                          onPressed: () => ref.invalidate(
+                            shopSettingsControllerProvider(shopId!),
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppSpacing.xl),
-                    TextField(
-                      controller: _nameController,
-                      enabled: isOwner,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.shopName,
-                        errorText: _nameError,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextField(
-                      controller: _phoneController,
-                      enabled: isOwner,
-                      decoration: const InputDecoration(
-                        labelText: AppStrings.shopPhone,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextField(
-                      controller: _addressController,
-                      enabled: isOwner,
-                      decoration: const InputDecoration(
-                        labelText: AppStrings.shopAddress,
-                      ),
-                    ),
-                    if (isOwner) ...[
-                      const SizedBox(height: AppSpacing.xl),
-                      AppButton(
-                        label: AppStrings.save,
-                        filled: true,
-                        busy: _busy,
-                        onPressed: _busy ? null : _save,
-                      ),
-                    ],
-                    if (_errorText != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(_errorText!, style: AppTypography.caption),
-                    ],
-                    if (_successText != null) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(_successText!, style: AppTypography.caption),
-                    ],
-                  ],
+                  ),
                 ),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(
-              child: Text(messageFor(error), style: AppTypography.body),
-            ),
+              ),
+            ],
           ),
         ),
       ),

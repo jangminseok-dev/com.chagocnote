@@ -38,7 +38,9 @@ class ShopSettingsController extends AsyncNotifier<ShopSettings> {
   }
 }
 
-final shopSettingsControllerProvider = AsyncNotifierProvider.family<
-    ShopSettingsController, ShopSettings, int>(
+/// 화면을 떠나면 버린다(autoDispose) — 한 번 난 오류가 다음 방문까지
+/// 남아 화면이 오류에 갇히지 않게 한다(최종 검토 C).
+final shopSettingsControllerProvider = AsyncNotifierProvider.autoDispose
+    .family<ShopSettingsController, ShopSettings, int>(
   ShopSettingsController.new,
 );

@@ -66,7 +66,9 @@ class MembersController extends AsyncNotifier<List<ShopMember>> {
   }
 }
 
-final membersControllerProvider =
-    AsyncNotifierProvider.family<MembersController, List<ShopMember>, int>(
+/// 화면을 떠나면 버린다(autoDispose) — 한 번 난 오류가 다음 방문까지
+/// 남아 화면이 오류에 갇히지 않게 한다(최종 검토 C).
+final membersControllerProvider = AsyncNotifierProvider.autoDispose
+    .family<MembersController, List<ShopMember>, int>(
   MembersController.new,
 );

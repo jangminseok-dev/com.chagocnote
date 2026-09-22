@@ -275,8 +275,20 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                   ),
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) =>
-                      Center(child: Text(messageFor(error), style: AppTypography.body)),
+                  error: (error, _) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(messageFor(error), style: AppTypography.body),
+                        const SizedBox(height: AppSpacing.lg),
+                        AppButton(
+                          label: AppStrings.retry,
+                          onPressed: () => ref
+                              .invalidate(membersControllerProvider(shopId!)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],

@@ -11,6 +11,8 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
+import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
@@ -313,6 +315,97 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(gateway.refreshMeCallCount, 1);
+  });
+
+  group('오류 고착(최종 검토 C)', () {
+    testWidgets('첫 조회가 NETWORK 오류면 뒤로 가기와 다시 시도가 보이고, 다시 시도하면 정보가 나온다', (
+      tester,
+    ) async {
+      final gateway = FakeSessionGateway()
+        ..meOnRestore = const Me(
+          id: 99,
+          displayName: '민석',
+          profileImageUrl: null,
+          identities: ['apple'],
+          shops: [_hissHausOwner],
+        );
+      var calls = 0;
+      final setup = _setUp(gateway, (options, body) {
+        if (options.path == '/v1/shops/3/settings') {
+          calls++;
+          if (calls == 1) {
+            throw DioException.connectionError(
+              requestOptions: options,
+              reason: '연결 실패',
+            );
+          }
+          return const FakeResponse(statusCode: 200, data: _settingsJson);
+        }
+        fail('예상하지 못한 경로: ${options.path}');
+      });
+      addTearDown(setup.container.dispose);
+
+      await tester.pumpWidget(_appWith(setup.container));
+      await tester.pumpAndSettle();
+      setup.container.read(routerProvider).go('/settings/shop');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AppBackButton), findsOneWidget);
+      final retry = find.byWidgetPredicate(
+        (w) => w is AppButton && w.label == AppStrings.retry,
+      );
+      expect(retry, findsOneWidget);
+      expect(find.text(AppStrings.shopName), findsNothing);
+
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+      expect(find.text(AppStrings.shopName), findsOneWidget);
+      expect(retry, findsNothing);
+    });
+
+    testWidgets('오류가 난 뒤 화면을 떠났다가 다시 들어오면 새로 조회한다(autoDispose)', (tester) async {
+      final gateway = FakeSessionGateway()
+        ..meOnRestore = const Me(
+          id: 99,
+          displayName: '민석',
+          profileImageUrl: null,
+          identities: ['apple'],
+          shops: [_hissHausOwner],
+        );
+      var calls = 0;
+      final setup = _setUp(gateway, (options, body) {
+        if (options.path == '/v1/shops/3/settings') {
+          calls++;
+          if (calls == 1) {
+            throw DioException.connectionError(
+              requestOptions: options,
+              reason: '연결 실패',
+            );
+          }
+          return const FakeResponse(statusCode: 200, data: _settingsJson);
+        }
+        fail('예상하지 못한 경로: ${options.path}');
+      });
+      addTearDown(setup.container.dispose);
+
+      await tester.pumpWidget(_appWith(setup.container));
+      await tester.pumpAndSettle();
+      setup.container.read(routerProvider).go('/settings/shop');
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.shopName), findsNothing);
+
+      await tester.tap(find.byType(AppBackButton));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ScreenKeys.settingsShop), findsNothing);
+
+      setup.container.read(routerProvider).go('/settings/shop');
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+      expect(find.text(AppStrings.shopName), findsOneWidget);
+    });
   });
 }
 
