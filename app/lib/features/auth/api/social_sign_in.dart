@@ -27,7 +27,8 @@ class SocialCredential {
 }
 
 /// 소셜 로그인 공급자 하나를 다루는 포트. 카카오/구글/애플 구현체는
-/// Task 14에서 만든다.
+/// `kakao_sign_in.dart`·`google_sign_in_adapter.dart`·`apple_sign_in.dart`에
+/// 있다.
 abstract class SocialSignIn {
   String get provider;
 
