@@ -77,3 +77,13 @@ def pet_detail_view() -> PetDetailView:
         owner=OwnerSummaryView(customer_id=1, name="김민지", phone_masked="010-12··-5678"),
         siblings=[],
     )
+
+
+# 폼 본문 예시 — 앞뒤 공백과 빈 문자열을 일부러 넣었다(라우터가 없애고 None 으로 바꾸는지 본다).
+CUSTOMER_BODY = {"name": " 김민지 ", "phone": "010-1234-5678", "phone_alt": "", "marketing_consent": True,
+                 "memo": ""}
+PET_BODY = {
+    "name": "콩이", "species": "dog", "breed": "말티즈", "sex": "female", "neutered": True,
+    "birth_year": 2021, "weight_kg": 3.2, "no_known_conditions": False,
+    "conditions": [{"type_code": "other", "custom_label": " 눈물 자국 ", "note": ""}], "memo": "",
+}

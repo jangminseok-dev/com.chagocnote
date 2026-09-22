@@ -25,6 +25,8 @@ from customer.adapter.inbound.api.v1.get_pet_router import get_pet_router
 from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
     list_pet_condition_types_router,
 )
+from customer.adapter.inbound.api.v1.lookup_customer_router import lookup_customer_router
+from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -69,9 +71,11 @@ app.include_router(create_shop_router)
 # customer — /customers/myself 와 /customers/lookup 은 /customers/{customer_id} 보다 먼저 붙인다.
 # 늦게 붙이면 {customer_id} 가 먼저 걸려 정수 변환 실패(422)가 된다.
 app.include_router(customer_myself_router)
+app.include_router(lookup_customer_router)
 app.include_router(get_customer_router)
 app.include_router(get_pet_router)
 app.include_router(list_pet_condition_types_router)
+app.include_router(register_customer_router)
 install_error_handlers(
     app,
     {
