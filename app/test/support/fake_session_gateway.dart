@@ -23,6 +23,9 @@ class FakeSessionGateway implements SessionGateway {
   Me? meOnRefresh;
   Object? refreshMeError;
 
+  /// refreshMe() 가 호출된 횟수. 게이트를 기다리기 전에 센다.
+  int refreshMeCallCount = 0;
+
   /// 설정되어 있으면 refreshMe()는 이 completer가 끝날 때까지 기다린다.
   /// 갱신 응답을 기다리는 동안 다른 이벤트(예: endSession)가 끼어드는 경합을
   /// 결정적으로 재현할 때 쓴다.
@@ -52,6 +55,7 @@ class FakeSessionGateway implements SessionGateway {
 
   @override
   Future<Me> refreshMe() async {
+    refreshMeCallCount++;
     if (refreshMeGate != null) return refreshMeGate!.future;
     if (refreshMeError != null) throw refreshMeError!;
     return meOnRefresh!;

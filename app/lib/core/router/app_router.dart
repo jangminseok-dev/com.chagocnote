@@ -9,6 +9,8 @@ import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/state/session.dart';
 import '../../features/auth/state/session_controller.dart';
 import '../../features/home/screens/home_shell.dart';
+import '../../features/shop/screens/members_screen.dart';
+import '../../features/shop/screens/settings_screen.dart';
 import 'placeholder_screens.dart';
 
 /// go_router의 `refreshListenable`은 평범한 [Listenable]을 요구한다. 세션이
@@ -76,7 +78,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/settings/members',
-        builder: (context, state) => const SettingsMembersScreen(),
+        builder: (context, state) => const MembersScreen(),
       ),
       GoRoute(
         path: '/settings/shop',

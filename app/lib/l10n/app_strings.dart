@@ -38,4 +38,32 @@ class AppStrings {
   static const calendarEmptyCaption = '예약을 만들면 여기에서 모아 볼 수 있어요.';
   static const comingSoonEmptyTitle = '준비 중입니다';
   static const comingSoonSheetText = '예약과 기록은 다음 업데이트에서 만나요';
+
+  // 설정 허브
+  static const settingsSectionShop = '매장';
+  static const settingsSectionOtherShops = '다른 매장';
+  static const settingsSectionAccount = '계정';
+  static const settingsMembers = '멤버';
+  static const settingsShopInfo = '매장 정보';
+  static const settingsSwitchShop = '매장 바꾸기';
+  static const settingsJoinByInvite = '초대 코드로 합류';
+  static const settingsAccount = '계정';
+
+  // 멤버
+  static const createInvite = '초대 코드 만들기';
+  static const inviteExpiresAtLabel = '만료';
+  static const copy = '복사';
+  static const promoteToOwner = '사장으로 변경';
+  static const demoteToStaff = '직원으로 변경';
+  static const removeMember = '내보내기';
+  static const removeMemberConfirmTitle = '정말 내보낼까요?';
+  static const cancel = '취소';
+
+  // 매장 정보
+  static const shopName = '매장 이름';
+  static const shopPhone = '전화번호';
+  static const shopAddress = '주소';
+  static const save = '저장';
+  static const saved = '저장했습니다';
+  static const shopNameRequired = '매장 이름을 입력해 주세요.';
 }

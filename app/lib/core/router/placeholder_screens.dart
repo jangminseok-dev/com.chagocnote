@@ -16,26 +16,6 @@ class _PlaceholderScreen extends StatelessWidget {
   }
 }
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) => const _PlaceholderScreen(
-        label: 'settings',
-        screenKey: ScreenKeys.settings,
-      );
-}
-
-class SettingsMembersScreen extends StatelessWidget {
-  const SettingsMembersScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) => const _PlaceholderScreen(
-        label: 'settings_members',
-        screenKey: ScreenKeys.settingsMembers,
-      );
-}
-
 class SettingsShopScreen extends StatelessWidget {
   const SettingsShopScreen({super.key});
 

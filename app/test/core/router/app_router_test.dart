@@ -1,12 +1,17 @@
+import 'package:chagocnote/core/proxy/api_client.dart';
+import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/auth/state/session_gateway.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fake_http_client_adapter.dart';
 import '../../support/fake_session_gateway.dart';
 
 const _ownerA = ShopMembership(shopId: 1, shopName: 'A매장', role: 'owner');
@@ -35,10 +40,17 @@ Widget _appWith(ProviderContainer container) {
   );
 }
 
-ProviderContainer _containerWith(SessionGateway gateway) =>
+ProviderContainer _containerWith(
+  SessionGateway gateway, {
+  ApiClient Function(Ref ref)? apiClientBuilder,
+}) =>
     ProviderContainer.test(
       retry: (retryCount, error) => null,
-      overrides: [sessionGatewayProvider.overrideWithValue(gateway)],
+      overrides: [
+        sessionGatewayProvider.overrideWithValue(gateway),
+        if (apiClientBuilder != null)
+          apiClientProvider.overrideWith(apiClientBuilder),
+      ],
     );
 
 void main() {
@@ -200,7 +212,24 @@ void main() {
       final gateway = FakeSessionGateway()
         ..meOnRestore = _me(shops: [_ownerA, _staffB])
         ..lastShopId = _ownerA.shopId;
-      final container = _containerWith(gateway);
+      // `/settings/members`는 이제 실제 화면이라 매장 API를 부른다. 실제
+      // 네트워크로 나가 pumpAndSettle이 멎지 않도록 가짜 어댑터를 문
+      // apiClientProvider로 덮어쓴다.
+      final adapter = FakeHttpClientAdapter(
+        (options, body) =>
+            const FakeResponse(statusCode: 200, data: <dynamic>[]),
+      );
+      final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
+      final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
+      final container = _containerWith(
+        gateway,
+        apiClientBuilder: (ref) => ApiClient(
+          tokenStore: MemoryTokenStore(),
+          dio: dio,
+          refreshDio: refreshDio,
+          onSessionEnded: ref.read(sessionEndedSignalProvider).fire,
+        ),
+      );
 
       await tester.pumpWidget(_appWith(container));
       await tester.pumpAndSettle();
