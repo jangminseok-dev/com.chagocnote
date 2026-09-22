@@ -104,7 +104,7 @@ Map<String, dynamic> customerJson({
   String phone = '01012345678',
   String? phoneAlt,
   bool marketingConsent = true,
-  String marketingConsentChangedAt = '2026-09-20T01:00:00Z',
+  String marketingConsentChangedAt = '2026-09-20T12:00:00Z',
   String? memo = '오후 방문 선호',
 }) => {
   'customer_id': customerId,

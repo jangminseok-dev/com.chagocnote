@@ -120,6 +120,32 @@ void main() {
     ]);
   });
 
+  testWidgets('무지개다리 포함이 바뀌면 목록 스크롤을 맨 위로 되돌린다', (tester) async {
+    final items = [
+      for (var i = 1; i <= 12; i++) familyJson(customerId: i, name: '보호자$i'),
+    ];
+    final setup = CustomerTestSetup(
+      (options, body) =>
+          FakeResponse(statusCode: 200, data: pageJson(items: items)),
+    );
+    addTearDown(setup.container.dispose);
+    await _openTab(tester, setup);
+
+    // 검색창도 Scrollable 이라 목록의 것을 집어 준다.
+    final list = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
+    await tester.fling(find.byType(ListView), const Offset(0, -3000), 3000);
+    await tester.pumpAndSettle();
+    expect(tester.state<ScrollableState>(list).position.pixels, greaterThan(0));
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.includePassed));
+    await _settle(tester);
+
+    expect(tester.state<ScrollableState>(list).position.pixels, 0);
+  });
+
   testWidgets('검색은 0.3초 쉰 뒤 보내고, 새 검색을 보내면 늦게 온 옛 결과는 버린다(C12)', (
     tester,
   ) async {

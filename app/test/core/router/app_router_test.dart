@@ -315,6 +315,27 @@ void main() {
     expect(find.byKey(ScreenKeys.settings), findsOneWidget);
   });
 
+  testWidgets('매장이 둘이고 선택이 없을 때 /pets/1·/customers/new 로 가면 매장 선택으로 밀려난다', (
+    tester,
+  ) async {
+    final gateway = FakeSessionGateway()
+      ..meOnRestore = _me(shops: [_ownerA, _staffB]);
+    final container = _containerWith(gateway);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+
+    container.read(routerProvider).go('/pets/1');
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+
+    container.read(routerProvider).go('/customers/new');
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+  });
+
   testWidgets('설정 → 매장 정보 → 뒤로 → 설정', (tester) async {
     final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
     final adapter = FakeHttpClientAdapter((options, body) {

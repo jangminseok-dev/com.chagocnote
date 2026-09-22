@@ -193,7 +193,7 @@ void main() {
     expect(detail.customer.phone, '01012345678');
     expect(
       detail.customer.marketingConsentChangedAt,
-      DateTime.utc(2026, 9, 20, 1),
+      DateTime.utc(2026, 9, 20, 12),
     );
     expect(detail.pets.single.conditions.single.displayLabel, '슬개골 탈구');
   });

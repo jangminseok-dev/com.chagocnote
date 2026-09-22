@@ -76,7 +76,8 @@ class _PetFormState extends State<PetForm> {
   _AgeMode? _ageMode;
   bool _noKnownConditions = false;
 
-  /// 고른 정해진 질병(코드 → 메모 입력 칸). 칩 순서를 지키려고 삽입 순서를 쓴다.
+  /// 고른 정해진 질병(코드 → 메모 입력 칸). 고른 순서로 보낸다 — 서버가
+  /// sort_order 로 정렬해 돌려준다.
   final Map<String, TextEditingController> _conditions = {};
   final List<_OtherEntry> _others = [];
 
@@ -406,7 +407,11 @@ class _PetFormState extends State<PetForm> {
           if (_conditions.containsKey(type.code))
             _ConditionNote(title: type.label, note: _conditions[type.code]!),
         for (final other in _others)
-          _OtherCondition(entry: other, onRemove: () => _removeOther(other)),
+          _OtherCondition(
+            key: ObjectKey(other),
+            entry: other,
+            onRemove: () => _removeOther(other),
+          ),
         _error('conditions'),
         const SizedBox(height: AppSpacing.sm),
         TextField(
@@ -477,7 +482,11 @@ class _ConditionNote extends StatelessWidget {
 }
 
 class _OtherCondition extends StatelessWidget {
-  const _OtherCondition({required this.entry, required this.onRemove});
+  const _OtherCondition({
+    super.key,
+    required this.entry,
+    required this.onRemove,
+  });
 
   final _OtherEntry entry;
   final VoidCallback onRemove;

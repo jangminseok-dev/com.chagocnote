@@ -33,7 +33,10 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
   final _search = TextEditingController();
   final _scroll = ScrollController();
   late final SearchDebouncer _debouncer = SearchDebouncer(
-    onSearch: (q) => setState(() => _q = q),
+    onSearch: (q) => setState(() {
+      _q = q;
+      _scrollToTop();
+    }),
   );
 
   String _q = '';
@@ -42,6 +45,11 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
 
   /// 조건이 바뀌어 새로 불러오는 동안 앞선 결과를 그대로 보인다(깜빡임 방지).
   CustomerListState? _lastShown;
+
+  /// 검색어·정렬·무지개다리 포함이 바뀌면 목록 스크롤을 맨 위로 되돌린다.
+  void _scrollToTop() {
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
 
   @override
   void initState() {
@@ -127,13 +135,19 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
               AppSegment(
                 labels: const [AppStrings.sortRecent, AppStrings.sortName],
                 currentIndex: _sorts.indexOf(_sort),
-                onChanged: (i) => setState(() => _sort = _sorts[i]),
+                onChanged: (i) => setState(() {
+                  _sort = _sorts[i];
+                  _scrollToTop();
+                }),
               ),
               const Spacer(),
               AppChoiceChip(
                 label: AppStrings.includePassed,
                 selected: _includePassed,
-                onTap: () => setState(() => _includePassed = !_includePassed),
+                onTap: () => setState(() {
+                  _includePassed = !_includePassed;
+                  _scrollToTop();
+                }),
               ),
             ],
           ),
