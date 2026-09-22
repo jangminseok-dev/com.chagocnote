@@ -67,4 +67,26 @@ class AppStrings {
   static const save = '저장';
   static const saved = '저장했습니다';
   static const shopNameRequired = '매장 이름을 입력해 주세요.';
+
+  // 계정
+  static const providerKakao = '카카오';
+  static const providerGoogle = 'Google';
+  static const providerApple = 'Apple';
+  static const providerDev = '개발용';
+  static const accountLinkedMethods = '로그인 수단';
+  static const accountAddMethod = '로그인 수단 추가';
+  static const unlink = '해제';
+  static const unlinkOnlyOneCaption = '마지막 로그인 수단은 해제할 수 없습니다.';
+  static const unlinkConfirmMessage = '해제하면 다른 모든 기기에서 로그아웃됩니다.';
+  static const withdraw = '회원 탈퇴';
+
+  /// 로그인 수단 제공자 코드를 화면에 보여줄 라벨로 바꾼다. 계정 화면과
+  /// 재인증 시트(Task 16)가 함께 쓴다.
+  static String providerLabel(String provider) => switch (provider) {
+        'kakao' => providerKakao,
+        'google' => providerGoogle,
+        'apple' => providerApple,
+        'dev' => providerDev,
+        _ => provider,
+      };
 }

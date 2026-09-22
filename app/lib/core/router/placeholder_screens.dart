@@ -16,16 +16,6 @@ class _PlaceholderScreen extends StatelessWidget {
   }
 }
 
-class SettingsAccountScreen extends StatelessWidget {
-  const SettingsAccountScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) => const _PlaceholderScreen(
-        label: 'settings_account',
-        screenKey: ScreenKeys.settingsAccount,
-      );
-}
-
 class SettingsAccountWithdrawScreen extends StatelessWidget {
   const SettingsAccountWithdrawScreen({super.key});
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/account/screens/account_screen.dart';
 import '../../features/auth/screens/invite_code_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/shop_select_screen.dart';
@@ -87,7 +88,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/settings/account',
-        builder: (context, state) => const SettingsAccountScreen(),
+        builder: (context, state) => const AccountScreen(),
       ),
       GoRoute(
         path: '/settings/account/withdraw',

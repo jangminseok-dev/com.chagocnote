@@ -12,6 +12,11 @@ class FakeSocialSignIn implements SocialSignIn {
   SocialCredential? credentialToReturn;
   Object? signInError;
 
+  /// disconnect() 가 호출된 횟수. 계정 화면의 구글 해제 후 베스트 에포트
+  /// 연결 끊기를 검증하는 데 쓴다.
+  int disconnectCallCount = 0;
+  Object? disconnectError;
+
   @override
   Future<SocialCredential?> signIn() async {
     signInCallCount++;
@@ -20,5 +25,8 @@ class FakeSocialSignIn implements SocialSignIn {
   }
 
   @override
-  Future<void> disconnect() async {}
+  Future<void> disconnect() async {
+    disconnectCallCount++;
+    if (disconnectError != null) throw disconnectError!;
+  }
 }
