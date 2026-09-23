@@ -19,6 +19,7 @@ class Pressable extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.semanticLabel,
     this.selected,
     this.minSize = 44,
@@ -26,6 +27,9 @@ class Pressable extends StatefulWidget {
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// 길게 누르기(시간 칸의 10분 단위, 소요의 30분 단계). 없으면 눌리지 않는다.
+  final VoidCallback? onLongPress;
   final String? semanticLabel;
   final bool? selected;
   final double minSize;
@@ -98,6 +102,7 @@ class _PressableState extends State<Pressable>
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
         onTapDown: _onTapDown,
         onTapUp: _onTapEnd,
         onTapCancel: _onTapEnd,

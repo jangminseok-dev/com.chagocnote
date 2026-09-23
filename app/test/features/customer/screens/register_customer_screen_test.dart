@@ -185,6 +185,39 @@ void main() {
     expect(find.byKey(ScreenKeys.home), findsOneWidget);
   });
 
+  testWidgets('예약 ①에서 열었으면(?pick=1) 등록한 고객 ID 를 돌려주며 닫는다', (tester) async {
+    _tallView(tester);
+    final setup = CustomerTestSetup(_routes(), overrides: _today);
+    addTearDown(setup.container.dispose);
+    await tester.pumpWidget(customerRouterApp(setup.container));
+    await tester.pumpAndSettle();
+    int? returned;
+    setup.container
+        .read(routerProvider)
+        .push<int>('/customers/new?pick=1')
+        .then((id) => returned = id);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(_onStage(find.byType(TextField)), '010-1234-5678');
+    await _settle(tester);
+    await tester.tap(_onStage(_button(AppStrings.next)));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      _onStage(find.widgetWithText(TextField, AppStrings.ownerNameLabel)),
+      '김민지',
+    );
+    await _tapChip(tester, AppStrings.marketingAgreed);
+    await tester.tap(_onStage(_button(AppStrings.next)));
+    await tester.pumpAndSettle();
+    await _fillPet(tester);
+    await tester.tap(_onStage(_button(AppStrings.save)));
+    await tester.pumpAndSettle();
+
+    expect(returned, 7);
+    expect(find.byKey(ScreenKeys.petDetail), findsNothing);
+    expect(find.byKey(ScreenKeys.registerCustomer), findsNothing);
+  });
+
   testWidgets('이미 있는 번호 — 알려 주고, 그 보호자에게 반려동물 추가로 건너뛴다', (tester) async {
     _tallView(tester);
     final setup = CustomerTestSetup(

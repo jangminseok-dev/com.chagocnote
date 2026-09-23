@@ -211,6 +211,52 @@ class AppStrings {
       ? '이미 등록된 번호예요 — $name'
       : '이미 등록된 번호예요 — $name (${petNames.join(', ')})';
 
+  // 예약·방문
+  static const weekdaysShort = ['월', '화', '수', '목', '금', '토', '일'];
+  static const statusReserved = '예약됨';
+  static const statusInProgress = '미용 중';
+  static const statusCompleted = '완료';
+  static const statusCanceled = '취소';
+  static const statusNoShow = '노쇼';
+  static const ownerOnly = '보호자만';
+  static const deletedCustomer = '삭제된 고객';
+  static const noMenu = '메뉴 없음';
+  static const reserveWhoTitle = '누구의 예약인가요';
+  static const reserveWhenTitle = '언제 오나요';
+  static const reserveNoCustomer = '찾는 고객이 없나요?';
+  static const registerNewCustomer = '새 고객 등록';
+  static const changeCustomer = '바꾸기';
+  static const visitDateLabel = '날짜';
+  static const visitTimeLabel = '시작';
+  static const menuDurationLabel = '메뉴 · 소요 (선택)';
+  static const menuLabel = '메뉴';
+  static const durationLabel = '소요';
+  static const shorter = '소요 줄이기';
+  static const longer = '소요 늘리기';
+  static const visitMemoHint = '메모 (선택)';
+  static const prefilledFromLast = '지난번과 같게 채웠어요. 그대로 저장해도 돼요.';
+  static const pickPetFirst = '반려동물이나 "보호자만"을 골라 주세요';
+  static const pickTimeFirst = '시작 시각을 골라 주세요';
+  static const startNow = '지금 시작';
+  static const prevWeek = '이전 주';
+  static const nextWeek = '다음 주';
+  static const pickMinuteTitle = '10분 단위로 고르기';
+  static const pickMinuteHint = '시간 칸을 길게 누르면 10분 단위로 고를 수 있어요.';
+  static const warningOverlap = '이미 예약이 있는 시간이에요';
+  static const warningClosedDay = '쉬는 날이에요';
+  static const warningOutsideHours = '영업시간 밖이에요';
+
+  static String stepOf(int step, int total) => '$step / $total';
+  static String businessHours(String opens, String closes) => '영업 $opens–$closes';
+  static String saveReservation(String when) => '예약 저장 · $when';
+  static String monthLabel(int month) => '$month월';
+  static String durationText(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h == 0) return '$m분';
+    return m == 0 ? '$h시간' : '$h시간 $m분';
+  }
+
   static String speciesLabel(String species) => switch (species) {
         'dog' => speciesDog,
         'cat' => speciesCat,

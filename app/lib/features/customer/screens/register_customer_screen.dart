@@ -29,7 +29,11 @@ import 'pet_form.dart';
 /// 보호자에게 반려동물 추가로 건너뛰게 한다. 세 단계는 한 화면 안에서 오가며,
 /// 앞 단계로 돌아가도 적은 값이 남는다.
 class RegisterCustomerScreen extends ConsumerStatefulWidget {
-  const RegisterCustomerScreen({super.key});
+  const RegisterCustomerScreen({super.key, this.pickForReservation = false});
+
+  /// 예약 ①(고객 찾기)에서 열었으면 등록한 고객 ID 를 돌려주며 닫는다 —
+  /// 예약 ②로 바로 넘어간다. 아니면 새 아이의 상세로 간다.
+  final bool pickForReservation;
 
   @override
   ConsumerState<RegisterCustomerScreen> createState() =>
@@ -137,7 +141,12 @@ class _RegisterCustomerScreenState
       final detail = await ref
           .read(customerCommandsProvider)
           .register(shopId, customer: _customer!, pet: pet);
-      if (mounted) context.pushReplacement('/pets/${detail.pets.first.petId}');
+      if (!mounted) return;
+      if (widget.pickForReservation) {
+        context.pop(detail.customer.customerId);
+      } else {
+        context.pushReplacement('/pets/${detail.pets.first.petId}');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
