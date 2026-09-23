@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../support/customer_fixtures.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
+import '../../../support/visit_fixtures.dart';
 
 /// 홈에서 반려동물 상세를 쌓아 연다(뒤로 가면 홈).
 Future<void> _openPet(
@@ -73,6 +74,75 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('오후 방문 선호'), findsOneWidget);
+  });
+
+  testWidgets('보호자 탭은 노쇼 횟수와 다가오는 예약을 보이고, 예약을 누르면 방문 상세로 간다', (tester) async {
+    final setup = CustomerTestSetup((options, body) {
+      switch ('${options.method} ${options.path}') {
+        case 'GET /v1/shops/3/pets/11':
+          return FakeResponse(statusCode: 200, data: petDetailJson());
+        case 'GET /v1/shops/3/customers/7':
+          return FakeResponse(
+            statusCode: 200,
+            data: customerDetailJson(
+              noShowCount: 2,
+              upcomingVisits: [
+                upcomingVisitJson(),
+                upcomingVisitJson(
+                  visitId: 102,
+                  petId: null,
+                  petName: null,
+                  startsAt: '2026-10-05T11:00:00+09:00',
+                ),
+              ],
+            ),
+          );
+        case 'GET /v1/shops/3/visits/101':
+          return FakeResponse(statusCode: 200, data: visitDetailJson());
+      }
+      // 홈(캘린더 탭)의 요청은 그냥 실패시킨다.
+      return const FakeResponse(statusCode: 500, data: 'x');
+    });
+    addTearDown(setup.container.dispose);
+    // 보호자 탭은 길다 — 다가오는 예약 카드까지 한 화면에 그려지게 한다.
+    tester.view.physicalSize = const Size(390, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _openPet(tester, setup, 11);
+
+    await tester.tap(find.text(AppStrings.petTabOwner));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.noShowCount(2)), findsOneWidget);
+    expect(find.text('10월 2일 금 14:00'), findsOneWidget);
+    expect(find.text('10월 5일 월 11:00'), findsOneWidget);
+    expect(find.text(AppStrings.ownerOnly), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('10월 2일 금'));
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+  });
+
+  testWidgets('다가오는 예약이 없으면 "없음"이다', (tester) async {
+    final setup = CustomerTestSetup((options, body) {
+      switch ('${options.method} ${options.path}') {
+        case 'GET /v1/shops/3/pets/11':
+          return FakeResponse(statusCode: 200, data: petDetailJson());
+        case 'GET /v1/shops/3/customers/7':
+          return FakeResponse(statusCode: 200, data: customerDetailJson());
+      }
+      return const FakeResponse(statusCode: 500, data: 'x');
+    });
+    addTearDown(setup.container.dispose);
+    await _openPet(tester, setup, 11);
+
+    await tester.tap(find.text(AppStrings.petTabOwner));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.noShowCount(0)), findsOneWidget);
+    expect(find.text(AppStrings.noUpcomingVisits), findsOneWidget);
   });
 
   testWidgets('질병 없음을 확인한 아이는 질병 탭에 그렇게 보인다', (tester) async {

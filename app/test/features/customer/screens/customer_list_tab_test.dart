@@ -283,6 +283,23 @@ void main() {
     expect(_listQueries(setup).where((q) => q['cursor'] == 'c1'), hasLength(2));
   });
 
+  testWidgets('"최근 방문순"을 누르면 sort=last_visit 으로 다시 부른다', (tester) async {
+    final setup = CustomerTestSetup(
+      (options, body) => FakeResponse(statusCode: 200, data: _twoFamilies),
+    );
+    addTearDown(setup.container.dispose);
+    await _openTab(tester, setup);
+
+    await tester.tap(find.text(AppStrings.sortLastVisit));
+    await _settle(tester);
+
+    final sorts = [
+      for (final r in setup.adapter.requests)
+        if (r.path.endsWith('/customers')) r.queryParameters['sort'],
+    ];
+    expect(sorts, ['recent', 'last_visit']);
+  });
+
   testWidgets('첫 조회가 실패하면 다시 시도할 수 있다', (tester) async {
     var calls = 0;
     final setup = CustomerTestSetup((options, body) {

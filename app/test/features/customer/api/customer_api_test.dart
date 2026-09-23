@@ -51,6 +51,25 @@ const _customerFields = CustomerFields(
 );
 
 void main() {
+  test('고객 상세 조회에는 노쇼 횟수·다가오는 예약이 있고, 없는 응답(등록·수정)은 0·빈 목록이다', () {
+    final overview = CustomerDetail.fromJson(
+      customerDetailJson(noShowCount: 1, upcomingVisits: [upcomingVisitJson()]),
+    );
+    expect(overview.noShowCount, 1);
+    expect(overview.upcomingVisits.single.visitId, 101);
+    expect(
+      overview.upcomingVisits.single.startsAt,
+      '2026-10-02T14:00:00+09:00',
+    );
+
+    final plain = CustomerDetail.fromJson({
+      'customer': customerJson(),
+      'pets': [petJson()],
+    });
+    expect(plain.noShowCount, 0);
+    expect(plain.upcomingVisits, isEmpty);
+  });
+
   group('list', () {
     test(
       '기본 쿼리는 sort=recent·include_passed=false 이고 빈 검색어와 커서는 보내지 않는다',

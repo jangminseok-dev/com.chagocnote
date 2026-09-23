@@ -139,6 +139,9 @@ class AppStrings {
   static const viewAsGrid = '격자로 보기';
   static const sortRecent = '최근순';
   static const sortName = '가나다순';
+  static const sortLastVisit = '최근 방문순';
+  static const upcomingVisitsLabel = '다가오는 예약';
+  static const noUpcomingVisits = '없음';
   static const includePassed = '무지개다리 포함';
   static const customerSearchHint = '번호 뒷자리, 이름, 반려동물 (초성 가능)';
   static const customersEmpty = '등록된 고객이 없어요';

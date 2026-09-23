@@ -18,6 +18,8 @@ import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
+import '../../visit/api/visit_models.dart';
+import '../../visit/screens/visit_labels.dart';
 import '../api/customer_models.dart';
 import '../state/customer_commands.dart';
 import '../state/customer_input.dart';
@@ -426,6 +428,11 @@ class _OwnerTab extends ConsumerWidget {
                   label: AppStrings.customerMemoLabel,
                   value: c.memo ?? AppStrings.none,
                 ),
+                _InfoCard(
+                  label: AppStrings.actionNoShow,
+                  value: AppStrings.noShowCount(detail.noShowCount),
+                ),
+                _UpcomingVisits(visits: detail.upcomingVisits),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(
                   spacing: AppSpacing.sm,
@@ -461,6 +468,68 @@ class _OwnerTab extends ConsumerWidget {
             ],
           ),
         );
+  }
+}
+
+/// 다가오는 예약(오늘 이후, 최대 3건). 누르면 방문 상세로 간다.
+class _UpcomingVisits extends StatelessWidget {
+  const _UpcomingVisits({required this.visits});
+
+  final List<UpcomingVisit> visits;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: SizedBox(
+        width: double.infinity,
+        child: AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                AppStrings.upcomingVisitsLabel,
+                style: AppTypography.caption,
+              ),
+              if (visits.isEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                const Text(
+                  AppStrings.noUpcomingVisits,
+                  style: AppTypography.body,
+                ),
+              ],
+              for (final v in visits)
+                Pressable(
+                  semanticLabel: dayLabel(ShopTime.parse(v.startsAt).wall),
+                  onTap: () => context.push('/visits/${v.visitId}'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: ExcludeSemantics(
+                      child: Row(
+                        children: [
+                          Text(
+                            '${dayLabel(ShopTime.parse(v.startsAt).wall)} ${hhmm(ShopTime.parse(v.startsAt).wall)}',
+                            style: AppTypography.body,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            v.petName ?? AppStrings.ownerOnly,
+                            style: AppTypography.bodyStrong,
+                          ),
+                          const Spacer(),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
