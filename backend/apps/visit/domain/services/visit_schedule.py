@@ -53,6 +53,16 @@ def check_duration(minutes: int) -> None:
         raise VisitInputError("소요 시간은 10분 단위로 10분에서 600분 사이여야 합니다.")
 
 
+def check_settings(settings: ScheduleSettings) -> None:
+    """영업시간은 10분 단위이고 여는 시각이 닫는 시각보다 앞선다. 기본 소요도 소요 규칙을 따른다."""
+    for clock in (settings.opens_at, settings.closes_at):
+        if clock.minute % STEP_MINUTES or clock.second or clock.microsecond:
+            raise VisitInputError("영업시간은 10분 단위여야 합니다.")
+    if settings.opens_at >= settings.closes_at:
+        raise VisitInputError("여는 시각은 닫는 시각보다 앞서야 합니다.")
+    check_duration(settings.default_duration_minutes)
+
+
 def check_start(starts_at: datetime, now: datetime, tz: str) -> None:
     """예약 시각 — 10분 단위, 오늘 기준 앞뒤 1년 안."""
     local = starts_at.astimezone(ZoneInfo(tz))

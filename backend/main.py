@@ -55,6 +55,12 @@ from tenancy.dependencies.hub_ports import get_active_user_guard, get_user_direc
 from tenancy.dependencies.list_memberships_provider import get_list_memberships_use_case
 from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_case
 from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
+from visit.adapter.inbound.api.error_map import VISIT_ERROR_STATUS
+from visit.adapter.inbound.api.v1.add_closed_date_router import add_closed_date_router
+from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
+from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
+from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
+from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 
 
 @asynccontextmanager
@@ -98,11 +104,17 @@ app.include_router(update_pet_router)
 app.include_router(mark_pet_passed_away_router)
 app.include_router(unmark_pet_passed_away_router)
 app.include_router(delete_pet_router)
+# visit
+app.include_router(get_visit_settings_router)
+app.include_router(update_visit_settings_router)
+app.include_router(list_closed_dates_router)
+app.include_router(add_closed_date_router)
+app.include_router(delete_closed_date_router)
 install_error_handlers(
     app,
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
-        **CUSTOMER_ERROR_STATUS,
+        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS,
     },
 )
 
