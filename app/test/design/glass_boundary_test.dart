@@ -25,6 +25,7 @@ void main() {
       'lib/features/visit/screens/visit_actions.dart',
       'lib/features/visit/screens/day_screen.dart',
       'lib/features/shop/screens/schedule_settings_screen.dart',
+      'lib/features/shop/screens/menu_settings_screen.dart',
     ];
     final violations = [
       for (final path in scrollScreens)

@@ -16,6 +16,7 @@ import '../../features/customer/screens/customer_edit_screen.dart';
 import '../../features/customer/screens/register_customer_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/shop/screens/members_screen.dart';
+import '../../features/shop/screens/menu_settings_screen.dart';
 import '../../features/shop/screens/schedule_settings_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
@@ -37,6 +38,7 @@ const _shopScopedSettings = {
   '/settings/members',
   '/settings/shop',
   '/settings/schedule',
+  '/settings/menus',
 };
 
 /// 고객·반려동물·방문 화면도 매장이 선택되어 있어야 열린다(경로에 ID 가 들어간다).
@@ -111,6 +113,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/schedule',
         builder: (context, state) => const ScheduleSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/menus',
+        builder: (context, state) => const MenuSettingsScreen(),
       ),
       GoRoute(
         path: '/settings/account',

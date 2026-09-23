@@ -67,6 +67,11 @@ class SettingsScreen extends ConsumerWidget {
                   label: AppStrings.settingsSchedule,
                   onTap: () => context.push('/settings/schedule'),
                 ),
+              if (shop?.isOwner ?? false)
+                _SettingsRow(
+                  label: AppStrings.settingsMenus,
+                  onTap: () => context.push('/settings/menus'),
+                ),
               const SizedBox(height: AppSpacing.xl),
               const _SectionLabel(AppStrings.settingsSectionOtherShops),
               if (shopCount >= 2)

@@ -329,6 +329,17 @@ class AppStrings {
   static const confirm = '확인';
   static const hourLabel = '시';
   static const minuteLabel = '분';
+  static const addMenu = '메뉴 추가';
+  static const editMenu = '메뉴 수정';
+  static const menuNameHint = '메뉴 이름';
+  static const menuNameRequired = '메뉴 이름을 입력해 주세요.';
+  static const menuDefaultDurationLabel = '기본 소요';
+  static const useShopDefault = '매장 기본';
+  static const archiveMenu = '보관';
+  static const archiveMenuConfirm = '이 메뉴를 보관할까요? 지난 방문에는 남고, 새 예약에서는 고를 수 없어요.';
+  static const moveUp = '위로';
+  static const moveDown = '아래로';
+  static const menusEmpty = '메뉴가 없어요. 메뉴 없이도 예약할 수 있어요.';
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';
