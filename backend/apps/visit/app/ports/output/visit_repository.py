@@ -62,6 +62,16 @@ class VisitRepository(ABC):
         """before 전에 시작한 마지막 완료 방문. pet_id 가 있으면 그 아이의, 없으면 보호자만의 방문 가운데서."""
 
     @abstractmethod
+    async def last_completed_of_pet(self, ctx: ShopContext, pet_id: int) -> Visit | None:
+        """그 아이의 마지막 완료 방문('지난번처럼'의 원본)."""
+
+    @abstractmethod
+    async def completed_starts(
+        self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
+    ) -> list[datetime]:
+        """그 아이(pet_id 가 None 이면 보호자만의 방문)의 완료 방문 시작 시각, 최근 것부터 limit 개."""
+
+    @abstractmethod
     async def count_no_show(self, ctx: ShopContext, customer_id: int) -> int: ...
 
     @abstractmethod

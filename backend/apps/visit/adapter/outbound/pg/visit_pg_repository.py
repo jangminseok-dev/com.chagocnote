@@ -138,6 +138,32 @@ class VisitPgRepository(VisitRepository):
         )
         return found[0] if found else None
 
+    async def last_completed_of_pet(self, ctx: ShopContext, pet_id: int) -> Visit | None:
+        found = await self._read(
+            ctx,
+            select(VisitOrm)
+            .where(VisitOrm.pet_id == pet_id, VisitOrm.status == COMPLETED)
+            .order_by(VisitOrm.starts_at.desc())
+            .limit(1),
+        )
+        return found[0] if found else None
+
+    async def completed_starts(
+        self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
+    ) -> list[datetime]:
+        whose = VisitOrm.pet_id == pet_id if pet_id is not None else VisitOrm.pet_id.is_(None)
+        return list(
+            (
+                await self._session.execute(
+                    select(VisitOrm.starts_at)
+                    .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id, whose,
+                           VisitOrm.status == COMPLETED)
+                    .order_by(VisitOrm.starts_at.desc())
+                    .limit(limit)
+                )
+            ).scalars()
+        )
+
     async def count_no_show(self, ctx: ShopContext, customer_id: int) -> int:
         return (
             await self._session.execute(

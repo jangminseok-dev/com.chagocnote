@@ -240,6 +240,15 @@ class FakeVisits:
                  and v.status == "completed" and v.starts_at < before]
         return found[-1] if found else None
 
+    async def last_completed_of_pet(self, ctx, pet_id):
+        done = [v for v in self._mine(ctx) if v.pet_id == pet_id and v.status == "completed"]
+        return done[-1] if done else None
+
+    async def completed_starts(self, ctx, customer_id, pet_id, limit):
+        done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
+                and v.status == "completed"]
+        return sorted(done, reverse=True)[:limit]
+
     async def count_no_show(self, ctx, customer_id):
         return sum(v.customer_id == customer_id and v.status == "no_show" for v in self._mine(ctx))
 
