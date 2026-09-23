@@ -247,6 +247,19 @@ class AppStrings {
   static const warningClosedDay = '쉬는 날이에요';
   static const warningOutsideHours = '영업시간 밖이에요';
 
+  // 카톡 예약 초안(③-A3)
+  static const pasteFromKakao = '카톡 붙여넣기';
+  static const clipboardEmpty = '복사한 글이 없어요';
+  static const draftTitle = '카톡 예약 초안';
+  static const draftReceivedText = '받은 글';
+  static const draftOwnerSection = '보호자';
+  static const draftNoCandidates = '찾은 보호자가 없어요';
+  static const draftGuessed = '짐작';
+  static const draftEmptyValue = '—';
+  static const draftContinue = '예약 이어서';
+  static const draftFindCustomer = '고객 찾기';
+  static const draftHint = '확인한 뒤 저장돼요. 짐작한 칸은 다음 화면에서 고칠 수 있어요.';
+
   static const editVisitTitle = '예약 수정';
   static const moveTogether = '같이 옮기기';
   static const moveOnlyThis = '이 방문만';

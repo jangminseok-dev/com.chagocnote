@@ -22,6 +22,7 @@ import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
 import '../../features/visit/screens/day_screen.dart';
+import '../../features/visit/screens/draft_screen.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
 import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
@@ -170,6 +171,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             prefill: extra is VisitPrefill ? extra : null,
           );
         },
+      ),
+      GoRoute(
+        path: '/visits/draft',
+        builder: (context, state) =>
+            DraftScreen(text: state.extra as String),
       ),
       GoRoute(
         path: '/visits/day/:date',

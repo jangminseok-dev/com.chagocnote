@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -287,6 +288,7 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
     onSearch: (q) => setState(() => _q = q),
   );
   String _q = '';
+  String? _pasteNote;
 
   @override
   void initState() {
@@ -299,6 +301,22 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
     _debouncer.dispose();
     _search.dispose();
     super.dispose();
+  }
+
+  /// 클립보드의 카톡 글로 초안 화면을 연다(③-A3). 초안에서 예약을 저장하고
+  /// 돌아오면 ①도 그 날짜로 닫힌다 — 홈이 그날을 고른다.
+  Future<void> _pasteFromKakao(BuildContext context) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    var text = data?.text?.trim() ?? '';
+    if (!context.mounted) return;
+    if (text.isEmpty) {
+      setState(() => _pasteNote = AppStrings.clipboardEmpty);
+      return;
+    }
+    if (text.length > 1000) text = text.substring(0, 1000);
+    setState(() => _pasteNote = null);
+    final saved = await context.push<DateTime>('/visits/draft', extra: text);
+    if (saved != null && context.mounted) context.pop(saved);
   }
 
   /// 새 고객을 등록하고 돌아오면 그 고객으로 ②에 바로 간다.
@@ -318,6 +336,29 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
     final list = ref.watch(customerListControllerProvider(query));
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              AppButton(
+                label: AppStrings.pasteFromKakao,
+                icon: Icons.content_paste,
+                onPressed: () => _pasteFromKakao(context),
+              ),
+              if (_pasteNote != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(_pasteNote!, style: AppTypography.caption),
+                ),
+              ],
+            ],
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: TextField(

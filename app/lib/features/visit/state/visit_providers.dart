@@ -64,6 +64,16 @@ final visitSlotsProvider = FutureProvider.autoDispose
       ),
     );
 
+/// 카톡 글의 해석(③-A3). 글이 키다 — 같은 글은 한 번만 묻고, 화면을 떠나면
+/// 버린다. 서버는 저장하지 않는다.
+final visitDraftProvider = FutureProvider.autoDispose
+    .family<VisitDraft, ({int shopId, String text})>(
+      (ref, key) => runShopScoped(
+        ref,
+        () => ref.read(visitApiProvider).parseDraft(key.shopId, key.text),
+      ),
+    );
+
 final visitDetailProvider = FutureProvider.autoDispose
     .family<VisitDetail, VisitKey>(
       (ref, key) => runShopScoped(

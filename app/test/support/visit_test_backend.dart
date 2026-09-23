@@ -62,6 +62,8 @@ class VisitTestBackend {
         FakeResponse(statusCode: 200, data: defaultsJson()),
     'POST /v1/shops/3/visits': (o, b) =>
         FakeResponse(statusCode: 201, data: savedJson([visitJson()])),
+    'POST /v1/shops/3/visit-drafts': (o, b) =>
+        FakeResponse(statusCode: 200, data: visitDraftJson()),
   };
 
   static Map<String, dynamic> _family() => familyJson(
