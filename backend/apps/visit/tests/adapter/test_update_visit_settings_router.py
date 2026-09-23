@@ -32,5 +32,5 @@ async def test_요일이_범위를_벗어나거나_문자열이면_422_다():
     async with client(build_app(update_visit_settings_router, get_update_visit_settings_use_case,
                                 Recorder(SETTINGS))) as c:
         for bad in ({**BODY, "closed_weekdays": [7]}, {**BODY, "closed_weekdays": ["0"]},
-                    {**BODY, "default_duration_minutes": "90"}):
+                    {**BODY, "default_duration_minutes": "90"}, {**BODY, "opens_at": "10:00+09:00"}):
             assert error_of(await c.put("/v1/shops/3/visit-settings", json=bad)) == (422, "VALIDATION_ERROR")
