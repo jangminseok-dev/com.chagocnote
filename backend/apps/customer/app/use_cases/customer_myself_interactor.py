@@ -18,7 +18,7 @@ class CustomerMyselfInteractor(CustomerMyselfUseCase):
                 "매장의 고객(보호자)과 반려동물, 반려동물의 질병을 관리합니다. "
                 "경로는 모두 /v1/shops/{shop_id} 아래이고 매 요청마다 매장 소속을 확인합니다. "
                 "GET /customers 는 가족 카드 목록입니다(q 검색: 전화 뒷자리·보호자 이름·반려동물 이름·한글 초성, "
-                "sort=recent|name, include_passed, cursor, 한 쪽에 30 가족). "
+                "sort=recent|name|last_visit, include_passed, cursor, 한 쪽에 30 가족). "
                 "GET /customers/lookup?phone= 는 등록 전 번호 조회, POST /customers 는 보호자와 첫 반려동물 등록, "
                 "GET·PUT·DELETE /customers/{customer_id} 는 고객 상세·수정·삭제, "
                 "POST /customers/{customer_id}/pets 는 반려동물 추가입니다. "
@@ -31,6 +31,9 @@ class CustomerMyselfInteractor(CustomerMyselfUseCase):
                 "고객 삭제는 이름·전화·메모와 반려동물 이름·메모·질병을 지우는 익명화이고, "
                 "삭제한 고객은 조회·검색·번호 조회에서 없는 것으로 봅니다. "
                 "반려동물은 질병을 하나 이상 고르거나 '질병 없음'을 직접 확인해야 저장됩니다. "
+                "고객 상세는 노쇼 횟수와 다가오는 예약(최대 3건)도 줍니다. "
+                "방문 기록이 있는 반려동물은 지우지 않고(409 PET_HAS_VISITS), 앞으로의 예약이 남은 아이의 "
+                "무지개다리와 고객 삭제는 막습니다(409 PET_HAS_UPCOMING_VISITS·CUSTOMER_HAS_UPCOMING_VISITS). "
                 "다른 매장의 고객·반려동물 ID 는 404 입니다."
             ),
         )

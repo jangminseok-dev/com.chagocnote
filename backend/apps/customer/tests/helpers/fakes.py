@@ -183,6 +183,36 @@ class FakeSearch:
         return self.pet_count
 
 
+class FakeLedger:
+    """VisitLedgerPort 스텁. 반려동물·고객마다 방문이 있는지, 앞으로의 예약이 있는지를 정해 둔다."""
+
+    def __init__(self, journal: Journal) -> None:
+        self.journal = journal
+        self.pets_with_visits: set[int] = set()
+        self.pets_with_upcoming: set[int] = set()
+        self.customers_with_upcoming: set[int] = set()
+        self.no_shows: dict[int, int] = {}
+        self.upcoming: dict[int, list] = {}
+
+    async def pet_has_visits(self, ctx, pet_id):
+        return pet_id in self.pets_with_visits | self.pets_with_upcoming
+
+    async def pet_has_upcoming(self, ctx, pet_id):
+        return pet_id in self.pets_with_upcoming
+
+    async def customer_has_upcoming(self, ctx, customer_id):
+        return customer_id in self.customers_with_upcoming
+
+    async def no_show_count(self, ctx, customer_id):
+        return self.no_shows.get(customer_id, 0)
+
+    async def upcoming_for_customer(self, ctx, customer_id, limit):
+        return self.upcoming.get(customer_id, [])[:limit]
+
+    async def clear_customer_memos(self, ctx, customer_id):
+        self.journal.append(("clear_visit_memos", customer_id))
+
+
 def family():
     """스텁 한 벌을 같은 호출 기록으로 묶어 만든다."""
     journal = Journal()

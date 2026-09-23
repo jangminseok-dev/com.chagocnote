@@ -34,6 +34,24 @@ class PetHealthConflictError(CustomerError):
     code = "PET_HEALTH_CONFLICT"
 
 
+class PetHasVisitsError(CustomerError):
+    """방문 기록이 있는 반려동물은 지우지 않는다 — 무지개다리를 쓴다."""
+
+    code = "PET_HAS_VISITS"
+
+
+class PetHasUpcomingVisitsError(CustomerError):
+    """앞으로의 예약이 남은 아이는 무지개다리로 표시하지 않는다 — 예약을 먼저 취소한다."""
+
+    code = "PET_HAS_UPCOMING_VISITS"
+
+
+class CustomerHasUpcomingVisitsError(CustomerError):
+    """앞으로의 예약이 남은 고객은 익명화하지 않는다 — 예약을 먼저 취소한다."""
+
+    code = "CUSTOMER_HAS_UPCOMING_VISITS"
+
+
 class PetPassedAwayError(CustomerError):
     """무지개다리 아이에게 예약을 잡으려 했다."""
 

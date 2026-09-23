@@ -82,6 +82,24 @@ class CustomerDetailView:
 
 
 @dataclass(frozen=True)
+class UpcomingVisitView:
+    visit_id: int
+    pet_id: int | None      # None 이면 보호자만의 방문
+    pet_name: str | None
+    starts_at: datetime     # 매장 시간대
+
+
+@dataclass(frozen=True)
+class CustomerOverviewView:
+    """고객 상세 화면 — 보호자·반려동물에 방문 요약(노쇼 횟수, 다가오는 예약)을 더한다."""
+
+    customer: CustomerView
+    pets: list[PetView]
+    no_show_count: int
+    upcoming_visits: list[UpcomingVisitView]
+
+
+@dataclass(frozen=True)
 class OwnerSummaryView:
     """반려동물 화면의 보호자 요약. 번호는 가린다 — 전체 번호는 고객 상세에서만 준다."""
 

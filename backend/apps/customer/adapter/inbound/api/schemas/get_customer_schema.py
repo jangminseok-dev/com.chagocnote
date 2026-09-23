@@ -4,7 +4,12 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
-from customer.app.dtos.customer_view_dto import CustomerDetailView, CustomerView, PetView
+from customer.app.dtos.customer_view_dto import (
+    CustomerDetailView,
+    CustomerOverviewView,
+    CustomerView,
+    PetView,
+)
 
 
 class ConditionSchema(BaseModel):
@@ -76,3 +81,25 @@ class CustomerDetailSchema(BaseModel):
     @classmethod
     def of(cls, view: CustomerDetailView) -> CustomerDetailSchema:
         return cls(customer=CustomerSchema.of(view.customer), pets=[PetSchema.of(p) for p in view.pets])
+
+
+class UpcomingVisitSchema(BaseModel):
+    visit_id: int
+    pet_id: int | None
+    pet_name: str | None
+    starts_at: datetime
+
+
+class CustomerOverviewSchema(CustomerDetailSchema):
+    """고객 상세(GET) — 방문 요약을 더한다. 등록·수정 응답은 방문 요약 없는 CustomerDetailSchema 다."""
+
+    no_show_count: int
+    upcoming_visits: list[UpcomingVisitSchema]
+
+    @classmethod
+    def of(cls, view: CustomerOverviewView) -> CustomerOverviewSchema:
+        return cls(
+            customer=CustomerSchema.of(view.customer), pets=[PetSchema.of(p) for p in view.pets],
+            no_show_count=view.no_show_count,
+            upcoming_visits=[UpcomingVisitSchema.model_validate(u, from_attributes=True) for u in view.upcoming_visits],
+        )

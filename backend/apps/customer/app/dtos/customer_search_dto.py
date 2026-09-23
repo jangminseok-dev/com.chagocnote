@@ -5,7 +5,7 @@ from typing import Literal
 
 from customer.domain.services.search_terms import SearchWord
 
-SortKey = Literal["recent", "name"]
+SortKey = Literal["recent", "name", "last_visit"]
 PAGE_SIZE = 30
 
 

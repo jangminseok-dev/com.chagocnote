@@ -17,7 +17,7 @@ list_customers_router = APIRouter(prefix="/v1/shops", tags=["customers"])
 @list_customers_router.get("/{shop_id}/customers", response_model=CustomerListSchema)
 async def list_customers(
     q: Annotated[str | None, Query(max_length=50), AfterValidator(reject_control_chars)] = None,
-    sort: Literal["recent", "name"] = "recent",
+    sort: Literal["recent", "name", "last_visit"] = "recent",
     include_passed: bool = False,
     cursor: Annotated[str | None, Query(max_length=500)] = None,
     ctx: ShopContext = Depends(get_shop_context),

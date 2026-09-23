@@ -72,6 +72,21 @@ class VisitRepository(ABC):
         """그 아이(pet_id 가 None 이면 보호자만의 방문)의 완료 방문 시작 시각, 최근 것부터 limit 개."""
 
     @abstractmethod
+    async def pet_has_visits(self, ctx: ShopContext, pet_id: int, active_only: bool) -> bool: ...
+
+    @abstractmethod
+    async def customer_has_active(self, ctx: ShopContext, customer_id: int) -> bool: ...
+
+    @abstractmethod
+    async def list_active_from(
+        self, ctx: ShopContext, customer_id: int, since: datetime, limit: int
+    ) -> list[Visit]:
+        """since 이후에 시작하는 살아 있는 방문, 시작 순으로 limit 개."""
+
+    @abstractmethod
+    async def clear_memos(self, ctx: ShopContext, customer_id: int) -> None: ...
+
+    @abstractmethod
     async def count_no_show(self, ctx: ShopContext, customer_id: int) -> int: ...
 
     @abstractmethod

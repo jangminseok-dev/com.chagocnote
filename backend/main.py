@@ -39,6 +39,7 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.hub_ports import get_visit_ledger
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -78,6 +79,7 @@ from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
 from visit.dependencies.hub_ports import get_customer_directory
+from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 
 
 @asynccontextmanager
@@ -159,6 +161,7 @@ app.dependency_overrides[get_user_directory] = get_get_user_profiles_use_case
 app.dependency_overrides[get_membership_directory] = get_list_memberships_use_case
 app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
+app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 
 
 @app.get("/health")

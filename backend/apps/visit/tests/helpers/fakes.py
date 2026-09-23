@@ -249,6 +249,22 @@ class FakeVisits:
                 and v.status == "completed"]
         return sorted(done, reverse=True)[:limit]
 
+    async def pet_has_visits(self, ctx, pet_id, active_only):
+        return any(v.pet_id == pet_id and (v.is_active or not active_only) for v in self._mine(ctx))
+
+    async def customer_has_active(self, ctx, customer_id):
+        return any(v.customer_id == customer_id and v.is_active for v in self._mine(ctx))
+
+    async def list_active_from(self, ctx, customer_id, since, limit):
+        return [v for v in self._mine(ctx) if v.customer_id == customer_id and v.is_active
+                and v.starts_at >= since][:limit]
+
+    async def clear_memos(self, ctx, customer_id):
+        for v in self._mine(ctx):
+            if v.customer_id == customer_id:
+                self.rows[v.id] = replace(v, memo=None)
+        self.journal.append(("clear_memos", customer_id))
+
     async def count_no_show(self, ctx, customer_id):
         return sum(v.customer_id == customer_id and v.status == "no_show" for v in self._mine(ctx))
 

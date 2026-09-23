@@ -5,7 +5,7 @@ import binascii
 import json
 from datetime import datetime
 
-from sqlalchemy import delete, exists, func, select, tuple_, update
+from sqlalchemy import and_, delete, exists, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -30,7 +30,8 @@ def _encode_cursor(sort: SortKey, key: str, customer_id: int) -> str:
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 
 
-def _decode_cursor(cursor: str, sort: SortKey) -> tuple[str | datetime, int]:
+def _decode_cursor(cursor: str, sort: SortKey) -> tuple[str | datetime | None, int]:
+    """최근 방문순의 빈 문자열 키는 '방문한 적 없음'(마지막 방문 시각 NULL)이다."""
     try:
         raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
         cursor_sort, key, customer_id = json.loads(raw)
@@ -42,7 +43,11 @@ def _decode_cursor(cursor: str, sort: SortKey) -> tuple[str | datetime, int]:
             or not (1 <= customer_id <= 2**63 - 1)
         ):
             raise ValueError
-        return (datetime.fromisoformat(key) if sort == "recent" else key), customer_id
+        if sort == "name":
+            return key, customer_id
+        if sort == "last_visit" and key == "":
+            return None, customer_id
+        return datetime.fromisoformat(key), customer_id
     except (ValueError, TypeError, binascii.Error, UnicodeDecodeError):
         raise CustomerInputError("목록 위치(cursor)가 올바르지 않습니다.") from None
 
@@ -109,16 +114,20 @@ class CustomerSearchPgAdapter(CustomerSearchPort):
         return conditions
 
     async def search(self, ctx: ShopContext, request: SearchRequest) -> SearchPage:
-        key_column = Entry.last_activity_at if request.sort == "recent" else Entry.sort_name
+        key_column = {
+            "recent": Entry.last_activity_at, "name": Entry.sort_name, "last_visit": Entry.last_visit_at,
+        }[request.sort]
         stmt = select(Entry.customer_id, key_column).where(
             *self._matching(ctx, request.words, request.include_passed)
         )
         if request.cursor is not None:
             key, after_id = _decode_cursor(request.cursor, request.sort)
-            position, after = tuple_(key_column, Entry.customer_id), tuple_(key, after_id)
-            stmt = stmt.where(position < after if request.sort == "recent" else position > after)
+            stmt = stmt.where(self._after(request.sort, key_column, key, after_id))
         if request.sort == "recent":
             stmt = stmt.order_by(key_column.desc(), Entry.customer_id.desc())
+        elif request.sort == "last_visit":
+            # 방문한 적 없는 가족은 맨 뒤에 모은다.
+            stmt = stmt.order_by(key_column.desc().nulls_last(), Entry.customer_id.desc())
         else:
             stmt = stmt.order_by(key_column, Entry.customer_id)
         rows = (await self._session.execute(stmt.limit(request.limit + 1))).all()
@@ -127,9 +136,28 @@ class CustomerSearchPgAdapter(CustomerSearchPort):
         next_cursor = None
         if len(rows) > request.limit:
             last_id, last_key = page[-1]
-            key_text = last_key.isoformat() if request.sort == "recent" else last_key
+            if request.sort == "name":
+                key_text = last_key
+            else:
+                key_text = last_key.isoformat() if last_key is not None else ""
             next_cursor = _encode_cursor(request.sort, key_text, last_id)
         return SearchPage(customer_ids=[customer_id for customer_id, _ in page], next_cursor=next_cursor)
+
+    @staticmethod
+    def _after(sort: SortKey, key_column, key, after_id: int):
+        """커서 다음 줄의 조건 — 정렬 순서 그대로."""
+        if sort == "name":
+            return tuple_(key_column, Entry.customer_id) > tuple_(key, after_id)
+        if sort == "recent":
+            return tuple_(key_column, Entry.customer_id) < tuple_(key, after_id)
+        # 최근 방문순: 시각 내림차순, 같은 시각이면 ID 내림차순, NULL 은 맨 뒤.
+        if key is None:
+            return and_(key_column.is_(None), Entry.customer_id < after_id)
+        return or_(
+            key_column < key,
+            and_(key_column == key, Entry.customer_id < after_id),
+            key_column.is_(None),
+        )
 
     async def count_pets(
         self, ctx: ShopContext, words: tuple[SearchWord, ...], include_passed: bool

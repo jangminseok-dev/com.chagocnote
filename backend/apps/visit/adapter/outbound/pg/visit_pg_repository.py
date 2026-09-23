@@ -164,6 +164,38 @@ class VisitPgRepository(VisitRepository):
             ).scalars()
         )
 
+    async def pet_has_visits(self, ctx: ShopContext, pet_id: int, active_only: bool) -> bool:
+        stmt = select(VisitOrm.id).where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id == pet_id)
+        if active_only:
+            stmt = stmt.where(VisitOrm.status.in_(ACTIVE_STATUSES))
+        return (await self._session.execute(select(stmt.exists()))).scalar_one()
+
+    async def customer_has_active(self, ctx: ShopContext, customer_id: int) -> bool:
+        stmt = select(VisitOrm.id).where(
+            VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id,
+            VisitOrm.status.in_(ACTIVE_STATUSES),
+        )
+        return (await self._session.execute(select(stmt.exists()))).scalar_one()
+
+    async def list_active_from(
+        self, ctx: ShopContext, customer_id: int, since: datetime, limit: int
+    ) -> list[Visit]:
+        return await self._read(
+            ctx,
+            select(VisitOrm)
+            .where(VisitOrm.customer_id == customer_id, VisitOrm.status.in_(ACTIVE_STATUSES),
+                   VisitOrm.starts_at >= since)
+            .order_by(VisitOrm.starts_at, VisitOrm.id)
+            .limit(limit),
+        )
+
+    async def clear_memos(self, ctx: ShopContext, customer_id: int) -> None:
+        await self._session.execute(
+            update(VisitOrm)
+            .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id)
+            .values(memo=None)
+        )
+
     async def count_no_show(self, ctx: ShopContext, customer_id: int) -> int:
         return (
             await self._session.execute(

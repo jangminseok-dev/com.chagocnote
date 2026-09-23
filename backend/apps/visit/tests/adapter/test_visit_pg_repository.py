@@ -174,3 +174,18 @@ async def test_아이의_지난_완료와_완료_시각들(db_session):
     assert await repo.last_completed_of_pet(A, 999) is None
     assert await repo.completed_starts(A, 1, 101, limit=2) == [kst(9, 2, 14), kst(8, 1, 14)]
     assert await repo.completed_starts(A, 1, None, limit=2) == [kst(9, 4, 14)]
+
+
+async def test_장부_질문들(db_session):
+    repo = VisitPgRepository(db_session)
+    await insert_visit(db_session, kst(9, 1, 14), "canceled", pet_id=101)
+    await insert_visit(db_session, kst(9, 20, 14), "reserved", pet_id=102, memo="메모")
+    await insert_visit(db_session, kst(10, 2, 14), "reserved", pet_id=102)
+    await insert_visit(db_session, kst(10, 2, 14), "reserved", shop_id=2, customer_id=1, pet_id=103, memo="남의")
+    assert (await repo.pet_has_visits(A, 101, active_only=False), await repo.pet_has_visits(A, 101, active_only=True)) == (True, False)
+    assert await repo.pet_has_visits(A, 103, active_only=False) is False
+    assert (await repo.customer_has_active(A, 1), await repo.customer_has_active(A, 2)) == (True, False)
+    assert [v.starts_at for v in await repo.list_active_from(A, 1, kst(9, 23), 5)] == [kst(10, 2, 14)]
+    await repo.clear_memos(A, 1)
+    assert {v.memo for v in await repo.list_between(A, kst(9, 1), kst(11, 1))} == {None}
+    assert [v.memo for v in await repo.list_between(B, kst(9, 1), kst(11, 1))] == ["남의"]
