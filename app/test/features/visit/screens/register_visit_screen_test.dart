@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/design/tokens/app_colors.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/home/state/today_provider.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
@@ -116,6 +117,8 @@ void main() {
             ? slotsJson(
                 warnings: {
                   15: ['overlap'],
+                  16: ['closed_day'],
+                  17: ['overlap', 'outside_hours'],
                 },
               )
             : slotAtJson(at: at, warnings: ['overlap']),
@@ -126,10 +129,33 @@ void main() {
     await _open(tester, setup);
     await _pickCustomer(tester);
 
+    // 겹침은 흰 바탕에 잉크색 줄긋기, 휴무·영업 밖은 옅은 바탕에 옅은 글자 —
+    // 둘이 구분된다(A2 잔여). 둘 다면 옅은 바탕에 줄긋기.
+    Color tileColor(String at) =>
+        (tester
+                    .widget<Container>(
+                      find.ancestor(
+                        of: find.text(at),
+                        matching: find.byType(Container),
+                      ).first,
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color!;
     final struck = tester.widget<Text>(find.text('15:00'));
     expect(struck.style!.decoration, TextDecoration.lineThrough);
+    expect(struck.style!.color, AppColors.ink);
+    expect(tileColor('15:00'), AppColors.white);
+    final faint = tester.widget<Text>(find.text('16:00'));
+    expect(faint.style!.decoration, isNot(TextDecoration.lineThrough));
+    expect(faint.style!.color, AppColors.secondary);
+    expect(tileColor('16:00'), AppColors.backgroundTop);
+    final both = tester.widget<Text>(find.text('17:00'));
+    expect(both.style!.decoration, TextDecoration.lineThrough);
+    expect(tileColor('17:00'), AppColors.backgroundTop);
     final plain = tester.widget<Text>(find.text('14:00'));
     expect(plain.style!.decoration, isNot(TextDecoration.lineThrough));
+    expect(tileColor('14:00'), AppColors.white);
 
     await _tapLabel(tester, '15:00');
     expect(find.text('· ${AppStrings.warningOverlap}'), findsOneWidget);

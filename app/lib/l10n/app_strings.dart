@@ -293,6 +293,8 @@ class AppStrings {
   static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해집니다.';
 
   static String noShowCount(int count) => '노쇼 $count회';
+  static const noShowCountLabel = '노쇼 횟수';
+  static String timesCount(int count) => '$count회';
   static const dayTitleEn = 'Schedule';
   static const viewAsTimeline = '시간표로 보기';
   static const actionCompleteShort = '완료하기';
@@ -325,6 +327,7 @@ class AppStrings {
   static const prevMonth = '이전 달';
   static const nextMonth = '다음 달';
   static const closedShort = '휴무';
+  static String moreGroups(int count) => '외 $count건';
 
   static String unresolvedBanner(int count) => '정리 안 된 예약 $count건';
   static String dayHeading(int day, int weekday) => '$day일 ${weekdaysLong[weekday - 1]}';

@@ -141,6 +141,35 @@ void main() {
     expect(dayQueries, ['2026-09-22', '2026-09-25']);
   });
 
+  testWidgets('미리보기가 4줄을 넘으면 "외 N건"을 적는다', (tester) async {
+    final backend = _backend();
+    backend.routes['GET /v1/shops/3/visits'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: dayJson(
+        date: '2026-09-22',
+        items: [
+          for (var i = 0; i < 6; i++)
+            dayItemJson(
+              visitJson(
+                visitId: 100 + i,
+                date: '2026-09-22',
+                start: '1$i:00',
+                pet: visitPetJson(petId: 20 + i, name: '아이$i'),
+              ),
+              groupKey: 'g$i',
+            ),
+        ],
+      ),
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _pumpHome(tester, setup);
+
+    expect(find.text('아이3'), findsOneWidget);
+    expect(find.text('아이4'), findsNothing);
+    expect(find.text(AppStrings.moreGroups(2)), findsOneWidget);
+  });
+
   testWidgets('예약이 없는 날과 휴무일은 미리보기에 그렇게 적는다', (tester) async {
     final setup = CustomerTestSetup(_backend().call, overrides: _today);
     addTearDown(setup.container.dispose);

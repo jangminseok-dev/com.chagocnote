@@ -753,8 +753,14 @@ class _SlotChip extends StatelessWidget {
       child: Container(
         width: 64,
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+        // 휴무·영업 밖은 옅은 바탕에 옅은 글자, 겹침은 흰 바탕에 줄긋기 —
+        // 둘이 한눈에 구분된다(A2 잔여).
         decoration: BoxDecoration(
-          color: selectedHere ? AppColors.ink : AppColors.white,
+          color: selectedHere
+              ? AppColors.ink
+              : faint
+              ? AppColors.backgroundTop
+              : AppColors.white,
           borderRadius: BorderRadius.circular(AppRadius.pill),
           border: Border.all(
             color: selectedHere ? AppColors.ink : AppColors.line,
@@ -767,7 +773,7 @@ class _SlotChip extends StatelessWidget {
             style: AppTypography.body.copyWith(
               color: selectedHere
                   ? AppColors.white
-                  : faint || overlap
+                  : faint
                   ? AppColors.secondary
                   : AppColors.ink,
               decoration: overlap ? TextDecoration.lineThrough : null,

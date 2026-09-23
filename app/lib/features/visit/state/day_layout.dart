@@ -33,6 +33,23 @@ class DayGroup {
     final statuses = {for (final i in items) i.visit.status};
     return statuses.length == 1 ? statuses.single : null;
   }
+
+  /// 아직 진행할 수 있는 구성원(예약됨·미용 중). 상태가 섞인 묶음에서 카드
+  /// 버튼은 이 아이들만 다룬다 — 완료·취소한 아이를 함께 보내 409 가 나지 않게.
+  List<Visit> get actionable => [
+    for (final i in items)
+      if (i.visit.status == VisitStatus.reserved ||
+          i.visit.status == VisitStatus.inProgress)
+        i.visit,
+  ];
+
+  /// 진행 가능한 구성원의 상태가 하나면 그 상태(버튼을 낼 수 있다), 아니면 null.
+  String? get actionableStatus {
+    final statuses = {for (final v in actionable) v.status};
+    return statuses.length == 1 ? statuses.single : null;
+  }
+
+  List<int> get actionableIds => [for (final v in actionable) v.visitId];
 }
 
 /// 같은 `group_key`끼리 묶는다. 처음 나온 순서(=서버의 시작 순)를 지킨다 —

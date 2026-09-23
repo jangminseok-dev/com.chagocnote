@@ -113,7 +113,9 @@ void main() {
 
     await tester.tap(find.text(AppStrings.petTabOwner));
     await tester.pumpAndSettle();
-    expect(find.text(AppStrings.noShowCount(2)), findsOneWidget);
+    expect(find.text(AppStrings.noShowCountLabel), findsOneWidget);
+    expect(find.text(AppStrings.timesCount(2)), findsOneWidget);
+    expect(find.text('노쇼 2회'), findsNothing);
     expect(find.text('10월 2일 금 14:00'), findsOneWidget);
     expect(find.text('10월 5일 월 11:00'), findsOneWidget);
     expect(find.text(AppStrings.ownerOnly), findsOneWidget);
@@ -141,7 +143,7 @@ void main() {
     await tester.tap(find.text(AppStrings.petTabOwner));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.noShowCount(0)), findsOneWidget);
+    expect(find.text(AppStrings.timesCount(0)), findsOneWidget);
     expect(find.text(AppStrings.noUpcomingVisits), findsOneWidget);
   });
 

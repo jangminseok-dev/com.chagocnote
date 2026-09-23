@@ -508,6 +508,14 @@ class _DayPreview extends ConsumerWidget {
                       ],
                     ),
                   ),
+              if (groups.length > _maxRows)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    AppStrings.moreGroups(groups.length - _maxRows),
+                    style: AppTypography.caption,
+                  ),
+                ),
             ],
           ),
         ),

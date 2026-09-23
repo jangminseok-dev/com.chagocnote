@@ -45,3 +45,10 @@ String visitsTitle(List<Visit> visits) {
 
 String menusLabel(List<MenuBrief> menus) =>
     menus.isEmpty ? AppStrings.noMenu : menus.map((m) => m.name).join(', ');
+
+/// 상태가 섞인 묶음의 아이별 상태 — "두부 완료 · 보리 미용 중".
+String statusSummary(List<Visit> visits) => [
+  for (final v in visits)
+    '${v.pet == null ? AppStrings.ownerOnly : (v.pet!.name ?? AppStrings.deletedCustomer)} '
+        '${statusLabel(v.status)}',
+].join(' · ');
