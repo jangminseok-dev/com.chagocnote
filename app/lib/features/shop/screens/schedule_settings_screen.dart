@@ -407,7 +407,7 @@ class _ScheduleSettingsScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _date,
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.datetime,
                 inputFormatters: [LengthLimitingTextInputFormatter(10)],
                 decoration: InputDecoration(
                   hintText: AppStrings.closedDateHint,

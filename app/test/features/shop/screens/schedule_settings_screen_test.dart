@@ -133,6 +133,10 @@ void main() {
     final setup = await _open(tester, backend: backend);
 
     final fields = find.byType(TextField);
+    expect(
+      tester.widget<TextField>(fields.at(0)).keyboardType,
+      TextInputType.datetime,
+    );
     await tester.enterText(fields.at(0), '2026.09.01');
     await _tap(tester, _button(AppStrings.addClosedDate));
     expect(find.text(AppStrings.closedDateInvalid), findsOneWidget);
