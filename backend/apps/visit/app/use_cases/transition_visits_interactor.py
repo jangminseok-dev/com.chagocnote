@@ -11,6 +11,7 @@ from visit.app.ports.output.visit_repository import VisitRepository
 from visit.app.services.visit_locking import lock_visits
 from visit.app.services.visit_reader import describe_visits
 from visit.domain.entities.visit import COMPLETED
+from visit.domain.errors import VisitStateConflictError
 from visit.domain.state.visit_state import transition
 
 
@@ -34,6 +35,10 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
                 v.pet_id for v in await self._visits.get_many(ctx, list(command.visit_ids)) if v.pet_id is not None
             }))
         locked = await lock_visits(ctx, list(command.visit_ids), self._visits, self._directory, pet_ids)
+        # 가족 확인은 잠그기 전 반려동물로 판단했다 — 잠근 뒤 다시 본 값이 다르면(그 사이 다른 요청이 반려동물을
+        # 바꿨을 수 있다) 낡은 확인이라 다시 불러오게 한다.
+        if command.action == "revert" and {v.pet_id for v in locked if v.pet_id is not None} != set(pet_ids):
+            raise VisitStateConflictError("다른 기기가 먼저 방문을 바꿨습니다. 다시 불러와 주세요.")
 
         now = self._now()
         # 잠근 뒤 다시 읽은 상태로 모두 판정한 다음에 쓴다 — 하나라도 안 되면 아무것도 바꾸지 않는다.

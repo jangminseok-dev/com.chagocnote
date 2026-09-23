@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
@@ -110,3 +112,30 @@ async def test_다른_보호자의_방문을_섞으면_VISIT_GROUP_MISMATCH_다(
     with pytest.raises(VisitGroupMismatchError):
         await interactor.transition_visits(_act([kong.id, other.id], "complete"))
     assert journal == []
+
+
+class _PetSwapVisits(FakeVisits):
+    """잠그는 사이 다른 요청이 그 방문의 반려동물을 바꿔 버린 상황을 흉내 낸다 — get_many 는 옛 값, lock 은 새 값."""
+
+    def __init__(self, journal, swap_visit_id, new_pet_id):
+        super().__init__(journal)
+        self._swap_visit_id = swap_visit_id
+        self._new_pet_id = new_pet_id
+
+    async def lock(self, ctx, visit_ids):
+        self.rows[self._swap_visit_id] = replace(self.rows[self._swap_visit_id], pet_id=self._new_pet_id)
+        return await super().lock(ctx, visit_ids)
+
+
+async def test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_보고_거절한다():
+    """가족 확인은 잠그기 전 반려동물로 판단한다 — 잠근 뒤 다시 읽은 값과 다르면 낡은 확인이다(V7 우회 방지)."""
+    journal = Journal()
+    directory = FakeDirectory(journal)
+    directory.family(1, pets=(101, 102, 103), passed=(103,))
+    visits = _PetSwapVisits(journal, swap_visit_id=None, new_pet_id=102)
+    canceled = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 30, 14), status="canceled",
+                           canceled_at=NOW, cancel_reason="customer_request")
+    visits._swap_visit_id = canceled.id
+    interactor = TransitionVisitsInteractor(visits, FakeMenus(), directory, now=lambda: NOW)
+    with pytest.raises(VisitStateConflictError):
+        await interactor.transition_visits(_act([canceled.id], "revert"))
