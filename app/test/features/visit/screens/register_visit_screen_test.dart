@@ -446,6 +446,26 @@ void main() {
     expect(result.value, DateTime(2026, 9, 23));
   });
 
+  testWidgets('다른 날을 보다가 [지금 시작]이 VISIT_DUPLICATE 면 오늘 날짜를 돌려주며 닫는다', (
+    tester,
+  ) async {
+    final backend = VisitTestBackend();
+    backend.routes['POST /v1/shops/3/visits'] = (o, b) => const FakeResponse(
+      statusCode: 409,
+      data: {'code': 'VISIT_DUPLICATE', 'message': 'x'},
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    final result = await _open(tester, setup);
+    await _pickCustomer(tester);
+
+    await tester.tap(find.text(AppStrings.startNow));
+    await settle(tester);
+
+    expect(result.closed, isTrue);
+    expect(result.value, DateTime(2026, 9, 23));
+  });
+
   testWidgets('새 고객 등록으로 가서 등록하면 그 고객의 ②로 바로 온다', (tester) async {
     final backend = VisitTestBackend();
     backend.routes['GET /v1/shops/3/customers/8'] = (o, b) => FakeResponse(

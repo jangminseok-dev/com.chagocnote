@@ -385,6 +385,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('마감이 19:30 이면 시간표가 20:00 까지 그린다', (tester) async {
+    final backend = _backend([dayItemJson(_v(1, '10:00', duration: 60))]);
+    backend.routes['GET /v1/shops/3/visit-settings'] = (o, b) =>
+        FakeResponse(
+          statusCode: 200,
+          data: settingsJson(closesAt: '19:30:00'),
+        );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await setup.prefs.writeDayViewMode('timeline');
+    await _open(tester, setup);
+
+    expect(find.text('19:00'), findsOneWidget);
+    expect(find.text('20:00'), findsOneWidget);
+  });
+
   testWidgets('사장은 ··· 로 이 날을 휴무로 표시하고 해제한다', (tester) async {
     var closed = false;
     final backend = _backend([]);

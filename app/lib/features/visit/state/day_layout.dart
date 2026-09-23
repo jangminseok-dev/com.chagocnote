@@ -12,10 +12,15 @@ class DayGroup {
   Visit get first => items.first.visit;
   ShopTime get startsAt => first.startsAt;
 
-  /// 묶음에서 가장 늦게 끝나는 시각.
-  DateTime get endsAt => items
-      .map((i) => i.visit.endsAt.wall)
-      .reduce((a, b) => a.isAfter(b) ? a : b);
+  /// 묶음에서 가장 늦게 끝나는 시각 — 시간을 차지하는 구성원(취소·노쇼 제외)
+  /// 기준. 전부 취소·노쇼면 그 구성원들의 최댓값을 쓴다.
+  DateTime get endsAt {
+    final occupying = items.where((i) => i.visit.occupiesTime);
+    final source = occupying.isEmpty ? items : occupying;
+    return source
+        .map((i) => i.visit.endsAt.wall)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+  }
 
   bool get overlapping => items.any((i) => i.overlapping);
   bool get unresolved => items.any((i) => i.unresolved);

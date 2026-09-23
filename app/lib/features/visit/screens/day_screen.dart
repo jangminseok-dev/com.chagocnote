@@ -516,7 +516,8 @@ class _Timeline extends ConsumerWidget {
         : int.parse(settings.opensAt.substring(0, 2));
     var lastHour = settings == null
         ? 19
-        : int.parse(settings.closesAt.substring(0, 2));
+        : int.parse(settings.closesAt.substring(0, 2)) +
+              (int.parse(settings.closesAt.substring(3, 5)) > 0 ? 1 : 0);
     for (final g in active) {
       if (g.startsAt.wall.hour < firstHour) firstHour = g.startsAt.wall.hour;
       final end = g.endsAt;

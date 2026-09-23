@@ -46,6 +46,28 @@ void main() {
     expect(group.uniformStatus, isNull);
   });
 
+  test('취소된 형제의 긴 소요는 묶음 끝에 들지 않는다', () {
+    final group = groupDay([
+      _item(1, '13:00', duration: 60, group: 'a'),
+      _item(
+        2,
+        '13:00',
+        duration: 150,
+        group: 'a',
+        status: 'canceled',
+      ),
+    ]).single;
+
+    expect(group.endsAt, DateTime(2026, 10, 2, 14));
+
+    final allCanceled = groupDay([
+      _item(3, '13:00', duration: 60, group: 'b', status: 'canceled'),
+      _item(4, '13:00', duration: 150, group: 'b', status: 'no_show'),
+    ]).single;
+
+    expect(allCanceled.endsAt, DateTime(2026, 10, 2, 15, 30));
+  });
+
   test('시간을 차지하는 묶음 사이가 한 시간 이상 비면 그 길이를 준다', () {
     final groups = groupDay([
       _item(1, '10:00', duration: 150),

@@ -87,7 +87,12 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
     } on ApiException catch (e) {
       // 저장을 두 번 누른 경우다 — 이미 저장됐으니 닫는다(결정 기록 006).
       if (e.code == 'VISIT_DUPLICATE') {
-        if (mounted) context.pop(value.date);
+        if (mounted) {
+          final today = ref.read(todayProvider);
+          context.pop(
+            walkIn ? DateTime(today.year, today.month, today.day) : value.date,
+          );
+        }
         return;
       }
       _fail(e);

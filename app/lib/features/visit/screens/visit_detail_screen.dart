@@ -64,14 +64,18 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
     final shopId = _shopId;
     if (shopId == null || _busy || _asking) return;
     setState(() => _asking = true);
-    final choice = await askVisitAction(
-      context,
-      ref,
-      shopId: shopId,
-      action: action,
-      anchorVisitId: detail.visit.visitId,
-    );
-    if (mounted) setState(() => _asking = false);
+    VisitChoice? choice;
+    try {
+      choice = await askVisitAction(
+        context,
+        ref,
+        shopId: shopId,
+        action: action,
+        anchorVisitId: detail.visit.visitId,
+      );
+    } finally {
+      if (mounted) setState(() => _asking = false);
+    }
     if (choice == null || !mounted) return;
     setState(() {
       _busy = true;

@@ -100,7 +100,7 @@ class VisitForm extends ConsumerStatefulWidget {
   final String Function(DateTime date, String at) submitLabel;
   final Future<void> Function(VisitFormValue value) onSubmit;
 
-  /// 있으면 오늘을 고른 동안 [지금 시작]을 보인다(예약 없이 온 손님).
+  /// 있으면 [지금 시작]을 보인다(예약 없이 온 손님).
   final Future<void> Function(VisitFormValue value)? onWalkIn;
   final bool busy;
   final String? errorText;
