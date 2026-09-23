@@ -167,6 +167,7 @@ class FakeSearch:
         self.page = page or SearchPage(customer_ids=[], next_cursor=None)
         self.pet_count = pet_count
         self.requests = []
+        self.matches: list[int] = []
 
     async def rebuild_search_entry(self, ctx, customer_id):
         self.journal.append(("rebuild", customer_id))
@@ -181,6 +182,11 @@ class FakeSearch:
     async def count_pets(self, ctx, words, include_passed):
         self.requests.append((ctx, words, include_passed))
         return self.pet_count
+
+    async def match_any(self, ctx, words, limit):
+        """낱말 하나라도 걸리는 가족 — 스텁은 미리 넣어 둔 ID 를 그대로 준다(순위는 인터랙터 몫)."""
+        self.journal.append(("match_any", tuple(w.value for w in words), limit))
+        return self.matches[:limit]
 
 
 class FakeLedger:

@@ -117,6 +117,27 @@ class CustomerSearchPgAdapter(CustomerSearchPort):
             )
         return conditions
 
+    async def match_any(self, ctx: ShopContext, words: tuple[SearchWord, ...], limit: int) -> list[int]:
+        if not words:
+            return []
+        any_word = []
+        for word in words:
+            pattern = _like_escape(word.value)
+            if word.kind == "last4":
+                any_word.append(Entry.phone_last4.like(pattern + "%", escape="\\"))
+            elif len(word.value) == 1:
+                # 한 글자 이름("봄")은 통단어로만 — 부분 일치면 그 글자가 든 이름이 전부 걸린다.
+                any_word.append(func.concat(" ", Entry.terms, " ").like("% " + pattern + " %", escape="\\"))
+            else:
+                any_word.append(Entry.terms.ilike("%" + pattern + "%", escape="\\"))
+        stmt = (
+            select(Entry.customer_id)
+            .where(Entry.shop_id == ctx.shop_id, or_(*any_word))
+            .order_by(Entry.customer_id)
+            .limit(limit)
+        )
+        return list((await self._session.execute(stmt)).scalars())
+
     async def search(self, ctx: ShopContext, request: SearchRequest) -> SearchPage:
         key_column = {
             "recent": Entry.last_activity_at, "name": Entry.sort_name, "last_visit": Entry.last_visit_at,

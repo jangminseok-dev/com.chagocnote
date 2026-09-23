@@ -88,3 +88,78 @@ async def test_마지막_방문_시각은_검색_포트로_넘긴다():
     await directory.set_last_visit(ctx(), 1, at)
     await directory.set_last_visit(ctx(), 1, None)
     assert journal == [("set_last_visit", 1, at), ("set_last_visit", 1, None)]
+
+
+# --- 카톡 초안 후보(find_draft_candidates) ---
+
+
+def _directory_with_search():
+    journal, customers, pets, _, search = family()
+    return journal, customers, pets, search, CustomerDirectoryInteractor(customers, pets, _FakeBriefs(), search)
+
+
+async def test_낱말이_없으면_검색을_부르지_않고_빈_목록이다():
+    journal, _, _, _, directory = _directory_with_search()
+    assert await directory.find_draft_candidates(ctx(), ()) == []
+    assert journal == []
+
+
+async def test_반려동물_이름_정확_일치가_보호자_이름_전화_부분_일치보다_앞선다():
+    _, customers, pets, search, directory = _directory_with_search()
+    partial = customers.seed(name="콩순이맘", phone="01000000001")     # "콩" 부분 일치뿐
+    by_phone = customers.seed(name="박서준", phone="01098765678")      # 뒷자리 5678
+    by_owner = customers.seed(name="김민지", phone="01000000003")      # 보호자 이름
+    by_pet = customers.seed(name="이하나", phone="01000000004")        # 반려동물 이름
+    pets.seed(by_pet.id, "콩이"), pets.seed(by_pet.id, "두부"), pets.seed(partial.id, "콩")
+    search.matches = [partial.id, by_phone.id, by_owner.id, by_pet.id]
+
+    found = await directory.find_draft_candidates(ctx(), ("콩이", "김민지", "5678"))
+
+    assert [c.customer.customer_id for c in found] == [by_pet.id, by_owner.id, by_phone.id, partial.id]
+    assert [c.exact for c in found] == [True, True, False, False]
+    kong = next(p.id for p in pets.rows.values() if p.name == "콩이")
+    assert found[0].matched_pet_ids == (kong,)
+    assert [p.name for p in found[0].pets] == ["콩이", "두부"]
+    assert found[0].customer.phone_masked == "010-00··-0004"
+
+
+async def test_전체_번호_8자리_이상은_포함으로_맞춘다():
+    _, customers, _, search, directory = _directory_with_search()
+    customer = customers.seed(name="박서준", phone="01098765678")
+    search.matches = [customer.id]
+    found = await directory.find_draft_candidates(ctx(), ("01098765678",))
+    assert (found[0].customer.customer_id, found[0].exact) == (customer.id, False)
+
+
+async def test_후보는_다섯_가족까지_ID_오름차순이다():
+    _, customers, _, search, directory = _directory_with_search()
+    ids = [customers.seed(name=f"보호자{i}", phone=f"0100000000{i}").id for i in range(7)]
+    search.matches = ids
+    found = await directory.find_draft_candidates(ctx(), ("보호자",))
+    assert [c.customer.customer_id for c in found] == ids[:5]
+
+
+async def test_검색은_낱말을_OR_로_20가족까지_묻는다():
+    journal, _, _, _, directory = _directory_with_search()
+    await directory.find_draft_candidates(ctx(), ("콩이", "010-1234-5678"))
+    assert journal == [("match_any", ("콩이", "01012345678"), 20)]
+
+
+async def test_무지개다리_아이는_후보의_반려동물에서_빠진다():
+    _, customers, pets, search, directory = _directory_with_search()
+    customer = customers.seed()
+    pets.seed(customer.id, "콩이", passed_away=True)
+    pets.seed(customer.id, "두부")
+    search.matches = [customer.id]
+    found = await directory.find_draft_candidates(ctx(), ("콩이",))
+    assert [p.name for p in found[0].pets] == ["두부"]
+    assert (found[0].matched_pet_ids, found[0].exact) == ((), False)   # 무지개다리 아이의 이름은 일치로 치지 않는다
+
+
+async def test_익명화한_고객과_다른_매장의_ID_는_후보가_아니다():
+    _, customers, _, search, directory = _directory_with_search()
+    gone = customers.seed()
+    other = customers.seed(shop_id=2, phone="01099990000")
+    await customers.anonymize(ctx(), gone.id)
+    search.matches = [gone.id, other.id]
+    assert await directory.find_draft_candidates(ctx(), ("김민지",)) == []
