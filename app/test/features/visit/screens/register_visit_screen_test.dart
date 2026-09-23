@@ -352,6 +352,34 @@ void main() {
 
     expect(result.closed, isTrue);
     expect(result.value, DateTime(2026, 10, 2));
+    // 닫힌 뒤 홈 위에 스낵바로 알린다(A2 잔여 — 설계 6.2 "이미 저장됐어요").
+    expect(find.text(AppStrings.duplicateVisitNotice), findsOneWidget);
+  });
+
+  testWidgets('다음 예약 초안의 저장이 VISIT_DUPLICATE 면(한 아이가 이미 예약됨) 문구를 보이고 닫는다', (
+    tester,
+  ) async {
+    final backend = VisitTestBackend();
+    backend.routes['POST /v1/shops/3/visits'] = (o, b) => const FakeResponse(
+      statusCode: 409,
+      data: {'code': 'VISIT_DUPLICATE', 'message': 'x'},
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    final result = await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: NextVisitDraft.fromJson(nextDraftJson(petIds: [11, 12])),
+    );
+
+    await tester.tap(_save());
+    await settle(tester);
+
+    expect(result.closed, isTrue);
+    expect(result.value, DateTime(2026, 10, 30));
+    expect(find.text(AppStrings.duplicateVisitNotice), findsOneWidget);
+    expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
   });
 
   testWidgets('서버가 거절하면 문구를 보이고 폼에 남는다', (tester) async {

@@ -260,6 +260,8 @@ class AppStrings {
   static const draftFindCustomer = '고객 찾기';
   static const draftHint = '확인한 뒤 저장돼요. 짐작한 칸은 다음 화면에서 고칠 수 있어요.';
 
+  static const duplicateVisitNotice = '이미 같은 시각에 잡힌 예약이 있어요. 그날 목록을 확인해 주세요.';
+
   static const editVisitTitle = '예약 수정';
   static const moveTogether = '같이 옮기기';
   static const moveOnlyThis = '이 방문만';

@@ -14,6 +14,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
+import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/session.dart';
@@ -96,9 +97,12 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
       // 서버가 저장한 날짜를 돌려준다 — [지금 시작]은 보던 날과 다를 수 있다.
       if (mounted) context.pop(saved.visits.first.startsAt.day);
     } on ApiException catch (e) {
-      // 저장을 두 번 누른 경우다 — 이미 저장됐으니 닫는다(결정 기록 006).
+      // 저장을 두 번 눌렀거나(이미 저장됐다), 다음 예약의 한 아이가 그 시각에
+      // 이미 예약돼 있다(아무것도 저장되지 않았다). 둘 다 그날 목록을 보면
+      // 알 수 있으니 알리고 그날로 닫는다(결정 기록 006, ③-A3).
       if (e.code == 'VISIT_DUPLICATE') {
         if (mounted) {
+          AppSnackBar.show(context, AppStrings.duplicateVisitNotice);
           final today = ref.read(todayProvider);
           context.pop(
             walkIn ? DateTime(today.year, today.month, today.day) : value.date,
