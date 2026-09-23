@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from sqlalchemy import insert, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +11,7 @@ from hub.app.dtos.shop_context import ShopContext
 from visit.adapter.outbound.mappers.visit_mapper import to_visit
 from visit.adapter.outbound.orm.visit_orm import VisitMenuOrm, VisitOrm
 from visit.app.ports.output.visit_repository import VisitRepository
-from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
+from visit.domain.entities.visit import ACTIVE_STATUSES, RESERVED, Visit
 from visit.domain.errors import VisitDuplicateError
 from visit.domain.services.visit_schedule import MAX_DURATION
 from visit.domain.value_objects.new_visit import NewVisit
@@ -48,6 +48,22 @@ class VisitPgRepository(VisitRepository):
                     )
                 ids.append(visit_id)
         return await self._read(ctx, select(VisitOrm).where(VisitOrm.id.in_(ids)))
+
+    async def list_between(self, ctx: ShopContext, start: datetime, end: datetime) -> list[Visit]:
+        return await self._read(
+            ctx, select(VisitOrm).where(VisitOrm.starts_at >= start, VisitOrm.starts_at < end)
+        )
+
+    async def unresolved_before(self, ctx: ShopContext, before: datetime) -> tuple[int, datetime | None]:
+        count, oldest = (
+            await self._session.execute(
+                select(func.count(), func.min(VisitOrm.starts_at)).where(
+                    VisitOrm.shop_id == ctx.shop_id, VisitOrm.status == RESERVED,
+                    VisitOrm.starts_at < before,
+                )
+            )
+        ).one()
+        return count, oldest
 
     async def list_occupied(self, ctx: ShopContext, start: datetime, end: datetime) -> list[Visit]:
         # 소요는 최대 600분이라 그만큼 앞에서 시작한 방문까지 가져와 끝 시각으로 거른다.

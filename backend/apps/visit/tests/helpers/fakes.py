@@ -174,6 +174,16 @@ class FakeVisits:
         self.journal.append(("create_visits", [v.id for v in created]))
         return created
 
+    def _mine(self, ctx):
+        return sorted((v for v in self.rows.values() if v.shop_id == ctx.shop_id), key=lambda v: (v.starts_at, v.id))
+
+    async def list_between(self, ctx, start, end):
+        return [v for v in self._mine(ctx) if start <= v.starts_at < end]
+
+    async def unresolved_before(self, ctx, before):
+        found = [v for v in self._mine(ctx) if v.status == "reserved" and v.starts_at < before]
+        return len(found), (found[0].starts_at if found else None)
+
     async def list_occupied(self, ctx, start, end):
         return sorted((v for v in self.rows.values() if v.shop_id == ctx.shop_id and v.is_active
                        and v.starts_at < end and v.ends_at > start), key=lambda v: (v.starts_at, v.id))

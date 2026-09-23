@@ -63,3 +63,26 @@ async def test_시간이_겹치는_살아_있는_방문만(db_session):
     assert [v.pet_id for v in occupied] == [102, 103]   # 전날 밤 방문은 딱 0시에 끝나 겹치지 않는다
     long_before = await repo.list_occupied(A, kst(10, 1, 23), kst(10, 1, 23) + timedelta(hours=1))
     assert [v.pet_id for v in long_before] == [101]
+
+
+async def test_시작_시각이_구간_안인_방문은_상태와_상관없이(db_session):
+    repo = VisitPgRepository(db_session)
+    await repo.create_many(A, [new(101, starts_at=kst(10, 2, 10))])
+    await repo.create_many(A, [new(102, starts_at=kst(10, 2, 10), status="in_progress",
+                                   started_at=kst(10, 2, 10))])
+    await repo.create_many(A, [new(103, starts_at=kst(10, 1, 23))])
+    await repo.create_many(B, [new(104, starts_at=kst(10, 2, 11))])
+    found = await repo.list_between(A, kst(10, 2), kst(10, 3))
+    assert [(v.pet_id, v.status) for v in found] == [(101, "reserved"), (102, "in_progress")]
+
+
+async def test_정리_안_된_예약의_수와_가장_이른_시각(db_session):
+    repo = VisitPgRepository(db_session)
+    await repo.create_many(A, [new(101, starts_at=kst(7, 14, 10))])
+    await repo.create_many(A, [new(102, starts_at=kst(9, 22, 10))])
+    await repo.create_many(A, [new(103, starts_at=kst(9, 21, 10), status="in_progress",
+                                   started_at=kst(9, 21, 10))])      # 미용 중은 정리 안 됨이 아니다
+    await repo.create_many(A, [new(104, starts_at=kst(9, 23, 10))])  # 오늘
+    await repo.create_many(B, [new(105, starts_at=kst(6, 1, 10))])
+    assert await repo.unresolved_before(A, kst(9, 23)) == (2, kst(7, 14, 10))
+    assert await repo.unresolved_before(A, kst(7, 1)) == (0, None)

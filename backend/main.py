@@ -61,9 +61,12 @@ from visit.adapter.inbound.api.v1.add_closed_date_router import add_closed_date_
 from visit.adapter.inbound.api.v1.archive_menu_router import archive_menu_router
 from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
+from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
+from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_router
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
+from visit.adapter.inbound.api.v1.list_visit_slots_router import list_visit_slots_router
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
@@ -121,6 +124,10 @@ app.include_router(list_menus_router)
 app.include_router(create_menu_router)
 app.include_router(update_menu_router)
 app.include_router(archive_menu_router)
+# /visits/calendar 와 /visits/slots 는 /visits/{visit_id} 보다 먼저 붙인다(정수 변환 실패 422 를 피한다).
+app.include_router(get_visit_calendar_router)
+app.include_router(list_visit_slots_router)
+app.include_router(list_day_visits_router)
 app.include_router(register_visit_router)
 install_error_handlers(
     app,

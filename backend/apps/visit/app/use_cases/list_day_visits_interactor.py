@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import datetime
+
+from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from visit.app.dtos.list_day_visits_dto import (
+    DayCountsView,
+    DayVisitItemView,
+    DayVisitsView,
+    ListDayVisitsQuery,
+)
+from visit.app.ports.input.list_day_visits_use_case import ListDayVisitsUseCase
+from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.schedule_repository import ScheduleRepository
+from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.services.visit_reader import describe_visits
+from visit.domain.entities.visit import CANCELED, COMPLETED, IN_PROGRESS, NO_SHOW, RESERVED
+from visit.domain.services.visit_board import (
+    COUNTED,
+    is_unresolved,
+    overlaps_other_group,
+    status_counts,
+)
+from visit.domain.services.visit_schedule import day_bounds, is_closed_day, local_date
+
+
+class ListDayVisitsInteractor(ListDayVisitsUseCase):
+    """하루 화면 — 그날 시작하는 방문 전부(취소·노쇼 포함)를 시작 순으로."""
+
+    def __init__(
+        self, visits: VisitRepository, menus: MenuRepository, schedule: ScheduleRepository,
+        directory: CustomerDirectoryPort, now: Callable[[], datetime],
+    ) -> None:
+        self._visits = visits
+        self._menus = menus
+        self._schedule = schedule
+        self._directory = directory
+        self._now = now
+
+    async def list_day_visits(self, query: ListDayVisitsQuery) -> DayVisitsView:
+        ctx, tz, day = query.ctx, query.ctx.timezone, query.day
+        settings = await self._schedule.ensure(ctx)
+        start, end = day_bounds(day, tz)
+        visits = await self._visits.list_between(ctx, start, end)
+        occupied = await self._visits.list_occupied(ctx, start, end)   # 전날 밤에 시작한 방문도 겹칠 수 있다
+        closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, day, day))
+        today = local_date(self._now(), tz)
+        views = await describe_visits(ctx, visits, self._directory, self._menus)
+        items = [
+            DayVisitItemView(
+                visit=view,
+                group_key=f"{visit.customer_id}:{visit.starts_at.isoformat()}",
+                overlapping=overlaps_other_group(visit, occupied),
+                unresolved=is_unresolved(visit, today, tz),
+            )
+            for visit, view in zip(visits, views)
+        ]
+        counts = status_counts(visits)
+        return DayVisitsView(
+            date=day,
+            closed_day=is_closed_day(day, settings, closed),
+            counts=DayCountsView(
+                visit_count=sum(counts[s] for s in COUNTED), reserved=counts[RESERVED],
+                in_progress=counts[IN_PROGRESS], completed=counts[COMPLETED], canceled=counts[CANCELED],
+                no_show=counts[NO_SHOW], unresolved=sum(item.unresolved for item in items),
+            ),
+            items=items,
+        )
