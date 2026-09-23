@@ -64,7 +64,13 @@ def check_settings(settings: ScheduleSettings) -> None:
 
 
 def check_start(starts_at: datetime, now: datetime, tz: str) -> None:
-    """예약 시각 — 10분 단위, 오늘 기준 앞뒤 1년 안."""
+    """예약 시각 — 10분 단위, 오늘 기준 앞뒤 1년 안.
+
+    범위를 한참 벗어난 시각(연도 9999 등)은 매장 시간대로 옮기면 OverflowError 가 나므로,
+    aware datetime 끼리의 뺄셈(넘치지 않는다)으로 먼저 걸러 500 대신 422 를 낸다.
+    """
+    if abs(starts_at - now) > timedelta(days=BOOKING_HORIZON_DAYS + 1):
+        raise VisitInputError("예약은 오늘 기준 앞뒤 1년 안에서만 잡을 수 있습니다.")
     local = starts_at.astimezone(ZoneInfo(tz))
     if local.minute % STEP_MINUTES or local.second or local.microsecond:
         raise VisitInputError("예약 시각은 10분 단위여야 합니다.")

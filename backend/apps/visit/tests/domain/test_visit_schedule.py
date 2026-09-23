@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, datetime, time
 
 import pytest
 
@@ -55,6 +55,16 @@ def test_예약은_오늘_기준_앞뒤_1년까지():
         check_start(kst(9, 23, 10) + timedelta(days=367), NOW, TZ)
     with pytest.raises(VisitInputError):
         check_start(kst(9, 23, 10) - timedelta(days=367), NOW, TZ)
+
+
+@pytest.mark.parametrize("starts_at", [
+    datetime.fromisoformat("9999-12-31T23:50:00+00:00"),
+    datetime.fromisoformat("0001-01-01T00:00:00+10:00"),
+])
+def test_범위를_한참_벗어난_시각은_시간대로_옮기기_전에_거절한다(starts_at):
+    """astimezone 이 OverflowError 를 내기 전에 뺄셈으로 먼저 막는다 — 500 대신 422."""
+    with pytest.raises(VisitInputError):
+        check_start(starts_at, NOW, TZ)
 
 
 def test_딱_자정에_끝나면_된다():
