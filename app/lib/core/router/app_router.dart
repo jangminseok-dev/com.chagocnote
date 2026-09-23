@@ -20,6 +20,7 @@ import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
+import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
 
 /// go_router의 `refreshListenable`은 평범한 [Listenable]을 요구한다. 세션이
@@ -149,6 +150,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             draft: state.extra as NextVisitDraft?,
           );
         },
+      ),
+      // '/visits/new' 뒤에 둔다 — 먼저 두면 'new'를 방문 ID 로 읽는다.
+      GoRoute(
+        path: '/visits/:visitId',
+        builder: (context, state) => VisitDetailScreen(
+          visitId: int.parse(state.pathParameters['visitId']!),
+        ),
       ),
       GoRoute(
         path: '/visits/:visitId/edit',

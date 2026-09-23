@@ -251,6 +251,30 @@ class AppStrings {
   static const moveOnlyThis = '이 방문만';
 
   static String moveTogetherQuestion(String names) => '$names도 같이 옮길까요?';
+  static const visitTitleEn = 'Visit';
+  static const visitMemoLabel = '메모';
+  static const cancelReasonLabel = '취소 사유';
+  static const reasonCustomerRequest = '보호자 요청';
+  static const reasonShopReason = '매장 사정';
+  static const previousVisitLabel = '지난 방문';
+  static const groupLabel = '함께 온 아이';
+  static const actionStart = '시작';
+  static const actionComplete = '완료';
+  static const actionCompleteNow = '바로 완료';
+  static const actionCancelVisit = '취소';
+  static const actionNoShow = '노쇼';
+  static const actionRevert = '되돌리기';
+  static const actionNextReservation = '다음 예약 잡기';
+  static const completeTitle = '미용을 마쳤어요';
+  static const completeAndNext = '완료하고 다음 예약 잡기';
+
+  static String nextPreview(String when) => '→ $when';
+  static String completeAndNextCaption(int weeks) =>
+      '$weeks주 뒤 같은 요일·시간·메뉴로 채워진 예약 화면이 열려요.';
+  static const cancelReasonTitle = '취소 사유를 골라 주세요';
+  static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해집니다.';
+
+  static String noShowCount(int count) => '노쇼 $count회';
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';
