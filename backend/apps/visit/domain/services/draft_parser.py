@@ -19,19 +19,25 @@ _MONTH_DAY = re.compile(r"(?<!\d)(\d{1,2}) ?월 ?(\d{1,2}) ?일(?!\d)")
 _SLASH_DAY = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?!\d)")
 _DAY_ONLY = re.compile(r"(?<!\d)(\d{1,2}) ?일(?!\d)")
 
-# "2시간"의 "시"는 시각이 아니다 — 뒤에 "간"이 붙으면 건너뛴다.
-_MARKED_TIME = re.compile(r"(오전|아침|오후|저녁|밤|낮) ?(\d{1,2}) ?시(?!간) ?(?:(반)|(\d{1,2}) ?분)?")
+# "2시간"의 "시"는 시각이 아니다 — 뒤에 "간"이 붙으면 건너뛴다. 표지 뒤 "2:30"도 받는다.
+_MARKED_TIME = re.compile(
+    r"(오전|아침|오후|저녁|밤|낮) ?(?:(\d{1,2}):(\d{2})(?!\d)|(\d{1,2}) ?시(?!간) ?(?:(반)|(\d{1,2}) ?분)?)")
 _CLOCK_TIME = re.compile(r"(?<!\d)(\d{1,2}):(\d{2})(?!\d)")
 _HOUR_TIME = re.compile(r"(?<!\d)(\d{1,2}) ?시(?!간) ?(?:(반)|(\d{1,2}) ?분)?")
 _AFTERNOON = ("오후", "저녁", "밤")
-# 카톡 대화를 여러 줄 복사하면 줄마다 "[보낸 사람] [오후 2:31]" 머리말이 붙는다 — 그 시각은 예약 시각이 아니다.
-_KAKAO_STAMP = re.compile(r"\[(오전|오후) ?\d{1,2}:\d{2}\]")
+# 카톡 대화의 머리말은 보낸 날짜·시각이지 예약이 아니다 — 지운다. 보낸 사람 이름은 낱말로 남긴다.
+_KAKAO_STAMPS = (
+    # iOS 에서 여러 줄 복사: "[김민지] [오후 2:31] …"
+    re.compile(r"\[(오전|오후) ?\d{1,2}:\d{2}\]"),
+    # 안드로이드 대화 내보내기: "2026년 9월 24일 오후 2:31, 김민지 : …"
+    re.compile(r"\d{4}년 \d{1,2}월 \d{1,2}일 (오전|오후) \d{1,2}:\d{2}, "),
+)
 
 # 숫자에 바로 붙은 한글("2시에", "25일", "5678이요")은 단위·조사라 숫자 토큰에 삼킨다.
 _TOKEN = re.compile(r"\d[\d-]*[가-힣]*|[가-힣]+")
 # 끝에서 조사 하나를 뗀 형도 낱말로 둔다 — "콩이랑"은 콩이+랑(콩이)일 수도 콩+이랑(콩)일 수도 있어 맞는 조사를 모두 떼어 본다.
-_PARTICLES = ("이랑", "하고", "한테", "에게", "까지", "부터", "이는", "이가", "이도", "이를",
-              "에서", "으로", "은", "는", "이", "가", "을", "를", "도", "랑", "와", "과", "의", "야", "요", "님",
+_PARTICLES = ("입니다", "인데요", "이랑", "하고", "한테", "에게", "까지", "부터", "이는", "이가", "이도", "이를",
+              "에서", "으로", "예요", "에요", "은", "는", "이", "가", "을", "를", "도", "랑", "와", "과", "의", "야", "요", "님",
               "에", "로", "께")
 # 날짜·시간·인사·예약 낱말은 "누구"가 아니다.
 STOP_WORDS = frozenset({
@@ -59,7 +65,8 @@ class DraftParse:
 
 
 def parse_draft(text: str, today: date, opens_at: time, closes_at: time, menu_names: Sequence[str]) -> DraftParse:
-    text = _KAKAO_STAMP.sub(" ", text)
+    for stamp in _KAKAO_STAMPS:
+        text = stamp.sub(" ", text)
     day, guessed_day = _parse_date(text, today)
     clock, guessed_clock = _parse_time(text, opens_at, closes_at)
     menus, guessed_menu = _parse_menus(text, menu_names)
@@ -80,6 +87,17 @@ def _parse_date(text: str, today: date) -> tuple[date | None, bool]:
     for word, offset in _RELATIVE:
         if word in text:
             return today + timedelta(days=offset), False
+    # 명시한 날짜가 요일보다 앞선다. 글의 요일이 그 날짜와 어긋나면 어느 쪽이 맞는지 몰라 짐작함.
+    if m := _MONTH_DAY.search(text) or _SLASH_DAY.search(text):
+        day = _safe_date(today.year, int(m.group(1)), int(m.group(2)))
+        if day is None:
+            return None, False
+        guessed = False
+        if day < today:
+            day, guessed = _safe_date(today.year + 1, day.month, day.day), True   # 지난 날짜면 내년으로 짐작
+        if day is not None and (w := _PLAIN_DAY.search(text)) and _WEEKDAYS.index(w.group(1)) != day.weekday():
+            guessed = True
+        return day, guessed
     monday = today - timedelta(days=today.weekday())
     if m := _WEEK_DAY.search(text):
         weekday = _WEEKDAYS.index(m.group(2))
@@ -90,13 +108,6 @@ def _parse_date(text: str, today: date) -> tuple[date | None, bool]:
     if m := _PLAIN_DAY.search(text):
         ahead = (_WEEKDAYS.index(m.group(1)) - today.weekday()) % 7 or 7   # 오늘은 빼고 가장 가까운 앞날
         return today + timedelta(days=ahead), False
-    if m := _MONTH_DAY.search(text) or _SLASH_DAY.search(text):
-        day = _safe_date(today.year, int(m.group(1)), int(m.group(2)))
-        if day is None:
-            return None, False
-        if day < today:
-            return _safe_date(today.year + 1, day.month, day.day), True   # 지난 날짜면 내년으로 짐작
-        return day, False
     if m := _DAY_ONLY.search(text):
         number = int(m.group(1))
         day = _safe_date(today.year, today.month, number)
@@ -117,7 +128,11 @@ def _minutes(half: str | None, minute: str | None) -> int:
 
 def _parse_time(text: str, opens_at: time, closes_at: time) -> tuple[time | None, bool]:
     if m := _MARKED_TIME.search(text):
-        marker, hour, minute = m.group(1), int(m.group(2)), _minutes(m.group(3), m.group(4))
+        marker = m.group(1)
+        if m.group(2):
+            hour, minute = int(m.group(2)), int(m.group(3))
+        else:
+            hour, minute = int(m.group(4)), _minutes(m.group(5), m.group(6))
         if marker in _AFTERNOON and hour < 12:
             hour += 12
         elif marker == "낮" and hour < 6:
