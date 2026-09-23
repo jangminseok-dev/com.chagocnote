@@ -12,3 +12,4 @@ class ShopAccessRecord:
     permissions: frozenset[str]
     shop_suspended: bool
     shop_closed: bool
+    timezone: str

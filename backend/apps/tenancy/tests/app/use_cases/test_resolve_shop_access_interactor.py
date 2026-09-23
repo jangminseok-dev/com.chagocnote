@@ -18,14 +18,15 @@ class _StubMembers:
 
 def _record(**overrides):
     base = dict(member_id=11, role="staff", permissions=frozenset({"record:write"}),
-                shop_suspended=False, shop_closed=False)
+                shop_suspended=False, shop_closed=False, timezone="Asia/Tokyo")
     return ShopAccessRecord(**{**base, **overrides})
 
 
 async def test_멤버면_컨텍스트를_돌려준다():
     members = _StubMembers(_record())
     ctx = await ResolveShopAccessInteractor(members).resolve(user_id=5, shop_id=3)
-    assert ctx == ShopContext(shop_id=3, member_id=11, role="staff", permissions=frozenset({"record:write"}))
+    assert ctx == ShopContext(shop_id=3, member_id=11, role="staff", permissions=frozenset({"record:write"}),
+                              timezone="Asia/Tokyo")
     assert members.calls == [(3, 5)]
 
 

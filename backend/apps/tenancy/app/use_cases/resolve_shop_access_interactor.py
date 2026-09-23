@@ -26,4 +26,5 @@ class ResolveShopAccessInteractor(ShopAccessPort):
             member_id=record.member_id,
             role=record.role,
             permissions=record.permissions,
+            timezone=record.timezone,
         )
