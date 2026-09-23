@@ -171,6 +171,9 @@ class FakeSearch:
     async def rebuild_search_entry(self, ctx, customer_id):
         self.journal.append(("rebuild", customer_id))
 
+    async def set_last_visit(self, ctx, customer_id, at):
+        self.journal.append(("set_last_visit", customer_id, at))
+
     async def search(self, ctx, request):
         self.requests.append((ctx, request))
         return self.page

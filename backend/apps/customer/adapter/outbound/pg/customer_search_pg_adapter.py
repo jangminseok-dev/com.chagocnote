@@ -5,7 +5,7 @@ import binascii
 import json
 from datetime import datetime
 
-from sqlalchemy import delete, exists, func, select, tuple_
+from sqlalchemy import delete, exists, func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -83,6 +83,13 @@ class CustomerSearchPgAdapter(CustomerSearchPort):
         stmt = insert(Entry).values(customer_id=customer_id, **values)
         await self._session.execute(
             stmt.on_conflict_do_update(index_elements=[Entry.customer_id], set_=values)
+        )
+
+    async def set_last_visit(self, ctx: ShopContext, customer_id: int, at: datetime | None) -> None:
+        await self._session.execute(
+            update(Entry)
+            .where(Entry.customer_id == customer_id, Entry.shop_id == ctx.shop_id)
+            .values(last_visit_at=at)
         )
 
     def _matching(self, ctx: ShopContext, words: tuple[SearchWord, ...], include_passed: bool):

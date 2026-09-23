@@ -32,3 +32,9 @@ class PetHealthRequiredError(CustomerError):
 
 class PetHealthConflictError(CustomerError):
     code = "PET_HEALTH_CONFLICT"
+
+
+class PetPassedAwayError(CustomerError):
+    """무지개다리 아이에게 예약을 잡으려 했다."""
+
+    code = "PET_PASSED_AWAY"

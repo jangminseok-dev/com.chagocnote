@@ -7,6 +7,7 @@ from customer.domain.errors import (
     PetHealthConflictError,
     PetHealthRequiredError,
     PetNotFoundError,
+    PetPassedAwayError,
 )
 
 CUSTOMER_ERROR_STATUS: dict[type[Exception], int] = {
@@ -17,4 +18,5 @@ CUSTOMER_ERROR_STATUS: dict[type[Exception], int] = {
     CustomerInputError: 422,
     PetHealthRequiredError: 422,
     PetHealthConflictError: 422,
+    PetPassedAwayError: 422,
 }

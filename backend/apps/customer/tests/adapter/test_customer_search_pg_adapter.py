@@ -174,3 +174,33 @@ async def test_customer_id가_bigint_범위를_벗어난_커서는_VALIDATION_ER
 async def test_key에_NUL이_있는_커서는_VALIDATION_ERROR_다(db_session):
     with pytest.raises(CustomerInputError):
         await _find(db_session, "", sort="name", cursor=_forged_cursor("김민\x00지", 1))
+
+
+async def _last_visit(session, customer_id):
+    return (await session.execute(
+        text("SELECT last_visit_at FROM customer_search_entries WHERE customer_id = :id"), {"id": customer_id}
+    )).scalar_one()
+
+
+async def test_마지막_방문_시각을_바꾸고_다시_만들어도_지킨다(db_session):
+    """원본은 visits 라 검색 줄을 다시 만들 때(가족 수정) 이 칸은 건드리지 않는다."""
+    from datetime import datetime, timezone
+
+    customer_id = await _family(db_session, "김민지", "01012345678", ["콩이"])
+    at = datetime(2026, 9, 23, 5, tzinfo=timezone.utc)
+    search = CustomerSearchPgAdapter(db_session)
+    await search.set_last_visit(A, customer_id, at)
+    assert await _last_visit(db_session, customer_id) == at
+    await search.rebuild_search_entry(A, customer_id)
+    assert await _last_visit(db_session, customer_id) == at
+    await search.set_last_visit(A, customer_id, None)
+    assert await _last_visit(db_session, customer_id) is None
+
+
+async def test_다른_매장_컨텍스트로는_마지막_방문_시각을_바꾸지_못한다(db_session):
+    from datetime import datetime, timezone
+
+    customer_id = await _family(db_session, "김민지", "01012345678", ["콩이"])
+    await CustomerSearchPgAdapter(db_session).set_last_visit(
+        B, customer_id, datetime(2026, 9, 23, tzinfo=timezone.utc))
+    assert await _last_visit(db_session, customer_id) is None
