@@ -51,7 +51,9 @@ class MainActivity : FlutterActivity() {
      * 같은 규칙).
      */
     private fun take(intent: Intent?, coldStart: Boolean) {
-        if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return
+        // 최근 앱 목록에서 다시 연 것은 보관된 옛 인텐트다 — 새 공유가 아니다.
+        if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        if (intent.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
         // 회전 등으로 같은 인텐트를 다시 읽지 않게 비운다.
         intent.removeExtra(Intent.EXTRA_TEXT)

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'core/proxy/shared_text_channel.dart';
 import 'core/router/app_router.dart';
@@ -16,25 +17,67 @@ final sharedTextToOpenProvider = Provider<String?>((ref) {
   return session is SignedIn && session.selectedShopId != null ? text : null;
 });
 
-class App extends ConsumerWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
-    ref.listen<String?>(sharedTextToOpenProvider, (_, text) {
+  ConsumerState<App> createState() => _AppState();
+}
+
+/// 공유로 받은 글을 열지 말지 정하는 관문이 있는 자리. 라우터가 정착한 뒤에만 연다 —
+/// 로그인·매장 선택 직후에는 redirect 나 `go('/home')`이 스택을 갈아 먼저 연 화면이 사라진다.
+class _AppState extends ConsumerState<App> {
+  late final GoRouter _router = ref.read(routerProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    _router.routerDelegate.addListener(_tryOpen);
+  }
+
+  @override
+  void dispose() {
+    _router.routerDelegate.removeListener(_tryOpen);
+    super.dispose();
+  }
+
+  /// 같은 프레임의 이동(`go('/home')`·redirect)이 끝난 뒤 위치를 보고 연다.
+  /// 진입 화면에 있거나 이미 초안 화면이면 글을 그대로 들고 기다린다.
+  void _tryOpen() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final text = ref.read(sharedTextToOpenProvider);
       if (text == null) return;
+      // 맨 위 화면의 위치 — `currentConfiguration.uri`는 push 로 쌓은 화면을 빼고 본다.
+      final path = _router.state.uri.path;
+      if (_waitRoutes.contains(path)) return;
       // 한 번 열면 비운다 — 세션이 바뀌어도 다시 열리지 않게.
       ref.read(pendingSharedTextProvider.notifier).clear();
-      router.push('/visits/draft', extra: text);
+      _router.push('/visits/draft', extra: text);
     });
+    // 앱이 쉬고 있을 때 온 공유도 다음 프레임을 기다리지 않게 프레임을 청한다.
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<String?>(sharedTextToOpenProvider, (_, _) => _tryOpen());
     return MaterialApp.router(
-      routerConfig: router,
+      routerConfig: _router,
       title: '차곡노트',
       theme: appTheme(),
     );
   }
 }
+
+/// 관문이 글을 열지 않고 기다리는 위치 — 진입 화면들과 이미 열린 초안 화면.
+const _waitRoutes = {
+  '/splash',
+  '/login',
+  '/invite',
+  '/shops/select',
+  '/visits/draft',
+};
 
 /// `main()`이 `runApp`에 그대로 넘길 루트 위젯을 만든다. 별도 함수로 뽑아
 /// 두면 `WidgetsFlutterBinding.ensureInitialized()`나 셰이더 로딩 없이도,
