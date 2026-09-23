@@ -16,6 +16,7 @@ from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_repository import VisitRepository
 from visit.app.services.visit_reader import describe_visits
 from visit.domain.entities.visit import CANCELED, COMPLETED, IN_PROGRESS, NO_SHOW, RESERVED
+from visit.domain.errors import VisitInputError
 from visit.domain.services.visit_board import (
     COUNTED,
     is_unresolved,
@@ -40,6 +41,8 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
 
     async def list_day_visits(self, query: ListDayVisitsQuery) -> DayVisitsView:
         ctx, tz, day = query.ctx, query.ctx.timezone, query.day
+        if not (2000 <= day.year <= 2100):
+            raise VisitInputError("날짜가 올바르지 않습니다.")
         settings = await self._schedule.ensure(ctx)
         start, end = day_bounds(day, tz)
         visits = await self._visits.list_between(ctx, start, end)

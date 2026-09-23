@@ -28,6 +28,8 @@ class ListVisitSlotsInteractor(ListVisitSlotsUseCase):
 
     async def list_visit_slots(self, query: ListVisitSlotsQuery) -> VisitSlotsView:
         ctx, tz, day = query.ctx, query.ctx.timezone, query.day
+        if not (2000 <= day.year <= 2100):
+            raise VisitInputError("날짜가 올바르지 않습니다.")
         settings = await self._schedule.ensure(ctx)
         duration = query.duration_minutes or settings.default_duration_minutes
         check_duration(duration)

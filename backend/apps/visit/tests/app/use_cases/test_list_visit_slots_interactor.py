@@ -66,3 +66,10 @@ async def test_10분_단위가_아니면_VALIDATION_ERROR_다(fields):
     _, interactor = _setup()
     with pytest.raises(VisitInputError):
         await interactor.list_visit_slots(_query(**fields))
+
+
+@pytest.mark.parametrize("day", [date(1, 1, 1), date(9999, 12, 31)])
+async def test_범위_밖_날짜는_VALIDATION_ERROR_다(day):
+    _, interactor = _setup()
+    with pytest.raises(VisitInputError):
+        await interactor.list_visit_slots(_query(day=day))

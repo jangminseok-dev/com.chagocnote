@@ -1,7 +1,10 @@
 from datetime import date, time
 
+import pytest
+
 from visit.app.dtos.list_day_visits_dto import ListDayVisitsQuery
 from visit.app.use_cases.list_day_visits_interactor import ListDayVisitsInteractor
+from visit.domain.errors import VisitInputError
 from visit.domain.value_objects.schedule_settings import ScheduleSettings
 from visit.tests.helpers.builders import ctx, kst
 from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeSchedule, FakeVisits
@@ -70,3 +73,13 @@ async def test_휴무일을_알린다():
     _, interactor = _setup(ScheduleSettings(time(10), time(19), 120, frozenset({0})))
     assert (await _day(interactor, date(2026, 9, 28))).closed_day is True     # 월요일
     assert (await _day(interactor, date(2026, 9, 29))).closed_day is False
+
+
+async def test_범위_밖_날짜는_설정을_읽기_전에_거절한다():
+    visits, directory = FakeVisits(), FakeDirectory()
+    schedule = FakeSchedule()
+    interactor = ListDayVisitsInteractor(visits, FakeMenus(), schedule, directory, now=lambda: NOW)
+    for day in (date(1, 1, 1), date(9999, 12, 31)):
+        with pytest.raises(VisitInputError):
+            await interactor.list_day_visits(ListDayVisitsQuery(ctx=ctx(), day=day))
+    assert schedule.journal == []
