@@ -18,4 +18,5 @@ class ScreenKeys {
   static const petForm = Key('screen_pet_form');
   static const petDetail = Key('screen_pet_detail');
   static const registerVisit = Key('screen_register_visit');
+  static const visitEdit = Key('screen_visit_edit');
 }

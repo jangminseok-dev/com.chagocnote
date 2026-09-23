@@ -20,6 +20,7 @@ void main() {
       'lib/features/customer/screens/register_customer_screen.dart',
       'lib/features/visit/screens/visit_form.dart',
       'lib/features/visit/screens/register_visit_screen.dart',
+      'lib/features/visit/screens/visit_edit_screen.dart',
     ];
     final violations = [
       for (final path in scrollScreens)

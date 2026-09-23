@@ -246,6 +246,11 @@ class AppStrings {
   static const warningClosedDay = '쉬는 날이에요';
   static const warningOutsideHours = '영업시간 밖이에요';
 
+  static const editVisitTitle = '예약 수정';
+  static const moveTogether = '같이 옮기기';
+  static const moveOnlyThis = '이 방문만';
+
+  static String moveTogetherQuestion(String names) => '$names도 같이 옮길까요?';
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';

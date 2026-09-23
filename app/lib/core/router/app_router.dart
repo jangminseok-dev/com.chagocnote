@@ -20,6 +20,7 @@ import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
+import '../../features/visit/screens/visit_edit_screen.dart';
 
 /// go_router의 `refreshListenable`은 평범한 [Listenable]을 요구한다. 세션이
 /// 바뀔 때마다 이걸로 "redirect를 다시 평가해라"라고 알린다.
@@ -148,6 +149,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             draft: state.extra as NextVisitDraft?,
           );
         },
+      ),
+      GoRoute(
+        path: '/visits/:visitId/edit',
+        builder: (context, state) => VisitEditScreen(
+          visitId: int.parse(state.pathParameters['visitId']!),
+        ),
       ),
     ],
   );
