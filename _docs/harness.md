@@ -17,7 +17,7 @@
 | 최근 방문순 키 복구 | `docker compose run --rm backend python scripts/rebuild_last_visit.py` (고객 목록 '최근 방문순'이 방문 기록과 어긋났을 때) |
 | 플랫폼 운영자 지정 | `docker compose run --rm backend python scripts/grant_operator.py <user_id>` |
 | 앱 정적 분석 | `flutter analyze` (`app/`에서, 경고 0) |
-| 앱 테스트 (위젯·골든·`ApiClient` 포함) | `flutter test` (`app/`에서) |
+| 앱 테스트 (위젯·골든·`ApiClient` 포함) | `flutter test --timeout 30s` (`app/`에서. 화면이 닫히기를 잘못 기다리는 테스트가 기본 10분을 멈추지 않게) |
 | 앱 골든 갱신 | `flutter test --update-goldens` (`app/`에서, 의도해서 바꿀 때만) |
 | 앱 개발용 실행 | `app/tool/run_dev.sh` (백엔드를 `infra/`에서 먼저 띄운 뒤) |
 
