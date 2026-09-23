@@ -236,6 +236,11 @@ async def test_customer_의_규칙이_방문을_본다(wired):
     detail = (await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}", headers=headers)).json()["visit"]
     assert (detail["memo"], detail["customer"]["name"], detail["customer"]["phone_masked"], detail["pet"]["name"]) == (
         None, None, None, None)
+    day = _at(2, 14)[:10]
+    day_list = (await wired.api.get(f"/v1/shops/{shop_id}/visits?date={day}", headers=headers)).json()
+    day_visit = next(i["visit"] for i in day_list["items"] if i["visit"]["visit_id"] == visit_id)
+    assert (day_visit["memo"], day_visit["customer"]["name"], day_visit["customer"]["phone_masked"],
+            day_visit["pet"]["name"]) == (None, None, None, None)
 
 
 async def test_직원은_예약을_다루지만_일정과_메뉴는_못_바꾼다(wired):
