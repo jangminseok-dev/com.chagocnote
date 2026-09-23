@@ -15,6 +15,9 @@ import '../../../l10n/app_strings.dart';
 import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
 import '../../customer/screens/customer_list_tab.dart';
+import '../../visit/api/visit_models.dart';
+import '../../visit/screens/calendar_tab.dart';
+import '../../visit/state/calendar_selection.dart';
 import '../state/today_provider.dart';
 
 /// 홈 화면. 헤더(날짜 + 매장 이름 + 설정), 탭별 본문, 하단 유리 탭바로
@@ -27,6 +30,7 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
+  static const _calendarTab = 0;
   static const _customersTab = 1;
 
   int _tabIndex = 0;
@@ -51,6 +55,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
+  /// 고른 날로 예약 등록을 연다. 저장하면 저장한 날을 고른다.
+  Future<void> _reserve() async {
+    final selected = ref.read(selectedDateProvider);
+    final saved = await context.push<DateTime>(
+      '/visits/new?date=${isoDay(selected)}',
+    );
+    if (saved != null && mounted) {
+      ref.read(selectedDateProvider.notifier).select(saved);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final today = ref.watch(todayProvider);
@@ -61,12 +76,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     return Scaffold(
       key: ScreenKeys.home,
       extendBody: true,
-      floatingActionButton: _tabIndex == _customersTab
-          ? AppFab(
-              semanticLabel: AppStrings.registerCustomer,
-              onPressed: () => context.push('/customers/new'),
-            )
-          : AppFab(onPressed: _openComingSoonSheet),
+      floatingActionButton: switch (_tabIndex) {
+        _calendarTab => AppFab(
+          semanticLabel: AppStrings.addReservation,
+          onPressed: _reserve,
+        ),
+        _customersTab => AppFab(
+          semanticLabel: AppStrings.registerCustomer,
+          onPressed: () => context.push('/customers/new'),
+        ),
+        _ => AppFab(onPressed: _openComingSoonSheet),
+      },
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg,
@@ -88,8 +108,9 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           bottom: false,
           child: Column(
             children: [
-              // 고객 탭은 자기 머리(제목·반려동물 수·보기 전환)를 쓴다(목업 A안).
-              if (_tabIndex != _customersTab)
+              // 캘린더·고객 탭은 자기 머리를 쓴다(달력의 월·화살표, 고객의
+              // 제목·반려동물 수·보기 전환).
+              if (_tabIndex != _calendarTab && _tabIndex != _customersTab)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.lg,
@@ -134,41 +155,29 @@ class _TabBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (index == _HomeShellState._customersTab) return const CustomerListTab();
-    return Center(
-      child: index == 0
-          ? const _EmptyState(
-              title: AppStrings.calendarEmptyTitle,
-              caption: AppStrings.calendarEmptyCaption,
-            )
-          : const _EmptyState(title: AppStrings.comingSoonEmptyTitle),
-    );
+    return switch (index) {
+      _HomeShellState._calendarTab => const CalendarTab(),
+      _HomeShellState._customersTab => const CustomerListTab(),
+      _ => const Center(
+        child: _EmptyState(title: AppStrings.comingSoonEmptyTitle),
+      ),
+    };
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.title, this.caption});
+  const _EmptyState({required this.title});
 
   final String title;
-  final String? caption;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(title, style: AppTypography.body, textAlign: TextAlign.center),
-          if (caption != null) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              caption!,
-              style: AppTypography.caption,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ],
+      child: Text(
+        title,
+        style: AppTypography.body,
+        textAlign: TextAlign.center,
       ),
     );
   }

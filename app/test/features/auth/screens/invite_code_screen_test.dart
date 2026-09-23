@@ -102,6 +102,10 @@ void main() {
             },
           );
         }
+        // 홈(캘린더 탭)이 부르는 월 요약·하루 목록은 이 테스트의 관심이 아니다.
+        if (options.path.startsWith('/v1/shops/')) {
+          return const FakeResponse(statusCode: 500, data: 'x');
+        }
         fail('예상하지 못한 경로: ${options.path}');
       });
       final container = _containerWith(adapter);
@@ -116,7 +120,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(ScreenKeys.home), findsOneWidget);
-      final paths = adapter.requests.map((r) => r.path).toList();
+      final paths = adapter.requests
+          .map((r) => r.path)
+          .where((p) => !p.startsWith('/v1/shops/'))
+          .toList();
       expect(paths, ['/v1/me', '/v1/invites/accept', '/v1/me']);
     },
   );

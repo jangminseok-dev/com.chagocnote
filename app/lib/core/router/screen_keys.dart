@@ -11,10 +11,16 @@ class ScreenKeys {
   static const settings = Key('screen_settings');
   static const settingsMembers = Key('screen_settings_members');
   static const settingsShop = Key('screen_settings_shop');
+  static const settingsSchedule = Key('screen_settings_schedule');
+  static const settingsMenus = Key('screen_settings_menus');
   static const settingsAccount = Key('screen_settings_account');
   static const settingsAccountWithdraw = Key('screen_settings_account_withdraw');
   static const registerCustomer = Key('screen_register_customer');
   static const customerEdit = Key('screen_customer_edit');
   static const petForm = Key('screen_pet_form');
   static const petDetail = Key('screen_pet_detail');
+  static const registerVisit = Key('screen_register_visit');
+  static const visitEdit = Key('screen_visit_edit');
+  static const visitDetail = Key('screen_visit_detail');
+  static const day = Key('screen_day');
 }

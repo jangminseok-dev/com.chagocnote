@@ -245,19 +245,57 @@ class Customer {
   final String? memo;
 }
 
-/// 고객 상세 — 보호자 전체와 반려동물 전체.
+/// 고객 상세의 다가오는 예약 한 줄(오늘 이후 시작, 최대 3건).
+class UpcomingVisit {
+  const UpcomingVisit({
+    required this.visitId,
+    required this.petId,
+    required this.petName,
+    required this.startsAt,
+  });
+
+  factory UpcomingVisit.fromJson(Map<String, dynamic> json) => UpcomingVisit(
+    visitId: json['visit_id'] as int,
+    petId: json['pet_id'] as int?,
+    petName: json['pet_name'] as String?,
+    startsAt: json['starts_at'] as String,
+  );
+
+  final int visitId;
+
+  /// null 이면 보호자만의 예약.
+  final int? petId;
+  final String? petName;
+
+  /// 매장 시간대가 붙은 시각 문자열. 화면은 `visit` 기능의 `ShopTime`으로 읽는다.
+  final String startsAt;
+}
+
+/// 고객 상세 — 보호자 전체와 반려동물 전체. 조회(GET) 응답에만 방문 요약
+/// (노쇼 횟수·다가오는 예약)이 실린다 — 등록·수정 응답에는 없어 0·빈 목록이다.
 class CustomerDetail {
-  const CustomerDetail({required this.customer, required this.pets});
+  const CustomerDetail({
+    required this.customer,
+    required this.pets,
+    this.noShowCount = 0,
+    this.upcomingVisits = const [],
+  });
 
   factory CustomerDetail.fromJson(Map<String, dynamic> json) => CustomerDetail(
     customer: Customer.fromJson(json['customer'] as Map<String, dynamic>),
     pets: (json['pets'] as List)
         .map((e) => Pet.fromJson(e as Map<String, dynamic>))
         .toList(),
+    noShowCount: json['no_show_count'] as int? ?? 0,
+    upcomingVisits: (json['upcoming_visits'] as List? ?? const [])
+        .map((e) => UpcomingVisit.fromJson(e as Map<String, dynamic>))
+        .toList(),
   );
 
   final Customer customer;
   final List<Pet> pets;
+  final int noShowCount;
+  final List<UpcomingVisit> upcomingVisits;
 }
 
 /// 반려동물 상세의 보호자 요약. 번호는 가린 값이다.

@@ -39,11 +39,12 @@ dependencies:
   sign_in_with_apple: ^8.2.0
   google_sign_in: ^7.2.0
   liquid_glass_widgets: ^1.7.1
-  flutter_animate: ^4.5.2
   crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to

@@ -205,6 +205,74 @@ void main() {
     expect(find.byKey(ScreenKeys.settingsMembers), findsOneWidget);
   });
 
+  testWidgets('사장에게는 일정이 보이고 누르면 일정 화면으로 간다', (tester) async {
+    final container = _containerWith(
+      const Me(
+        id: 1,
+        displayName: '민석',
+        profileImageUrl: null,
+        identities: ['apple'],
+        shops: [_hissHaus],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.settingsSchedule));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.settingsSchedule), findsOneWidget);
+  });
+
+  testWidgets('사장에게는 메뉴가 보이고 누르면 메뉴 화면으로 간다', (tester) async {
+    final container = _containerWith(
+      const Me(
+        id: 1,
+        displayName: '민석',
+        profileImageUrl: null,
+        identities: ['apple'],
+        shops: [_hissHaus],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.settingsMenus));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.settingsMenus), findsOneWidget);
+  });
+
+  testWidgets('직원에게는 일정·메뉴가 보이지 않는다(V8 — 보안 경계는 서버 403)', (tester) async {
+    final container = _containerWith(
+      const Me(
+        id: 1,
+        displayName: '민석',
+        profileImageUrl: null,
+        identities: ['apple'],
+        shops: [_staffShop],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.settingsShopInfo), findsOneWidget);
+    expect(find.text(AppStrings.settingsSchedule), findsNothing);
+    expect(find.text(AppStrings.settingsMenus), findsNothing);
+  });
+
   testWidgets('초대 코드로 합류를 누르면 초대 화면으로 간다', (tester) async {
     final container = _containerWith(
       const Me(

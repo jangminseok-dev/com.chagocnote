@@ -34,6 +34,18 @@ const Map<String, String> _messages = {
   'LAST_PET': '마지막 반려동물은 삭제할 수 없습니다. 고객 삭제를 이용해 주세요.',
   'PET_HEALTH_REQUIRED': '질병을 고르거나 "질병 없음"을 눌러 주세요.',
   'PET_HEALTH_CONFLICT': '질병과 "질병 없음"을 함께 고를 수 없습니다.',
+  'PET_HAS_VISITS': '방문 기록이 있는 반려동물은 삭제할 수 없습니다. 무지개다리 표시를 이용해 주세요.',
+  'PET_HAS_UPCOMING_VISITS': '앞으로의 예약이 있습니다. 예약을 먼저 취소해 주세요.',
+  'CUSTOMER_HAS_UPCOMING_VISITS': '앞으로의 예약이 있는 고객은 삭제할 수 없습니다. 예약을 먼저 취소해 주세요.',
+  'PET_PASSED_AWAY': '무지개다리를 건넌 반려동물은 예약할 수 없습니다.',
+  'VISIT_NOT_FOUND': '방문을 찾을 수 없습니다. 이미 지워졌을 수 있습니다.',
+  'VISIT_STATE_CONFLICT': '다른 기기에서 먼저 바뀌었습니다. 화면을 새로 불러왔어요.',
+  'VISIT_NOT_YET': '아직 할 수 없습니다. 예약한 날(노쇼는 예약 시각)이 지나야 합니다.',
+  'VISIT_DUPLICATE': '이미 저장된 예약입니다.',
+  'VISIT_CROSSES_MIDNIGHT': '끝나는 시각이 자정을 넘습니다. 소요를 줄여 주세요.',
+  'VISIT_GROUP_MISMATCH': '같은 보호자의 방문만 함께 바꿀 수 있습니다.',
+  'MENU_NOT_FOUND': '없거나 보관된 메뉴입니다. 메뉴를 다시 골라 주세요.',
+  'MENU_NAME_TAKEN': '같은 이름의 메뉴가 이미 있습니다.',
 };
 
 const String _fallback = '문제가 생겼습니다. 잠시 뒤에 다시 시도해 주세요.';

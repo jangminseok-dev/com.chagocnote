@@ -119,9 +119,25 @@ Map<String, dynamic> customerJson({
 Map<String, dynamic> customerDetailJson({
   Map<String, dynamic>? customer,
   List<Map<String, dynamic>>? pets,
+  int noShowCount = 0,
+  List<Map<String, dynamic>> upcomingVisits = const [],
 }) => {
   'customer': customer ?? customerJson(),
   'pets': pets ?? [petJson()],
+  'no_show_count': noShowCount,
+  'upcoming_visits': upcomingVisits,
+};
+
+Map<String, dynamic> upcomingVisitJson({
+  int visitId = 101,
+  int? petId = 11,
+  String? petName = '콩이',
+  String startsAt = '2026-10-02T14:00:00+09:00',
+}) => {
+  'visit_id': visitId,
+  'pet_id': petId,
+  'pet_name': petName,
+  'starts_at': startsAt,
 };
 
 Map<String, dynamic> petDetailJson({

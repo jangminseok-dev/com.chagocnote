@@ -16,8 +16,15 @@ import '../../features/customer/screens/customer_edit_screen.dart';
 import '../../features/customer/screens/register_customer_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/shop/screens/members_screen.dart';
+import '../../features/shop/screens/menu_settings_screen.dart';
+import '../../features/shop/screens/schedule_settings_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
+import '../../features/visit/api/visit_models.dart';
+import '../../features/visit/screens/day_screen.dart';
+import '../../features/visit/screens/register_visit_screen.dart';
+import '../../features/visit/screens/visit_detail_screen.dart';
+import '../../features/visit/screens/visit_edit_screen.dart';
 
 /// go_router의 `refreshListenable`은 평범한 [Listenable]을 요구한다. 세션이
 /// 바뀔 때마다 이걸로 "redirect를 다시 평가해라"라고 알린다.
@@ -26,13 +33,20 @@ class _SessionRefreshListenable extends ChangeNotifier {
 }
 
 /// 매장이 선택되어 있어야만 열리는 경로.
-const _shopScopedSettings = {'/settings', '/settings/members', '/settings/shop'};
+const _shopScopedSettings = {
+  '/settings',
+  '/settings/members',
+  '/settings/shop',
+  '/settings/schedule',
+  '/settings/menus',
+};
 
-/// 고객·반려동물 화면도 매장이 선택되어 있어야 열린다(경로에 ID 가 들어간다).
+/// 고객·반려동물·방문 화면도 매장이 선택되어 있어야 열린다(경로에 ID 가 들어간다).
 bool _isShopScoped(String location) =>
     _shopScopedSettings.contains(location) ||
     location.startsWith('/customers/') ||
-    location.startsWith('/pets/');
+    location.startsWith('/pets/') ||
+    location.startsWith('/visits/');
 
 /// 매장이 없어도(0-shop 사용자도) 열려 있어야 하는 계정 관련 경로 — 로그아웃,
 /// 로그인 수단 해제, 탈퇴는 매장 유무와 무관하게 가능해야 한다.
@@ -97,6 +111,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ShopSettingsScreen(),
       ),
       GoRoute(
+        path: '/settings/schedule',
+        builder: (context, state) => const ScheduleSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/menus',
+        builder: (context, state) => const MenuSettingsScreen(),
+      ),
+      GoRoute(
         path: '/settings/account',
         builder: (context, state) => const AccountScreen(),
       ),
@@ -128,9 +150,41 @@ final routerProvider = Provider<GoRouter>((ref) {
           customerId: int.parse(state.pathParameters['customerId']!),
         ),
       ),
+      // `?pick=1`이면 예약 ①에서 연 것 — 등록한 고객 ID 를 돌려주며 닫는다.
       GoRoute(
         path: '/customers/new',
-        builder: (context, state) => const RegisterCustomerScreen(),
+        builder: (context, state) => RegisterCustomerScreen(
+          pickForReservation: state.uri.queryParameters['pick'] == '1',
+        ),
+      ),
+      // `?date=2026-10-02`면 그 날로 연다. `extra`가 다음 예약 초안이면 ②를 채워 연다.
+      GoRoute(
+        path: '/visits/new',
+        builder: (context, state) {
+          final date = state.uri.queryParameters['date'];
+          return RegisterVisitScreen(
+            date: date == null ? null : parseDay(date),
+            draft: state.extra as NextVisitDraft?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/visits/day/:date',
+        builder: (context, state) =>
+            DayScreen(date: parseDay(state.pathParameters['date']!)),
+      ),
+      // '/visits/new' 뒤에 둔다 — 먼저 두면 'new'를 방문 ID 로 읽는다.
+      GoRoute(
+        path: '/visits/:visitId',
+        builder: (context, state) => VisitDetailScreen(
+          visitId: int.parse(state.pathParameters['visitId']!),
+        ),
+      ),
+      GoRoute(
+        path: '/visits/:visitId/edit',
+        builder: (context, state) => VisitEditScreen(
+          visitId: int.parse(state.pathParameters['visitId']!),
+        ),
       ),
     ],
   );

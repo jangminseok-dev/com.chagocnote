@@ -61,6 +61,17 @@ class SettingsScreen extends ConsumerWidget {
                 label: AppStrings.settingsShopInfo,
                 onTap: () => context.push('/settings/shop'),
               ),
+              // 일정·메뉴는 사장만 바꾼다(보안 경계는 서버 403) — 직원에게는 보이지 않는다.
+              if (shop?.isOwner ?? false)
+                _SettingsRow(
+                  label: AppStrings.settingsSchedule,
+                  onTap: () => context.push('/settings/schedule'),
+                ),
+              if (shop?.isOwner ?? false)
+                _SettingsRow(
+                  label: AppStrings.settingsMenus,
+                  onTap: () => context.push('/settings/menus'),
+                ),
               const SizedBox(height: AppSpacing.xl),
               const _SectionLabel(AppStrings.settingsSectionOtherShops),
               if (shopCount >= 2)

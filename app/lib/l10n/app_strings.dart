@@ -35,10 +35,8 @@ class AppStrings {
   static const tabCalendar = '캘린더';
   static const tabCustomers = '고객';
   static const tabSales = '매출';
-  static const calendarEmptyTitle = '아직 기록이 없습니다';
-  static const calendarEmptyCaption = '예약을 만들면 여기에서 모아 볼 수 있어요.';
   static const comingSoonEmptyTitle = '준비 중입니다';
-  static const comingSoonSheetText = '예약과 기록은 다음 업데이트에서 만나요';
+  static const comingSoonSheetText = '매출은 다음 업데이트에서 만나요';
 
   // 설정 허브
   static const settingsSectionShop = '매장';
@@ -141,6 +139,9 @@ class AppStrings {
   static const viewAsGrid = '격자로 보기';
   static const sortRecent = '최근순';
   static const sortName = '가나다순';
+  static const sortLastVisit = '최근 방문순';
+  static const upcomingVisitsLabel = '다가오는 예약';
+  static const noUpcomingVisits = '없음';
   static const includePassed = '무지개다리 포함';
   static const customerSearchHint = '번호 뒷자리, 이름, 반려동물 (초성 가능)';
   static const customersEmpty = '등록된 고객이 없어요';
@@ -210,6 +211,148 @@ class AppStrings {
   static String lookupFound(String name, List<String> petNames) => petNames.isEmpty
       ? '이미 등록된 번호예요 — $name'
       : '이미 등록된 번호예요 — $name (${petNames.join(', ')})';
+
+  // 예약·방문
+  static const weekdaysShort = ['월', '화', '수', '목', '금', '토', '일'];
+  static const statusReserved = '예약됨';
+  static const statusInProgress = '미용 중';
+  static const statusCompleted = '완료';
+  static const statusCanceled = '취소';
+  static const statusNoShow = '노쇼';
+  static const ownerOnly = '보호자만';
+  static const deletedCustomer = '삭제된 고객';
+  static const noMenu = '메뉴 없음';
+  static const reserveWhoTitle = '누구의 예약인가요';
+  static const reserveWhenTitle = '언제 오나요';
+  static const reserveNoCustomer = '찾는 고객이 없나요?';
+  static const registerNewCustomer = '새 고객 등록';
+  static const changeCustomer = '바꾸기';
+  static const visitDateLabel = '날짜';
+  static const visitTimeLabel = '시작';
+  static const menuDurationLabel = '메뉴 · 소요 (선택)';
+  static const menuLabel = '메뉴';
+  static const durationLabel = '소요';
+  static const shorter = '소요 줄이기';
+  static const longer = '소요 늘리기';
+  static const visitMemoHint = '메모 (선택)';
+  static const prefilledFromLast = '지난번과 같게 채웠어요. 그대로 저장해도 돼요.';
+  static const pickPetFirst = '반려동물이나 "보호자만"을 골라 주세요';
+  static const pickTimeFirst = '시작 시각을 골라 주세요';
+  static const startNow = '지금 시작';
+  static const prevWeek = '이전 주';
+  static const nextWeek = '다음 주';
+  static const pickMinuteTitle = '10분 단위로 고르기';
+  static const pickMinuteHint = '시간 칸을 길게 누르면 10분 단위로 고를 수 있어요.';
+  static const warningOverlap = '이미 예약이 있는 시간이에요';
+  static const warningClosedDay = '쉬는 날이에요';
+  static const warningOutsideHours = '영업시간 밖이에요';
+
+  static const editVisitTitle = '예약 수정';
+  static const moveTogether = '같이 옮기기';
+  static const moveOnlyThis = '이 방문만';
+
+  static String moveTogetherQuestion(String names) => '$names도 같이 옮길까요?';
+  static const visitTitleEn = 'Visit';
+  static const visitMemoLabel = '메모';
+  static const cancelReasonLabel = '취소 사유';
+  static const reasonCustomerRequest = '보호자 요청';
+  static const reasonShopReason = '매장 사정';
+  static const previousVisitLabel = '지난 방문';
+  static const groupLabel = '함께 온 아이';
+  static const actionStart = '시작';
+  static const actionComplete = '완료';
+  static const actionCompleteNow = '바로 완료';
+  static const actionCancelVisit = '취소';
+  static const actionNoShow = '노쇼';
+  static const actionRevert = '되돌리기';
+  static const actionNextReservation = '다음 예약 잡기';
+  static const completeTitle = '미용을 마쳤어요';
+  static const completeAndNext = '완료하고 다음 예약 잡기';
+  static const markClosedDate = '이 날 휴무로 표시';
+  static const unmarkClosedDate = '휴무 해제';
+
+  static String nextPreview(String when) => '→ $when';
+  static String completeAndNextCaption(int weeks) =>
+      '$weeks주 뒤 같은 요일·시간·메뉴로 채워진 예약 화면이 열려요.';
+  static const cancelReasonTitle = '취소 사유를 골라 주세요';
+  static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해집니다.';
+
+  static String noShowCount(int count) => '노쇼 $count회';
+  static const dayTitleEn = 'Schedule';
+  static const viewAsTimeline = '시간표로 보기';
+  static const actionCompleteShort = '완료하기';
+  static const markOverlap = '겹침';
+  static const markUnresolved = '정리 안 됨';
+  static const dayEmpty = '예약이 없어요';
+  static const dayEmptyCaption = '+ 버튼으로 예약을 잡아 보세요.';
+  static const closedDayNote = '휴무일';
+  static const addReservation = '예약 추가';
+
+  static String yearMonth(int year, int month) => '$year년 $month월';
+  static String gapText(int minutes) => '— ${durationText(minutes)} 비어 있음 —';
+  static String dayCountsText({
+    required int visits,
+    required int completed,
+    required int inProgress,
+    required int reserved,
+    required int canceled,
+    required int noShow,
+  }) => [
+    '$visits마리',
+    if (completed > 0) '완료 $completed',
+    if (inProgress > 0) '미용 중 $inProgress',
+    if (reserved > 0) '예약 $reserved',
+    if (canceled > 0) '취소 $canceled',
+    if (noShow > 0) '노쇼 $noShow',
+  ].join(' · ');
+  static const weekdaysLong = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+  static const calendarWeekHeader = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  static const prevMonth = '이전 달';
+  static const nextMonth = '다음 달';
+  static const closedShort = '휴무';
+
+  static String unresolvedBanner(int count) => '정리 안 된 예약 $count건';
+  static String dayHeading(int day, int weekday) => '$day일 ${weekdaysLong[weekday - 1]}';
+  static String previewCounts(int visits, int completed) =>
+      completed > 0 ? '$visits마리 · $completed마리 완료' : '$visits마리';
+  static const settingsSchedule = '일정';
+  static const settingsMenus = '메뉴';
+  static const opensAtLabel = '여는 시각';
+  static const closesAtLabel = '닫는 시각';
+  static const defaultDurationLabel = '기본 소요';
+  static const closedWeekdaysLabel = '매주 쉬는 요일';
+  static const closedDatesLabel = '임시 휴무';
+  static const closedDateHint = 'YYYY.MM.DD';
+  static const closedDateNoteHint = '메모 (선택)';
+  static const addClosedDate = '휴무 추가';
+  static const closedDateInvalid = '날짜를 YYYY.MM.DD 로 입력해 주세요(오늘부터).';
+  static const closedDatesEmpty = '잡힌 임시 휴무가 없어요.';
+  static const closesBeforeOpens = '닫는 시각은 여는 시각보다 늦어야 해요.';
+  static const pickTimeTitle = '시각 고르기';
+  static const confirm = '확인';
+  static const hourLabel = '시';
+  static const minuteLabel = '분';
+  static const addMenu = '메뉴 추가';
+  static const editMenu = '메뉴 수정';
+  static const menuNameHint = '메뉴 이름';
+  static const menuNameRequired = '메뉴 이름을 입력해 주세요.';
+  static const menuDefaultDurationLabel = '기본 소요';
+  static const useShopDefault = '매장 기본';
+  static const archiveMenu = '보관';
+  static const archiveMenuConfirm = '이 메뉴를 보관할까요? 지난 방문에는 남고, 새 예약에서는 고를 수 없어요.';
+  static const moveUp = '위로';
+  static const moveDown = '아래로';
+  static const menusEmpty = '메뉴가 없어요. 메뉴 없이도 예약할 수 있어요.';
+  static String stepOf(int step, int total) => '$step / $total';
+  static String businessHours(String opens, String closes) => '영업 $opens–$closes';
+  static String saveReservation(String when) => '예약 저장 · $when';
+  static String monthLabel(int month) => '$month월';
+  static String durationText(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h == 0) return '$m분';
+    return m == 0 ? '$h시간' : '$h시간 $m분';
+  }
 
   static String speciesLabel(String species) => switch (species) {
         'dog' => speciesDog,

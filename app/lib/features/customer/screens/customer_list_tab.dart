@@ -28,7 +28,7 @@ class CustomerListTab extends ConsumerStatefulWidget {
 }
 
 class _CustomerListTabState extends ConsumerState<CustomerListTab> {
-  static const _sorts = ['recent', 'name'];
+  static const _sorts = ['recent', 'name', 'last_visit'];
 
   final _search = TextEditingController();
   final _scroll = ScrollController();
@@ -133,7 +133,11 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
           child: Row(
             children: [
               AppSegment(
-                labels: const [AppStrings.sortRecent, AppStrings.sortName],
+                labels: const [
+                  AppStrings.sortRecent,
+                  AppStrings.sortName,
+                  AppStrings.sortLastVisit,
+                ],
                 currentIndex: _sorts.indexOf(_sort),
                 onChanged: (i) => setState(() {
                   _sort = _sorts[i];
