@@ -99,25 +99,39 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
     );
   }
 
-  /// 이웃과 순서값을 맞바꾼다(두 번 고친다).
-  Future<void> _swap(Menu a, Menu b) async {
+  /// 이웃과 순서값을 맞바꾼다(두 번 고친다). [aMovesUp]은 [a]가 위로 가는
+  /// 눌림(▲)인지 아래로 가는 눌림(▼)인지다 — 둘째 PUT이 실패해 두 메뉴의
+  /// 순서값이 같아진 뒤에는 단순히 맞바꿔서는(값이 같아 그대로) 풀리지
+  /// 않으므로, 그 경우 위로 갈 메뉴에 그 값을, 아래로 갈 메뉴에 그 값+1을
+  /// 보낸다.
+  Future<void> _swap(Menu a, Menu b, {required bool aMovesUp}) async {
     final shopId = _shopId;
     if (shopId == null) return;
     final commands = ref.read(visitCommandsProvider);
+    final int aOrder;
+    final int bOrder;
+    if (a.sortOrder == b.sortOrder) {
+      final v = a.sortOrder;
+      aOrder = aMovesUp ? v : v + 1;
+      bOrder = aMovesUp ? v + 1 : v;
+    } else {
+      aOrder = b.sortOrder;
+      bOrder = a.sortOrder;
+    }
     await _run(() async {
       await commands.updateMenu(
         shopId,
         a.menuId,
         name: a.name,
         defaultDurationMinutes: a.defaultDurationMinutes,
-        sortOrder: b.sortOrder,
+        sortOrder: aOrder,
       );
       await commands.updateMenu(
         shopId,
         b.menuId,
         name: b.name,
         defaultDurationMinutes: b.defaultDurationMinutes,
-        sortOrder: a.sortOrder,
+        sortOrder: bOrder,
       );
     });
   }
@@ -249,10 +263,18 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
                               busy: _busy,
                               onUp: i == 0
                                   ? null
-                                  : () => _swap(sorted[i], sorted[i - 1]),
+                                  : () => _swap(
+                                      sorted[i],
+                                      sorted[i - 1],
+                                      aMovesUp: true,
+                                    ),
                               onDown: i == sorted.length - 1
                                   ? null
-                                  : () => _swap(sorted[i], sorted[i + 1]),
+                                  : () => _swap(
+                                      sorted[i],
+                                      sorted[i + 1],
+                                      aMovesUp: false,
+                                    ),
                               onEdit: () => _edit(sorted[i]),
                               onArchive: () => _archive(sorted[i]),
                             ),

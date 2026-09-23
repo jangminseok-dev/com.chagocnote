@@ -168,6 +168,44 @@ void main() {
     expect(server.writes, isEmpty);
   });
 
+  testWidgets('둘째 PUT이 실패해 순서값이 같아져도 다시 누르면 순서가 바뀐다', (tester) async {
+    final server = _Server();
+    var failNext = true;
+    server.backend.routes['PUT /v1/shops/3/menus/2'] = (o, body) {
+      final sent = bodyOf(body);
+      server.writes.add('PUT 2 ${sent['sort_order']}');
+      if (failNext) {
+        failNext = false;
+        return const FakeResponse(
+          statusCode: 500,
+          data: {'code': 'HTTP_ERROR', 'message': 'x'},
+        );
+      }
+      final i = server.menus.indexWhere((x) => x['menu_id'] == 2);
+      server.menus[i] = menuJson(
+        menuId: 2,
+        name: sent['name'] as String,
+        defaultDurationMinutes: sent['default_duration_minutes'] as int?,
+        sortOrder: sent['sort_order'] as int,
+      );
+      return FakeResponse(statusCode: 200, data: server.menus[i]);
+    };
+    await _open(tester, server);
+
+    // 첫 시도: 둘째 PUT(위생)이 실패해 두 메뉴의 순서값이 둘 다 2로 같아진다.
+    await _tap(tester, find.bySemanticsLabel('${AppStrings.moveDown} 목욕'));
+    expect(server.writes, ['PUT 1 2', 'PUT 2 1']);
+    expect(server.menus[0]['sort_order'], 2);
+    expect(server.menus[1]['sort_order'], 2);
+    expect(find.textContaining('문제가 생겼습니다'), findsOneWidget);
+    expect(_names(tester), ['목욕', '위생', '부분 미용', '전체 미용', '스포팅']);
+
+    // 같은 ▼를 다시 누르면 순서값이 같아도(v / v+1) 풀린다.
+    await _tap(tester, find.bySemanticsLabel('${AppStrings.moveDown} 목욕'));
+    expect(server.writes, ['PUT 1 2', 'PUT 2 1', 'PUT 1 3', 'PUT 2 2']);
+    expect(_names(tester).take(2), ['위생', '목욕']);
+  });
+
   testWidgets('보관은 확인을 거쳐 보내고 목록에서 빠진다', (tester) async {
     final server = _Server();
     await _open(tester, server);
