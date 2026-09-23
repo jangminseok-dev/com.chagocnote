@@ -10,17 +10,14 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_repository import VisitRepository
 from visit.app.services.visit_reader import describe_visits
+from visit.app.services.visit_warnings import warnings_after_save
 from visit.domain.entities.visit import IN_PROGRESS, RESERVED
 from visit.domain.errors import MenuNotAvailableError, VisitInputError
 from visit.domain.services.visit_schedule import (
-    Occupied,
     check_duration,
     check_same_day,
     check_start,
-    day_bounds,
     floor_to_step,
-    local_date,
-    warnings_for,
 )
 from visit.domain.value_objects.new_visit import NewVisit
 
@@ -69,13 +66,9 @@ class RegisterVisitInteractor(RegisterVisitUseCase):
             ],
         )
 
-        day = local_date(starts_at, tz)
-        start, end = day_bounds(day, tz)
-        occupied = [Occupied(v.starts_at, v.ends_at, v.group_key)
-                    for v in await self._visits.list_occupied(ctx, start, end)]
-        closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, day, day))
-        warnings = warnings_for(starts_at, duration, (command.customer_id, starts_at), tz, settings, closed,
-                                occupied)
+        warnings = await warnings_after_save(
+            ctx, command.customer_id, starts_at, duration, settings, self._visits, self._schedule
+        )
         return RegisteredVisitsView(
             visits=await describe_visits(ctx, created, self._directory, self._menus), warnings=warnings
         )

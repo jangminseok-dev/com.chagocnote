@@ -62,13 +62,16 @@ from visit.adapter.inbound.api.v1.archive_menu_router import archive_menu_router
 from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
+from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
 from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_router
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
 from visit.adapter.inbound.api.v1.list_visit_slots_router import list_visit_slots_router
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
+from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
+from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.dependencies.hub_ports import get_customer_directory
 
@@ -129,6 +132,9 @@ app.include_router(get_visit_calendar_router)
 app.include_router(list_visit_slots_router)
 app.include_router(list_day_visits_router)
 app.include_router(register_visit_router)
+app.include_router(reschedule_visits_router)
+app.include_router(get_visit_router)
+app.include_router(update_visit_router)
 install_error_handlers(
     app,
     {

@@ -5,9 +5,10 @@ import pytest
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
-from visit.domain.errors import VisitDuplicateError
+from visit.domain.errors import VisitDuplicateError, VisitNotFoundError
 from visit.domain.value_objects.new_visit import NewVisit
 from visit.tests.helpers.builders import ctx, kst
+from visit.tests.helpers.rows import insert_visit
 
 pytestmark = pytest.mark.integration
 
@@ -86,3 +87,53 @@ async def test_정리_안_된_예약의_수와_가장_이른_시각(db_session):
     await repo.create_many(B, [new(105, starts_at=kst(6, 1, 10))])
     assert await repo.unresolved_before(A, kst(9, 23)) == (2, kst(7, 14, 10))
     assert await repo.unresolved_before(A, kst(7, 1)) == (0, None)
+
+
+async def test_하나와_여럿을_읽고_다른_매장은_없다(db_session):
+    repo = VisitPgRepository(db_session)
+    [mine] = await repo.create_many(A, [new(101)])
+    [theirs] = await repo.create_many(B, [new(201)])
+    assert (await repo.get(A, mine.id)).pet_id == 101
+    with pytest.raises(VisitNotFoundError):
+        await repo.get(A, theirs.id)
+    assert [v.id for v in await repo.get_many(A, [mine.id, theirs.id])] == [mine.id]
+    assert [v.id for v in await repo.lock(A, [theirs.id, mine.id])] == [mine.id]
+
+
+async def test_세부를_통째로_바꾸고_메뉴도_바꾼다(db_session):
+    bath, trim, *_ = await _menu_ids(db_session)
+    repo = VisitPgRepository(db_session)
+    [visit] = await repo.create_many(A, [new(101, menu_ids=(bath,))])
+    changed = await repo.update_details(A, visit.id, kst(10, 3, 11), None, 60, (trim,), "발톱")
+    assert (changed.starts_at, changed.pet_id, changed.duration_minutes, changed.menu_ids, changed.memo) == (
+        kst(10, 3, 11), None, 60, (trim,), "발톱")
+    [other] = await repo.create_many(A, [new(102, starts_at=kst(10, 5, 10))])
+    with pytest.raises(VisitDuplicateError):
+        await repo.update_details(A, other.id, kst(10, 3, 11), None, 60, (), None)   # 보호자만의 같은 시각
+
+
+async def test_옮기기가_하나라도_겹치면_모두_되돌린다(db_session):
+    repo = VisitPgRepository(db_session)
+    kong, bori = await repo.create_many(A, [new(101), new(102)])
+    await repo.create_many(A, [new(102, starts_at=kst(10, 3, 15))])
+    with pytest.raises(VisitDuplicateError):
+        await repo.reschedule(A, [kong.id, bori.id], kst(10, 3, 15))
+    assert {v.starts_at for v in await repo.get_many(A, [kong.id, bori.id])} == {kst(10, 2, 14)}
+    moved = await repo.reschedule(A, [kong.id, bori.id], kst(10, 4, 15))
+    assert {v.starts_at for v in moved} == {kst(10, 4, 15)}
+
+
+async def test_묶음_지난_완료_노쇼_수(db_session):
+    repo = VisitPgRepository(db_session)
+    await insert_visit(db_session, kst(7, 1, 14), "completed")
+    await insert_visit(db_session, kst(8, 1, 14), "completed")
+    await insert_visit(db_session, kst(8, 20, 14), "completed", pet_id=None)
+    await insert_visit(db_session, kst(9, 1, 14), "no_show")
+    await insert_visit(db_session, kst(9, 1, 14), "no_show", shop_id=2)
+    await insert_visit(db_session, kst(9, 3, 14), "completed", customer_id=2, pet_id=201)
+    kong, bori = await repo.create_many(A, [new(101), new(102)])
+    assert [v.id for v in await repo.list_group(A, 1, kst(10, 2, 14))] == [kong.id, bori.id]
+    assert (await repo.last_completed_before(A, 1, 101, kst(10, 2, 14))).starts_at == kst(8, 1, 14)
+    assert (await repo.last_completed_before(A, 1, None, kst(10, 2, 14))).starts_at == kst(8, 20, 14)
+    assert await repo.last_completed_before(A, 1, 102, kst(10, 2, 14)) is None
+    assert await repo.count_no_show(A, 1) == 1

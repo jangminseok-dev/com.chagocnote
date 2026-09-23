@@ -7,7 +7,12 @@ from decimal import Decimal
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from visit.domain.entities.menu import Menu
 from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
-from visit.domain.errors import MenuNameTakenError, MenuNotFoundError, VisitDuplicateError
+from visit.domain.errors import (
+    MenuNameTakenError,
+    MenuNotFoundError,
+    VisitDuplicateError,
+    VisitNotFoundError,
+)
 from visit.domain.value_objects.closed_date import ClosedDate
 from visit.domain.value_objects.schedule_settings import DEFAULT_SETTINGS
 from visit.tests.helpers.builders import kst
@@ -173,6 +178,52 @@ class FakeVisits:
         ]
         self.journal.append(("create_visits", [v.id for v in created]))
         return created
+
+    def _owned(self, ctx, visit_id):
+        row = self.rows.get(visit_id)
+        if row is None or row.shop_id != ctx.shop_id:
+            raise VisitNotFoundError("방문을 찾을 수 없습니다.")
+        return row
+
+    async def get(self, ctx, visit_id):
+        return self._owned(ctx, visit_id)
+
+    async def get_many(self, ctx, visit_ids):
+        return [v for v in self._mine(ctx) if v.id in visit_ids]
+
+    async def lock(self, ctx, visit_ids):
+        found = [v for v in self._mine(ctx) if v.id in visit_ids]
+        self.journal.append(("lock_visits", sorted(v.id for v in found)))
+        return found
+
+    async def update_details(self, ctx, visit_id, starts_at, pet_id, duration_minutes, menu_ids, memo):
+        current = self._owned(ctx, visit_id)
+        if current.is_active and self._clash(ctx, current.customer_id, pet_id, starts_at, ignore=(visit_id,)):
+            raise VisitDuplicateError("같은 시각에 이미 저장된 예약이 있습니다.")
+        self.rows[visit_id] = replace(current, starts_at=starts_at, pet_id=pet_id,
+                                      duration_minutes=duration_minutes, menu_ids=menu_ids, memo=memo)
+        self.journal.append(("update_visit", visit_id))
+        return self.rows[visit_id]
+
+    async def reschedule(self, ctx, visit_ids, starts_at):
+        moving = [self._owned(ctx, i) for i in visit_ids]
+        if any(self._clash(ctx, v.customer_id, v.pet_id, starts_at, ignore=tuple(visit_ids)) for v in moving):
+            raise VisitDuplicateError("같은 시각에 이미 저장된 예약이 있습니다.")
+        for v in moving:
+            self.rows[v.id] = replace(v, starts_at=starts_at)
+        self.journal.append(("reschedule", sorted(visit_ids)))
+        return [self.rows[i] for i in sorted(visit_ids)]
+
+    async def list_group(self, ctx, customer_id, starts_at):
+        return [v for v in self._mine(ctx) if v.customer_id == customer_id and v.starts_at == starts_at]
+
+    async def last_completed_before(self, ctx, customer_id, pet_id, before):
+        found = [v for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
+                 and v.status == "completed" and v.starts_at < before]
+        return found[-1] if found else None
+
+    async def count_no_show(self, ctx, customer_id):
+        return sum(v.customer_id == customer_id and v.status == "no_show" for v in self._mine(ctx))
 
     def _mine(self, ctx):
         return sorted((v for v in self.rows.values() if v.shop_id == ctx.shop_id), key=lambda v: (v.starts_at, v.id))

@@ -26,7 +26,7 @@ Memo = Annotated[
 ] | None
 
 
-def _unique(ids: list[int]) -> list[int]:
+def unique_ids(ids: list[int]) -> list[int]:
     if len(set(ids)) != len(ids):
         raise ValueError("같은 ID 를 두 번 보낼 수 없습니다.")
     return ids
@@ -44,7 +44,7 @@ class RegisterVisitRequestSchema(BaseModel):
     memo: Memo = None
     walk_in: StrictBool = False
 
-    _pets_unique = field_validator("pet_ids", "menu_ids")(_unique)
+    _pets_unique = field_validator("pet_ids", "menu_ids")(unique_ids)
 
 
 class RegisteredVisitsSchema(BaseModel):
