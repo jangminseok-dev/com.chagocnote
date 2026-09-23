@@ -1,9 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/proxy/shared_text_channel.dart';
 import 'core/router/app_router.dart';
 import 'design/app_theme.dart';
 import 'design/bridge/glass_setup.dart';
+import 'features/auth/state/session.dart';
+import 'features/auth/state/session_controller.dart';
+
+/// 공유로 받은 글 가운데 지금 열 수 있는 것 — 로그인했고 매장을 골랐을 때만.
+/// 콜드 스타트에서 로그인 뒤에, 또는 앱이 떠 있을 때 바로 열린다(③-A3).
+final sharedTextToOpenProvider = Provider<String?>((ref) {
+  final session = ref.watch(sessionControllerProvider).value;
+  final text = ref.watch(pendingSharedTextProvider);
+  return session is SignedIn && session.selectedShopId != null ? text : null;
+});
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -11,6 +22,12 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    ref.listen<String?>(sharedTextToOpenProvider, (_, text) {
+      if (text == null) return;
+      // 한 번 열면 비운다 — 세션이 바뀌어도 다시 열리지 않게.
+      ref.read(pendingSharedTextProvider.notifier).clear();
+      router.push('/visits/draft', extra: text);
+    });
     return MaterialApp.router(
       routerConfig: router,
       title: '차곡노트',
