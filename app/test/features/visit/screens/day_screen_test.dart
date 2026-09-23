@@ -216,6 +216,46 @@ void main() {
     });
   });
 
+  testWidgets('초안을 읽는 동안 [완료하기]를 다시 눌러도 초안을 한 번만 읽고, 다른 카드의 [시작]은 막힌다', (
+    tester,
+  ) async {
+    final backend = _backend();
+    var draftCalls = 0;
+    final gate = Completer<FakeResponse>();
+    backend.routes['GET /v1/shops/3/visits/2/next-draft'] = (o, b) {
+      draftCalls++;
+      return gate.future;
+    };
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    await tester.tap(_button(AppStrings.actionCompleteShort));
+    await settle(tester);
+    await tester.tap(_button(AppStrings.actionCompleteShort));
+    await settle(tester);
+
+    expect(draftCalls, 1);
+    expect(find.text(AppStrings.completeTitle), findsNothing);
+    final startButtons = tester.widgetList<AppButton>(
+      _button(AppStrings.actionStart),
+    );
+    expect(startButtons.every((b) => b.onPressed == null), isTrue);
+
+    gate.complete(
+      FakeResponse(
+        statusCode: 200,
+        data: nextDraftJson(
+          petIds: [11, 12],
+          startsAt: '2026-10-21T13:00:00+09:00',
+        ),
+      ),
+    );
+    await settle(tester);
+
+    expect(find.text(AppStrings.completeTitle), findsOneWidget);
+  });
+
   testWidgets('한 카드를 보내는 동안 다른 카드의 버튼도 막는다', (tester) async {
     final backend = _backend(_mockupItems(duoStatus: 'reserved'));
     final gate = Completer<FakeResponse>();
@@ -331,6 +371,18 @@ void main() {
 
     expect(find.text('10:00'), findsOneWidget);
     expect(_button(AppStrings.actionStart), findsNothing);
+  });
+
+  testWidgets('30분 방문도 시간표에서 넘치지 않는다', (tester) async {
+    final setup = CustomerTestSetup(
+      _backend([dayItemJson(_v(1, '10:00', duration: 30))]).call,
+      overrides: _today,
+    );
+    addTearDown(setup.container.dispose);
+    await setup.prefs.writeDayViewMode('timeline');
+    await _open(tester, setup);
+
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('사장은 ··· 로 이 날을 휴무로 표시하고 해제한다', (tester) async {

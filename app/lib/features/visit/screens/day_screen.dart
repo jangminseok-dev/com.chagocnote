@@ -46,6 +46,10 @@ class DayScreen extends ConsumerStatefulWidget {
 class _DayScreenState extends ConsumerState<DayScreen> {
   /// 보내는 중인 묶음의 첫 방문 ID(휴무 표시 중이면 -1). 그동안 다른 버튼을 막는다.
   int? _busyVisitId;
+  // 완료 시트를 띄우기 전 다음 예약 초안을 읽는 동안(또는 다른 시트가 뜨는
+  // 동안)의 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지
+  // 않는다 — `_busyVisitId`와는 다른 신호다.
+  bool _asking = false;
   String? _errorText;
 
   int? get _shopId {
@@ -55,14 +59,20 @@ class _DayScreenState extends ConsumerState<DayScreen> {
 
   Future<void> _act(DayGroup group, String action) async {
     final shopId = _shopId;
-    if (shopId == null || _busyVisitId != null) return;
-    final choice = await askVisitAction(
-      context,
-      ref,
-      shopId: shopId,
-      action: action,
-      anchorVisitId: group.first.visitId,
-    );
+    if (shopId == null || _busyVisitId != null || _asking) return;
+    setState(() => _asking = true);
+    VisitChoice? choice;
+    try {
+      choice = await askVisitAction(
+        context,
+        ref,
+        shopId: shopId,
+        action: action,
+        anchorVisitId: group.first.visitId,
+      );
+    } finally {
+      if (mounted) setState(() => _asking = false);
+    }
     if (choice == null || !mounted) return;
     setState(() {
       _busyVisitId = group.first.visitId;
@@ -176,7 +186,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
                     if (isOwner)
                       Pressable(
                         semanticLabel: AppStrings.more,
-                        onTap: data == null || _busyVisitId != null
+                        onTap: data == null || _busyVisitId != null || _asking
                             ? null
                             : () => _openMore(data),
                         child: const Icon(Icons.more_horiz),
@@ -275,6 +285,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
                         ? _DayList(
                             groups: groups,
                             busyVisitId: _busyVisitId,
+                            asking: _asking,
                             onAction: _act,
                           )
                         : _Timeline(shopId: shopId!, groups: groups);
@@ -314,11 +325,16 @@ class _DayList extends StatelessWidget {
   const _DayList({
     required this.groups,
     required this.busyVisitId,
+    required this.asking,
     required this.onAction,
   });
 
   final List<DayGroup> groups;
   final int? busyVisitId;
+
+  /// 완료 시트를 띄우기 전 초안을 읽는 동안(설계 6.2) — 이때는 카드 버튼을
+  /// 전부 막지만 스피너는 켜지 않는다.
+  final bool asking;
   final void Function(DayGroup group, String action) onAction;
 
   @override
@@ -345,7 +361,8 @@ class _DayList extends StatelessWidget {
               group: groups[i],
               busy: busyVisitId == groups[i].first.visitId,
               otherBusy:
-                  busyVisitId != null && busyVisitId != groups[i].first.visitId,
+                  (busyVisitId != null || asking) &&
+                  busyVisitId != groups[i].first.visitId,
               onAction: (action) => onAction(groups[i], action),
             ),
           ),
@@ -567,50 +584,62 @@ class _Block extends StatelessWidget {
 
   final DayGroup group;
 
+  /// 이름 + 메뉴·보호자·상태 두 줄을 담는 데 필요한 최소 블록 높이.
+  static const _twoLineMinHeight = 44.0;
+
   @override
   Widget build(BuildContext context) {
     final inProgress = group.uniformStatus == VisitStatus.inProgress;
     final completed = group.uniformStatus == VisitStatus.completed;
-    return Pressable(
-      semanticLabel: visitsTitle(group.visits),
-      onTap: () => _openGroup(context, group),
-      child: Container(
-        margin: const EdgeInsets.only(left: 2, bottom: 2),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
-          vertical: AppSpacing.xs,
-        ),
-        clipBehavior: Clip.hardEdge,
-        decoration: BoxDecoration(
-          color: completed ? AppColors.backgroundTop : AppColors.white,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          border: Border.all(
-            color: inProgress ? AppColors.ink : AppColors.line,
-            width: inProgress ? 1.5 : 1,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 30분처럼 짧은 블록은 둘째 줄(메뉴·보호자·상태)을 담을 높이가 없다
+        // — 그럴 때는 이름 한 줄만 그린다(넘침 방지).
+        final showCaption = constraints.maxHeight >= _twoLineMinHeight;
+        return Pressable(
+          semanticLabel: visitsTitle(group.visits),
+          onTap: () => _openGroup(context, group),
+          child: Container(
+            margin: const EdgeInsets.only(left: 2, bottom: 2),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              color: completed ? AppColors.backgroundTop : AppColors.white,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+              border: Border.all(
+                color: inProgress ? AppColors.ink : AppColors.line,
+                width: inProgress ? 1.5 : 1,
+              ),
+              boxShadow: completed ? null : AppShadows.soft,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  visitsTitle(group.visits),
+                  style: AppTypography.bodyStrong,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (showCaption)
+                  Text(
+                    [
+                      menusLabel(group.first.menus),
+                      ownerLabel(group.first.customer),
+                      statusLabel(group.uniformStatus ?? group.first.status),
+                      if (group.overlapping) AppStrings.markOverlap,
+                    ].join(' · '),
+                    style: AppTypography.caption,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
           ),
-          boxShadow: completed ? null : AppShadows.soft,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              visitsTitle(group.visits),
-              style: AppTypography.bodyStrong,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              [
-                menusLabel(group.first.menus),
-                ownerLabel(group.first.customer),
-                statusLabel(group.uniformStatus ?? group.first.status),
-                if (group.overlapping) AppStrings.markOverlap,
-              ].join(' · '),
-              style: AppTypography.caption,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
