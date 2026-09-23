@@ -41,11 +41,11 @@ class _VisitEditScreenState extends ConsumerState<VisitEditScreen> {
     return session is SignedIn ? session.selectedShopId : null;
   }
 
-  /// 같이 옮길 수 있는 묶음의 다른 예약(예약됨만 옮길 수 있다).
+  /// 같이 옮길 수 있는 묶음의 다른 예약(예약됨만 옮길 수 있다). 서버의
+  /// group 은 이미 자기를 뺀 형제만 준다.
   List<Visit> _movableSiblings(VisitDetail detail) => [
     for (final v in detail.group)
-      if (v.visitId != detail.visit.visitId && v.status == VisitStatus.reserved)
-        v,
+      if (v.status == VisitStatus.reserved) v,
   ];
 
   Future<bool?> _askMoveTogether(List<Visit> siblings) {
@@ -218,8 +218,9 @@ class _VisitEditScreenState extends ConsumerState<VisitEditScreen> {
       errorText: _errorText,
       singlePet: true,
       scheduleLocked: visit.status != VisitStatus.reserved,
-      // 옮기는 동안 자기 자신·같은 묶음과 겹친다고 하지 않게 뺀다.
-      excludeVisitIds: [for (final v in detail.group) v.visitId],
+      // 옮기는 동안 자기 자신·같은 묶음과 겹친다고 하지 않게 뺀다. 서버의
+      // group 은 자기를 빼므로 자기 ID 를 따로 넣는다.
+      excludeVisitIds: [visit.visitId, for (final v in detail.group) v.visitId],
     );
   }
 }

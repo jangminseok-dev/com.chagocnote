@@ -196,7 +196,8 @@ Map<String, dynamic> visitDetailJson({
   final v = visit ?? visitJson();
   return {
     'visit': v,
-    'group': group ?? [v],
+    // 서버 계약 — group 은 같은 묶음의 다른 방문(자기 제외)이다.
+    'group': group ?? [],
     'previous_visit': previousVisit,
     'no_show_count': noShowCount,
   };

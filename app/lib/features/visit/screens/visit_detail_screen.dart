@@ -41,6 +41,10 @@ class VisitDetailScreen extends ConsumerStatefulWidget {
 
 class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
   bool _busy = false;
+  // 완료 시트를 띄우기 전 다음 예약 초안을 읽는 동안(또는 다른 시트가 뜨는
+  // 동안)의 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지
+  // 않는다 — `_busy`와는 다른 신호다.
+  bool _asking = false;
   String? _errorText;
 
   int? get _shopId {
@@ -48,15 +52,18 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
     return session is SignedIn ? session.selectedShopId : null;
   }
 
-  /// 같은 묶음에서 이 방문과 상태가 같은 방문(자기 포함).
+  /// 앵커(이 방문) + 같은 묶음에서 상태가 같은 형제. 서버의 `group`은 자기를
+  /// 뺀 형제만 주므로 앵커를 먼저 넣는다.
   List<int> _sameStatusIds(VisitDetail detail) => [
+    detail.visit.visitId,
     for (final v in detail.group)
       if (v.status == detail.visit.status) v.visitId,
   ];
 
   Future<void> _act(VisitDetail detail, String action) async {
     final shopId = _shopId;
-    if (shopId == null || _busy) return;
+    if (shopId == null || _busy || _asking) return;
+    setState(() => _asking = true);
     final choice = await askVisitAction(
       context,
       ref,
@@ -64,6 +71,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
       action: action,
       anchorVisitId: detail.visit.visitId,
     );
+    if (mounted) setState(() => _asking = false);
     if (choice == null || !mounted) return;
     setState(() {
       _busy = true;
@@ -128,7 +136,8 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
 
   Future<void> _openNext(VisitDetail detail) async {
     final shopId = _shopId;
-    if (shopId == null || _busy) return;
+    if (shopId == null || _busy || _asking) return;
+    setState(() => _asking = true);
     try {
       final draft = await ref
           .read(visitCommandsProvider)
@@ -136,6 +145,8 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
       if (mounted) context.push('/visits/new', extra: draft);
     } catch (e) {
       if (mounted) setState(() => _errorText = messageFor(e));
+    } finally {
+      if (mounted) setState(() => _asking = false);
     }
   }
 
@@ -174,7 +185,9 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
                     if (data != null)
                       Pressable(
                         semanticLabel: AppStrings.more,
-                        onTap: _busy ? null : () => _openMore(data),
+                        onTap: (_busy || _asking)
+                            ? null
+                            : () => _openMore(data),
                         child: const Icon(Icons.more_horiz),
                       ),
                   ],
@@ -231,10 +244,8 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final visit = detail.visit;
     final pet = visit.pet;
-    final others = [
-      for (final v in detail.group)
-        if (v.visitId != visit.visitId) v,
-    ];
+    // 서버의 group 은 이미 자기를 뺀 형제만 준다.
+    final others = detail.group;
     final previous = detail.previousVisit;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),

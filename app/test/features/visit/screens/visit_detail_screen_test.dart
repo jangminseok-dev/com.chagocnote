@@ -17,6 +17,7 @@ final _today = [todayProvider.overrideWithValue(DateTime(2026, 10, 2))];
 
 /// 방문 101(두부)을 [status]로 보이는 서버. 전이를 받으면 상태를 바꿔 다음
 /// 조회에 반영한다. [withBori]면 102(보리)가 같은 묶음·같은 상태다.
+/// 서버 계약대로 `group`은 자기를 뺀 형제만 준다.
 class _Server {
   _Server({this.status = 'reserved', this.withBori = false}) {
     backend = VisitTestBackend({
@@ -24,12 +25,12 @@ class _Server {
         statusCode: 200,
         data: visitDetailJson(
           visit: _dubu(),
-          group: [_dubu(), if (withBori) _bori()],
+          group: [if (withBori) _bori()],
         ),
       ),
       'GET /v1/shops/3/visits/102': (o, b) => FakeResponse(
         statusCode: 200,
-        data: visitDetailJson(visit: _bori(), group: [_dubu(), _bori()]),
+        data: visitDetailJson(visit: _bori(), group: [_dubu()]),
       ),
       'POST /v1/shops/3/visits/transitions': (o, body) {
         final sent = bodyOf(body);
@@ -140,7 +141,7 @@ void main() {
       );
       return FakeResponse(
         statusCode: 200,
-        data: visitDetailJson(visit: dubu, group: [dubu, bori]),
+        data: visitDetailJson(visit: dubu, group: [bori]),
       );
     };
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
@@ -351,6 +352,34 @@ void main() {
     await settle(tester);
 
     expect(setup.calls.where((c) => c.endsWith('/transitions')), hasLength(1));
+  });
+
+  testWidgets('초안을 읽는 동안 [완료]를 다시 눌러도 초안을 한 번만 읽고 시트는 한 장이다', (
+    tester,
+  ) async {
+    final server = _Server(status: 'in_progress');
+    final gate = Completer<FakeResponse>();
+    server.backend.routes['GET /v1/shops/3/visits/101/next-draft'] = (o, b) =>
+        gate.future;
+    final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    await tester.tap(_button(AppStrings.actionComplete));
+    await settle(tester);
+    await tester.tap(_button(AppStrings.actionComplete));
+    await settle(tester);
+
+    expect(
+      setup.calls.where((c) => c.endsWith('/next-draft')),
+      hasLength(1),
+    );
+    expect(find.text(AppStrings.completeTitle), findsNothing);
+
+    gate.complete(FakeResponse(statusCode: 200, data: nextDraftJson()));
+    await settle(tester);
+
+    expect(find.text(AppStrings.completeTitle), findsOneWidget);
   });
 
   testWidgets('함께 온 아이를 누르면 그 방문으로 바꿔 끼운다', (tester) async {

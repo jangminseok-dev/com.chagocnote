@@ -207,16 +207,21 @@ void main() {
     expect(body['walk_in'], isTrue);
   });
 
-  test('상세는 묶음·지난 방문·노쇼 횟수를 읽는다', () async {
+  test('상세는 묶음(자기 제외)·지난 방문·노쇼 횟수를 읽는다', () async {
     final s = _build(
-      (options, body) =>
-          FakeResponse(statusCode: 200, data: visitDetailJson(noShowCount: 2)),
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: visitDetailJson(
+          group: [visitJson(visitId: 102)],
+          noShowCount: 2,
+        ),
+      ),
     );
 
     final detail = await s.api.detail(3, 101);
 
     expect(s.adapter.requests.single.path, '/v1/shops/3/visits/101');
-    expect(detail.group.single.visitId, 101);
+    expect(detail.group.single.visitId, 102);
     expect(detail.previousVisit!.startsAt.wall, DateTime(2026, 9, 2, 14));
     expect(detail.noShowCount, 2);
     expect(detail.visit.pet!.weightKg, 4.2);

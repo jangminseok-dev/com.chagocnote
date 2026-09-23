@@ -24,7 +24,8 @@ VisitTestBackend _backend({String status = 'reserved', bool group = true}) {
   final backend = VisitTestBackend({
     'GET /v1/shops/3/visits/101': (o, b) => FakeResponse(
       statusCode: 200,
-      data: visitDetailJson(visit: dubu, group: group ? [dubu, bori] : [dubu]),
+      // 서버 계약 — group 은 자기(두부)를 뺀 형제만 준다.
+      data: visitDetailJson(visit: dubu, group: group ? [bori] : []),
     ),
     'GET /v1/shops/3/customers/7': (o, b) => FakeResponse(
       statusCode: 200,
@@ -214,7 +215,7 @@ void main() {
     );
     backend.routes['GET /v1/shops/3/visits/101'] = (o, b) => FakeResponse(
       statusCode: 200,
-      data: visitDetailJson(visit: dubu, group: [dubu, bori]),
+      data: visitDetailJson(visit: dubu, group: [bori]),
     );
     final setup = CustomerTestSetup(backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
@@ -232,7 +233,7 @@ void main() {
     final dubu = visitJson(menus: [menuBriefJson(menuId: 77, name: '옛 메뉴')]);
     backend.routes['GET /v1/shops/3/visits/101'] = (o, b) => FakeResponse(
       statusCode: 200,
-      data: visitDetailJson(visit: dubu, group: [dubu]),
+      data: visitDetailJson(visit: dubu, group: []),
     );
     Map<String, dynamic>? sent;
     backend.routes['PUT /v1/shops/3/visits/101'] = (o, body) {

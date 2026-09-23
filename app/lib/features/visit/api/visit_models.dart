@@ -388,7 +388,7 @@ class PreviousVisit {
   final ShopTime startsAt;
 }
 
-/// 방문 상세 — 방문, 같은 묶음(자기 포함), 지난 방문, 노쇼 횟수.
+/// 방문 상세 — 방문, 같은 묶음의 다른 방문(자기 제외), 지난 방문, 노쇼 횟수.
 class VisitDetail {
   const VisitDetail({
     required this.visit,
