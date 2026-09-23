@@ -19,13 +19,13 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        take(intent)
+        take(intent, coldStart = true)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        take(intent)
+        take(intent, coldStart = false)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -42,14 +42,34 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun take(intent: Intent?) {
+    /**
+     * [coldStart]면(onCreate) Dart 엔진이 아직 `onStart` 전이라 이 시점에 invoke 해도
+     * 메시지가 버려진다("Dropping platform message on channel") — 그래서 콜드
+     * 스타트에는 절대 invoke 하지 않고 들고만 있다가 `getPending` 으로 준다.
+     * 떠 있을 때(onNewIntent)는 바로 invoke 하되, 받는 쪽이 없으면(notImplemented·
+     * 오류) pending 으로 되돌려 다음 `getPending` 에서 줄 수 있게 한다(iOS 플러그인과
+     * 같은 규칙).
+     */
+    private fun take(intent: Intent?, coldStart: Boolean) {
         if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
         // 회전 등으로 같은 인텐트를 다시 읽지 않게 비운다.
         intent.removeExtra(Intent.EXTRA_TEXT)
         if (text.isEmpty()) return
         val ch = channel
-        if (ch != null) ch.invokeMethod("onSharedText", text) else pending = text
+        if (coldStart || ch == null) {
+            pending = text
+            return
+        }
+        ch.invokeMethod("onSharedText", text, object : MethodChannel.Result {
+            override fun success(result: Any?) {}
+            override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+                pending = text
+            }
+            override fun notImplemented() {
+                pending = text
+            }
+        })
     }
 
     private companion object {
