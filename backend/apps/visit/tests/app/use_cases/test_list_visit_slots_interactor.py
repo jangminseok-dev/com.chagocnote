@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, time, timezone
 
 import pytest
 
@@ -61,7 +61,10 @@ async def test_휴무일이면_모든_칸에_closed_day():
     assert view.closed_day and all("closed_day" in s.warnings for s in view.slots)
 
 
-@pytest.mark.parametrize("fields", [dict(at=time(13, 5)), dict(duration_minutes=15)])
+@pytest.mark.parametrize("fields", [
+    dict(at=time(13, 5)), dict(duration_minutes=15),
+    dict(at=time(13, 0, tzinfo=timezone.utc)), dict(duration_minutes=0),
+])
 async def test_10분_단위가_아니면_VALIDATION_ERROR_다(fields):
     _, interactor = _setup()
     with pytest.raises(VisitInputError):

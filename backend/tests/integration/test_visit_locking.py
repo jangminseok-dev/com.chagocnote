@@ -9,7 +9,6 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from customer.adapter.outbound.pg.condition_type_pg_repository import ConditionTypePgRepository
 from customer.adapter.outbound.pg.customer_pg_repository import CustomerPgRepository
 from customer.adapter.outbound.pg.customer_search_pg_adapter import CustomerSearchPgAdapter
 from customer.adapter.outbound.pg.family_brief_pg_repository import FamilyBriefPgRepository

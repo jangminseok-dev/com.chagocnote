@@ -20,6 +20,13 @@ async def test_직원은_메뉴를_고치지_못한다():
         assert error_of(await c.put("/v1/shops/3/menus/1", json=BODY)) == (403, "PERMISSION_DENIED")
 
 
+async def test_순서값이_상한을_넘으면_422_다():
+    stub = Recorder(BATH)
+    async with client(build_app(update_menu_router, get_update_menu_use_case, stub)) as c:
+        body = {**BODY, "sort_order": 10000}
+        assert error_of(await c.put("/v1/shops/3/menus/1", json=body)) == (422, "VALIDATION_ERROR")
+
+
 async def test_없는_메뉴는_404_범위를_넘는_ID_는_422_다():
     stub = Recorder(error=MenuNotFoundError("없음"))
     async with client(build_app(update_menu_router, get_update_menu_use_case, stub)) as c:

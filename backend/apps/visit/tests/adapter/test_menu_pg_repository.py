@@ -23,6 +23,14 @@ async def test_새_메뉴는_맨_뒤_순서다(db_session):
     assert [m.name for m in await menus.list(A, include_archived=False)][-1] == "발톱"
 
 
+async def test_순서값이_상한에_닿아도_새_메뉴_추가는_된다(db_session):
+    menus = await _prepared(db_session, A)
+    [bath, *_] = await menus.list(A, include_archived=False)
+    await menus.update(A, bath.id, bath.name, bath.default_duration_minutes, 32_767)
+    nail = await menus.create(A, "발톱", None)
+    assert nail.sort_order <= 32_767
+
+
 async def test_보관하지_않은_메뉴끼리_이름이_겹치면_MENU_NAME_TAKEN_이고_세션은_계속_쓴다(db_session):
     menus = await _prepared(db_session, A)
     with pytest.raises(MenuNameTakenError):

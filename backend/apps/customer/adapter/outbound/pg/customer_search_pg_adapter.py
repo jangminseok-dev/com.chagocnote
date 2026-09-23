@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, delete, exists, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
@@ -47,8 +47,12 @@ def _decode_cursor(cursor: str, sort: SortKey) -> tuple[str | datetime | None, i
             return key, customer_id
         if sort == "last_visit" and key == "":
             return None, customer_id
-        return datetime.fromisoformat(key), customer_id
-    except (ValueError, TypeError, binascii.Error, UnicodeDecodeError):
+        dt = datetime.fromisoformat(key)
+        if dt.tzinfo is None:
+            raise ValueError
+        dt.astimezone(timezone.utc)
+        return dt, customer_id
+    except (ValueError, TypeError, OverflowError, binascii.Error, UnicodeDecodeError):
         raise CustomerInputError("목록 위치(cursor)가 올바르지 않습니다.") from None
 
 

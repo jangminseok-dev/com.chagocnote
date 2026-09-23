@@ -79,7 +79,13 @@ class VisitPgRepository(VisitRepository):
                 .where(VisitOrm.id == visit_id, VisitOrm.shop_id == ctx.shop_id)
                 .values(starts_at=starts_at, pet_id=pet_id, duration_minutes=duration_minutes, memo=memo)
             )
-        await self._session.execute(delete(VisitMenuOrm).where(VisitMenuOrm.visit_id == visit_id))
+        await self._session.execute(
+            delete(VisitMenuOrm).where(
+                VisitMenuOrm.visit_id.in_(
+                    select(VisitOrm.id).where(VisitOrm.id == visit_id, VisitOrm.shop_id == ctx.shop_id)
+                )
+            )
+        )
         if menu_ids:
             await self._session.execute(
                 insert(VisitMenuOrm), [dict(visit_id=visit_id, menu_id=m) for m in menu_ids]

@@ -31,8 +31,10 @@ class ListVisitSlotsInteractor(ListVisitSlotsUseCase):
         if not (2000 <= day.year <= 2100):
             raise VisitInputError("날짜가 올바르지 않습니다.")
         settings = await self._schedule.ensure(ctx)
-        duration = query.duration_minutes or settings.default_duration_minutes
+        duration = settings.default_duration_minutes if query.duration_minutes is None else query.duration_minutes
         check_duration(duration)
+        if query.at is not None and query.at.tzinfo is not None:
+            raise VisitInputError("시각에는 시간대를 붙일 수 없습니다.")
         if query.at is not None and query.at.minute % STEP_MINUTES:
             raise VisitInputError("시각은 10분 단위여야 합니다.")
         start, end = day_bounds(day, tz)

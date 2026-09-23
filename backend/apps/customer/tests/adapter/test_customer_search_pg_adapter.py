@@ -152,6 +152,15 @@ async def test_엉터리_커서는_VALIDATION_ERROR_다(db_session, cursor):
         await _find(db_session, "", sort="name", cursor=cursor)
 
 
+@pytest.mark.parametrize("sort", ["recent", "last_visit"])
+async def test_범위를_벗어난_시각_커서는_VALIDATION_ERROR_다(db_session, sort):
+    """조작한 커서로 9999년 시각대를 UTC 로 바꾸면 넘치는 값 — 500 이 아니라 422 여야 한다."""
+    raw = json.dumps([sort, "9999-12-31T23:00:00-05:00", 1]).encode()
+    cursor = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    with pytest.raises(CustomerInputError):
+        await _find(db_session, "", sort=sort, cursor=cursor)
+
+
 async def test_다른_정렬의_커서는_VALIDATION_ERROR_다(db_session):
     for i in range(3):
         await _family(db_session, f"이름{i}", f"0101234{i:04d}", ["콩이"])

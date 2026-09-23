@@ -45,7 +45,7 @@ class MenuPgRepository(MenuRepository):
 
     async def create(self, ctx: ShopContext, name: str, default_duration_minutes: int | None) -> Menu:
         next_order = (
-            select(func.coalesce(func.max(ServiceMenuOrm.sort_order), 0) + 1)
+            select(func.least(func.coalesce(func.max(ServiceMenuOrm.sort_order), 0) + 1, 32_767))
             .where(ServiceMenuOrm.shop_id == ctx.shop_id)
             .scalar_subquery()
         )
