@@ -264,7 +264,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(ScreenKeys.home), findsOneWidget);
 
-      await tester.tap(find.text(AppStrings.tabCustomers));
+      // 고객 탭은 머리에 설정 버튼이 없다(자기 머리를 쓴다) — 매출 탭으로 본다.
+      await tester.tap(find.text(AppStrings.tabSales));
       await tester.pumpAndSettle();
       expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
 
@@ -312,6 +313,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(ScreenKeys.settings), findsOneWidget);
+  });
+
+  testWidgets('매장이 둘이고 선택이 없을 때 /pets/1·/customers/new 로 가면 매장 선택으로 밀려난다', (
+    tester,
+  ) async {
+    final gateway = FakeSessionGateway()
+      ..meOnRestore = _me(shops: [_ownerA, _staffB]);
+    final container = _containerWith(gateway);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+
+    container.read(routerProvider).go('/pets/1');
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
+
+    container.read(routerProvider).go('/customers/new');
+    await tester.pumpAndSettle();
+    expect(find.byKey(ScreenKeys.shopSelect), findsOneWidget);
   });
 
   testWidgets('설정 → 매장 정보 → 뒤로 → 설정', (tester) async {

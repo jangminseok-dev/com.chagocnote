@@ -4,11 +4,16 @@ import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
+import 'package:chagocnote/features/customer/screens/customer_list_tab.dart';
+import 'package:chagocnote/design/widgets/app_big_date.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/customer_fixtures.dart';
+import '../../../support/customer_test_app.dart';
+import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/fake_session_gateway.dart';
 
 Me _meWithHissHaus() => const Me(
@@ -59,7 +64,11 @@ void main() {
   });
 
   testWidgets('탭을 바꾸면 본문이 바뀐다', (tester) async {
-    final container = _containerWith();
+    // 고객 탭은 목록을 부른다 — 가짜 어댑터로 빈 목록을 준다.
+    final setup = CustomerTestSetup(
+      (options, body) => FakeResponse(statusCode: 200, data: pageJson(items: [])),
+    );
+    final container = setup.container;
     addTearDown(container.dispose);
 
     await tester.pumpWidget(_appWith(container));
@@ -72,7 +81,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.calendarEmptyTitle), findsNothing);
-    expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
+    expect(find.byType(CustomerListTab), findsOneWidget);
+    expect(find.text(AppStrings.customersEmpty), findsOneWidget);
+    // 고객 탭은 자기 머리를 쓴다 — 큰 날짜 머리는 없다.
+    expect(find.byType(AppBigDate), findsNothing);
 
     await tester.tap(find.text(AppStrings.tabSales));
     await tester.pumpAndSettle();

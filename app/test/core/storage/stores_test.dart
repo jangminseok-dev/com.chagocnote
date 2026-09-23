@@ -20,4 +20,12 @@ void main() {
     await prefs.clear();
     expect(await prefs.readLastShopId(), isNull);
   });
+
+  test('고객 목록 보기 방식은 기억하고, 로그아웃 정리(clear)로 지워지지 않는다', () async {
+    final prefs = MemoryPrefsStore();
+    expect(await prefs.readCustomerViewMode(), isNull);
+    await prefs.writeCustomerViewMode('grid');
+    await prefs.clear();
+    expect(await prefs.readCustomerViewMode(), 'grid');
+  });
 }

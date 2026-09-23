@@ -13,4 +13,8 @@ class ScreenKeys {
   static const settingsShop = Key('screen_settings_shop');
   static const settingsAccount = Key('screen_settings_account');
   static const settingsAccountWithdraw = Key('screen_settings_account_withdraw');
+  static const registerCustomer = Key('screen_register_customer');
+  static const customerEdit = Key('screen_customer_edit');
+  static const petForm = Key('screen_pet_form');
+  static const petDetail = Key('screen_pet_detail');
 }

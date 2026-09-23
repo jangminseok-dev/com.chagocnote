@@ -95,6 +95,134 @@ class AppStrings {
   static const withdrawShopCloseConfirm = '매장을 닫고 탈퇴';
   static const goToMembers = '멤버 관리로 이동';
 
+  // 고객·반려동물
+  static const speciesDog = '강아지';
+  static const speciesCat = '고양이';
+  static const sexFemale = '여아';
+  static const sexMale = '남아';
+  static const neutered = '중성화';
+
+  static const edit = '수정';
+  static const delete = '삭제';
+  static const more = '더 보기';
+  static const none = '없음';
+  static const petTabBasic = '기본';
+  static const petTabConditions = '질병';
+  static const petTabOwner = '보호자';
+  static const passedAwayBadge = '무지개다리';
+  static const markPassedAway = '무지개다리 표시';
+  static const unmarkPassedAway = '무지개다리 되돌리기';
+  static const markPassedAwayConfirm = '무지개다리를 건넜다고 표시할까요? 목록에서 숨겨지고 기록은 남습니다.';
+  static const deletePet = '반려동물 삭제';
+  static const deletePetConfirm = '잘못 등록한 반려동물을 삭제할까요? 질병 기록도 함께 지워지고 되돌릴 수 없습니다.';
+  static const birthDateLabel = '생일';
+  static const birthYearLabel = '태어난 해';
+  static const ageUnknown = '모름';
+  static const weightLabel = '몸무게';
+  static const petMemoLabel = '특이사항';
+  static const noKnownConditions = '질병 없음';
+  static const noKnownConditionsConfirmed = '질병 없음 — 확인함';
+  static const siblingsLabel = '같은 보호자의 아이';
+  static const ownerNameLabel = '이름';
+  static const ownerPhoneLabel = '전화번호';
+  static const ownerPhoneAltLabel = '보조 연락처';
+  static const marketingConsentLabel = '마케팅 수신';
+  static const marketingAgreed = '동의';
+  static const marketingDeclined = '거부';
+  static const customerMemoLabel = '메모';
+  static const editOwner = '보호자 수정';
+  static const addPet = '반려동물 추가';
+
+  static String conditionCount(int count) => '질병 $count';
+  static String birthYearText(int year) => '$year년생';
+
+  static const customersTitle = '고객';
+  static const viewAsList = '목록으로 보기';
+  static const viewAsGrid = '격자로 보기';
+  static const sortRecent = '최근순';
+  static const sortName = '가나다순';
+  static const includePassed = '무지개다리 포함';
+  static const customerSearchHint = '번호 뒷자리, 이름, 반려동물 (초성 가능)';
+  static const customersEmpty = '등록된 고객이 없어요';
+  static const customersEmptyCaption = '+ 버튼으로 첫 고객을 등록해 보세요.';
+  static const customersNoMatch = '찾는 고객이 없어요';
+  static const conditionsBadge = '질병';
+
+  static String petCountText(int count) => '$count마리';
+
+  static const petNameLabel = '이름';
+  static const speciesLabelText = '종류';
+  static const breedLabel = '품종';
+  static const sexLabelText = '성별';
+  static const neuteredYes = '중성화 했어요';
+  static const neuteredNo = '안 했어요';
+  static const ageLabel = '나이';
+  static const ageByBirthDate = '생일';
+  static const ageByBirthYear = '태어난 해';
+  static const birthDateHint = 'YYYY.MM.DD';
+  static const birthYearHint = '예: 2021';
+  static const weightHint = '예: 3.2';
+  static const weightUnit = 'kg';
+  static const conditionsLabel = '질병';
+  static const conditionOther = '기타';
+  static const conditionOtherHint = '질병 이름';
+  static const conditionNoteHint = '메모 (선택)';
+  static const removeCondition = '이 질병 빼기';
+  static const petMemoHint = '특이사항 (선택)';
+  static const petNameRequired = '이름을 입력해 주세요.';
+  static const speciesRequired = '종류를 골라 주세요.';
+  static const breedRequired = '품종을 입력해 주세요.';
+  static const sexRequired = '성별을 골라 주세요.';
+  static const neuteredRequired = '중성화 여부를 골라 주세요.';
+  static const ageRequired = '생일·태어난 해·모름 중 하나를 골라 주세요.';
+  static const birthDateInvalid = '생일을 YYYY.MM.DD 로 입력해 주세요(오늘까지, 40년 전부터).';
+  static const birthYearInvalid = '태어난 해를 확인해 주세요(올해까지, 40년 전부터).';
+  static const weightInvalid = '몸무게를 kg 으로 입력해 주세요(예: 3.2).';
+  static const healthRequired = '질병을 고르거나 "질병 없음"을 눌러 주세요.';
+  static const otherLabelRequired = '기타 질병의 이름을 입력해 주세요.';
+  static const addPetTitle = '반려동물 추가';
+  static const editPetTitle = '반려동물 수정';
+
+  /// 품종 입력 칸 아래에 보이는 추천(누르면 채운다).
+  static const dogBreeds = ['말티즈', '푸들', '포메라니안', '비숑', '시츄', '요크셔테리어', '치와와', '믹스'];
+  static const catBreeds = ['코리안 숏헤어', '러시안 블루', '페르시안', '브리티시 숏헤어', '스코티시 폴드', '믹스'];
+
+  static const ownerNameHint = '예: 김민지, 콩이 보호자';
+  static const phoneHint = '예: 010-1234-5678';
+  static const phoneAltHint = '보조 연락처 (선택)';
+  static const customerMemoHint = '메모 (선택)';
+  static const ownerNameRequired = '이름을 입력해 주세요.';
+  static const phoneInvalid = '전화번호를 확인해 주세요.';
+  static const phoneAltInvalid = '보조 연락처를 확인해 주세요.';
+  static const consentRequired = '마케팅 수신 동의 여부를 골라 주세요.';
+  static const editOwnerTitle = '보호자 수정';
+  static const deleteCustomer = '고객 삭제';
+  static const deleteCustomerConfirm = '고객을 삭제할까요? 보호자의 이름·전화번호·메모와 반려동물의 이름·질병 기록이 지워지고 되돌릴 수 없습니다.';
+
+  static const registerCustomer = '고객 등록';
+  static const registerStepPhone = '전화번호';
+  static const registerStepOwner = '보호자';
+  static const registerStepPet = '반려동물';
+  static const next = '다음';
+  static const addPetToExisting = '이 보호자에게 반려동물 추가';
+
+  static String registerStepTitle(String step, int index) => '$step $index / 3';
+  static String lookupFound(String name, List<String> petNames) => petNames.isEmpty
+      ? '이미 등록된 번호예요 — $name'
+      : '이미 등록된 번호예요 — $name (${petNames.join(', ')})';
+
+  static String speciesLabel(String species) => switch (species) {
+        'dog' => speciesDog,
+        'cat' => speciesCat,
+        _ => species,
+      };
+
+  static String sexLabel(String sex) => switch (sex) {
+        'female' => sexFemale,
+        'male' => sexMale,
+        _ => sex,
+      };
+
   /// 로그인 수단 제공자 코드를 화면에 보여줄 라벨로 바꾼다. 계정 화면과
   /// 재인증 시트(Task 16)가 함께 쓴다.
   static String providerLabel(String provider) => switch (provider) {

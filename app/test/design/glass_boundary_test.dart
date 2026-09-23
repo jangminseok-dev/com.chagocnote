@@ -10,6 +10,14 @@ void main() {
       'lib/features/shop/screens/members_screen.dart',
       'lib/features/auth/screens/shop_select_screen.dart',
       'lib/features/account/screens/account_screen.dart',
+      'lib/features/customer/screens/pet_detail_screen.dart',
+      'lib/features/customer/screens/customer_list_tab.dart',
+      'lib/features/customer/screens/family_card_view.dart',
+      'lib/features/customer/screens/pet_form.dart',
+      'lib/features/customer/screens/pet_form_screen.dart',
+      'lib/features/customer/screens/customer_form.dart',
+      'lib/features/customer/screens/customer_edit_screen.dart',
+      'lib/features/customer/screens/register_customer_screen.dart',
     ];
     final violations = [
       for (final path in scrollScreens)
