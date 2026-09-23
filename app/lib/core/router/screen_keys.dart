@@ -11,6 +11,7 @@ class ScreenKeys {
   static const settings = Key('screen_settings');
   static const settingsMembers = Key('screen_settings_members');
   static const settingsShop = Key('screen_settings_shop');
+  static const settingsSchedule = Key('screen_settings_schedule');
   static const settingsAccount = Key('screen_settings_account');
   static const settingsAccountWithdraw = Key('screen_settings_account_withdraw');
   static const registerCustomer = Key('screen_register_customer');

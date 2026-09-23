@@ -16,6 +16,7 @@ import '../../features/customer/screens/customer_edit_screen.dart';
 import '../../features/customer/screens/register_customer_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/shop/screens/members_screen.dart';
+import '../../features/shop/screens/schedule_settings_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
@@ -31,7 +32,12 @@ class _SessionRefreshListenable extends ChangeNotifier {
 }
 
 /// 매장이 선택되어 있어야만 열리는 경로.
-const _shopScopedSettings = {'/settings', '/settings/members', '/settings/shop'};
+const _shopScopedSettings = {
+  '/settings',
+  '/settings/members',
+  '/settings/shop',
+  '/settings/schedule',
+};
 
 /// 고객·반려동물·방문 화면도 매장이 선택되어 있어야 열린다(경로에 ID 가 들어간다).
 bool _isShopScoped(String location) =>
@@ -101,6 +107,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/shop',
         builder: (context, state) => const ShopSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/schedule',
+        builder: (context, state) => const ScheduleSettingsScreen(),
       ),
       GoRoute(
         path: '/settings/account',

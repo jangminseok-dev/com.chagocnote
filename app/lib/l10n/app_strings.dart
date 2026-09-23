@@ -312,6 +312,23 @@ class AppStrings {
   static String dayHeading(int day, int weekday) => '$day일 ${weekdaysLong[weekday - 1]}';
   static String previewCounts(int visits, int completed) =>
       completed > 0 ? '$visits마리 · $completed마리 완료' : '$visits마리';
+  static const settingsSchedule = '일정';
+  static const settingsMenus = '메뉴';
+  static const opensAtLabel = '여는 시각';
+  static const closesAtLabel = '닫는 시각';
+  static const defaultDurationLabel = '기본 소요';
+  static const closedWeekdaysLabel = '매주 쉬는 요일';
+  static const closedDatesLabel = '임시 휴무';
+  static const closedDateHint = 'YYYY.MM.DD';
+  static const closedDateNoteHint = '메모 (선택)';
+  static const addClosedDate = '휴무 추가';
+  static const closedDateInvalid = '날짜를 YYYY.MM.DD 로 입력해 주세요(오늘부터).';
+  static const closedDatesEmpty = '잡힌 임시 휴무가 없어요.';
+  static const closesBeforeOpens = '닫는 시각은 여는 시각보다 늦어야 해요.';
+  static const pickTimeTitle = '시각 고르기';
+  static const confirm = '확인';
+  static const hourLabel = '시';
+  static const minuteLabel = '분';
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';
