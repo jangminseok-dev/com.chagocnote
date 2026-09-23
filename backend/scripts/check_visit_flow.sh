@@ -39,6 +39,14 @@ kong=$(echo "$registered" | field "['pets'][0]['pet_id']")
 dubu=$(call POST "$S/customers/$customer_id/pets" "$staff_token" "$(pet 두부)" | field "['pet']['pet_id']")
 echo "통과  고객 $customer_id 과 반려동물 $kong, $dubu"
 
+# 카톡 예약 초안(③-A3) — 저장하지 않고 후보·메뉴·날짜·시각만 짐작한다.
+tomorrow=$(TZ=Asia/Seoul python3 -c "import datetime as d; print(d.date.today()+d.timedelta(days=1))")
+kakao=$(call POST "$S/visit-drafts" "$staff_token" '{"text":"안녕하세요 내일 오후 2시 콩이 목욕 부탁드려요"}')
+expect "카톡 초안의 보호자 후보" "$(echo "$kakao" | field "['customer_candidates'][0]['customer_id']")" "$customer_id"
+expect "카톡 초안이 콩이를 고른다" "$(echo "$kakao" | field "['pet_ids']")" "[$kong]"
+expect "카톡 초안의 메뉴·날짜·시각" "$(echo "$kakao" | calc "(len(d['menu_ids']) > 0, d['date'], d['time'])")" "(True, '$tomorrow', '14:00')"
+expect "카톡 초안은 저장하지 않는다" "$(call GET "$S/visits?date=$tomorrow" "$staff_token" | calc "len(d['items'])")" "0"
+
 expect "기본 메뉴가 준비된다" "$(call GET "$S/menus" "$staff_token" | calc "[m['name'] for m in d['items']]")" \
   "['목욕', '위생', '부분 미용', '전체 미용', '스포팅']"
 bath=$(call GET "$S/menus" "$staff_token" | field "['items'][0]['menu_id']")
