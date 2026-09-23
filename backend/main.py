@@ -38,6 +38,7 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 )
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
+from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -63,8 +64,10 @@ from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
+from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
+from visit.dependencies.hub_ports import get_customer_directory
 
 
 @asynccontextmanager
@@ -118,6 +121,7 @@ app.include_router(list_menus_router)
 app.include_router(create_menu_router)
 app.include_router(update_menu_router)
 app.include_router(archive_menu_router)
+app.include_router(register_visit_router)
 install_error_handlers(
     app,
     {
@@ -133,6 +137,7 @@ app.dependency_overrides[get_shop_provisioning] = get_provision_shop_use_case
 app.dependency_overrides[get_user_directory] = get_get_user_profiles_use_case
 app.dependency_overrides[get_membership_directory] = get_list_memberships_use_case
 app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
+app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
 
 
 @app.get("/health")

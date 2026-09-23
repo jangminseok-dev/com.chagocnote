@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from decimal import Decimal
 
+from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from visit.domain.entities.menu import Menu
-from visit.domain.errors import MenuNameTakenError, MenuNotFoundError
+from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
+from visit.domain.errors import MenuNameTakenError, MenuNotFoundError, VisitDuplicateError
 from visit.domain.value_objects.closed_date import ClosedDate
 from visit.domain.value_objects.schedule_settings import DEFAULT_SETTINGS
 from visit.tests.helpers.builders import kst
@@ -95,3 +98,82 @@ class FakeMenus:
         self.rows[menu_id] = replace(current, archived_at=current.archived_at or kst(9, 23))
         self.journal.append(("archive_menu", menu_id))
         return self.rows[menu_id]
+
+
+class FamilyRejected(Exception):
+    """FakeDirectory 가 가족을 거절할 때 던진다 — 실제로는 customer 의 도메인 오류(404·422)다."""
+
+
+class FakeDirectory:
+    """CustomerDirectoryPort 스텁. families 는 {고객 ID: (매장 ID, {반려동물 ID: 무지개다리 여부})}."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.families: dict[int, tuple[int, dict[int, bool]]] = {}
+        self.names: dict[int, str | None] = {}
+
+    def family(self, customer_id=1, pets=(101,), shop_id=1, name="김민지", passed=()) -> None:
+        self.families[customer_id] = (shop_id, {p: p in passed for p in pets})
+        self.names[customer_id] = name
+
+    async def lock_family(self, ctx, customer_id, pet_ids):
+        self.journal.append(("lock_family", customer_id, tuple(pet_ids)))
+        shop, pets = self.families.get(customer_id, (None, {}))
+        if shop != ctx.shop_id or any(p not in pets or pets[p] for p in pet_ids):
+            raise FamilyRejected(customer_id)
+
+    async def briefs(self, ctx, customer_ids, pet_ids):
+        customers = {
+            c: CustomerBrief(customer_id=c, name=self.names[c], phone_masked="010-12··-5678")
+            for c in customer_ids if self.families.get(c, (None,))[0] == ctx.shop_id
+        }
+        pets = {}
+        for c, (shop, family) in self.families.items():
+            for p in family:
+                if p in pet_ids and shop == ctx.shop_id:
+                    pets[p] = PetBrief(pet_id=p, customer_id=c, name=f"아이{p}", species="dog", breed="말티즈",
+                                       weight_kg=Decimal("3.2"), passed_away=family[p])
+        return FamilyBriefs(customers=customers, pets=pets)
+
+    async def set_last_visit(self, ctx, customer_id, at):
+        self.journal.append(("set_last_visit", customer_id, at))
+
+
+class FakeVisits:
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.rows: dict[int, Visit] = {}
+        self._next = 1
+
+    def seed(self, **fields) -> Visit:
+        from visit.tests.helpers.builders import visit
+
+        row = visit(**{"id": self._next, **fields})
+        self.rows[row.id] = row
+        self._next = max(self._next, row.id) + 1
+        return row
+
+    def _clash(self, ctx, customer_id, pet_id, starts_at, ignore=()) -> bool:
+        return any(
+            v.shop_id == ctx.shop_id and v.status in ACTIVE_STATUSES and v.starts_at == starts_at
+            and v.id not in ignore
+            and (v.pet_id == pet_id if pet_id is not None else (v.pet_id is None and v.customer_id == customer_id))
+            for v in self.rows.values()
+        )
+
+    async def create_many(self, ctx, visits):
+        if any(self._clash(ctx, n.customer_id, n.pet_id, n.starts_at) for n in visits):
+            raise VisitDuplicateError("같은 시각에 이미 저장된 예약이 있습니다.")
+        created = [
+            self.seed(shop_id=ctx.shop_id, customer_id=n.customer_id, pet_id=n.pet_id, starts_at=n.starts_at,
+                      duration_minutes=n.duration_minutes, status=n.status, started_at=n.started_at,
+                      menu_ids=n.menu_ids, memo=n.memo, created_by_member_id=n.created_by_member_id,
+                      status_changed_by_member_id=n.created_by_member_id if n.started_at else None)
+            for n in visits
+        ]
+        self.journal.append(("create_visits", [v.id for v in created]))
+        return created
+
+    async def list_occupied(self, ctx, start, end):
+        return sorted((v for v in self.rows.values() if v.shop_id == ctx.shop_id and v.is_active
+                       and v.starts_at < end and v.ends_at > start), key=lambda v: (v.starts_at, v.id))

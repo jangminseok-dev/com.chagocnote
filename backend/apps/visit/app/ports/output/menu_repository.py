@@ -14,6 +14,10 @@ class MenuRepository(ABC):
         """순서(sort_order) 대로."""
 
     @abstractmethod
+    async def list_active_by_ids(self, ctx: ShopContext, menu_ids: list[int]) -> list[Menu]:
+        """요청 본문이 고른 메뉴 가운데 이 매장의 보관하지 않은 것만."""
+
+    @abstractmethod
     async def create(self, ctx: ShopContext, name: str, default_duration_minutes: int | None) -> Menu:
         """맨 뒤 순서로 넣는다. 보관하지 않은 메뉴와 이름이 겹치면 MenuNameTakenError."""
 

@@ -32,6 +32,17 @@ class MenuPgRepository(MenuRepository):
         ).scalars()
         return [to_menu(row) for row in rows]
 
+    async def list_active_by_ids(self, ctx: ShopContext, menu_ids: list[int]) -> list[Menu]:
+        rows = (
+            await self._session.execute(
+                select(ServiceMenuOrm).where(
+                    ServiceMenuOrm.id.in_(menu_ids), ServiceMenuOrm.shop_id == ctx.shop_id,
+                    ServiceMenuOrm.archived_at.is_(None),
+                )
+            )
+        ).scalars()
+        return [to_menu(row) for row in rows]
+
     async def create(self, ctx: ShopContext, name: str, default_duration_minutes: int | None) -> Menu:
         next_order = (
             select(func.coalesce(func.max(ServiceMenuOrm.sort_order), 0) + 1)
