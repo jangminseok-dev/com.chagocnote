@@ -214,6 +214,24 @@ class FakeVisits:
         self.journal.append(("reschedule", sorted(visit_ids)))
         return [self.rows[i] for i in sorted(visit_ids)]
 
+    async def apply_changes(self, ctx, changes, member_id):
+        for visit_id, change in changes:
+            current = self._owned(ctx, visit_id)
+            if change.status in ACTIVE_STATUSES and self._clash(
+                    ctx, current.customer_id, current.pet_id, current.starts_at, ignore=(visit_id,)):
+                raise VisitDuplicateError("같은 시각에 이미 저장된 예약이 있습니다.")
+        for visit_id, change in changes:
+            self.rows[visit_id] = replace(
+                self.rows[visit_id], status=change.status, started_at=change.started_at,
+                completed_at=change.completed_at, canceled_at=change.canceled_at,
+                cancel_reason=change.cancel_reason, status_changed_by_member_id=member_id)
+        self.journal.append(("apply_changes", [(i, c.status) for i, c in changes]))
+        return [self.rows[i] for i, _ in changes]
+
+    async def latest_completed_start(self, ctx, customer_id):
+        done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.status == "completed"]
+        return max(done) if done else None
+
     async def list_group(self, ctx, customer_id, starts_at):
         return [v for v in self._mine(ctx) if v.customer_id == customer_id and v.starts_at == starts_at]
 

@@ -6,6 +6,7 @@ from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.domain.errors import VisitDuplicateError, VisitNotFoundError
+from visit.domain.state.visit_state import StatusChange
 from visit.domain.value_objects.new_visit import NewVisit
 from visit.tests.helpers.builders import ctx, kst
 from visit.tests.helpers.rows import insert_visit
@@ -137,3 +138,26 @@ async def test_묶음_지난_완료_노쇼_수(db_session):
     assert (await repo.last_completed_before(A, 1, None, kst(10, 2, 14))).starts_at == kst(8, 20, 14)
     assert await repo.last_completed_before(A, 1, 102, kst(10, 2, 14)) is None
     assert await repo.count_no_show(A, 1) == 1
+
+
+async def test_상태_칸을_통째로_바꾸고_바꾼_멤버를_찍는다(db_session):
+    repo = VisitPgRepository(db_session)
+    kong, bori = await repo.create_many(A, [new(101), new(102)])
+    changed = await repo.apply_changes(
+        A, [(kong.id, StatusChange("completed", started_at=kst(10, 2, 14), completed_at=kst(10, 2, 15))),
+            (bori.id, StatusChange("canceled", canceled_at=kst(10, 2, 9), cancel_reason="shop_reason"))], 12)
+    assert [(v.status, v.status_changed_by_member_id) for v in changed] == [("completed", 12), ("canceled", 12)]
+    assert await repo.latest_completed_start(A, 1) == kst(10, 2, 14)
+    assert await repo.latest_completed_start(B, 1) is None
+    back = await repo.apply_changes(A, [(kong.id, StatusChange("reserved"))], 11)
+    assert (back[0].status, back[0].started_at, back[0].completed_at) == ("reserved", None, None)
+    assert await repo.latest_completed_start(A, 1) is None
+
+
+async def test_되돌리기가_중복이_되면_VISIT_DUPLICATE_이고_모두_그대로다(db_session):
+    repo = VisitPgRepository(db_session)
+    canceled = await insert_visit(db_session, kst(10, 2, 14), "canceled")
+    await repo.create_many(A, [new(101)])   # 같은 아이·같은 시각의 새 예약
+    with pytest.raises(VisitDuplicateError):
+        await repo.apply_changes(A, [(canceled, StatusChange("reserved"))], 11)
+    assert (await repo.get(A, canceled)).status == "canceled"

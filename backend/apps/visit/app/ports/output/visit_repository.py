@@ -5,6 +5,7 @@ from datetime import datetime
 
 from hub.app.dtos.shop_context import ShopContext
 from visit.domain.entities.visit import Visit
+from visit.domain.state.visit_state import StatusChange
 from visit.domain.value_objects.new_visit import NewVisit
 
 
@@ -39,6 +40,16 @@ class VisitRepository(ABC):
     @abstractmethod
     async def reschedule(self, ctx: ShopContext, visit_ids: list[int], starts_at: datetime) -> list[Visit]:
         """여러 방문의 시작 시각을 한 번에 바꾼다. 중복 예약이 되면 VisitDuplicateError(전부 되돌린다)."""
+
+    @abstractmethod
+    async def apply_changes(
+        self, ctx: ShopContext, changes: list[tuple[int, StatusChange]], member_id: int
+    ) -> list[Visit]:
+        """상태 칸을 통째로 바꾸고 바꾼 멤버를 찍는다. 되돌리기가 중복 예약이 되면 VisitDuplicateError(전부 되돌린다)."""
+
+    @abstractmethod
+    async def latest_completed_start(self, ctx: ShopContext, customer_id: int) -> datetime | None:
+        """그 보호자의 마지막 완료 방문의 시작 시각 — 고객 목록 '최근 방문순'의 원본."""
 
     @abstractmethod
     async def list_group(self, ctx: ShopContext, customer_id: int, starts_at: datetime) -> list[Visit]:

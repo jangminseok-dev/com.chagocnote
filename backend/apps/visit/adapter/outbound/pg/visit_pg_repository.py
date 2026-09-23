@@ -14,6 +14,7 @@ from visit.app.ports.output.visit_repository import VisitRepository
 from visit.domain.entities.visit import ACTIVE_STATUSES, COMPLETED, NO_SHOW, RESERVED, Visit
 from visit.domain.errors import VisitDuplicateError, VisitNotFoundError
 from visit.domain.services.visit_schedule import MAX_DURATION
+from visit.domain.state.visit_state import StatusChange
 from visit.domain.value_objects.new_visit import NewVisit
 
 _DUPLICATE = {"uq_visits_pet_start_active", "uq_visits_customer_start_active"}
@@ -93,6 +94,30 @@ class VisitPgRepository(VisitRepository):
                 .values(starts_at=starts_at)
             )
         return await self.get_many(ctx, visit_ids)
+
+    async def apply_changes(
+        self, ctx: ShopContext, changes: list[tuple[int, StatusChange]], member_id: int
+    ) -> list[Visit]:
+        async with self._duplicate_guard():
+            for visit_id, change in changes:
+                await self._session.execute(
+                    update(VisitOrm)
+                    .where(VisitOrm.id == visit_id, VisitOrm.shop_id == ctx.shop_id)
+                    .values(status=change.status, started_at=change.started_at,
+                            completed_at=change.completed_at, canceled_at=change.canceled_at,
+                            cancel_reason=change.cancel_reason, status_changed_by_member_id=member_id)
+                )
+        return await self.get_many(ctx, [visit_id for visit_id, _ in changes])
+
+    async def latest_completed_start(self, ctx: ShopContext, customer_id: int) -> datetime | None:
+        return (
+            await self._session.execute(
+                select(func.max(VisitOrm.starts_at)).where(
+                    VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id,
+                    VisitOrm.status == COMPLETED,
+                )
+            )
+        ).scalar_one()
 
     async def list_group(self, ctx: ShopContext, customer_id: int, starts_at: datetime) -> list[Visit]:
         return await self._read(
