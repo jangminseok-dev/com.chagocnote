@@ -267,6 +267,8 @@ class AppStrings {
   static const actionNextReservation = '다음 예약 잡기';
   static const completeTitle = '미용을 마쳤어요';
   static const completeAndNext = '완료하고 다음 예약 잡기';
+  static const markClosedDate = '이 날 휴무로 표시';
+  static const unmarkClosedDate = '휴무 해제';
 
   static String nextPreview(String when) => '→ $when';
   static String completeAndNextCaption(int weeks) =>
@@ -275,6 +277,33 @@ class AppStrings {
   static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해집니다.';
 
   static String noShowCount(int count) => '노쇼 $count회';
+  static const dayTitleEn = 'Schedule';
+  static const viewAsTimeline = '시간표로 보기';
+  static const actionCompleteShort = '완료하기';
+  static const markOverlap = '겹침';
+  static const markUnresolved = '정리 안 됨';
+  static const dayEmpty = '예약이 없어요';
+  static const dayEmptyCaption = '+ 버튼으로 예약을 잡아 보세요.';
+  static const closedDayNote = '휴무일';
+  static const addReservation = '예약 추가';
+
+  static String yearMonth(int year, int month) => '$year년 $month월';
+  static String gapText(int minutes) => '— ${durationText(minutes)} 비어 있음 —';
+  static String dayCountsText({
+    required int visits,
+    required int completed,
+    required int inProgress,
+    required int reserved,
+    required int canceled,
+    required int noShow,
+  }) => [
+    '$visits마리',
+    if (completed > 0) '완료 $completed',
+    if (inProgress > 0) '미용 중 $inProgress',
+    if (reserved > 0) '예약 $reserved',
+    if (canceled > 0) '취소 $canceled',
+    if (noShow > 0) '노쇼 $noShow',
+  ].join(' · ');
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';

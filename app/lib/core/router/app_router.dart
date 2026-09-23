@@ -19,6 +19,7 @@ import '../../features/shop/screens/members_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
+import '../../features/visit/screens/day_screen.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
 import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
@@ -150,6 +151,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             draft: state.extra as NextVisitDraft?,
           );
         },
+      ),
+      GoRoute(
+        path: '/visits/day/:date',
+        builder: (context, state) =>
+            DayScreen(date: parseDay(state.pathParameters['date']!)),
       ),
       // '/visits/new' 뒤에 둔다 — 먼저 두면 'new'를 방문 ID 로 읽는다.
       GoRoute(
