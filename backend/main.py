@@ -57,9 +57,13 @@ from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_
 from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
 from visit.adapter.inbound.api.error_map import VISIT_ERROR_STATUS
 from visit.adapter.inbound.api.v1.add_closed_date_router import add_closed_date_router
+from visit.adapter.inbound.api.v1.archive_menu_router import archive_menu_router
+from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
+from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
+from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 
 
@@ -110,6 +114,10 @@ app.include_router(update_visit_settings_router)
 app.include_router(list_closed_dates_router)
 app.include_router(add_closed_date_router)
 app.include_router(delete_closed_date_router)
+app.include_router(list_menus_router)
+app.include_router(create_menu_router)
+app.include_router(update_menu_router)
+app.include_router(archive_menu_router)
 install_error_handlers(
     app,
     {
