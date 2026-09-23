@@ -59,7 +59,7 @@
 | `core/singleton/` | Singleton | 비밀값 관리자처럼 프로세스에 하나만 있는 객체 |
 | `auth/adapter/outbound/strategy/` | Strategy | 제공자별 `SocialProviderPort` 구현 |
 | `auth/adapter/outbound/factory/` | Factory | 설정에 따라 제공자 구현을 만들어 담아 두고 이름으로 골라 준다 |
-| `visit/domain/state/` (예정) | State | 방문 상태 전이 |
+| `visit/domain/state/` | State | 방문 상태 전이(예약됨·미용 중·완료·취소·노쇼) |
 | `core/observer/`, `<app>/adapter/inbound/observer/` (예정) | Observer | 도메인 이벤트 발행과 구독 |
 | `visit/domain/chain/` (예정) | Chain of Responsibility | 예약 체크리스트 규칙 |
 | `search/adapter/outbound/decorator/` (예정) | Decorator | LLM 포트를 감싼 개인정보 마스킹 |
