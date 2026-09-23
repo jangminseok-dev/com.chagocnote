@@ -21,7 +21,7 @@ async def test_다음_예약_초안을_준다():
     assert stub.calls[0].visit_id == 9
 
 
-async def test_완료하지_않은_방문이면_409():
-    stub = Recorder(error=VisitStateConflictError("완료 아님"))
+async def test_취소_노쇼한_방문이면_409():
+    stub = Recorder(error=VisitStateConflictError("취소함"))
     async with client(build_app(get_next_visit_draft_router, get_get_next_visit_draft_use_case, stub)) as c:
         assert error_of(await c.get("/v1/shops/3/visits/9/next-draft")) == (409, "VISIT_STATE_CONFLICT")

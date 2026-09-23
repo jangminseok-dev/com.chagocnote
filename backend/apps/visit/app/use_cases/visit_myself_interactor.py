@@ -26,7 +26,7 @@ class VisitMyselfInteractor(VisitMyselfUseCase):
                 "POST /visits 는 예약 등록(pet_ids 마다 방문 하나, 빈 목록이면 보호자만, walk_in 이면 지금 시작), "
                 "GET·PUT /visits/{visit_id} 는 상세·수정, POST /visits/reschedule 는 같은 보호자의 예약을 함께 옮기기, "
                 "POST /visits/transitions 는 start·complete·cancel·no_show·revert(같은 보호자의 방문만, 전부 되거나 "
-                "전부 안 됨), GET /visits/{visit_id}/next-draft 는 완료한 방문의 다음 예약 초안입니다. "
+                "전부 안 됨), GET /visits/{visit_id}/next-draft 는 다음 예약 초안입니다(취소·노쇼한 방문은 409). "
                 "GET·PUT /visit-settings(영업시간·기본 소요·쉬는 요일), GET·POST /closed-dates, "
                 "DELETE /closed-dates/{date}(임시 휴무), GET·POST /menus, PUT /menus/{menu_id}, "
                 "POST /menus/{menu_id}/archive(메뉴표 — 지우지 않고 보관)도 있습니다. "
