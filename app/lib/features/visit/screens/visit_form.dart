@@ -154,10 +154,12 @@ class _VisitFormState extends ConsumerState<VisitForm> {
   int _effectiveDuration(VisitSettings settings) =>
       _duration ?? settings.defaultDurationMinutes;
 
-  /// 반려동물이 하나뿐인 보호자면 그 아이를 미리 고른다.
+  /// 반려동물이 하나뿐인 보호자면 그 아이를 미리 고른다. 미리 골라진 아이는
+  /// 이 보호자의 아이만 남긴다(카톡 초안이 다른 집 아이를 넘길 수 없게).
   void _initPets(List<Pet> living) {
     if (_petsInitialized) return;
     _petsInitialized = true;
+    _petIds.removeWhere((id) => !living.any((p) => p.petId == id));
     if (_petIds.isNotEmpty || _ownerOnly || living.length != 1) return;
     _petIds = {living.single.petId};
     WidgetsBinding.instance.addPostFrameCallback(
@@ -327,6 +329,14 @@ class _VisitFormState extends ConsumerState<VisitForm> {
   }
 
   Widget _buildForm(VisitSettings settings, List<Pet> pets, List<Menu> menus) {
+    // 메뉴만 있고 소요가 없는 초안(카톡)은 메뉴 기본 소요의 합으로 시작한다.
+    if (_duration == null && _menuIds.isNotEmpty && !_durationTouched) {
+      final byId = {for (final m in menus) m.menuId: m};
+      _duration = menuDuration([
+        for (final id in _menuIds)
+          byId[id]?.defaultDurationMinutes ?? settings.defaultDurationMinutes,
+      ], settings.defaultDurationMinutes);
+    }
     final duration = _effectiveDuration(settings);
     final selection = _at == null
         ? null

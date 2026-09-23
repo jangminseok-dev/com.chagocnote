@@ -116,6 +116,16 @@ class VisitApi {
         await _get('/v1/shops/$shopId/visits/$visitId/next-draft'),
       );
 
+  /// 카톡 글 → 예약 초안(③-A3). 서버는 글을 저장하지 않는다.
+  Future<VisitDraft> parseDraft(int shopId, String text) async =>
+      VisitDraft.fromJson(
+        await _client.post(
+              '/v1/shops/$shopId/visit-drafts',
+              data: {'text': text},
+            )
+            as Map<String, dynamic>,
+      );
+
   Future<VisitSettings> settings(int shopId) async =>
       VisitSettings.fromJson(await _get('/v1/shops/$shopId/visit-settings'));
 

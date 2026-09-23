@@ -25,6 +25,7 @@ import '../../customer/state/search_debouncer.dart';
 import '../../home/state/today_provider.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
+import '../state/visit_prefill.dart';
 import 'visit_form.dart';
 import 'visit_labels.dart';
 
@@ -34,10 +35,18 @@ import 'visit_labels.dart';
 ///
 /// 저장하면 저장한 날짜를 돌려주며 닫는다 — 부른 화면이 그 날로 옮겨 간다.
 class RegisterVisitScreen extends ConsumerStatefulWidget {
-  const RegisterVisitScreen({super.key, this.date, this.draft});
+  const RegisterVisitScreen({
+    super.key,
+    this.date,
+    this.draft,
+    this.prefill,
+  });
 
   final DateTime? date;
   final NextVisitDraft? draft;
+
+  /// 카톡 초안(③-A3). 보호자가 있으면 ①을 건너뛴다.
+  final VisitPrefill? prefill;
 
   @override
   ConsumerState<RegisterVisitScreen> createState() =>
@@ -45,7 +54,8 @@ class RegisterVisitScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
-  late int? _customerId = widget.draft?.customerId;
+  late int? _customerId =
+      widget.draft?.customerId ?? widget.prefill?.customerId;
   bool _busy = false;
   String? _errorText;
 
@@ -115,7 +125,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
     final customerId = _customerId;
     final onSearch = customerId == null;
     // 초안으로 열었으면 ①이 없다 — 뒤로 가면 닫는다.
-    final backToSearch = !onSearch && widget.draft == null;
+    final backToSearch = !onSearch && !_skippedSearch;
     return PopScope(
       canPop: !backToSearch,
       onPopInvokedWithResult: (didPop, _) {
@@ -171,8 +181,13 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
     );
   }
 
+  /// 다음 예약 초안이나 보호자가 있는 카톡 초안으로 열었으면 ①이 없었다.
+  bool get _skippedSearch =>
+      widget.draft != null || widget.prefill?.customerId != null;
+
   Widget _formFor(int shopId, int customerId) {
     final draft = widget.draft;
+    final prefill = widget.prefill;
     final initial = draft != null
         ? VisitFormInitial(
             date: draft.startsAt.day,
@@ -182,6 +197,15 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
             durationMinutes: draft.durationMinutes,
             menus: draft.menus,
             prefilled: true,
+          )
+        : prefill != null
+        ? VisitFormInitial(
+            date: prefill.date ?? ref.read(todayProvider),
+            petIds: prefill.petIds,
+            at: prefill.at,
+            menus: prefill.menus,
+            // 메뉴가 글에 있었으면 "지난번처럼"으로 덮어쓰지 않는다.
+            prefilled: prefill.menus.isNotEmpty,
           )
         : VisitFormInitial(date: widget.date ?? ref.read(todayProvider));
     return VisitForm(
@@ -193,7 +217,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
       header: _OwnerCard(
         shopId: shopId,
         customerId: customerId,
-        onChange: draft == null ? _backToSearch : null,
+        onChange: _skippedSearch ? null : _backToSearch,
       ),
       submitLabel: (date, at) =>
           AppStrings.saveReservation('${dayLabel(date)} $at'),

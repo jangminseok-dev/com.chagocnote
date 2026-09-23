@@ -25,6 +25,7 @@ import '../../features/visit/screens/day_screen.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
 import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
+import '../../features/visit/state/visit_prefill.dart';
 
 /// go_router의 `refreshListenable`은 평범한 [Listenable]을 요구한다. 세션이
 /// 바뀔 때마다 이걸로 "redirect를 다시 평가해라"라고 알린다.
@@ -162,9 +163,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/visits/new',
         builder: (context, state) {
           final date = state.uri.queryParameters['date'];
+          final extra = state.extra;
           return RegisterVisitScreen(
             date: date == null ? null : parseDay(date),
-            draft: state.extra as NextVisitDraft?,
+            draft: extra is NextVisitDraft ? extra : null,
+            prefill: extra is VisitPrefill ? extra : null,
           );
         },
       ),

@@ -5,6 +5,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/home/state/today_provider.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
+import 'package:chagocnote/features/visit/state/visit_prefill.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -512,6 +513,117 @@ void main() {
     );
     expect(find.text(AppStrings.durationText(90)), findsOneWidget);
     expect(setup.calls, isNot(contains('GET /v1/shops/3/visits/defaults')));
+  });
+
+  testWidgets('카톡 초안(보호자 있음)으로 열면 ①을 건너뛰고 날짜·시각·메뉴로 채우며, 뒤로 가면 닫힌다', (
+    tester,
+  ) async {
+    final setup = CustomerTestSetup(VisitTestBackend().call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    final result = await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(
+        customerId: 7,
+        date: DateTime(2026, 10, 2),
+        at: '14:30',
+        petIds: const {11},
+        menus: const [MenuBrief(menuId: 3, name: '부분 미용')],
+      ),
+    );
+
+    expect(find.text(AppStrings.reserveWhenTitle), findsOneWidget);
+    expect(find.text(AppStrings.changeCustomer), findsNothing);
+    expect(
+      find.text(AppStrings.saveReservation('10월 2일 금 14:30')),
+      findsOneWidget,
+    );
+    // 소요는 메뉴 기본 소요의 합(부분 미용 90분)이고, "지난번처럼"은 부르지 않는다.
+    expect(find.text(AppStrings.durationText(90)), findsOneWidget);
+    expect(find.text(AppStrings.prefilledFromLast), findsNothing);
+    expect(setup.calls, isNot(contains('GET /v1/shops/3/visits/defaults')));
+    expect(_slotQueries(setup), contains('2026-10-02 14:30'));
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.back));
+    await settle(tester);
+    expect(result.closed, isTrue);
+    expect(result.value, isNull);
+  });
+
+  testWidgets('카톡 초안(보호자 없음)으로 열면 ①에서 고른 뒤 ②가 초안의 날짜·시각·메뉴로 채워진다', (
+    tester,
+  ) async {
+    final setup = CustomerTestSetup(VisitTestBackend().call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(
+        date: DateTime(2026, 10, 3),
+        at: '11:00',
+        menus: const [MenuBrief(menuId: 1, name: '목욕')],
+      ),
+    );
+
+    expect(find.text(AppStrings.reserveWhoTitle), findsOneWidget);
+    await _pickCustomer(tester);
+
+    expect(find.text(AppStrings.reserveWhenTitle), findsOneWidget);
+    expect(
+      find.text(AppStrings.saveReservation('10월 3일 토 11:00')),
+      findsOneWidget,
+    );
+    expect(find.text(AppStrings.durationText(60)), findsOneWidget);
+    expect(setup.calls, isNot(contains('GET /v1/shops/3/visits/defaults')));
+    // 보호자를 골랐으니 [바꾸기]와 뒤로 가기는 ①로 돌아간다.
+    expect(find.text(AppStrings.changeCustomer), findsOneWidget);
+  });
+
+  testWidgets('카톡 초안이 넘긴 아이가 이 보호자의 아이가 아니면 버리고, 하나뿐인 아이를 고른다', (
+    tester,
+  ) async {
+    final backend = VisitTestBackend();
+    Map<String, dynamic>? sent;
+    backend.routes['POST /v1/shops/3/visits'] = (o, body) {
+      sent = bodyOf(body);
+      return FakeResponse(statusCode: 201, data: savedJson([visitJson()]));
+    };
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(
+        customerId: 7,
+        date: DateTime(2026, 10, 2),
+        at: '14:00',
+        petIds: const {99},
+        menus: const [MenuBrief(menuId: 1, name: '목욕')],
+      ),
+    );
+
+    await tester.tap(_save());
+    await settle(tester);
+    expect(sent?['pet_ids'], [11]);
+  });
+
+  testWidgets('카톡 초안에 메뉴가 없으면 "지난번처럼"으로 채운다', (tester) async {
+    final setup = CustomerTestSetup(VisitTestBackend().call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(customerId: 7, date: DateTime(2026, 10, 2)),
+    );
+
+    expect(find.text(AppStrings.reserveWhenTitle), findsOneWidget);
+    expect(setup.calls, contains('GET /v1/shops/3/visits/defaults'));
+    expect(find.text(AppStrings.prefilledFromLast), findsOneWidget);
+    expect(find.text(AppStrings.pickTimeFirst), findsOneWidget);
   });
 
   testWidgets('[바꾸기]와 뒤로 가기는 ①로 돌아간다', (tester) async {
