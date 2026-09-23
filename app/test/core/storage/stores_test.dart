@@ -28,4 +28,12 @@ void main() {
     await prefs.clear();
     expect(await prefs.readCustomerViewMode(), 'grid');
   });
+
+  test('하루 화면 보기 방식은 기억하고, 로그아웃 정리(clear)로 지워지지 않는다', () async {
+    final prefs = MemoryPrefsStore();
+    expect(await prefs.readDayViewMode(), isNull);
+    await prefs.writeDayViewMode('timeline');
+    await prefs.clear();
+    expect(await prefs.readDayViewMode(), 'timeline');
+  });
 }

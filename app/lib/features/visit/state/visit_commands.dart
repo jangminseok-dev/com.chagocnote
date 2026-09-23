@@ -1,0 +1,133 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../customer/state/customer_list_controller.dart';
+import '../../customer/state/customer_providers.dart';
+import '../../shop/state/shop_errors.dart';
+import '../api/visit_api.dart';
+import '../api/visit_models.dart';
+import 'visit_providers.dart';
+
+/// 방문·일정·메뉴 쓰기. 모든 호출은 매장 범위 공통 처리(`NOT_A_MEMBER` →
+/// 내 정보 재조회)를 거친다.
+///
+/// 방문 쓰기는 **성공하든 실패하든** 하루 목록·월 요약·상세·시간 칸을 다시
+/// 불러오게 한다 — 낙관적 갱신을 하지 않고, 409 가 나면 화면이 서버와 어긋나
+/// 있다는 뜻이라 새로 읽어야 한다(설계 9.2). 고객 쪽(목록의 최근 방문순, 고객
+/// 상세의 노쇼 횟수·다가오는 예약)도 방문에 따라 바뀌므로 함께 다시 부른다.
+class VisitCommands {
+  VisitCommands(this._ref);
+
+  final Ref _ref;
+
+  VisitApi get _api => _ref.read(visitApiProvider);
+
+  Future<SavedVisits> register(int shopId, VisitRequest request) =>
+      _visitWrite(() => _api.register(shopId, request));
+
+  Future<SavedVisits> update(int shopId, int visitId, VisitUpdate update) =>
+      _visitWrite(() => _api.update(shopId, visitId, update));
+
+  Future<SavedVisits> reschedule(
+    int shopId, {
+    required List<int> visitIds,
+    required String startsAt,
+  }) => _visitWrite(
+    () => _api.reschedule(shopId, visitIds: visitIds, startsAt: startsAt),
+  );
+
+  Future<List<Visit>> transition(
+    int shopId, {
+    required List<int> visitIds,
+    required String action,
+    String? cancelReason,
+  }) => _visitWrite(
+    () => _api.transition(
+      shopId,
+      visitIds: visitIds,
+      action: action,
+      cancelReason: cancelReason,
+    ),
+  );
+
+  /// "지난번처럼" — 반려동물을 고를 때 한 번 읽는다(다시 부르지 않는다).
+  Future<VisitDefaults> defaults(int shopId, int petId) =>
+      runShopScoped(_ref, () => _api.defaults(shopId, petId));
+
+  /// 다음 예약 초안(저장하지 않는다 — 읽기라 아무것도 다시 부르지 않는다).
+  Future<NextVisitDraft> nextDraft(int shopId, int visitId) =>
+      runShopScoped(_ref, () => _api.nextDraft(shopId, visitId));
+
+  Future<VisitSettings> updateSettings(int shopId, VisitSettings settings) =>
+      _scheduleWrite(() => _api.updateSettings(shopId, settings));
+
+  Future<ClosedDate> addClosedDate(int shopId, DateTime date, {String? note}) =>
+      _scheduleWrite(() => _api.addClosedDate(shopId, date, note: note));
+
+  Future<void> deleteClosedDate(int shopId, DateTime date) =>
+      _scheduleWrite(() => _api.deleteClosedDate(shopId, date));
+
+  Future<Menu> createMenu(
+    int shopId, {
+    required String name,
+    int? defaultDurationMinutes,
+  }) => _menuWrite(
+    () => _api.createMenu(
+      shopId,
+      name: name,
+      defaultDurationMinutes: defaultDurationMinutes,
+    ),
+  );
+
+  Future<Menu> updateMenu(
+    int shopId,
+    int menuId, {
+    required String name,
+    required int? defaultDurationMinutes,
+    required int sortOrder,
+  }) => _menuWrite(
+    () => _api.updateMenu(
+      shopId,
+      menuId,
+      name: name,
+      defaultDurationMinutes: defaultDurationMinutes,
+      sortOrder: sortOrder,
+    ),
+  );
+
+  Future<Menu> archiveMenu(int shopId, int menuId) =>
+      _menuWrite(() => _api.archiveMenu(shopId, menuId));
+
+  Future<T> _visitWrite<T>(Future<T> Function() action) async {
+    try {
+      return await runShopScoped(_ref, action);
+    } finally {
+      _ref.invalidate(dayVisitsProvider);
+      _ref.invalidate(calendarMonthProvider);
+      _ref.invalidate(visitDetailProvider);
+      _ref.invalidate(visitSlotsProvider);
+      _ref.invalidate(customerListControllerProvider);
+      _ref.invalidate(customerDetailProvider);
+    }
+  }
+
+  /// 영업시간·쉬는 요일·임시 휴무는 시간 칸의 경고와 달력·하루의 휴무 표시를 바꾼다.
+  Future<T> _scheduleWrite<T>(Future<T> Function() action) async {
+    final result = await runShopScoped(_ref, action);
+    _ref.invalidate(visitSettingsProvider);
+    _ref.invalidate(closedDatesProvider);
+    _ref.invalidate(visitSlotsProvider);
+    _ref.invalidate(dayVisitsProvider);
+    _ref.invalidate(calendarMonthProvider);
+    return result;
+  }
+
+  Future<T> _menuWrite<T>(Future<T> Function() action) async {
+    final result = await runShopScoped(_ref, action);
+    _ref.invalidate(menusProvider);
+    return result;
+  }
+}
+
+final visitCommandsProvider = Provider<VisitCommands>(
+  (ref) => VisitCommands(ref),
+);
