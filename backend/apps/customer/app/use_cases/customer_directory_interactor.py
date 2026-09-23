@@ -63,7 +63,7 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
         for pet in await self._pets.list_for_customers(ctx, [c.id for c in customers]):
             if not pet.passed_away:
                 pets_of[pet.customer_id].append(pet)
-        digits = [w for w in words if w.isdigit()]
+        digits = [w.replace("-", "") for w in words if w.replace("-", "").isdigit()]
         ranked = []
         for customer in customers:
             matched = tuple(p.id for p in pets_of[customer.id] if p.name in words)

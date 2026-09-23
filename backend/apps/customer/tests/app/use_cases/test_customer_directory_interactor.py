@@ -125,10 +125,16 @@ async def test_반려동물_이름_정확_일치가_보호자_이름_전화_부�
 
 async def test_전체_번호_8자리_이상은_포함으로_맞춘다():
     _, customers, _, search, directory = _directory_with_search()
+    partial = customers.seed(name="박서준맘", phone="01000000002")     # 전화도 이름도 부분 일치뿐(rank 3)
     customer = customers.seed(name="박서준", phone="01098765678")
-    search.matches = [customer.id]
+    search.matches = [partial.id, customer.id]
+
     found = await directory.find_draft_candidates(ctx(), ("01098765678",))
     assert (found[0].customer.customer_id, found[0].exact) == (customer.id, False)
+
+    found_hyphen = await directory.find_draft_candidates(ctx(), ("010-9876-5678",))
+    assert [c.customer.customer_id for c in found_hyphen] == [customer.id, partial.id]
+    assert found_hyphen[0].exact is False
 
 
 async def test_후보는_다섯_가족까지_ID_오름차순이다():
