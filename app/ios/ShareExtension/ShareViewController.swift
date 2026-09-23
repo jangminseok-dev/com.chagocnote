@@ -38,16 +38,25 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  /// 확장에서 본체를 여는 공식 API — `NSExtensionContext.open(_:completionHandler:)`
-  /// (iOS 8+). 예전엔 응답자 체인에서 UIApplication 을 찾아 비공식 `openURL:`
-  /// 을 불러야 했지만(당시엔 이 API 가 잘 알려지지 않았다), iOS 18부터 그
-  /// 경로는 "BUG IN CLIENT OF UIKIT … Force returning false"로 조용히
-  /// 실패한다. `extensionContext.open`은 시스템이 확장을 위해 공식으로 여는
-  /// 길이라 APPLICATION_EXTENSION_API_ONLY 제한과 부딪히지 않고, iOS 18에서도
-  /// 그대로 동작한다. 이 호출이 실패해도 App Group 에는 이미 적어 뒀으니
-  /// 본체가 다음에 뜰 때 안전망(`getPending`)으로 읽어 간다.
+  /// 확장에서 본체를 여는 공식 API 는 없다. `NSExtensionContext.open`은 Today·iMessage 확장점만
+  /// 지원하고, 응답자 체인의 옛 `openURL:`은 iOS 18부터 아무것도 열지 않는다. 그래서 응답자 체인에서
+  /// UIApplication 을 찾아 `openURL:options:completionHandler:`를 셀렉터·IMP 로 직접 부른다 —
+  /// 확장 전용 API 제한 아래에서도 컴파일되고 iOS 18 에서 동작하는, 널리 쓰이는 우회다.
+  /// 그래도 실패하면 본체가 다음에 열릴 때 App Group 의 글을 `getPending`으로 집어 온다.
   private func openHostApp() {
-    extensionContext?.open(Self.hostURL, completionHandler: nil)
+    let selector = NSSelectorFromString("openURL:options:completionHandler:")
+    var responder: UIResponder? = self
+    while let current = responder {
+      if let app = current as? UIApplication, app.responds(to: selector) {
+        typealias OpenURL = @convention(c) (
+          AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?
+        ) -> Void
+        let fn = unsafeBitCast(app.method(for: selector), to: OpenURL.self)
+        fn(app, selector, Self.hostURL as NSURL, NSDictionary(), nil)
+        return
+      }
+      responder = current.next
+    }
   }
 
   private func finish() {
