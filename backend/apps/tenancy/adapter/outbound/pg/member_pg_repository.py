@@ -33,7 +33,8 @@ class MemberPgRepository(MemberRepository):
     async def find_access(self, shop_id: int, user_id: int) -> ShopAccessRecord | None:
         stmt = (
             select(
-                ShopMemberOrm.id, RoleOrm.id, RoleOrm.code, ShopOrm.suspended_at, ShopOrm.closed_at
+                ShopMemberOrm.id, RoleOrm.id, RoleOrm.code, ShopOrm.suspended_at, ShopOrm.closed_at,
+                ShopOrm.timezone,
             )
             .join(RoleOrm, RoleOrm.id == ShopMemberOrm.role_id)
             .join(ShopOrm, ShopOrm.id == ShopMemberOrm.shop_id)
@@ -46,7 +47,7 @@ class MemberPgRepository(MemberRepository):
         row = (await self._session.execute(stmt)).first()
         if row is None:
             return None
-        member_id, role_id, role_code, suspended_at, closed_at = row
+        member_id, role_id, role_code, suspended_at, closed_at, timezone = row
         codes = (
             await self._session.execute(
                 select(PermissionOrm.code)
@@ -60,6 +61,7 @@ class MemberPgRepository(MemberRepository):
             permissions=frozenset(codes),
             shop_suspended=suspended_at is not None,
             shop_closed=closed_at is not None,
+            timezone=timezone,
         )
 
     async def list_for_user(self, user_id: int) -> list[MembershipSummary]:

@@ -1,6 +1,7 @@
 """고객 검색 줄(customer_search_entries)을 원본(customers·pets)에서 모두 다시 만든다. 여러 번 실행해도 결과가 같다.
 
 검색 줄은 역정규화 표라 원본과 어긋나면 이 스크립트로 복구한다(설계 6.4). 익명화한 고객의 줄은 지운다.
+마지막 방문 시각(last_visit_at)은 원본이 visits 라 건드리지 않는다 — scripts/rebuild_last_visit.py 가 맞춘다.
 고객마다 고객 행을 먼저 FOR UPDATE 로 잠근 뒤 다시 만든다 — "가족을 바꾸는 쓰기는 고객 행을 먼저
 잠근다"는 전역 잠금 순서와 맞춘다. 살아 있는 고객만 잠그는 CustomerRepository.lock_active 는 익명화한
 고객에게 쓸 수 없어(찾지 못해 CustomerNotFoundError) 여기서는 익명화 여부와 상관없이 고객 행을 직접

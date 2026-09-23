@@ -43,6 +43,12 @@ async def test_검색어_정렬_포함_여부_커서를_넘긴다():
     assert (query.q, query.sort, query.include_passed, query.cursor) == ("5678 콩", "name", True, "abc")
 
 
+async def test_최근_방문순_정렬을_받는다():
+    stub = _StubUseCase()
+    assert (await _get(stub, "/v1/shops/3/customers?sort=last_visit")).status_code == 200
+    assert stub.queries[0].sort == "last_visit"
+
+
 async def test_모르는_정렬이나_너무_긴_검색어는_422_다():
     for path in ("/v1/shops/3/customers?sort=visit", "/v1/shops/3/customers?q=" + "가" * 51):
         response = await _get(_StubUseCase(), path)

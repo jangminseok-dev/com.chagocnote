@@ -1,0 +1,24 @@
+from __future__ import annotations
+
+from fastapi import Depends
+
+from core.database import DbSession
+from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from visit.app.ports.input.reschedule_visits_use_case import RescheduleVisitsUseCase
+from visit.app.use_cases.reschedule_visits_interactor import RescheduleVisitsInteractor
+from visit.dependencies.hub_ports import get_customer_directory
+from visit.dependencies.visit_wiring import (
+    build_menu_repository,
+    build_schedule_repository,
+    build_visit_repository,
+)
+from visit.domain.services.visit_schedule import utc_now
+
+
+def get_reschedule_visits_use_case(
+    db: DbSession, directory: CustomerDirectoryPort = Depends(get_customer_directory)
+) -> RescheduleVisitsUseCase:
+    return RescheduleVisitsInteractor(
+        visits=build_visit_repository(db), menus=build_menu_repository(db),
+        schedule=build_schedule_repository(db), directory=directory, now=utc_now,
+    )

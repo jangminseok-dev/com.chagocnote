@@ -2,16 +2,21 @@ from httpx import ASGITransport, AsyncClient
 
 from customer.adapter.inbound.api.v1.get_customer_router import get_customer_router
 from customer.dependencies.get_customer_provider import get_get_customer_use_case
+from customer.app.dtos.customer_view_dto import CustomerOverviewView, UpcomingVisitView
 from customer.domain.errors import (
+    CustomerHasUpcomingVisitsError,
     CustomerInputError,
     CustomerNotFoundError,
     CustomerPhoneTakenError,
     LastPetError,
+    PetHasUpcomingVisitsError,
+    PetHasVisitsError,
     PetHealthConflictError,
     PetHealthRequiredError,
     PetNotFoundError,
+    PetPassedAwayError,
 )
-from customer.tests.helpers.api import NO_WRITE, build_app, customer_detail_view
+from customer.tests.helpers.api import NOW, NO_WRITE, build_app, customer_detail_view
 
 
 class _StubUseCase:
@@ -23,7 +28,11 @@ class _StubUseCase:
         self.queries.append(query)
         if self.error:
             raise self.error
-        return customer_detail_view()
+        detail = customer_detail_view()
+        return CustomerOverviewView(
+            customer=detail.customer, pets=detail.pets, no_show_count=2,
+            upcoming_visits=[UpcomingVisitView(visit_id=7, pet_id=101, pet_name="콩이", starts_at=NOW)],
+        )
 
 
 async def _get(stub, path="/v1/shops/3/customers/1"):
@@ -37,6 +46,9 @@ async def test_멤버는_전체_번호가_든_고객_상세를_본다():
     response = await _get(stub)
     assert response.status_code == 200
     assert response.json()["customer"]["phone"] == "01012345678"
+    assert response.json()["no_show_count"] == 2
+    assert response.json()["upcoming_visits"] == [
+        {"visit_id": 7, "pet_id": 101, "pet_name": "콩이", "starts_at": "2026-09-22T01:00:00Z"}]
     assert (stub.queries[0].ctx.shop_id, stub.queries[0].customer_id) == (3, 1)
 
 
@@ -58,6 +70,10 @@ async def test_도메인_오류는_설계의_상태_코드와_코드로_나간�
         (CustomerInputError("x"), 422, "VALIDATION_ERROR"),
         (PetHealthRequiredError("x"), 422, "PET_HEALTH_REQUIRED"),
         (PetHealthConflictError("x"), 422, "PET_HEALTH_CONFLICT"),
+        (PetHasVisitsError("x"), 409, "PET_HAS_VISITS"),
+        (PetHasUpcomingVisitsError("x"), 409, "PET_HAS_UPCOMING_VISITS"),
+        (CustomerHasUpcomingVisitsError("x"), 409, "CUSTOMER_HAS_UPCOMING_VISITS"),
+        (PetPassedAwayError("x"), 422, "PET_PASSED_AWAY"),
     ]
     for error, status, code in cases:
         response = await _get(_StubUseCase(error))

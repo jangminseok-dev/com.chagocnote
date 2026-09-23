@@ -15,3 +15,6 @@ class ShopContext:
     member_id: int
     role: str
     permissions: frozenset[str]
+    # 매장의 IANA 시간대. "오늘"과 하루의 경계를 이 시간대로 계산한다(③ 예약).
+    # 기본값은 shops.timezone 의 기본값과 같다 — 매장 접근 확인(tenancy)은 언제나 DB 값을 채운다.
+    timezone: str = "Asia/Seoul"

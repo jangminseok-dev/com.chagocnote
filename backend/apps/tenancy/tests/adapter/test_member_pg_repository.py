@@ -31,6 +31,7 @@ async def test_사장의_접근_기록에는_모든_권한이_있다(db_session)
     assert (record.member_id, record.role) == (member.id, "owner")
     assert {"member:manage", "shop:update", "sales:read"} <= record.permissions
     assert (record.shop_suspended, record.shop_closed) == (False, False)
+    assert record.timezone == "Asia/Seoul"   # 매장 표의 기본값
 
 
 async def test_직원의_접근_기록에는_입력_권한만_있다(db_session):
@@ -55,6 +56,16 @@ async def test_닫히거나_정지된_매장은_접근_기록에_표시된다(db
     )
     record = await repo.find_access(shop.id, user_id=7)
     assert (record.shop_suspended, record.shop_closed) == (True, True)
+
+
+async def test_접근_기록에_매장의_시간대가_실린다(db_session):
+    shop = await _shop(db_session)
+    repo = MemberPgRepository(db_session)
+    await repo.add(shop.id, user_id=7, role=RoleCode.OWNER)
+    await db_session.execute(
+        text("UPDATE shops SET timezone = 'Asia/Tokyo' WHERE id = :id"), {"id": shop.id}
+    )
+    assert (await repo.find_access(shop.id, user_id=7)).timezone == "Asia/Tokyo"
 
 
 async def test_같은_매장에_두_번_합류할_수_없다(db_session):

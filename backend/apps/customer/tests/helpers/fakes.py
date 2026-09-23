@@ -171,6 +171,9 @@ class FakeSearch:
     async def rebuild_search_entry(self, ctx, customer_id):
         self.journal.append(("rebuild", customer_id))
 
+    async def set_last_visit(self, ctx, customer_id, at):
+        self.journal.append(("set_last_visit", customer_id, at))
+
     async def search(self, ctx, request):
         self.requests.append((ctx, request))
         return self.page
@@ -178,6 +181,36 @@ class FakeSearch:
     async def count_pets(self, ctx, words, include_passed):
         self.requests.append((ctx, words, include_passed))
         return self.pet_count
+
+
+class FakeLedger:
+    """VisitLedgerPort 스텁. 반려동물·고객마다 방문이 있는지, 앞으로의 예약이 있는지를 정해 둔다."""
+
+    def __init__(self, journal: Journal) -> None:
+        self.journal = journal
+        self.pets_with_visits: set[int] = set()
+        self.pets_with_upcoming: set[int] = set()
+        self.customers_with_upcoming: set[int] = set()
+        self.no_shows: dict[int, int] = {}
+        self.upcoming: dict[int, list] = {}
+
+    async def pet_has_visits(self, ctx, pet_id):
+        return pet_id in self.pets_with_visits | self.pets_with_upcoming
+
+    async def pet_has_upcoming(self, ctx, pet_id):
+        return pet_id in self.pets_with_upcoming
+
+    async def customer_has_upcoming(self, ctx, customer_id):
+        return customer_id in self.customers_with_upcoming
+
+    async def no_show_count(self, ctx, customer_id):
+        return self.no_shows.get(customer_id, 0)
+
+    async def upcoming_for_customer(self, ctx, customer_id, limit):
+        return self.upcoming.get(customer_id, [])[:limit]
+
+    async def clear_customer_memos(self, ctx, customer_id):
+        self.journal.append(("clear_visit_memos", customer_id))
 
 
 def family():

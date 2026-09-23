@@ -26,6 +26,9 @@ from customer.domain.errors import CustomerNotFoundError, CustomerPhoneTakenErro
 from customer.tests.helpers.fakes import today
 from customer.tests.helpers.inputs import customer_input, pet_input
 from customer.tests.helpers.profiles import ctx, customer_profile, pet_profile
+from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
+from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
+from visit.domain.services.visit_schedule import utc_now
 
 pytestmark = pytest.mark.integration
 
@@ -36,6 +39,11 @@ BLOCKED = 0.5   # 이만큼 기다려도 끝나지 않으면 잠금에서 기다
 def _repos(session):
     return (CustomerPgRepository(session), PetPgRepository(session),
             ConditionTypePgRepository(session), CustomerSearchPgAdapter(session))
+
+
+def _ledger(session):
+    """customer 유스케이스가 묻는 방문 장부 — 진입점이 꽂는 것과 같은 실제 구현(visit)."""
+    return VisitLedgerInteractor(VisitPgRepository(session), now=utc_now)
 
 
 def _register(session, name):
@@ -89,7 +97,7 @@ async def test_익명화가_고객을_쥔_동안_반려동물_추가는_기다�
 
     async with factory() as deleting, factory() as adding:
         customers, _, _, search = _repos(deleting)
-        await DeleteCustomerInteractor(customers, search).delete_customer(
+        await DeleteCustomerInteractor(customers, search, _ledger(deleting)).delete_customer(
             DeleteCustomerCommand(ctx=SHOP, customer_id=customer_id)
         )
         customers, pets, types, search = _repos(adding)
@@ -140,10 +148,10 @@ async def test_마지막_두_마리를_동시에_지우면_하나는_LAST_PET_�
 
     async with factory() as first, factory() as second:
         _, pets, _, search = _repos(first)
-        await DeletePetInteractor(pets, search).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=kong))
+        await DeletePetInteractor(pets, search, _ledger(first)).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=kong))
         _, pets, _, search = _repos(second)
         late = asyncio.create_task(
-            DeletePetInteractor(pets, search).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=dubu))
+            DeletePetInteractor(pets, search, _ledger(second)).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=dubu))
         )
         assert await _still_waiting(late)
 
