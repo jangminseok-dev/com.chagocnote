@@ -68,7 +68,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
       _errorText = null;
     });
     try {
-      await ref
+      final saved = await ref
           .read(visitCommandsProvider)
           .register(
             shopId,
@@ -82,7 +82,8 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
               walkIn: walkIn,
             ),
           );
-      if (mounted) context.pop(value.date);
+      // 서버가 저장한 날짜를 돌려준다 — [지금 시작]은 보던 날과 다를 수 있다.
+      if (mounted) context.pop(saved.visits.first.startsAt.day);
     } on ApiException catch (e) {
       // 저장을 두 번 누른 경우다 — 이미 저장됐으니 닫는다(결정 기록 006).
       if (e.code == 'VISIT_DUPLICATE') {
