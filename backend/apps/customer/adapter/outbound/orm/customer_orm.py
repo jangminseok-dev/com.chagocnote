@@ -123,6 +123,7 @@ class CustomerSearchEntryOrm(Base):
         ),
         Index("ix_customer_search_entries_shop_activity", "shop_id", "last_activity_at"),
         Index("ix_customer_search_entries_shop_sort_name", "shop_id", "sort_name"),
+        Index("ix_customer_search_entries_shop_last_visit", "shop_id", "last_visit_at"),
     )
 
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), primary_key=True)
@@ -131,3 +132,5 @@ class CustomerSearchEntryOrm(Base):
     phone_last4: Mapped[str] = mapped_column(String(4))
     sort_name: Mapped[str] = mapped_column(String(50))
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # 마지막 완료 방문의 시작 시각(최근 방문순). 원본은 visits 이고 visit 스포크가 허브 포트로 알려 준다.
+    last_visit_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
