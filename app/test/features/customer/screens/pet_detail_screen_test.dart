@@ -326,6 +326,10 @@ void main() {
   testWidgets('조회가 실패하면 뒤로 가기와 다시 시도가 보이고, 다시 시도하면 나온다', (tester) async {
     var calls = 0;
     final setup = CustomerTestSetup((options, body) {
+      // 홈(캘린더 탭)의 요청은 세지 않는다.
+      if (!options.path.contains('/pets/')) {
+        return const FakeResponse(statusCode: 500, data: 'x');
+      }
       calls++;
       if (calls == 1) {
         throw DioException.connectionError(
@@ -348,6 +352,10 @@ void main() {
 
   testWidgets('NOT_A_MEMBER 면 내 정보를 다시 불러온다(C5)', (tester) async {
     final setup = CustomerTestSetup((options, body) {
+      // 홈(캘린더 탭)의 요청은 그냥 실패시킨다 — 내 정보 재조회를 부르지 않게.
+      if (!options.path.contains('/pets/')) {
+        return const FakeResponse(statusCode: 500, data: 'x');
+      }
       return const FakeResponse(
         statusCode: 403,
         data: {'code': 'NOT_A_MEMBER', 'message': 'x'},

@@ -42,7 +42,10 @@ class AppBigDate extends StatelessWidget {
   String get dayText => date.day.toString();
 
   /// 영문 월 이름("September").
-  String get monthText => _months[date.month - 1];
+  String get monthText => monthName(date.month);
+
+  /// [month](1~12)의 영문 이름. 캘린더 탭의 월 머리도 쓴다.
+  static String monthName(int month) => _months[month - 1];
 
   /// 영문 요일 이름("Tuesday").
   String get weekdayText => weekdayName(date.weekday);

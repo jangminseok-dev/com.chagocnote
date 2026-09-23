@@ -54,6 +54,10 @@ class VisitTestBackend {
             : slotAtJson(date: date, at: at, durationMinutes: duration),
       );
     },
+    'GET /v1/shops/3/visits': (o, b) => FakeResponse(
+      statusCode: 200,
+      data: dayJson(date: o.queryParameters['date'] as String),
+    ),
     'GET /v1/shops/3/visits/defaults': (o, b) =>
         FakeResponse(statusCode: 200, data: defaultsJson()),
     'POST /v1/shops/3/visits': (o, b) =>

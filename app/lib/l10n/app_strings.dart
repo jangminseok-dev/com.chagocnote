@@ -35,10 +35,8 @@ class AppStrings {
   static const tabCalendar = '캘린더';
   static const tabCustomers = '고객';
   static const tabSales = '매출';
-  static const calendarEmptyTitle = '아직 기록이 없습니다';
-  static const calendarEmptyCaption = '예약을 만들면 여기에서 모아 볼 수 있어요.';
   static const comingSoonEmptyTitle = '준비 중입니다';
-  static const comingSoonSheetText = '예약과 기록은 다음 업데이트에서 만나요';
+  static const comingSoonSheetText = '매출은 다음 업데이트에서 만나요';
 
   // 설정 허브
   static const settingsSectionShop = '매장';
@@ -304,6 +302,16 @@ class AppStrings {
     if (canceled > 0) '취소 $canceled',
     if (noShow > 0) '노쇼 $noShow',
   ].join(' · ');
+  static const weekdaysLong = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+  static const calendarWeekHeader = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  static const prevMonth = '이전 달';
+  static const nextMonth = '다음 달';
+  static const closedShort = '휴무';
+
+  static String unresolvedBanner(int count) => '정리 안 된 예약 $count건';
+  static String dayHeading(int day, int weekday) => '$day일 ${weekdaysLong[weekday - 1]}';
+  static String previewCounts(int visits, int completed) =>
+      completed > 0 ? '$visits마리 · $completed마리 완료' : '$visits마리';
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';

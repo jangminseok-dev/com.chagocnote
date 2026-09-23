@@ -286,6 +286,10 @@ void main() {
   testWidgets('첫 조회가 실패하면 다시 시도할 수 있다', (tester) async {
     var calls = 0;
     final setup = CustomerTestSetup((options, body) {
+      // 홈(캘린더 탭)의 요청은 세지 않는다.
+      if (!options.path.endsWith('/customers')) {
+        return const FakeResponse(statusCode: 500, data: 'x');
+      }
       calls++;
       if (calls == 1) {
         return const FakeResponse(
