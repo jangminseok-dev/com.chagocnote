@@ -56,4 +56,17 @@ void main() {
     }
     expect(messageFor(_error('LAST_PET', status: 409)), contains('고객 삭제'));
   });
+
+  test('예약·방문 코드(설계 8절)는 모두 앱의 문구가 있다', () {
+    const codes = [
+      'VISIT_NOT_FOUND', 'VISIT_STATE_CONFLICT', 'VISIT_NOT_YET', 'VISIT_DUPLICATE',
+      'VISIT_CROSSES_MIDNIGHT', 'VISIT_GROUP_MISMATCH', 'PET_PASSED_AWAY', 'MENU_NOT_FOUND',
+      'MENU_NAME_TAKEN', 'PET_HAS_VISITS', 'PET_HAS_UPCOMING_VISITS', 'CUSTOMER_HAS_UPCOMING_VISITS',
+    ];
+    for (final code in codes) {
+      expect(messageFor(_error(code, message: '서버 문구')), isNot('서버 문구'), reason: code);
+    }
+    expect(messageFor(_error('VISIT_CROSSES_MIDNIGHT', status: 422)), contains('소요'));
+    expect(messageFor(_error('PET_HAS_VISITS', status: 409)), contains('무지개다리'));
+  });
 }
