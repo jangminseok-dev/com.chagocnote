@@ -18,6 +18,7 @@ root_packages =
     tenancy
     platform_admin
     customer
+    visit
 include_external_packages = True
 
 [importlinter:contract:clean-architecture]
@@ -33,6 +34,7 @@ containers =
     tenancy
     platform_admin
     customer
+    visit
 
 [importlinter:contract:spoke-independence]
 name = 스포크 상호 독립 (스포크끼리 import 하지 않는다)
@@ -42,6 +44,7 @@ modules =
     tenancy
     platform_admin
     customer
+    visit
 
 [importlinter:contract:framework-isolation]
 name = 프레임워크 격리 (app·domain 은 웹·DB·외부 통신 라이브러리를 모른다)
@@ -56,6 +59,8 @@ source_modules =
     platform_admin.domain
     customer.app
     customer.domain
+    visit.app
+    visit.domain
 forbidden_modules =
     fastapi
     sqlalchemy
@@ -72,6 +77,7 @@ source_modules =
     tenancy.domain
     platform_admin.domain
     customer.domain
+    visit.domain
 forbidden_modules =
     pydantic
     core
@@ -86,6 +92,7 @@ forbidden_modules =
     tenancy
     platform_admin
     customer
+    visit
 
 [importlinter:contract:core-isolation]
 name = core 격리 (core 는 스포크를 import 하지 않는다)
@@ -97,3 +104,4 @@ forbidden_modules =
     tenancy
     platform_admin
     customer
+    visit
