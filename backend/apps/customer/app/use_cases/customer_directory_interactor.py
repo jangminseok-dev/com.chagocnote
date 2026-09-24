@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-DRAFT_CANDIDATE_LIMIT = 5
-_MATCH_LIMIT = 20   # 순위를 매기기 전에 읽는 가족 수 — 낱말 하나에 수십 가족이 걸려도 여기서 자른다
-
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.family_brief_repository import FamilyBriefRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.domain.errors import CustomerNotFoundError
+from customer.domain.services.draft_ranking import match_family
 from customer.domain.services.phone_number import mask_phone
 from customer.domain.services.search_terms import parse_query
 from hub.app.dtos.draft_candidate import DraftCandidate
@@ -17,6 +15,9 @@ from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+
+DRAFT_CANDIDATE_LIMIT = 5
+_MATCH_LIMIT = 20   # 순위를 매기기 전에 읽는 가족 수 — 낱말 하나에 수십 가족이 걸려도 여기서 자른다
 
 
 class CustomerDirectoryInteractor(CustomerDirectoryPort):
@@ -68,21 +69,11 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
         for pet in await self._pets.list_for_customers(ctx, [c.id for c in customers]):
             if not pet.passed_away:
                 pets_of[pet.customer_id].append(pet)
-        digits = [w.replace("-", "") for w in words if w.replace("-", "").isdigit()]
-        ranked = []
-        for customer in customers:
-            matched = tuple(p.id for p in pets_of[customer.id] if p.name in words)
-            if matched:
-                rank = 0
-            elif customer.name in words:
-                rank = 1
-            elif any((len(d) >= 8 and d in customer.phone) or (len(d) == 4 and customer.phone.endswith(d))
-                     for d in digits):
-                rank = 2
-            else:
-                rank = 3
-            ranked.append((rank, customer.id, customer, matched))
-        ranked.sort(key=lambda r: (r[0], r[1]))
+        # 등급은 도메인(draft_ranking)이 매기고, 같은 등급 안에서는 고객 ID 오름차순이다.
+        ranked = sorted(
+            ((match_family(c, pets_of[c.id], words), c) for c in customers),
+            key=lambda pair: (pair[0].rank, pair[1].id),
+        )
         return [
             DraftCandidate(
                 customer=CustomerBrief(customer_id=c.id, name=c.name, phone_masked=mask_phone(c.phone)),
@@ -91,8 +82,8 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
                              weight_kg=p.weight_kg, passed_away=False)
                     for p in pets_of[c.id]
                 ),
-                matched_pet_ids=matched,
-                exact=rank <= 1,
+                matched_pet_ids=match.matched_pet_ids,
+                exact=match.exact,
             )
-            for rank, _, c, matched in ranked[:DRAFT_CANDIDATE_LIMIT]
+            for match, c in ranked[:DRAFT_CANDIDATE_LIMIT]
         ]

@@ -14,6 +14,7 @@ from visit.app.services.visit_reader import describe_visits
 from visit.app.services.visit_warnings import warnings_after_save
 from visit.domain.entities.visit import IN_PROGRESS, RESERVED
 from visit.domain.errors import MenuNotAvailableError, VisitInputError
+from visit.domain.services.visit_duration import default_duration
 from visit.domain.services.visit_schedule import (
     check_duration,
     check_same_day,
@@ -45,9 +46,7 @@ class RegisterVisitInteractor(RegisterVisitUseCase):
             raise MenuNotAvailableError("고를 수 없는 메뉴가 있습니다.")
         duration = command.duration_minutes
         if duration is None:
-            duration = sum(m.default_duration_minutes or settings.default_duration_minutes for m in menus) or (
-                settings.default_duration_minutes
-            )
+            duration = default_duration(menus, settings.default_duration_minutes)
         check_duration(duration)
         if command.walk_in:
             starts_at, status, started_at = floor_to_step(now, tz), IN_PROGRESS, now
