@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
+import '../../../core/time/shop_time.dart';
+import '../../../core/time/time_labels.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
@@ -17,8 +19,6 @@ import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
-import '../../visit/api/visit_models.dart';
-import '../../visit/screens/visit_labels.dart';
 import '../api/customer_models.dart';
 import '../state/customer_commands.dart';
 import '../state/customer_input.dart';
