@@ -53,3 +53,11 @@ async def test_한_미디어는_한_기록에만_붙는다(db_session):
     await repo.save(A, _record(visit_id, media=[RecordMedia(7, "photo", "after", 0)]))
     with pytest.raises(IntegrityError):
         await repo.save(A, _record(other, media=[RecordMedia(7, "photo", "after", 0)]))
+
+
+async def test_지우면_항목과_미디어_연결도_함께_지워진다(db_session):
+    repo, visit_id, bath, _ = await _setup(db_session)
+    await repo.save(A, _record(visit_id, items=[RecordItem(bath, 1)], media=[RecordMedia(7, "photo", "after", 0)]))
+    await repo.delete(A, visit_id)
+    assert await repo.get(A, visit_id) is None
+    await repo.save(A, _record(visit_id, media=[RecordMedia(7, "photo", "after", 0)]))   # 연결이 남았으면 유일 위반

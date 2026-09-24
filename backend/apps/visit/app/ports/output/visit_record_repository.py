@@ -19,3 +19,7 @@ class VisitRecordRepository(ABC):
     @abstractmethod
     async def save(self, ctx: ShopContext, record: VisitRecord) -> VisitRecord:
         """행이 없으면 넣고 있으면 바꾼다. 항목·미디어는 통째로 바꾼다. 버전은 부르는 쪽이 정해 넘긴다."""
+
+    @abstractmethod
+    async def delete(self, ctx: ShopContext, visit_id: int) -> None:
+        """기록 행을 지운다. 항목·미디어 연결은 외래 키의 ON DELETE CASCADE 로 함께 지워진다."""

@@ -350,6 +350,10 @@ class FakeRecords(VisitRecordRepository):
         self.journal.append(("save_record", record.visit_id, record.version))
         return record
 
+    async def delete(self, ctx, visit_id):
+        self.rows.pop(visit_id, None)
+        self.journal.append(("delete_record", visit_id))
+
 
 class FakeLibrary(MediaLibraryPort):
     """MediaLibraryPort 스텁 — 실제 구현(media)과 같은 허브 오류를 같은 조건에서 던진다.

@@ -11,6 +11,7 @@ from visit.domain.errors import (
     VisitNoRecordYetError,
 )
 from visit.domain.services.visit_record_rules import (
+    append_media,
     check_input,
     check_media_limits,
     check_recordable,
@@ -87,3 +88,11 @@ def test_대표_사진은_후_사진_첫_장_그다음_전_사진_그다음_영�
     assert cover_media_id([_m(1, phase="before", order=2), _m(4, phase="before", order=0), _m(9, "video")]) == 4
     assert cover_media_id([_m(8, "video", "before", 0), _m(9, "video", "after", 5)]) == 9
     assert cover_media_id([]) is None
+
+
+def test_덧붙이면_그_칸의_맨_뒤이고_그_칸은_순서를_지킨_채_0부터_다시_매긴다():
+    media = [_m(1, phase="before", order=3), _m(2, phase="before", order=90), _m(3, phase="after", order=5)]
+    assert append_media(media, 9, "video", "before") == (
+        _m(3, phase="after", order=5), _m(1, phase="before", order=0), _m(2, phase="before", order=1),
+        _m(9, "video", "before", 2))
+    assert append_media([], 9, "photo", "after") == (_m(9, order=0),)

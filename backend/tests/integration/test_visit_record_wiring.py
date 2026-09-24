@@ -5,7 +5,14 @@ from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import text
 
-from tests.integration.support import bearer, error_of, make_operator, ready_photo, shop_with_owner
+from tests.integration.support import (
+    accept_invite,
+    bearer,
+    error_of,
+    make_operator,
+    ready_photo,
+    shop_with_owner,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -44,6 +51,13 @@ async def _shop(wired, name="Hiss Haus", owner="사장님", operator=None):
     operator = operator or await make_operator(wired)
     shop_id, login = await shop_with_owner(wired, operator, name, owner)
     return shop_id, bearer(login["access_token"]), operator
+
+
+async def _staff(wired, shop_id, owner_headers):
+    staff = await wired.login("직원")
+    code = (await wired.api.post(f"/v1/shops/{shop_id}/invites", headers=owner_headers)).json()["code"]
+    assert (await accept_invite(wired, staff, code)).status_code == 200
+    return bearer(staff["access_token"])
 
 
 async def test_다른_매장의_방문과_미디어로는_기록을_쓸_수_없다(wired, media_storage):
@@ -101,3 +115,28 @@ async def test_예약만_된_방문에는_기록을_쓸_수_없다(wired, media_
     visit_id = await _visit(wired, shop_id, o, *await _family(wired, shop_id, o), days=1, start=False)
     response = await wired.api.put(f"/v1/shops/{shop_id}/visits/{visit_id}/record", json={}, headers=o)
     assert error_of(response) == (409, "VISIT_NO_RECORD_YET")
+
+
+async def test_덧붙이기는_기록을_만들고_다시_보내도_한_번이며_기록은_사장만_지운다(wired, media_storage):
+    shop_id, o, _ = await _shop(wired)
+    s = await _staff(wired, shop_id, o)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    visit_id = await _visit(wired, shop_id, o, customer_id, pet_id)
+    first, second = await ready_photo(wired, shop_id, s), await ready_photo(wired, shop_id, s)
+    path = f"/v1/shops/{shop_id}/visits/{visit_id}/record"
+
+    appended = await wired.api.post(f"{path}/media", json={"media_id": first, "phase": "before"}, headers=s)
+    again = await wired.api.post(f"{path}/media", json={"media_id": first, "phase": "before"}, headers=s)
+    assert [(r.status_code, r.json()["version"], len(r.json()["media"])) for r in (appended, again)] == [(200, 1, 1)] * 2
+    # 폼이 읽은 버전으로 저장하는 사이 대기열이 한 장을 더 붙이면, 폼의 저장은 409 가 된다.
+    await wired.api.post(f"{path}/media", json={"media_id": second, "phase": "after"}, headers=s)
+    stale = await wired.api.put(path, headers=s, json={"version": 1, "weight_kg": 3.1,
+                                                         "media": [{"media_id": first, "phase": "before", "sort_order": 0}]})
+    assert error_of(stale) == (409, "RECORD_VERSION_CONFLICT")
+
+    assert error_of(await wired.api.delete(path, headers=s)) == (403, "PERMISSION_DENIED")
+    assert (await wired.api.delete(path, headers=o)).status_code == 204
+    assert error_of(await wired.api.delete(path, headers=o)) == (404, "RECORD_NOT_FOUND")
+    async with wired.engine.connect() as conn:
+        attached = (await conn.execute(text("SELECT count(*) FROM media_objects WHERE attached_at IS NOT NULL"))).scalar()
+    assert attached == 0

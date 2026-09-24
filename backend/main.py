@@ -64,9 +64,11 @@ from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_
 from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
 from visit.adapter.inbound.api.error_map import VISIT_ERROR_STATUS
 from visit.adapter.inbound.api.v1.add_closed_date_router import add_closed_date_router
+from visit.adapter.inbound.api.v1.append_record_media_router import append_record_media_router
 from visit.adapter.inbound.api.v1.archive_menu_router import archive_menu_router
 from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
+from visit.adapter.inbound.api.v1.delete_visit_record_router import delete_visit_record_router
 from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_visit_draft_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
@@ -154,6 +156,8 @@ app.include_router(get_visit_router)
 app.include_router(update_visit_router)
 app.include_router(get_next_visit_draft_router)
 app.include_router(put_visit_record_router)
+app.include_router(append_record_media_router)
+app.include_router(delete_visit_record_router)
 # media
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)

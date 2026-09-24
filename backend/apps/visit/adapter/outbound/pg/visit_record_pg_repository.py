@@ -74,3 +74,6 @@ class VisitRecordPgRepository(VisitRecordRepository):
             )
         ).scalar_one()
         return await self._assemble(row)
+
+    async def delete(self, ctx: ShopContext, visit_id: int) -> None:
+        await self._session.execute(delete(VisitRecordOrm).where(VisitRecordOrm.visit_id == visit_id))

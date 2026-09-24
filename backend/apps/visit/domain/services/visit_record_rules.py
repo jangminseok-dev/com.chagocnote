@@ -53,6 +53,16 @@ def next_version(current: VisitRecord | None) -> int:
     return current.version + 1 if current is not None else 1
 
 
+def append_media(media: Iterable[RecordMedia], media_id: int, kind: str, phase: str) -> tuple[RecordMedia, ...]:
+    """그 칸(전/후)의 맨 뒤에 붙인다. 그 칸은 순서를 지킨 채 0부터 다시 매긴다 — 빼고 붙이기를 거듭해도
+    순서 값이 상한(99)에 닿지 않는다."""
+    media = list(media)
+    same = sorted((m for m in media if m.phase == phase), key=lambda m: m.sort_order)
+    renumbered = [RecordMedia(m.media_id, m.kind, m.phase, order) for order, m in enumerate(same)]
+    others = [m for m in media if m.phase != phase]
+    return tuple(others + renumbered + [RecordMedia(media_id, kind, phase, len(same))])
+
+
 def cover_media_id(media: Iterable[RecordMedia]) -> int | None:
     """대표 사진 — 후 사진 첫 장 → 전 사진 첫 장 → 영상 포스터(후 먼저) → 없음(설계 6.2)."""
     ranked = sorted(
