@@ -33,7 +33,7 @@ class CustomerMyselfInteractor(CustomerMyselfUseCase):
                 "삭제한 고객은 조회·검색·번호 조회에서 없는 것으로 봅니다. "
                 "반려동물은 질병을 하나 이상 고르거나 '질병 없음'을 직접 확인해야 저장됩니다. "
                 "고객 상세는 노쇼 횟수와 다가오는 예약(최대 3건)도 줍니다. "
-                "목록·고객 상세·반려동물 상세(GET)의 반려동물에는 photo(사진이 붙은 가장 최근 완료 기록의 대표 "
+                "목록·고객 상세·반려동물 상세(GET)의 반려동물에는 photo(사진이 붙은 가장 최근 완료 기록의 대표 사진 "
                 "썸네일, 없으면 null)가 있습니다. "
                 "방문 기록이 있는 반려동물은 지우지 않고(409 PET_HAS_VISITS), 앞으로의 예약이 남은 아이의 "
                 "무지개다리와 고객 삭제는 막습니다(409 PET_HAS_UPCOMING_VISITS·CUSTOMER_HAS_UPCOMING_VISITS). "
