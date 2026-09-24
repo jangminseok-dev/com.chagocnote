@@ -141,6 +141,16 @@ async def test_옛_방문의_기록을_고치면_현재_몸무게는_그대로�
     assert "set_pet_weight" not in [e[0] for e in w.journal]
 
 
+async def test_몸무게를_바꾸지_않고_메모만_고치면_현재_몸무게를_건드리지_않는다():
+    w = _World()
+    await w.put(record(Decimal("3.4")))
+    w.journal.clear()
+    await w.put(record(Decimal("3.4"), care="발톱 정리"), version=1)
+    assert "set_pet_weight" not in [e[0] for e in w.journal]
+    await w.put(record(Decimal("3.5"), care="발톱 정리"), version=2)   # 바꾸면 넘긴다
+    assert "set_pet_weight" in [e[0] for e in w.journal]
+
+
 async def test_익명화한_고객과_다른_매장의_방문은_쓸_수_없다():
     w = _World()
     w.directory.families.clear()

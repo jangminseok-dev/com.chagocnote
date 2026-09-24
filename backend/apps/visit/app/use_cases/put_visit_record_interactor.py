@@ -70,5 +70,7 @@ class PutVisitRecordInteractor(PutVisitRecordUseCase):
             created_by_member_id=current.created_by_member_id if current else ctx.member_id,
             updated_by_member_id=ctx.member_id,
         ))
-        await sync_pet_weight(ctx, visit, saved.weight_kg, self._history, self._directory)
+        # 몸무게를 적거나 바꿨을 때만 현재 몸무게가 된다 — 메모만 고친 저장이 반려동물 쪽에서 고친 값을 덮지 않게.
+        if current is None or current.weight_kg != saved.weight_kg:
+            await sync_pet_weight(ctx, visit, saved.weight_kg, self._history, self._directory)
         return await describe_record(ctx, saved, self._menus, self._library)
