@@ -72,3 +72,25 @@ async def fake_kakao(wired, monkeypatch):
         SocialProviderFactory({Provider.DEV: DevIdentityStrategy(), Provider.KAKAO: fake}),
     )
     return fake
+
+
+@pytest.fixture
+async def media_storage(wired):
+    """미디어 저장소를 테스트 버킷으로 바꾼다. 컨테이너 안에서 서명 URL 로 PUT 하려고 공개 주소도 내부 주소로 둔다.
+
+    테스트마다 DB ID 가 1부터 다시 시작해 객체 키가 겹치므로, 버킷을 비우고 시작한다.
+    """
+    import main
+    from core.config import S3_ACCESS_KEY, S3_ENDPOINT_URL, S3_REGION, S3_SECRET_KEY
+    from media.adapter.outbound.s3.boto3_object_storage_adapter import Boto3ObjectStorageAdapter
+    from media.dependencies.media_wiring import get_object_storage
+    from scripts.ensure_media_bucket import ensure_bucket
+
+    storage = Boto3ObjectStorageAdapter(S3_ENDPOINT_URL, S3_ENDPOINT_URL, "chagocnote-test", S3_REGION,
+                                        S3_ACCESS_KEY, S3_SECRET_KEY)
+    ensure_bucket(storage._internal, "chagocnote-test")
+    for page in storage._internal.get_paginator("list_objects_v2").paginate(Bucket="chagocnote-test"):
+        await storage.delete([item["Key"] for item in page.get("Contents", [])])
+    main.app.dependency_overrides[get_object_storage] = lambda: storage
+    yield storage
+    del main.app.dependency_overrides[get_object_storage]

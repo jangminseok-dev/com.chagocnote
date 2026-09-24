@@ -40,6 +40,10 @@ from customer.adapter.inbound.api.v1.update_customer_router import update_custom
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
 from customer.dependencies.hub_ports import get_visit_ledger
+from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
+from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_router
+from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
+from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -147,11 +151,15 @@ app.include_router(parse_visit_draft_router)
 app.include_router(get_visit_router)
 app.include_router(update_visit_router)
 app.include_router(get_next_visit_draft_router)
+# media
+app.include_router(media_myself_router)
+app.include_router(issue_upload_router)
+app.include_router(confirm_upload_router)
 install_error_handlers(
     app,
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
-        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS,
+        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS,
     },
 )
 
