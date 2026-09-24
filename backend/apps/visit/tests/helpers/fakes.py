@@ -345,6 +345,9 @@ class FakeRecords(VisitRecordRepository):
             return None
         return self.rows.get(visit_id)
 
+    async def list_many(self, ctx, visit_ids):
+        return {i: self.rows[i] for i in visit_ids if i in self.rows and self.visits.rows[i].shop_id == ctx.shop_id}
+
     async def save(self, ctx, record):
         self.rows[record.visit_id] = record
         self.journal.append(("save_record", record.visit_id, record.version))

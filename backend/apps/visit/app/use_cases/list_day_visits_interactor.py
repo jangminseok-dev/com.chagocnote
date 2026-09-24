@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.dtos.list_day_visits_dto import (
     DayCountsView,
     DayVisitItemView,
@@ -14,6 +15,8 @@ from visit.app.ports.input.list_day_visits_use_case import ListDayVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.app.services.cover_reader import cover_urls
 from visit.app.services.visit_reader import describe_visits
 from visit.domain.errors import VisitInputError
 from visit.domain.services.visit_board import is_unresolved, overlaps_other_group, status_counts
@@ -25,12 +28,15 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
 
     def __init__(
         self, board: VisitBoardRepository, menus: MenuRepository, schedule: ScheduleRepository,
-        directory: CustomerDirectoryPort, now: Callable[[], datetime],
+        directory: CustomerDirectoryPort, records: VisitRecordRepository, library: MediaLibraryPort,
+        now: Callable[[], datetime],
     ) -> None:
         self._board = board
         self._menus = menus
         self._schedule = schedule
         self._directory = directory
+        self._records = records
+        self._library = library
         self._now = now
 
     async def list_day_visits(self, query: ListDayVisitsQuery) -> DayVisitsView:
@@ -44,12 +50,16 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
         closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, day, day))
         today = local_date(self._now(), tz)
         views = await describe_visits(ctx, visits, self._directory, self._menus)
+        recorded = await self._records.list_many(ctx, [v.id for v in visits])
+        covers = await cover_urls(ctx, recorded, self._library)
         items = [
             DayVisitItemView(
                 visit=view,
                 group_key=f"{visit.customer_id}:{visit.starts_at.isoformat()}",
                 overlapping=overlaps_other_group(visit, occupied),
                 unresolved=is_unresolved(visit, today, tz),
+                has_record=visit.id in recorded,
+                cover=covers.get(visit.id),
             )
             for visit, view in zip(visits, views)
         ]

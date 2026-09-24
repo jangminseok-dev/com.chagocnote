@@ -36,6 +36,8 @@ class VisitMyselfInteractor(VisitMyselfUseCase):
                 "POST /visits/{visit_id}/record/media {media_id, phase} 는 사진·영상 하나를 그 칸 맨 뒤에 덧붙입니다"
                 "(기록이 없으면 만들고, 같은 미디어를 다시 보내도 한 번이며, 버전이 오릅니다). "
                 "DELETE /visits/{visit_id}/record 는 기록 삭제입니다(record:delete, 방문은 남습니다). "
+                "방문 상세는 record(기록 전체, 사진 URL 포함)와 cover(대표 사진 썸네일 — 후 → 전 → 영상 포스터), "
+                "하루 목록은 항목마다 has_record·cover, 달력은 날마다 완료 방문의 cover·covers(최대 4장)를 줍니다. "
                 "GET·PUT /visit-settings(영업시간·기본 소요·쉬는 요일), GET·POST /closed-dates, "
                 "DELETE /closed-dates/{date}(임시 휴무), GET·POST /menus, PUT /menus/{menu_id}(이름·기본 소요·순서·정가 price, "
                 "원 단위, 비우면 가격 미정), "

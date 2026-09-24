@@ -3,14 +3,24 @@ import pytest
 from visit.app.dtos.get_visit_dto import GetVisitQuery
 from visit.app.use_cases.get_visit_interactor import GetVisitInteractor
 from visit.domain.errors import VisitNotFoundError
-from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeVisits
+from visit.tests.helpers.builders import ctx, kst, record
+from visit.tests.helpers.fakes import FakeDirectory, FakeLibrary, FakeMenus, FakeRecords, FakeVisits
 
 
 def _setup():
     visits, directory = FakeVisits(), FakeDirectory()
     directory.family(1, pets=(101, 102))
-    return visits, GetVisitInteractor(visits, visits, visits, FakeMenus(), directory)
+    return visits, GetVisitInteractor(visits, visits, visits, FakeMenus(), directory, FakeRecords(visits),
+                                      FakeLibrary())
+
+
+def _with_records():
+    visits, directory, library = FakeVisits(), FakeDirectory(), FakeLibrary()
+    directory.family(1, pets=(101,))
+    records = FakeRecords(visits)
+    for media_id in (51, 52, 61):
+        library.add(media_id, kind="video" if media_id == 61 else "photo", attached=True)
+    return visits, records, GetVisitInteractor(visits, visits, visits, FakeMenus(), directory, records, library)
 
 
 async def test_묶음_지난_방문_노쇼_횟수를_함께_준다():
@@ -44,3 +54,24 @@ async def test_다른_매장의_방문은_VISIT_NOT_FOUND_다():
     theirs = visits.seed(shop_id=2)
     with pytest.raises(VisitNotFoundError):
         await interactor.get_visit(GetVisitQuery(ctx=ctx(shop_id=1), visit_id=theirs.id))
+
+
+async def test_기록과_대표_사진_지난_방문의_대표_사진을_함께_준다():
+    visits, records, interactor = _with_records()
+    last = visits.seed(pet_id=101, starts_at=kst(9, 2, 14), status="completed", started_at=kst(9, 2, 14),
+                       completed_at=kst(9, 2, 15))
+    today = visits.seed(pet_id=101, starts_at=kst(9, 23, 14), status="in_progress", started_at=kst(9, 23, 14))
+    records.seed(record(last.id, media=((61, "video", "after", 0),)))
+    records.seed(record(today.id, media=((51, "photo", "before", 0), (52, "photo", "after", 0)),
+                        care_note="눈물 자국", version=3))
+    detail = await interactor.get_visit(GetVisitQuery(ctx=ctx(), visit_id=today.id))
+    assert (detail.record.care_note, detail.record.version, [m.media_id for m in detail.record.media]) == (
+        "눈물 자국", 3, [51, 52])
+    assert (detail.cover, detail.previous_visit.cover) == ("t/52", "t/61")
+
+
+async def test_기록이_없으면_record_와_cover_가_비어_있다():
+    visits, _, interactor = _with_records()
+    kong = visits.seed(pet_id=101, starts_at=kst(9, 23, 14))
+    detail = await interactor.get_visit(GetVisitQuery(ctx=ctx(), visit_id=kong.id))
+    assert (detail.record, detail.cover) == (None, None)

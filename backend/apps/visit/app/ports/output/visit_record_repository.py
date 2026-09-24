@@ -17,6 +17,11 @@ class VisitRecordRepository(ABC):
         """없거나 다른 매장의 방문이면 None."""
 
     @abstractmethod
+    async def list_many(self, ctx: ShopContext, visit_ids: list[int]) -> dict[int, VisitRecord]:
+        """기록이 있는 방문마다 기록 전체. 기록이 없는 방문은 키가 없다 — 상세·목록·달력의 '기록 있음'과
+        대표 사진을 방문 수와 상관없이 한 번에 읽는다."""
+
+    @abstractmethod
     async def save(self, ctx: ShopContext, record: VisitRecord) -> VisitRecord:
         """행이 없으면 넣고 있으면 바꾼다. 항목·미디어는 통째로 바꾼다. 버전은 부르는 쪽이 정해 넘긴다."""
 

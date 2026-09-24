@@ -61,3 +61,18 @@ async def test_지우면_항목과_미디어_연결도_함께_지워진다(db_se
     await repo.delete(A, visit_id)
     assert await repo.get(A, visit_id) is None
     await repo.save(A, _record(visit_id, media=[RecordMedia(7, "photo", "after", 0)]))   # 연결이 남았으면 유일 위반
+
+
+async def test_기록이_있는_방문마다_기록_전체를_한_번에_읽는다(db_session):
+    repo, visit_id, bath, _ = await _setup(db_session)
+    bare = await insert_visit(db_session, kst(9, 24, 14), "in_progress")
+    none = await insert_visit(db_session, kst(9, 25, 14), "in_progress")
+    await repo.save(A, _record(visit_id, items=[RecordItem(bath, 1)],
+                               media=[RecordMedia(7, "photo", "after", 0), RecordMedia(8, "photo", "before", 0)]))
+    await repo.save(A, _record(bare))
+    found = await repo.list_many(A, [visit_id, bare, none])
+    assert set(found) == {visit_id, bare}
+    assert (found[visit_id].media, found[visit_id].items, found[bare].media) == (
+        (RecordMedia(8, "photo", "before", 0), RecordMedia(7, "photo", "after", 0)), (RecordItem(bath, 1),), ())
+    assert await repo.list_many(B, [visit_id]) == {}
+    assert await repo.list_many(A, []) == {}

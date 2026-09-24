@@ -140,3 +140,26 @@ async def test_덧붙이기는_기록을_만들고_다시_보내도_한_번이�
     async with wired.engine.connect() as conn:
         attached = (await conn.execute(text("SELECT count(*) FROM media_objects WHERE attached_at IS NOT NULL"))).scalar()
     assert attached == 0
+
+
+async def test_상세_하루_달력이_기록과_대표_사진을_보여_준다(wired, media_storage):
+    shop_id, o, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    visit_id = await _visit(wired, shop_id, o, customer_id, pet_id)
+    before, after = await ready_photo(wired, shop_id, o), await ready_photo(wired, shop_id, o)
+    await wired.api.put(f"/v1/shops/{shop_id}/visits/{visit_id}/record", headers=o, json={
+        "care_note": "눈물 자국 관리", "media": [{"media_id": before, "phase": "before", "sort_order": 0},
+                                              {"media_id": after, "phase": "after", "sort_order": 0}]})
+    done = await wired.api.post(f"/v1/shops/{shop_id}/visits/transitions", headers=o,
+                                json={"visit_ids": [visit_id], "action": "complete"})
+    assert done.status_code == 200, done.text
+
+    detail = (await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}", headers=o)).json()
+    after_thumb = next(m["thumb_url"] for m in detail["record"]["media"] if m["media_id"] == after)
+    assert (detail["record"]["care_note"], detail["cover"]) == ("눈물 자국 관리", after_thumb)
+    day = _at(-1, 11)[:10]
+    item = (await wired.api.get(f"/v1/shops/{shop_id}/visits?date={day}", headers=o)).json()["items"][0]
+    assert (item["has_record"], item["cover"]) == (True, after_thumb)
+    calendar = (await wired.api.get(f"/v1/shops/{shop_id}/visits/calendar?month={day[:7]}", headers=o)).json()
+    that_day = next(d for d in calendar["days"] if d["date"] == day)
+    assert (that_day["cover"], that_day["covers"]) == (after_thumb, [after_thumb])

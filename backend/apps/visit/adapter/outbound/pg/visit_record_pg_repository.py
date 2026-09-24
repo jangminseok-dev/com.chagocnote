@@ -16,32 +16,41 @@ class VisitRecordPgRepository(VisitRecordRepository):
         self._session = session
 
     async def get(self, ctx: ShopContext, visit_id: int) -> VisitRecord | None:
-        row = (
+        return (await self.list_many(ctx, [visit_id])).get(visit_id)
+
+    async def list_many(self, ctx: ShopContext, visit_ids: list[int]) -> dict[int, VisitRecord]:
+        if not visit_ids:
+            return {}
+        rows = (
             await self._session.execute(
                 select(VisitRecordOrm)
                 .join(VisitOrm, VisitOrm.id == VisitRecordOrm.visit_id)
-                .where(VisitRecordOrm.visit_id == visit_id, VisitOrm.shop_id == ctx.shop_id)
+                .where(VisitRecordOrm.visit_id.in_(visit_ids), VisitOrm.shop_id == ctx.shop_id)
                 .execution_options(populate_existing=True)
             )
-        ).scalar_one_or_none()
-        return await self._assemble(row) if row is not None else None
+        ).scalars().all()
+        return await self._assemble(rows)
 
-    async def _assemble(self, row: VisitRecordOrm) -> VisitRecord:
-        visit_id = row.visit_id
-        items = (
-            await self._session.execute(
-                select(VisitRecordItemOrm).where(VisitRecordItemOrm.visit_id == visit_id)
-                .order_by(VisitRecordItemOrm.menu_id).execution_options(populate_existing=True)
-            )
-        ).scalars().all()
-        media = (
-            await self._session.execute(
-                select(VisitRecordMediaOrm).where(VisitRecordMediaOrm.visit_id == visit_id)
-                .order_by(VisitRecordMediaOrm.phase.desc(), VisitRecordMediaOrm.sort_order)   # before → after
+    async def _assemble(self, rows) -> dict[int, VisitRecord]:
+        """기록 행들에 항목·미디어를 한 번씩 읽어 붙인다(방문 수만큼 묻지 않는다)."""
+        ids = [row.visit_id for row in rows]
+        items: dict[int, list[VisitRecordItemOrm]] = {i: [] for i in ids}
+        media: dict[int, list[VisitRecordMediaOrm]] = {i: [] for i in ids}
+        if ids:
+            for item in (await self._session.execute(
+                select(VisitRecordItemOrm).where(VisitRecordItemOrm.visit_id.in_(ids))
+                .order_by(VisitRecordItemOrm.visit_id, VisitRecordItemOrm.menu_id)
                 .execution_options(populate_existing=True)
-            )
-        ).scalars().all()
-        return to_record(row, list(items), list(media))
+            )).scalars():
+                items[item.visit_id].append(item)
+            for m in (await self._session.execute(
+                select(VisitRecordMediaOrm).where(VisitRecordMediaOrm.visit_id.in_(ids))
+                .order_by(VisitRecordMediaOrm.visit_id, VisitRecordMediaOrm.phase.desc(),   # before → after
+                          VisitRecordMediaOrm.sort_order)
+                .execution_options(populate_existing=True)
+            )).scalars():
+                media[m.visit_id].append(m)
+        return {row.visit_id: to_record(row, items[row.visit_id], media[row.visit_id]) for row in rows}
 
     async def save(self, ctx: ShopContext, record: VisitRecord) -> VisitRecord:
         fields = dict(
@@ -73,7 +82,7 @@ class VisitRecordPgRepository(VisitRecordRepository):
                 .execution_options(populate_existing=True)
             )
         ).scalar_one()
-        return await self._assemble(row)
+        return (await self._assemble([row]))[record.visit_id]
 
     async def delete(self, ctx: ShopContext, visit_id: int) -> None:
         await self._session.execute(delete(VisitRecordOrm).where(VisitRecordOrm.visit_id == visit_id))

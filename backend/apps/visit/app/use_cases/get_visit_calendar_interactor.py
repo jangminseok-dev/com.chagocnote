@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import date, datetime
 
+from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.dtos.get_visit_calendar_dto import (
     CalendarDayView,
     GetVisitCalendarQuery,
@@ -13,20 +14,27 @@ from visit.app.dtos.get_visit_calendar_dto import (
 from visit.app.ports.input.get_visit_calendar_use_case import GetVisitCalendarUseCase
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.app.services.cover_reader import cover_urls
 from visit.domain.entities.visit import COMPLETED
 from visit.domain.errors import VisitInputError
 from visit.domain.services.visit_board import COUNTED, is_unresolved
 from visit.domain.services.visit_schedule import day_bounds, is_closed_day, local_date
 
+COVERS_PER_DAY = 4   # 미리보기 카드에 겹쳐 보이는 썸네일 수
+
 
 class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
-    """월 달력 — 날마다 마릿수·완료·예약·정리 안 됨, 휴무. 위쪽 '정리 안 된 예약 N건'은 매장 전체다."""
+    """월 달력 — 날마다 마릿수·완료·예약·정리 안 됨, 휴무, 대표 사진. 위쪽 '정리 안 된 예약 N건'은 매장 전체다."""
 
     def __init__(
-        self, board: VisitBoardRepository, schedule: ScheduleRepository, now: Callable[[], datetime]
+        self, board: VisitBoardRepository, schedule: ScheduleRepository, records: VisitRecordRepository,
+        library: MediaLibraryPort, now: Callable[[], datetime],
     ) -> None:
         self._board = board
         self._schedule = schedule
+        self._records = records
+        self._library = library
         self._now = now
 
     async def get_visit_calendar(self, query: GetVisitCalendarQuery) -> VisitCalendarView:
@@ -41,13 +49,17 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
         today = local_date(self._now(), tz)
 
         by_day = defaultdict(list)
-        for visit in await self._board.list_between(ctx, start, end):
+        month_visits = await self._board.list_between(ctx, start, end)   # 시작 순
+        for visit in month_visits:
             by_day[local_date(visit.starts_at, tz)].append(visit)
+        completed_ids = [v.id for v in month_visits if v.status == COMPLETED]
+        covers = await cover_urls(ctx, await self._records.list_many(ctx, completed_ids), self._library)
         closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, first_day, last_day))
         days = []
         for number in range(1, last + 1):
             day = date(query.year, query.month, number)
             visits = by_day[day]
+            day_covers = [covers[v.id] for v in visits if v.id in covers]   # 완료 방문만 covers 에 있다
             days.append(CalendarDayView(
                 date=day,
                 visit_count=sum(v.status in COUNTED for v in visits),
@@ -55,6 +67,8 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
                 open_count=sum(v.is_active for v in visits),
                 unresolved_count=sum(is_unresolved(v, today, tz) for v in visits),
                 closed_day=is_closed_day(day, settings, closed),
+                cover=day_covers[0] if day_covers else None,
+                covers=day_covers[:COVERS_PER_DAY],
             ))
         today_start, _ = day_bounds(today, tz)
         total, oldest = await self._board.unresolved_before(ctx, today_start)
