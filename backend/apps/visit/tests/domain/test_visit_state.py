@@ -104,3 +104,18 @@ def test_모르는_사유와_모르는_행동은_VALIDATION_ERROR_다():
         _apply("reserved", "cancel", reason="weather")
     with pytest.raises(VisitInputError):
         _apply("reserved", "teleport")
+
+
+def test_모든_행동은_바탕_상태의_메서드다():
+    """transition() 은 행동 이름으로 상태 객체의 메서드를 찾는다 — 이름을 ACTIONS 에만 더하면 여기서 걸린다."""
+    from visit.domain.state.visit_state import ACTIONS, VisitState
+
+    assert all(callable(getattr(VisitState, action, None)) for action in ACTIONS)
+
+
+def test_되돌리기만_반려동물을_가족_확인에_넘긴다():
+    from visit.domain.state.visit_state import pets_to_confirm
+
+    visits = [visit(id=1, pet_id=102), visit(id=2, pet_id=101), visit(id=3, pet_id=None)]
+    assert pets_to_confirm("revert", visits) == (101, 102)
+    assert all(pets_to_confirm(action, visits) == () for action in ("start", "complete", "cancel", "no_show"))
