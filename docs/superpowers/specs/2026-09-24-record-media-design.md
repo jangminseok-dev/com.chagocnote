@@ -6,6 +6,7 @@
 - 앞선 문서: `docs/superpowers/specs/2026-09-23-visit-reservation-design.md`(③-A), `_docs/decisions/006-visit-reservation.md`, `docs/superpowers/specs/2026-09-22-customer-pet-design.md`(②), `_docs/decisions/005-customer-pet.md`
 - 목업: `.superpowers/brainstorm/67059-1789889527/content/mono-tone.html`(달력 칸 대표 사진, 미리보기 카드, "하루 기록" 화면 — 기울어진 사진 넘기기·글래스 이름 카드·오늘의 케어)
 - 다음 단계: 이 문서가 승인되면 구현 계획을 다섯으로 작성한다(④-0 SOLID 정리 백엔드·앱 둘, ④-1 백엔드, ④-2 앱, ④-3 영상·음성).
+- 고친 것(2026-09-24, ④-0 병합 뒤 사용자 결정): 업로드를 기기에 저장되는 **업로드 대기열**로(10.2), 사진 하나를 기록 끝에 붙이는 **덧붙이기 API**와 그것이 전체 교체 PUT에 덮이지 않게 하는 **기록 버전**(6.1·8·9), 업로드 취소는 오류가 아니다(10.2), ④-0 앱에서 미룬 것의 자리(4.2 끝), ④-2 뒤 **오류 화면 다듬기**(14).
 
 ---
 
@@ -98,7 +99,7 @@
 | A12 | I | `visit_form`이 `customerDetailProvider` 전체를 watch하지만 `pets`만 쓴다. | `.select((d) => d.pets)`. |
 | A13 | L | 글래스 표면 두 구현이 반지름을 다르게 쓴다(하나는 `topLeft.x`만, 하나는 네 모서리). | 계약을 `double radius`로 좁힌다. 비대칭 반지름은 쓰지 않는다. |
 
-미루는 것은 없다. ④-0의 검증 기준: 백엔드 단위·통합·구조 계약 통과, 라우트 표 전후 동일, API JSON 전후 동일(통합 테스트가 보장), 앱 `flutter analyze` 0·테스트 전부 통과·골든 변경 없음(A10 위젯화로 픽셀이 달라지면 의도한 것만 갱신).
+④-0 앱에서 쓸 곳이 생길 때로 미룬 것(결정 기록 007 앱 절): A4의 `mediaPickerProvider`와 A6 이미지 로더, A9 ③ `core/plugs/`, `AfterComplete.record`, `visit_form.dart` 나누기는 ④-2에서, A4의 `speechRecognizerProvider`는 ④-3에서 한다. A9 ④ `ShopDataChanged`는 허용 방향이라 하지 않는다. 그 밖에 미룬 것은 없다. ④-0의 검증 기준: 백엔드 단위·통합·구조 계약 통과, 라우트 표 전후 동일, API JSON 전후 동일(통합 테스트가 보장), 앱 `flutter analyze` 0·테스트 전부 통과·골든 변경 없음(A10 위젯화로 픽셀이 달라지면 의도한 것만 갱신).
 
 ## 5. 백엔드 구조
 
@@ -164,6 +165,7 @@ apps/media/                       # 새 스포크. 소유: media_objects
 | `total_amount` | integer, null 가능, CHECK ≥ 0 | 받은 돈. 원본 |
 | `created_by_member_id`, `updated_by_member_id` | bigint | |
 | `created_at`, `updated_at` | timestamptz | |
+| `version` | integer NOT NULL, 기본 1, CHECK ≥ 1 | 기록을 바꿀 때마다(PUT·덧붙이기) 1씩 오른다. 전체 교체 PUT이 모르는 사이에 붙은 사진을 지우지 않게 한다(8절) |
 
 **`visit_record_items`** — (`visit_id` FK visit_records 삭제 시 함께, `menu_id` FK service_menus) PK, `amount` integer NOT NULL CHECK ≥ 0.
 
@@ -225,6 +227,8 @@ apps/media/                       # 새 스포크. 소유: media_objects
 
 - **기록은 미용 중·완료 방문에만 쓴다.** 예약됨·취소·노쇼면 409 `VISIT_NO_RECORD_YET`. 판단은 기록 인터랙터가 잠금 뒤 다시 읽은 상태로 한다. 상태 클래스에 행동을 더하지 않는다(4.1 B6와 같은 이유).
 - **PUT은 전체 교체다.** 항목·미디어 목록은 보낸 대로 바뀐다. 새로 든 미디어는 `claim`, 빠진 미디어는 `release` + 커밋 뒤 `discard`. 순서는 `sort_order`대로.
+- **PUT은 버전을 맞춰야 한다.** 요청의 `version`이 잠금 뒤 다시 읽은 기록의 `version`과 다르면 409 `RECORD_VERSION_CONFLICT`(기록이 없을 때는 `version`을 보내지 않는다; 기록이 있는데 안 보내도 409). 그 사이 대기열이 붙인 사진을 PUT이 모르고 지우는 일을 막는다. 앱은 409면 다시 읽어 폼에 없는 새 사진만 더한 뒤 다시 보낸다(사용자가 고친 칸은 그대로).
+- **덧붙이기**(`POST /visits/{visit_id}/record/media`)는 미디어 하나를 그 `phase`의 맨 뒤(`sort_order` = 그 칸의 최댓값 + 1)에 붙인다. 기록 행이 없으면 빈 기록을 만든다. 잠금·상태 규칙은 PUT과 같다(미용 중·완료만). 같은 `media_id`가 이미 이 기록에 있으면 아무것도 바꾸지 않고 200을 준다(대기열이 응답을 못 받고 다시 보내도 안전 — 멱등). 다른 기록에 붙어 있으면 409 `MEDIA_ALREADY_ATTACHED`. 한도(방문당 사진 30장·영상 3편)를 넘으면 422 `MEDIA_LIMIT_EXCEEDED`. 버전은 받지 않고 올린다.
 - **돈 칸**(`total_amount`·`items`·`payment_method`)이 비어 있지 않으면 인터랙터가 `ctx.permissions`에 `sales:write`가 있는지 확인한다(없으면 403). 라우터 가드는 `record:write`.
 - **몸무게 → 현재 몸무게.** 기록의 `weight_kg`를 저장할 때 그 방문이 그 아이의 가장 최근 방문(미용 중·완료, `starts_at` 기준)이면 같은 트랜잭션에서 `set_pet_weight`를 부른다. 판단은 고객 행 잠금 안에서 한다. 옛 기록을 고쳐도 현재 값은 안 바뀐다. 보호자만의 방문은 몸무게 칸이 없다(422).
 - **되돌리기는 막지 않는다.** 기록은 방문의 것이라 남는다. 피드·달력 대표 사진·프로필 사진·⑧은 완료 방문만 센다.
@@ -249,7 +253,8 @@ apps/media/                       # 새 스포크. 소유: media_objects
 
 | 메서드·경로 | 권한 | 하는 일 |
 |---|---|---|
-| `PUT /visits/{visit_id}/record` | `record:write` (+돈 칸이면 `sales:write`) | `{weight_kg?, care_note?, internal_note?, payment_method?, total_amount?, items: [{menu_id, amount}], media: [{media_id, phase, sort_order}]}` 전체 교체. 행이 없으면 만든다. 응답은 상세와 같은 `record` |
+| `PUT /visits/{visit_id}/record` | `record:write` (+돈 칸이면 `sales:write`) | `{version?, weight_kg?, care_note?, internal_note?, payment_method?, total_amount?, items: [{menu_id, amount}], media: [{media_id, phase, sort_order}]}` 전체 교체(`version`은 8절). 행이 없으면 만든다. 응답은 상세와 같은 `record` |
+| `POST /visits/{visit_id}/record/media` | `record:write` | `{media_id, phase}` 덧붙이기(8절). 응답은 상세와 같은 `record` |
 | `DELETE /visits/{visit_id}/record` | `record:write` | 기록 삭제. 없으면 404 `RECORD_NOT_FOUND` |
 | `GET /visits/feed?cursor=&limit=&pet_id=` | 멤버 | 완료 방문을 `completed_at` 역순으로. 항목: `visit_id`, 아이·보호자 요약, `cover`(썸네일 URL, null 가능), `completed_at`, 메뉴 이름들, `care_note` 앞 80자, `media_count`. `pet_id`로 그 아이만. 커서는 `(completed_at, visit_id)` |
 
@@ -264,7 +269,7 @@ apps/media/                       # 새 스포크. 소유: media_objects
 규칙과 오류 코드:
 - 다른 매장의 미디어 ID는 404. 요청 본문의 메뉴는 매장 대조 → 422 `MENU_NOT_FOUND`(기존).
 - media: `MEDIA_NOT_FOUND`(404), `MEDIA_NOT_UPLOADED`(409), `MEDIA_NOT_READY`(409), `MEDIA_ALREADY_ATTACHED`(409), `MEDIA_TOO_LARGE`(422), `MEDIA_TYPE_UNSUPPORTED`(422), `MEDIA_LIMIT_EXCEEDED`(422, 방문당 사진 30장·영상 3편).
-- visit: `VISIT_NO_RECORD_YET`(409), `RECORD_NOT_FOUND`(404), `RECORD_WEIGHT_WITHOUT_PET`(422), `RECORD_ITEM_DUPLICATE`(422).
+- visit: `VISIT_NO_RECORD_YET`(409), `RECORD_NOT_FOUND`(404), `RECORD_VERSION_CONFLICT`(409), `RECORD_WEIGHT_WITHOUT_PET`(422), `RECORD_ITEM_DUPLICATE`(422).
 - 입력 경계: `total_amount`·`amount` ≤ 100,000,000, `weight_kg` 0.1~999.9, `sort_order` 0~99, 메모 1000자, 미디어 목록 33개 이하, `phase`·`payment_method` Literal.
 
 ## 10. 앱
@@ -281,8 +286,12 @@ apps/media/                       # 새 스포크. 소유: media_objects
 
 ### 10.2 업로드 상태
 
-- 사진을 고르면 바로 시작한다: 리사이즈·EXIF 제거·렌디션 셋 → 발급 → PUT 셋 → 확인. 타일에 진행 링, 실패하면 [다시 / 빼기].
-- 업로드 컨트롤러는 방문 ID별 Notifier이고 화면을 떠나도 산다(`autoDispose` 아님, 완료·실패한 항목은 저장 뒤 비운다). 기록 저장은 확인 끝난 사진만 보내고, 올리는 중이면 "사진 올리는 중"으로 버튼을 막는다.
+업로드는 **기기에 저장되는 대기열**이다. 사진이 사라지지 않는 것이 이 앱의 첫째 약속이다.
+- 사진을 고르거나 찍으면 바로 리사이즈·EXIF 제거·렌디션 셋을 만들어 앱 전용 폴더에 쓰고, 대기열 항목(방문 ID·전/후·파일 경로·단계)을 기기에 저장한다. 그다음 발급 → PUT 셋 → 확인 → **덧붙이기**(8절)까지 백그라운드로 간다. 기록 화면을 다 쓸 때쯤이면 사진은 이미 기록에 붙어 있다.
+- 앱이 꺼지거나 인터넷이 끊겨도 다시 켜면 남은 단계부터 이어 간다. presigned URL이 만료됐거나(15분) 서버가 정리한 뒤면(24시간) 발급부터 다시 한다 — 로컬 파일이 원본이다. 실패하면 간격을 늘리며 스스로 다시 시도하고(1·2·4… 최대 5분), 인터넷이 돌아오면 바로 한 번 더 한다. 사진이 붙거나 사용자가 빼면 로컬 파일을 지운다.
+- 타일에 진행 링. 몇 번 실패해도 타일은 "대기 중"으로 남고 [빼기]만 준다(오류 화면을 띄우지 않는다). **취소는 오류가 아니다**: 사용자가 빼서 취소된 업로드는 `ApiException`의 `CANCELLED` 코드로 구분하고 아무 문구도 띄우지 않는다.
+- 업로드 중이어도 기록 저장·"완료하기"·"나중에 적고 완료"를 막지 않는다. 기록 PUT은 이미 붙은 사진 목록을 보내고, 남은 사진은 대기열이 덧붙이기로 붙인다. 폼이 모르는 사이 붙은 사진 때문에 PUT이 409 `RECORD_VERSION_CONFLICT`면 8절대로 다시 보낸다.
+- 대기열은 로그인한 사용자·매장별이다. 로그아웃·탈퇴하면 대기열과 로컬 파일을 지운다.
 - 업로드 전용 클라이언트(A5), 이미지 로더(A6), 플러그인 프로바이더(A4)를 쓴다. 화면은 플러그인을 모른다.
 
 ### 10.3 상태와 규칙
@@ -290,7 +299,7 @@ apps/media/                       # 새 스포크. 소유: media_objects
 - 기능 폴더 `lib/features/visit/{screens,state,api}`에 더한다. 새 위젯은 `design/widgets`에: `AppPhotoStrip`(기울어진 넘기기), `AppPhotoPager`, `AppProgressRing`, `AppErrorRetry`·`AppSheetAction`·`AppSearchField`(A10).
 - `record:write` 없으면 사진 추가·기록 수정을 숨기고, `sales:write` 없으면 돈 칸을 숨긴다(보안 경계는 서버 403).
 - 기록 저장·전이 뒤 그날 목록·그 달 요약·피드·상세·고객 프로필을 다시 읽는다(낙관적 갱신 금지, ③ 규칙). 교차 무효화는 A9의 신호로.
-- 오프라인·목록 캐시 없음. 사진 캐시는 표시용이며 상한 500MB.
+- 오프라인·목록 캐시 없음(업로드 대기열만 기기에 저장한다, 10.2). 사진 캐시는 표시용이며 상한 500MB.
 - 패키지 후보(계획 ④-2에서 버전·iOS 27 호환을 확인한 뒤 확정): 사진 선택 `image_picker`, 리사이즈·EXIF 제거 `flutter_image_compress`(또는 `image`), 캐시 `cached_network_image`(캐시 키 지정), 앨범 저장 `gal`, 영상 압축 `video_compress`, 재생 `video_player`, 음성 `speech_to_text`. 웹뷰 금지 규칙과 충돌하는 패키지는 쓰지 않는다.
 - iOS 권한 문자열: 카메라, 사진 보관함(읽기·추가), 마이크, 음성 인식. 안드로이드: 카메라, 미디어 읽기, 마이크.
 
@@ -323,18 +332,19 @@ apps/media/                       # 새 스포크. 소유: media_objects
 | M15 | S3 삭제 실패로 고아 객체가 남는다 | 커밋 뒤 백그라운드, 실패해도 행이 남아 정리 스크립트가 회수 |
 | M16 | 익명화한 고객의 기록 메모에 개인정보가 남는다 | `clear_customer_memos`가 기록 메모도 비운다 |
 | M17 | 기록 삭제와 크게 보기·저장이 겹친다 | 저장 쪽 404. 무해 |
-| M18 | 업로드 중인 앱을 죽이고 다시 연다 | 확인 안 된 객체는 버린다(앱에 재개 없음). 사용자가 다시 고른다 |
+| M18 | 업로드 중인 앱을 죽이고 다시 연다 | 기기에 저장된 대기열이 남은 단계부터 이어 간다(10.2). URL 이 만료됐거나 서버가 정리했으면 발급부터 다시. 덧붙이기는 같은 미디어를 다시 보내도 한 번(멱등) |
+| M19 | 폼이 기록을 읽은 뒤 대기열이 사진을 덧붙이고, 폼이 전체 교체로 저장해 그 사진을 지운다 | 기록 버전 — PUT 이 읽은 버전과 다르면 409 `RECORD_VERSION_CONFLICT`, 잠근 뒤 다시 읽은 버전으로 판정(8절) |
 
 ## 13. 테스트와 검증
 
 - **④-0**: 백엔드 단위·통합·구조 계약 전부 통과, 라우트 표 전후 동일, API JSON 전후 동일(통합 테스트가 보장). 앱 `flutter analyze` 0, 테스트 전부 통과, 골든은 의도한 것만 갱신. 새 테스트: 도메인 상태 집합 = CHECK 목록 대조, 스텁 ABC 상속(인스턴스화), `feature_imports_test.dart`, 라우터 가드 전수.
 - **백엔드 ④-1**
   - 도메인 단위: 대표 사진 규칙, 렌디션 키 규칙, 한도, 서명 만료 반올림, 상태 조건.
-  - 인터랙터: 스텁 포트. `claim` 개수 불일치 셋, 돈 칸 403, 몸무게 동기화 조건(최근 방문일 때만), 전체 교체의 release·discard 목록.
+  - 인터랙터: 스텁 포트. `claim` 개수 불일치 셋, 돈 칸 403, 몸무게 동기화 조건(최근 방문일 때만), 전체 교체의 release·discard 목록, 버전 불일치 409, 덧붙이기(맨 뒤 순서·빈 기록 생성·같은 미디어 멱등·한도).
   - 통합(실제 Postgres + compose의 MinIO): 첫 테스트는 테넌트 격리(M1). 발급 → 실제 PUT → 확인 → 기록 PUT → 상세·하루·달력·피드 → 사진 빼기 → 정리 스크립트. 잠금(M7)은 "막힌 호출을 `create_task`로 쥐고 결과를 본다" + 잠금을 빼는 변이로 실패 확인(① 교훈). 동시 확인(M13), 익명화(M16).
   - 스키마 드리프트, 구조 계약(import-linter가 새 스포크를 자동 포함, media→다른 스포크 0건), 라우트 구조 검사, `scripts/check_media_flow.sh`(게이트웨이 경유, curl로 PUT).
 - **앱 ④-2**
-  - 컨트롤러·API 테스트(가짜 어댑터): 업로드 컨트롤러 상태 전이(발급→PUT→확인, 실패·재시도·빼기), 기록 폼 규칙(미리 채움·총액·권한별 칸), 피드 커서.
+  - 컨트롤러·API 테스트(가짜 어댑터): 업로드 대기열 상태 전이(발급→PUT→확인→덧붙이기, 실패·재시도·빼기·취소는 조용히, 앱 재시작 뒤 이어 가기, URL 만료 뒤 재발급, 버전 충돌 뒤 다시 보내기), 기록 폼 규칙(미리 채움·총액·권한별 칸), 피드 커서.
   - 위젯·골든: 기록 화면, 사진 넘기기, 피드 카드, 달력 칸(대표 사진), 미리보기 카드, 크게 보기.
   - `flutter analyze` 0.
 - **완료 기준**(시뮬레이터 + 실서버, 앨범 사진으로): 시작 → 전 사진 2장 → 완료 → 기록 화면(몸무게·메뉴·총액·결제·메모) → 완료하기 → 다음 예약 시트 → 상세 넘기기·크게 보기·원본 저장 → 대표 바꾸기·전/후 바꾸기·삭제 → 피드 → 달력 대표 사진·미리보기 → 반려동물 상세 프로필·[기록] 탭 → 직원 계정에서 돈 칸 → 되돌리기 뒤 기록 유지 → "나중에 적고 완료". 카메라·마이크·영상은 실기기.
@@ -342,8 +352,9 @@ apps/media/                       # 새 스포크. 소유: media_objects
 ## 14. 구현 계획 나누기
 
 - **④-0 SOLID 정리** — 백엔드(B1~B8)와 앱(A1~A13) 두 계획. 서로 독립이라 병렬 가능. 기능 코드 없음. 검증은 13절 첫 줄.
-- **④-1 백엔드** — 허브 오류·포트 확장 → media 스포크(표·마이그레이션·S3 포트·boto3 어댑터·발급·확인·`MediaLibraryPort` 구현) → 메뉴 가격 → 기록 저장소 포트·기록 PUT/DELETE·`completion_effects` 몸무게 → 상세·하루·달력·피드 → customer 프로필 사진·`set_pet_weight`·익명화 → 스크립트 둘(버킷 준비·정리) → 통합·흐름 스크립트 → 규칙 문서(`media/CLAUDE.md`, `visit/CLAUDE.md`, `_docs/harness.md`) → 결정 기록 007.
-- **④-2 앱** — 플러그인 프로바이더·업로드 클라이언트·이미지 로더 → 메뉴 가격 → 업로드 컨트롤러 → 기록 화면·완료 흐름 → 상세 넘기기·크게 보기 → 피드 토글·피드 → 달력 대표 사진·미리보기 → 고객 탭 프로필·[기록] 탭 → 시뮬레이터 흐름 → 결정 기록 007에 더함.
+- **④-1 백엔드** — 허브 오류·포트 확장 → media 스포크(표·마이그레이션·S3 포트·boto3 어댑터·발급·확인·`MediaLibraryPort` 구현) → 메뉴 가격 → 기록 저장소 포트·기록 PUT(버전)/덧붙이기/DELETE·`completion_effects` 몸무게 → 상세·하루·달력·피드 → customer 프로필 사진·`set_pet_weight`·익명화 → 스크립트 둘(버킷 준비·정리) → 통합·흐름 스크립트 → 규칙 문서(`media/CLAUDE.md`, `visit/CLAUDE.md`, `_docs/harness.md`) → 결정 기록 007.
+- **④-2 앱** — 플러그인 프로바이더·이미지 로더·`CANCELLED` 코드 → 메뉴 가격 → 업로드 대기열(기기 저장·이어 가기·자동 재시도·덧붙이기) → 기록 화면·완료 흐름 → 상세 넘기기·크게 보기 → 피드 토글·피드 → 달력 대표 사진·미리보기 → 고객 탭 프로필·[기록] 탭 → 시뮬레이터 흐름 → 결정 기록 007에 더함.
+- **오류 화면 다듬기**(④-2 뒤, 작은 계획) — 원인별 문구(인터넷 없음·서버·권한), 인터넷이 돌아오면 자동 다시 불러오기, 이미 받은 데이터는 그대로 두고 위에 얇은 띠, 스플래시 오류 안내, `AppErrorRetry` 21곳 문구 통일. ④-0에서 모양이 달라진 오류 상태 세 곳은 이때 함께 본다.
 - **④-3 영상·음성** — 영상 압축·포스터·업로드·재생·저장, 음성 받아쓰기, 권한 문자열, 실기기 확인(카메라·마이크·영상·멀티파트 판단).
 
 계획서 코드는 ③처럼 참조 작업 트리(`.superpowers/ref/`)에서 먼저 돌려 검증한 뒤 옮긴다. 작업별 검토는 계획서 코드를 검토 안 된 것으로 보고 12절을 기준으로 판단한다.
