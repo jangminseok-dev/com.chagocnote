@@ -43,7 +43,17 @@ class MenuPgRepository(MenuRepository):
         ).scalars()
         return [to_menu(row) for row in rows]
 
-    async def create(self, ctx: ShopContext, name: str, default_duration_minutes: int | None) -> Menu:
+    async def list_by_ids(self, ctx: ShopContext, menu_ids: list[int]) -> list[Menu]:
+        rows = (
+            await self._session.execute(
+                select(ServiceMenuOrm).where(ServiceMenuOrm.id.in_(menu_ids), ServiceMenuOrm.shop_id == ctx.shop_id)
+            )
+        ).scalars()
+        return [to_menu(row) for row in rows]
+
+    async def create(
+        self, ctx: ShopContext, name: str, default_duration_minutes: int | None, price: int | None
+    ) -> Menu:
         next_order = (
             select(func.least(func.coalesce(func.max(ServiceMenuOrm.sort_order), 0) + 1, 32_767))
             .where(ServiceMenuOrm.shop_id == ctx.shop_id)
@@ -54,7 +64,7 @@ class MenuPgRepository(MenuRepository):
                 await self._session.execute(
                     insert(ServiceMenuOrm)
                     .values(shop_id=ctx.shop_id, name=name,
-                            default_duration_minutes=default_duration_minutes, sort_order=next_order)
+                            default_duration_minutes=default_duration_minutes, sort_order=next_order, price=price)
                     .returning(ServiceMenuOrm.id)
                 )
             ).scalar_one()
@@ -62,13 +72,14 @@ class MenuPgRepository(MenuRepository):
 
     async def update(
         self, ctx: ShopContext, menu_id: int, name: str, default_duration_minutes: int | None,
-        sort_order: int,
+        sort_order: int, price: int | None,
     ) -> Menu:
         async with self._name_guard():
             await self._session.execute(
                 update(ServiceMenuOrm)
                 .where(ServiceMenuOrm.id == menu_id, ServiceMenuOrm.shop_id == ctx.shop_id)
-                .values(name=name, default_duration_minutes=default_duration_minutes, sort_order=sort_order)
+                .values(name=name, default_duration_minutes=default_duration_minutes, sort_order=sort_order,
+                        price=price)
             )
         return await self._get(ctx, menu_id)
 

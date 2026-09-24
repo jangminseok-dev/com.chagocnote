@@ -18,6 +18,8 @@ from customer.domain.entities.condition_type import ConditionType
 from customer.domain.entities.customer import Customer
 from customer.domain.entities.pet import Pet, PetCondition
 from customer.domain.errors import CustomerNotFoundError, CustomerPhoneTakenError, PetNotFoundError
+from hub.app.dtos.media_urls import MediaUrls
+from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 TODAY = date(2026, 9, 22)
@@ -147,6 +149,10 @@ class FakePets(PetRepository):
         self.journal.append(("set_passed_away", pet_id, passed_away))
         return self.rows[pet_id]
 
+    async def set_weight(self, ctx, pet_id, weight_kg):
+        self.rows[pet_id] = replace(self._owned(ctx, pet_id), weight_kg=weight_kg)
+        self.journal.append(("set_weight", pet_id, weight_kg))
+
     async def count_for_customer(self, ctx, customer_id):
         return len([p for p in self.rows.values() if p.customer_id == customer_id])
 
@@ -208,6 +214,7 @@ class FakeLedger(VisitLedgerPort):
         self.customers_with_upcoming: set[int] = set()
         self.no_shows: dict[int, int] = {}
         self.upcoming: dict[int, list] = {}
+        self.covers: dict[int, int] = {}   # 반려동물 ID → 대표 사진 media_id
 
     async def pet_has_visits(self, ctx, pet_id):
         return pet_id in self.pets_with_visits | self.pets_with_upcoming
@@ -226,6 +233,27 @@ class FakeLedger(VisitLedgerPort):
 
     async def clear_customer_memos(self, ctx, customer_id):
         self.journal.append(("clear_visit_memos", customer_id))
+
+    async def latest_covers(self, ctx, pet_ids):
+        self.journal.append(("latest_covers", sorted(pet_ids)))
+        return {p: self.covers[p] for p in pet_ids if p in self.covers}
+
+
+class FakeLibrary(MediaLibraryPort):
+    """MediaLibraryPort 스텁 — customer 는 읽기 URL 만 쓴다. ready 는 URL 을 줄 수 있는 media_id 들이다."""
+
+    def __init__(self) -> None:
+        self.ready: set[int] = set()
+
+    async def claim(self, ctx, media_ids):
+        raise AssertionError("customer 는 미디어를 가져가지 않는다")
+
+    async def release(self, ctx, media_ids):
+        raise AssertionError("customer 는 미디어를 놓지 않는다")
+
+    async def read_urls(self, ctx, media_ids):
+        return {i: MediaUrls(media_id=i, kind="photo", original_url=f"o/{i}", display_url=f"d/{i}", thumb_url=f"t/{i}",
+                             width=3000, height=2000, duration_seconds=None) for i in media_ids if i in self.ready}
 
 
 def family():

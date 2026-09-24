@@ -5,7 +5,7 @@ import pytest
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
-from visit.domain.errors import VisitDuplicateError, VisitNotFoundError
+from visit.domain.errors import VisitDuplicateError, VisitInputError, VisitNotFoundError
 from visit.domain.state.visit_state import StatusChange
 from visit.domain.value_objects.new_visit import NewVisit
 from visit.tests.helpers.builders import ctx, kst
@@ -189,3 +189,34 @@ async def test_장부_질문들(db_session):
     await repo.clear_memos(A, 1)
     assert {v.memo for v in await repo.list_between(A, kst(9, 1), kst(11, 1))} == {None}
     assert [v.memo for v in await repo.list_between(B, kst(9, 1), kst(11, 1))] == ["남의"]
+
+
+async def test_그_아이의_가장_최근_시작한_방문(db_session):
+    repo = VisitPgRepository(db_session)
+    assert await repo.latest_started_of_pet(A, 101) is None
+    await insert_visit(db_session, kst(9, 1, 14), "completed")
+    latest = await insert_visit(db_session, kst(9, 20, 14), "in_progress")
+    await insert_visit(db_session, kst(9, 25, 14), "reserved")
+    await insert_visit(db_session, kst(9, 22, 14), "canceled")
+    await insert_visit(db_session, kst(9, 21, 14), "completed", shop_id=2)
+    assert await repo.latest_started_of_pet(A, 101) == latest
+
+
+async def test_피드는_완료_시각_역순이고_커서로_이어_읽는다(db_session):
+    repo = VisitPgRepository(db_session)
+    first = await insert_visit(db_session, kst(9, 1, 14), "completed")
+    tie_low = await insert_visit(db_session, kst(9, 2, 14), "completed")
+    tie_high = await insert_visit(db_session, kst(9, 2, 14), "completed", pet_id=102)   # 같은 완료 시각
+    await insert_visit(db_session, kst(9, 3, 14), "in_progress")
+    await insert_visit(db_session, kst(9, 4, 14), "completed", shop_id=2)
+    page = await repo.list_completed(A, None, 2, None)
+    rest = await repo.list_completed(A, page.next_cursor, 2, None)
+    assert ([v.id for v in page.visits], [v.id for v in rest.visits], rest.next_cursor) == (
+        [tie_high, tie_low], [first], None)
+    assert [v.id for v in (await repo.list_completed(A, None, 5, 102)).visits] == [tie_high]
+
+
+async def test_피드_커서가_틀리면_VisitInputError(db_session):
+    for bad in ("zz", "W10", "WyIyMDI2LTA5LTAxVDA1OjAwOjAwIiwgMV0"):   # 깨진 값, 빈 목록, 시간대 없는 시각
+        with pytest.raises(VisitInputError):
+            await VisitPgRepository(db_session).list_completed(A, bad, 5, None)

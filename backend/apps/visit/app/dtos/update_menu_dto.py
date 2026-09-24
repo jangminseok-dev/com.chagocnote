@@ -12,3 +12,4 @@ class UpdateMenuCommand:
     name: str
     default_duration_minutes: int | None
     sort_order: int
+    price: int | None

@@ -39,7 +39,13 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
 from customer.dependencies.hub_ports import get_visit_ledger
+from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
+from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_router
+from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
+from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
+from media.dependencies.media_library_provider import get_media_library_use_case
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -59,9 +65,11 @@ from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_
 from tenancy.dependencies.resolve_shop_access_provider import get_resolve_shop_access_use_case
 from visit.adapter.inbound.api.error_map import VISIT_ERROR_STATUS
 from visit.adapter.inbound.api.v1.add_closed_date_router import add_closed_date_router
+from visit.adapter.inbound.api.v1.append_record_media_router import append_record_media_router
 from visit.adapter.inbound.api.v1.archive_menu_router import archive_menu_router
 from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
+from visit.adapter.inbound.api.v1.delete_visit_record_router import delete_visit_record_router
 from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_visit_draft_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
@@ -70,8 +78,10 @@ from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_set
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
 from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_router
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
+from visit.adapter.inbound.api.v1.list_visit_feed_router import list_visit_feed_router
 from visit.adapter.inbound.api.v1.list_visit_slots_router import list_visit_slots_router
 from visit.adapter.inbound.api.v1.parse_visit_draft_router import parse_visit_draft_router
+from visit.adapter.inbound.api.v1.put_visit_record_router import put_visit_record_router
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
 from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
@@ -80,6 +90,7 @@ from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
 from visit.dependencies.hub_ports import get_customer_directory
+from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 
 
@@ -134,9 +145,10 @@ app.include_router(list_menus_router)
 app.include_router(create_menu_router)
 app.include_router(update_menu_router)
 app.include_router(archive_menu_router)
-# /visits/myself·calendar·slots·defaults 는 /visits/{visit_id} 보다 먼저 붙인다(정수 변환 실패 422 를 피한다).
+# /visits/myself·calendar·slots·defaults·feed 는 /visits/{visit_id} 보다 먼저 붙인다(정수 변환 실패 422 를 피한다).
 app.include_router(visit_myself_router)
 app.include_router(get_visit_calendar_router)
+app.include_router(list_visit_feed_router)
 app.include_router(list_visit_slots_router)
 app.include_router(get_visit_defaults_router)
 app.include_router(list_day_visits_router)
@@ -147,11 +159,18 @@ app.include_router(parse_visit_draft_router)
 app.include_router(get_visit_router)
 app.include_router(update_visit_router)
 app.include_router(get_next_visit_draft_router)
+app.include_router(put_visit_record_router)
+app.include_router(append_record_media_router)
+app.include_router(delete_visit_record_router)
+# media
+app.include_router(media_myself_router)
+app.include_router(issue_upload_router)
+app.include_router(confirm_upload_router)
 install_error_handlers(
     app,
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
-        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS,
+        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS,
     },
 )
 
@@ -164,6 +183,8 @@ app.dependency_overrides[get_membership_directory] = get_list_memberships_use_ca
 app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
+app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
+app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
 
 
 @app.get("/health")

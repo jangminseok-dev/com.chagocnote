@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import delete, func, insert, select, tuple_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,20 +14,40 @@ from hub.app.dtos.shop_context import ShopContext
 from visit.adapter.outbound.mappers.visit_mapper import to_visit
 from visit.adapter.outbound.orm.visit_orm import VisitMenuOrm, VisitOrm
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.entities.visit import ACTIVE_STATUSES, COMPLETED, NO_SHOW, RESERVED, Visit
-from visit.domain.errors import VisitDuplicateError, VisitNotFoundError
+from visit.domain.errors import VisitDuplicateError, VisitInputError, VisitNotFoundError
 from visit.domain.services.visit_schedule import MAX_DURATION
 from visit.domain.state.visit_state import StatusChange
+from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.new_visit import NewVisit
 
 _DUPLICATE = {"uq_visits_pet_start_active", "uq_visits_customer_start_active"}
 
 
-class VisitPgRepository(VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository):
-    """visits 표 하나를 다섯 포트로 내놓는다 — 유스케이스는 자기가 쓰는 포트만 받는다(ISP)."""
+def _encode_feed_cursor(completed_at: datetime, visit_id: int) -> str:
+    raw = json.dumps([completed_at.isoformat(), visit_id]).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def _decode_feed_cursor(cursor: str) -> tuple[datetime, int]:
+    try:
+        completed_at, visit_id = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+        moment = datetime.fromisoformat(completed_at)
+        if moment.tzinfo is None or type(visit_id) is not int or not 1 <= visit_id <= 2**63 - 1:
+            raise ValueError
+        return moment, visit_id
+    except (ValueError, TypeError, OverflowError, binascii.Error, UnicodeDecodeError):
+        raise VisitInputError("목록 위치(cursor)가 올바르지 않습니다.") from None
+
+
+class VisitPgRepository(
+    VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository, VisitFeedRepository,
+):
+    """visits 표 하나를 여섯 포트로 내놓는다 — 유스케이스는 자기가 쓰는 포트만 받는다(ISP)."""
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -159,6 +182,17 @@ class VisitPgRepository(VisitWriteRepository, VisitHistoryRepository, VisitLedge
         )
         return found[0] if found else None
 
+    async def latest_started_of_pet(self, ctx: ShopContext, pet_id: int) -> int | None:
+        return (
+            await self._session.execute(
+                select(VisitOrm.id)
+                .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id == pet_id,
+                       VisitOrm.status.in_(STARTED_STATUSES))
+                .order_by(VisitOrm.starts_at.desc(), VisitOrm.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
     async def completed_starts(
         self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
     ) -> list[datetime]:
@@ -244,6 +278,26 @@ class VisitPgRepository(VisitWriteRepository, VisitHistoryRepository, VisitLedge
             ),
         )
         return [v for v in rows if v.ends_at > start]
+
+    async def list_completed(
+        self, ctx: ShopContext, cursor: str | None, limit: int, pet_id: int | None
+    ) -> FeedPage:
+        stmt = select(VisitOrm.id, VisitOrm.completed_at).where(
+            VisitOrm.shop_id == ctx.shop_id, VisitOrm.status == COMPLETED
+        )
+        if pet_id is not None:
+            stmt = stmt.where(VisitOrm.pet_id == pet_id)
+        if cursor is not None:
+            stmt = stmt.where(tuple_(VisitOrm.completed_at, VisitOrm.id) < tuple_(*_decode_feed_cursor(cursor)))
+        rows = (
+            await self._session.execute(
+                stmt.order_by(VisitOrm.completed_at.desc(), VisitOrm.id.desc()).limit(limit + 1)
+            )
+        ).all()
+        page = rows[:limit]
+        found = {v.id: v for v in await self.get_many(ctx, [visit_id for visit_id, _ in page])}
+        next_cursor = _encode_feed_cursor(page[-1][1], page[-1][0]) if len(rows) > limit else None
+        return FeedPage(visits=[found[visit_id] for visit_id, _ in page], next_cursor=next_cursor)
 
     async def _read(self, ctx: ShopContext, stmt) -> list[Visit]:
         rows = (

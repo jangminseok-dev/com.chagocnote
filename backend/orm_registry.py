@@ -8,3 +8,4 @@ import auth.adapter.outbound.orm.operator_orm  # noqa: F401
 import tenancy.adapter.outbound.orm.tenancy_orm  # noqa: F401
 import customer.adapter.outbound.orm.customer_orm  # noqa: F401
 import visit.adapter.outbound.orm.visit_orm  # noqa: F401
+import media.adapter.outbound.orm.media_orm  # noqa: F401

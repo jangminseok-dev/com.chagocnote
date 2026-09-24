@@ -14,6 +14,8 @@ class CalendarDaySchema(BaseModel):
     open_count: int
     unresolved_count: int
     closed_day: bool
+    cover: str | None   # 그날 완료 방문의 첫 대표 사진 썸네일 URL
+    covers: list[str]   # 미리보기 카드 — 최대 4장
 
 
 class VisitCalendarSchema(BaseModel):

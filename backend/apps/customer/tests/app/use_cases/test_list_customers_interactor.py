@@ -3,7 +3,7 @@ from customer.app.dtos.list_customers_dto import ListCustomersQuery
 from customer.app.use_cases.list_customers_interactor import ListCustomersInteractor
 from customer.domain.entities.pet import PetCondition
 from customer.domain.services.search_terms import SearchWord
-from customer.tests.helpers.fakes import FakeSearch, family, today
+from customer.tests.helpers.fakes import FakeLedger, FakeLibrary, FakeSearch, family, today
 from customer.tests.helpers.profiles import ctx
 
 
@@ -21,7 +21,7 @@ def _setup():
     pets.seed(kim.id, "별이", passed_away=True)
     pets.seed(park.id, "보리")
     search = FakeSearch(journal, SearchPage(customer_ids=[park.id, kim.id], next_cursor="next"), pet_count=2)
-    return kim, park, search, ListCustomersInteractor(customers, pets, search, today)
+    return kim, park, search, ListCustomersInteractor(customers, pets, search, FakeLedger(journal), FakeLibrary(), today)
 
 
 async def test_검색_순서대로_가족_카드를_만들고_번호는_가린다():
@@ -49,5 +49,18 @@ async def test_검색_줄에_있어도_원본에_없는_가족은_빼고_원본�
     kim = customers.seed()
     pets.seed(kim.id)
     search = FakeSearch(journal, SearchPage(customer_ids=[999, kim.id], next_cursor=None))
-    view = await ListCustomersInteractor(customers, pets, search, today).list_customers(_query())
+    view = await ListCustomersInteractor(customers, pets, search, FakeLedger(journal), FakeLibrary(),
+                                         today).list_customers(_query())
     assert [c.customer_id for c in view.items] == [kim.id]
+
+
+async def test_반려동물_줄마다_프로필_사진을_페이지_한_번에_묻는다():
+    journal, customers, pets, _, _ = family()
+    kim, park = customers.seed(), customers.seed(name="박서준", phone="0212345678")
+    kong, bori = pets.seed(kim.id, "콩이"), pets.seed(park.id, "보리")
+    ledger, library = FakeLedger(journal), FakeLibrary()
+    ledger.covers, library.ready = {kong.id: 51}, {51}
+    search = FakeSearch(journal, SearchPage(customer_ids=[kim.id, park.id], next_cursor=None))
+    view = await ListCustomersInteractor(customers, pets, search, ledger, library, today).list_customers(_query())
+    assert [(p.name, p.photo) for c in view.items for p in c.pets] == [("콩이", "t/51"), ("보리", None)]
+    assert [e for e in journal if e[0] == "latest_covers"] == [("latest_covers", sorted([kong.id, bori.id]))]

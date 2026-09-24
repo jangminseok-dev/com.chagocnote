@@ -24,6 +24,7 @@ class PetSummaryView:
     age_label: str
     has_conditions: bool
     passed_away: bool
+    photo: str | None   # 프로필 사진 썸네일 URL
 
 
 @dataclass(frozen=True)

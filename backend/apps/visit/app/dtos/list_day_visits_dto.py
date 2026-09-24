@@ -44,6 +44,8 @@ class DayVisitItemView:
     group_key: str      # 가족 묶음 — 같은 값끼리 한 카드로 묶는다
     overlapping: bool   # 다른 묶음과 시간이 겹친다
     unresolved: bool    # 지난 날인데 아직 예약됨
+    has_record: bool    # 미용 기록이 있다
+    cover: str | None   # 대표 사진 썸네일
 
 
 @dataclass(frozen=True)

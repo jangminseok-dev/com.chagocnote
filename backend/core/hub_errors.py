@@ -10,6 +10,9 @@ from hub.app.errors import (
     FamilyNotFoundError,
     FamilyPetNotFoundError,
     FamilyPetPassedAwayError,
+    MediaClaimAlreadyAttachedError,
+    MediaClaimNotFoundError,
+    MediaClaimNotReadyError,
     ShopAccessClosedError,
     ShopAccessDeniedError,
     ShopAccessSuspendedError,
@@ -26,4 +29,7 @@ HUB_ERROR_STATUS: dict[type[Exception], int] = {
     ShopAccessSuspendedError: 403,
     WithdrawalOwnershipTransferRequiredError: 409,
     WithdrawalShopCloseConfirmRequiredError: 409,
+    MediaClaimNotFoundError: 404,
+    MediaClaimNotReadyError: 409,
+    MediaClaimAlreadyAttachedError: 409,
 }

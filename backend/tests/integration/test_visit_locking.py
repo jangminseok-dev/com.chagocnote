@@ -22,6 +22,7 @@ from hub.app.errors import FamilyNotFoundError
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
+from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.app.dtos.register_visit_dto import RegisterVisitCommand
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
 from visit.app.use_cases.register_visit_interactor import RegisterVisitInteractor
@@ -67,7 +68,7 @@ def _transition(session, visit_ids, action, reason=None):
 
 
 def _anonymize(session, customer_id):
-    ledger = VisitLedgerInteractor(VisitPgRepository(session), now=lambda: NOW)
+    ledger = VisitLedgerInteractor(VisitPgRepository(session), VisitRecordPgRepository(session), now=lambda: NOW)
     return DeleteCustomerInteractor(CustomerPgRepository(session), CustomerSearchPgAdapter(session), ledger) \
         .delete_customer(DeleteCustomerCommand(ctx=SHOP, customer_id=customer_id))
 

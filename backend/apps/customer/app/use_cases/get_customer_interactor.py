@@ -10,6 +10,8 @@ from customer.app.ports.input.get_customer_use_case import GetCustomerUseCase
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.detail_reader import read_customer_detail
+from customer.app.services.pet_photos import pet_photos
+from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 UPCOMING_LIMIT = 3
@@ -18,11 +20,12 @@ UPCOMING_LIMIT = 3
 class GetCustomerInteractor(GetCustomerUseCase):
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository, ledger: VisitLedgerPort,
-        today: Callable[[], date],
+        library: MediaLibraryPort, today: Callable[[], date],
     ) -> None:
         self._customers = customers
         self._pets = pets
         self._ledger = ledger
+        self._library = library
         self._today = today
 
     async def get_customer(self, query: GetCustomerQuery) -> CustomerOverviewView:
@@ -40,4 +43,5 @@ class GetCustomerInteractor(GetCustomerUseCase):
                                   starts_at=u.starts_at.astimezone(zone))
                 for u in upcoming
             ],
+            photos=await pet_photos(ctx, [pet.pet_id for pet in detail.pets], self._ledger, self._library),
         )

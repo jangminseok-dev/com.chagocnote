@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -9,6 +10,8 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
+    Numeric,
     SmallInteger,
     String,
     Time,
@@ -95,6 +98,7 @@ class ServiceMenuOrm(Base):
             + _DURATION_RULE.format(col="default_duration_minutes"),
             name="ck_service_menus_duration",
         ),
+        CheckConstraint("price IS NULL OR price BETWEEN 0 AND 100000000", name="ck_service_menus_price"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -103,6 +107,7 @@ class ServiceMenuOrm(Base):
     default_duration_minutes: Mapped[int | None] = mapped_column(SmallInteger)
     sort_order: Mapped[int] = mapped_column(SmallInteger)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    price: Mapped[int | None] = mapped_column(Integer)   # 정가(원). NULL 이면 가격 미정
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -172,3 +177,71 @@ class VisitMenuOrm(Base):
         ForeignKey("visits.id", ondelete="CASCADE"), primary_key=True
     )
     menu_id: Mapped[int] = mapped_column(ForeignKey("service_menus.id"), primary_key=True)
+
+
+class VisitRecordOrm(Base):
+    """방문 하나의 미용 기록(설계 6.1). 행이 있다는 것이 곧 '기록이 있다'이다."""
+
+    __tablename__ = "visit_records"
+    __table_args__ = (
+        CheckConstraint("weight_kg IS NULL OR weight_kg > 0", name="ck_visit_records_weight"),
+        CheckConstraint(
+            "payment_method IS NULL OR payment_method IN ('card', 'cash', 'transfer')",
+            name="ck_visit_records_payment_method",
+        ),
+        CheckConstraint(
+            "total_amount IS NULL OR total_amount BETWEEN 0 AND 100000000", name="ck_visit_records_total_amount"
+        ),
+        CheckConstraint("version >= 1", name="ck_visit_records_version"),
+    )
+
+    visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id", ondelete="CASCADE"), primary_key=True)
+    weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(4, 1))
+    care_note: Mapped[str | None] = mapped_column(String(1000))       # 공개 — ⑤ 알림장
+    internal_note: Mapped[str | None] = mapped_column(String(1000))   # 매장 안에서만
+    payment_method: Mapped[str | None] = mapped_column(String(10))
+    total_amount: Mapped[int | None] = mapped_column(Integer)         # 받은 돈. 항목 합과 다를 수 있다(할인)
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    # tenancy 의 멤버 ID.
+    created_by_member_id: Mapped[int] = mapped_column(BigInteger)
+    updated_by_member_id: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class VisitRecordItemOrm(Base):
+    """실제로 한 메뉴와 금액. 예약 메뉴(visit_menus)와 다른 사실이다."""
+
+    __tablename__ = "visit_record_items"
+    __table_args__ = (
+        CheckConstraint("amount BETWEEN 0 AND 100000000", name="ck_visit_record_items_amount"),
+    )
+
+    visit_id: Mapped[int] = mapped_column(
+        ForeignKey("visit_records.visit_id", ondelete="CASCADE"), primary_key=True
+    )
+    menu_id: Mapped[int] = mapped_column(ForeignKey("service_menus.id"), primary_key=True)
+    amount: Mapped[int] = mapped_column(Integer)
+
+
+class VisitRecordMediaOrm(Base):
+    """기록에 붙은 사진·영상. media_id 는 media 스포크의 ID 라 외래 키가 없다 — 정합성은 가져가기(claim)가 지킨다."""
+
+    __tablename__ = "visit_record_media"
+    __table_args__ = (
+        CheckConstraint("kind IN ('photo', 'video')", name="ck_visit_record_media_kind"),
+        CheckConstraint("phase IN ('before', 'after')", name="ck_visit_record_media_phase"),
+        CheckConstraint("sort_order BETWEEN 0 AND 99", name="ck_visit_record_media_sort_order"),
+        Index("uq_visit_record_media_order", "visit_id", "phase", "sort_order", unique=True),
+    )
+
+    visit_id: Mapped[int] = mapped_column(
+        ForeignKey("visit_records.visit_id", ondelete="CASCADE"), primary_key=True
+    )
+    # 한 객체는 한 기록에만 붙는다.
+    media_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, unique=True, autoincrement=False)
+    kind: Mapped[str] = mapped_column(String(10))
+    phase: Mapped[str] = mapped_column(String(10))
+    sort_order: Mapped[int] = mapped_column(SmallInteger)

@@ -21,6 +21,7 @@ async def update_menu(
 ) -> MenuSchema:
     view = await use_case.update_menu(
         UpdateMenuCommand(ctx=ctx, menu_id=menu_id, name=body.name,
-                          default_duration_minutes=body.default_duration_minutes, sort_order=body.sort_order)
+                          default_duration_minutes=body.default_duration_minutes, sort_order=body.sort_order,
+                          price=body.price)
     )
     return MenuSchema.of(view)

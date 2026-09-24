@@ -9,22 +9,35 @@ from dataclasses import replace
 from decimal import Decimal
 
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
-from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
+from hub.app.dtos.media_urls import MediaUrls
+from hub.app.errors import (
+    FamilyNotFoundError,
+    FamilyPetNotFoundError,
+    FamilyPetPassedAwayError,
+    MediaClaimAlreadyAttachedError,
+    MediaClaimNotFoundError,
+    MediaClaimNotReadyError,
+)
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
+from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.entities.menu import Menu
 from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
+from visit.domain.entities.visit_record import VisitRecord
 from visit.domain.errors import (
     MenuNameTakenError,
     MenuNotFoundError,
     VisitDuplicateError,
     VisitNotFoundError,
 )
+from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.closed_date import ClosedDate
 from visit.domain.value_objects.schedule_settings import DEFAULT_SETTINGS
 from visit.tests.helpers.builders import kst
@@ -70,9 +83,9 @@ class FakeMenus(MenuRepository):
         self.rows: dict[int, Menu] = {}
         self._next = 1
 
-    def seed(self, name="목욕", minutes=60, shop_id=1, archived=False) -> Menu:
+    def seed(self, name="목욕", minutes=60, shop_id=1, archived=False, price=None) -> Menu:
         menu = Menu(id=self._next, shop_id=shop_id, name=name, default_duration_minutes=minutes,
-                    sort_order=self._next, archived_at=kst(9, 1) if archived else None)
+                    sort_order=self._next, archived_at=kst(9, 1) if archived else None, price=price)
         self.rows[menu.id] = menu
         self._next += 1
         return menu
@@ -96,17 +109,20 @@ class FakeMenus(MenuRepository):
         return [m for m in self.rows.values() if m.id in menu_ids and m.shop_id == ctx.shop_id
                 and not m.archived]
 
-    async def create(self, ctx, name, default_duration_minutes):
+    async def list_by_ids(self, ctx, menu_ids):
+        return [m for m in self.rows.values() if m.id in menu_ids and m.shop_id == ctx.shop_id]
+
+    async def create(self, ctx, name, default_duration_minutes, price):
         self._check_name(ctx, name)
-        menu = self.seed(name=name, minutes=default_duration_minutes, shop_id=ctx.shop_id)
+        menu = self.seed(name=name, minutes=default_duration_minutes, shop_id=ctx.shop_id, price=price)
         self.journal.append(("create_menu", name))
         return menu
 
-    async def update(self, ctx, menu_id, name, default_duration_minutes, sort_order):
+    async def update(self, ctx, menu_id, name, default_duration_minutes, sort_order, price):
         current = self._find(ctx, menu_id)
         self._check_name(ctx, name, menu_id)
         self.rows[menu_id] = replace(current, name=name, default_duration_minutes=default_duration_minutes,
-                                     sort_order=sort_order)
+                                     sort_order=sort_order, price=price)
         self.journal.append(("update_menu", menu_id))
         return self.rows[menu_id]
 
@@ -158,14 +174,22 @@ class FakeDirectory(CustomerDirectoryPort):
     async def set_last_visit(self, ctx, customer_id, at):
         self.journal.append(("set_last_visit", customer_id, at))
 
+    async def set_pet_weight(self, ctx, pet_id, weight_kg):
+        self.journal.append(("set_pet_weight", pet_id, weight_kg))
+
     async def find_draft_candidates(self, ctx, words):
         """카톡 초안 후보 — 미리 넣어 둔 후보(self.candidates)를 그대로 준다."""
         self.journal.append(("find_draft_candidates", tuple(words)))
         return list(self.candidates)
 
 
-class FakeVisits(VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository):
-    """visits 표 스텁 — pg 구현처럼 다섯 포트(찾기·잠금, 쓰기, 이력, 원장, 게시판)를 한 객체가 다 낸다."""
+class FakeVisits(
+    VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository, VisitFeedRepository,
+):
+    """visits 표 스텁 — pg 구현처럼 여섯 포트(찾기·잠금, 쓰기, 이력, 원장, 게시판, 피드)를 한 객체가 다 낸다.
+
+    피드 커서는 마지막으로 준 방문 ID 를 글자로 쓴다(pg 구현의 모양과 다르다 — 부르는 쪽은 커서를 열어 보지 않는다).
+    """
 
     def __init__(self, journal: Journal | None = None) -> None:
         self.journal = journal if journal is not None else Journal()
@@ -266,6 +290,10 @@ class FakeVisits(VisitWriteRepository, VisitHistoryRepository, VisitLedgerReposi
         done = [v for v in self._mine(ctx) if v.pet_id == pet_id and v.status == "completed"]
         return done[-1] if done else None
 
+    async def latest_started_of_pet(self, ctx, pet_id):
+        started = [v for v in self._mine(ctx) if v.pet_id == pet_id and v.status in STARTED_STATUSES]
+        return max(started, key=lambda v: (v.starts_at, v.id)).id if started else None
+
     async def completed_starts(self, ctx, customer_id, pet_id, limit):
         done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
                 and v.status == "completed"]
@@ -300,6 +328,104 @@ class FakeVisits(VisitWriteRepository, VisitHistoryRepository, VisitLedgerReposi
         found = [v for v in self._mine(ctx) if v.status == "reserved" and v.starts_at < before]
         return len(found), (found[0].starts_at if found else None)
 
+    async def list_completed(self, ctx, cursor, limit, pet_id):
+        done = sorted((v for v in self._mine(ctx) if v.status == "completed" and (pet_id is None or v.pet_id == pet_id)),
+                      key=lambda v: (v.completed_at, v.id), reverse=True)
+        if cursor is not None:
+            after = self.rows[int(cursor)]
+            done = [v for v in done if (v.completed_at, v.id) < (after.completed_at, after.id)]
+        page = done[:limit]
+        return FeedPage(visits=page, next_cursor=str(page[-1].id) if len(done) > limit else None)
+
     async def list_occupied(self, ctx, start, end):
         return sorted((v for v in self.rows.values() if v.shop_id == ctx.shop_id and v.is_active
                        and v.starts_at < end and v.ends_at > start), key=lambda v: (v.starts_at, v.id))
+
+
+class FakeRecords(VisitRecordRepository):
+    """visit_records 스텁. 방문의 매장은 visits 스텁에서 본다(pg 구현이 visits 와 조인하는 것처럼)."""
+
+    def __init__(self, visits: FakeVisits, journal: Journal | None = None) -> None:
+        self.visits = visits
+        self.journal = journal if journal is not None else Journal()
+        self.rows: dict[int, VisitRecord] = {}
+
+    def seed(self, record: VisitRecord) -> VisitRecord:
+        self.rows[record.visit_id] = record
+        return record
+
+    async def get(self, ctx, visit_id):
+        visit = self.visits.rows.get(visit_id)
+        if visit is None or visit.shop_id != ctx.shop_id:
+            return None
+        return self.rows.get(visit_id)
+
+    async def list_many(self, ctx, visit_ids):
+        return {i: self.rows[i] for i in visit_ids if i in self.rows and self.visits.rows[i].shop_id == ctx.shop_id}
+
+    async def latest_with_media(self, ctx, pet_ids):
+        found = {}
+        for visit in sorted(self.visits._mine(ctx), key=lambda v: (v.starts_at, v.id)):
+            if visit.pet_id in pet_ids and visit.status == "completed" and visit.id in self.rows \
+                    and self.rows[visit.id].media:
+                found[visit.pet_id] = visit.id
+        return found
+
+    async def clear_notes(self, ctx, customer_id):
+        for visit_id, record in self.rows.items():
+            visit = self.visits.rows[visit_id]
+            if visit.shop_id == ctx.shop_id and visit.customer_id == customer_id:
+                self.rows[visit_id] = replace(record, care_note=None, internal_note=None)
+        self.journal.append(("clear_record_notes", customer_id))
+
+    async def save(self, ctx, record):
+        self.rows[record.visit_id] = record
+        self.journal.append(("save_record", record.visit_id, record.version))
+        return record
+
+    async def delete(self, ctx, visit_id):
+        self.rows.pop(visit_id, None)
+        self.journal.append(("delete_record", visit_id))
+
+
+class FakeLibrary(MediaLibraryPort):
+    """MediaLibraryPort 스텁 — 실제 구현(media)과 같은 허브 오류를 같은 조건에서 던진다.
+
+    media 는 {media_id: (매장 ID, kind, 준비됨)}. 가져간 것은 attached 에 있다.
+    """
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.media: dict[int, tuple[int, str, bool]] = {}
+        self.attached: set[int] = set()
+
+    def add(self, media_id, kind="photo", shop_id=1, ready=True, attached=False) -> int:
+        self.media[media_id] = (shop_id, kind, ready)
+        if attached:
+            self.attached.add(media_id)
+        return media_id
+
+    async def claim(self, ctx, media_ids):
+        self.journal.append(("claim", sorted(media_ids)))
+        for media_id in media_ids:
+            shop, _, _ = self.media.get(media_id, (None, None, None))
+            if shop != ctx.shop_id:
+                raise MediaClaimNotFoundError("사진·영상을 찾을 수 없습니다.")
+        if any(not self.media[i][2] for i in media_ids):
+            raise MediaClaimNotReadyError("아직 올리는 중인 사진·영상입니다.")
+        if any(i in self.attached for i in media_ids):
+            raise MediaClaimAlreadyAttachedError("이미 다른 기록에 붙은 사진·영상입니다.")
+        self.attached |= set(media_ids)
+        return {i: self.media[i][1] for i in media_ids}
+
+    async def release(self, ctx, media_ids):
+        self.journal.append(("release", sorted(media_ids)))
+        self.attached -= set(media_ids)
+
+    async def read_urls(self, ctx, media_ids):
+        return {
+            i: MediaUrls(media_id=i, kind=self.media[i][1], original_url=f"o/{i}",
+                         display_url=f"d/{i}" if self.media[i][1] == "photo" else None, thumb_url=f"t/{i}",
+                         width=3000, height=2000, duration_seconds=None if self.media[i][1] == "photo" else 30)
+            for i in media_ids if i in self.media and self.media[i][0] == ctx.shop_id and self.media[i][2]
+        }

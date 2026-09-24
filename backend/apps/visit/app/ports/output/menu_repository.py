@@ -18,13 +18,19 @@ class MenuRepository(ABC):
         """요청 본문이 고른 메뉴 가운데 이 매장의 보관하지 않은 것만."""
 
     @abstractmethod
-    async def create(self, ctx: ShopContext, name: str, default_duration_minutes: int | None) -> Menu:
+    async def list_by_ids(self, ctx: ShopContext, menu_ids: list[int]) -> list[Menu]:
+        """이 매장의 메뉴만, 보관한 것도 — 지난 기록이 보관한 메뉴를 가리키고 있을 수 있다."""
+
+    @abstractmethod
+    async def create(
+        self, ctx: ShopContext, name: str, default_duration_minutes: int | None, price: int | None
+    ) -> Menu:
         """맨 뒤 순서로 넣는다. 보관하지 않은 메뉴와 이름이 겹치면 MenuNameTakenError."""
 
     @abstractmethod
     async def update(
         self, ctx: ShopContext, menu_id: int, name: str, default_duration_minutes: int | None,
-        sort_order: int,
+        sort_order: int, price: int | None,
     ) -> Menu:
         """없거나 다른 매장이면 MenuNotFoundError. 이름이 겹치면 MenuNameTakenError."""
 

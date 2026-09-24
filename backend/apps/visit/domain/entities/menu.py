@@ -14,6 +14,7 @@ class Menu:
     default_duration_minutes: int | None   # None 이면 매장 기본 소요
     sort_order: int
     archived_at: datetime | None
+    price: int | None   # 정가(원). None 이면 가격 미정 — 기록의 금액을 미리 채울 때만 쓴다
 
     @property
     def archived(self) -> bool:

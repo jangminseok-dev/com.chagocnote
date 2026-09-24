@@ -7,8 +7,8 @@ from visit.app.use_cases.get_visit_calendar_interactor import GetVisitCalendarIn
 from visit.domain.errors import VisitInputError
 from visit.domain.value_objects.closed_date import ClosedDate
 from visit.domain.value_objects.schedule_settings import ScheduleSettings
-from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeSchedule, FakeVisits
+from visit.tests.helpers.builders import ctx, kst, record
+from visit.tests.helpers.fakes import FakeLibrary, FakeRecords, FakeSchedule, FakeVisits
 
 NOW = kst(9, 23, 15)
 
@@ -16,7 +16,8 @@ NOW = kst(9, 23, 15)
 def _setup():
     visits = FakeVisits()
     schedule = FakeSchedule(settings=ScheduleSettings(time(10), time(19), 120, frozenset({0})))
-    return visits, schedule, GetVisitCalendarInteractor(visits, schedule, now=lambda: NOW)
+    return visits, schedule, GetVisitCalendarInteractor(visits, schedule, FakeRecords(visits), FakeLibrary(),
+                                                        now=lambda: NOW)
 
 
 async def test_날마다_마릿수_완료_예약_정리_안_됨_휴무():
@@ -59,3 +60,21 @@ async def test_달이_이상하면_VALIDATION_ERROR_다(year, month):
     _, _, interactor = _setup()
     with pytest.raises(VisitInputError):
         await interactor.get_visit_calendar(GetVisitCalendarQuery(ctx=ctx(), year=year, month=month))
+
+
+async def test_완료_방문의_대표_사진을_시작_순으로_최대_네_장():
+    visits = FakeVisits()
+    records, library = FakeRecords(visits), FakeLibrary()
+    interactor = GetVisitCalendarInteractor(visits, FakeSchedule(), records, library, now=lambda: NOW)
+    done = dict(status="completed", started_at=kst(9, 2, 9), completed_at=kst(9, 2, 18))
+    for hour, pet in ((15, 105), (10, 101), (11, 102), (12, 103), (13, 104)):
+        v = visits.seed(pet_id=pet, starts_at=kst(9, 2, hour), **done)
+        library.add(pet, attached=True)
+        records.seed(record(v.id, media=((pet, "photo", "after", 0),)))
+    working = visits.seed(pet_id=106, starts_at=kst(9, 2, 9), status="in_progress", started_at=kst(9, 2, 9))
+    library.add(106, attached=True)
+    records.seed(record(working.id, media=((106, "photo", "after", 0),)))   # 미용 중은 달력에 없다
+    view = await interactor.get_visit_calendar(GetVisitCalendarQuery(ctx=ctx(), year=2026, month=9))
+    second = view.days[1]
+    assert (second.cover, second.covers) == ("t/101", ["t/101", "t/102", "t/103", "t/104"])
+    assert (view.days[2].cover, view.days[2].covers) == (None, [])

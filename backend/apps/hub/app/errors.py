@@ -62,3 +62,23 @@ class WithdrawalShopCloseConfirmRequiredError(HubPortError):
     """탈퇴하면 혼자 운영하던 매장이 닫힌다 — 확인을 받아야 한다."""
 
     code = "SHOP_CLOSE_CONFIRM_REQUIRED"
+
+
+# --- MediaLibraryPort.claim (구현: media, 소비: visit) -------------------------------------------
+
+class MediaClaimNotFoundError(HubPortError):
+    """없거나 다른 매장의 미디어다."""
+
+    code = "MEDIA_NOT_FOUND"
+
+
+class MediaClaimNotReadyError(HubPortError):
+    """아직 확인(confirm) 전이다 — 다 올리고 확인한 뒤에 기록에 붙일 수 있다."""
+
+    code = "MEDIA_NOT_READY"
+
+
+class MediaClaimAlreadyAttachedError(HubPortError):
+    """이미 다른 기록이 가져간 미디어다. 한 객체는 한 기록에만 붙는다."""
+
+    code = "MEDIA_ALREADY_ATTACHED"

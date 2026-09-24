@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import httpx
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -86,3 +87,33 @@ class FakeKakaoStrategy(SocialProviderPort):
 
     async def revoke(self, identity) -> None:
         self.revoked.append(identity.provider_user_id)
+
+
+PHOTO = {"kind": "photo", "content_type": "image/jpeg", "byte_size": 3000, "width": 3000, "height": 2000}
+
+
+async def issue_media(wired: Wired, shop_id: int, headers: dict, body: dict = PHOTO) -> dict:
+    response = await wired.api.post(f"/v1/shops/{shop_id}/media/uploads", json=body, headers=headers)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+async def upload_media(issued: dict, sizes=(3000, 800, 200)) -> None:
+    """렌디션마다 서명 URL 로 서명한 형식 그대로 PUT 한다. 영상이면 표시용이 없다."""
+    puts = issued["puts"]
+    async with httpx.AsyncClient() as http:
+        for name, size in zip(("original", "display", "thumb"), sizes):
+            if puts[name] is None:
+                continue
+            content_type = "video/mp4" if name == "original" and ".mp4" in puts[name] else "image/jpeg"
+            put = await http.put(puts[name], content=b"\x00" * size, headers={"Content-Type": content_type})
+            assert put.status_code == 200, put.text
+
+
+async def ready_photo(wired: Wired, shop_id: int, headers: dict) -> int:
+    """발급 → 올리기 → 확인까지 마친 사진 하나의 ID. `media_storage` 픽스처가 필요하다."""
+    issued = await issue_media(wired, shop_id, headers)
+    await upload_media(issued)
+    confirmed = await wired.api.post(f"/v1/shops/{shop_id}/media/{issued['media_id']}/confirm", headers=headers)
+    assert confirmed.status_code == 200, confirmed.text
+    return issued["media_id"]

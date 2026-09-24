@@ -1,4 +1,4 @@
-"""visits 표의 리포지토리 포트 다섯 — 인터페이스 분리를 구조로 고정한다.
+"""visits 표의 리포지토리 포트 여섯 — 인터페이스 분리를 구조로 고정한다.
 
 손으로 관리하는 목록 대신 인터랙터 생성자의 타입 힌트를 읽는다. 조회 유스케이스가 쓰기 포트를 받게 되거나,
 한 메서드가 두 포트에 들어가면 여기서 걸린다.
@@ -13,6 +13,7 @@ from typing import get_type_hints
 import visit.app.use_cases as use_cases
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_feed_repository import VisitFeedRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_lookup_repository import VisitLookupRepository
@@ -20,7 +21,7 @@ from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.tests.helpers.fakes import FakeVisits
 
 PORTS = (VisitLookupRepository, VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository,
-         VisitBoardRepository)
+         VisitBoardRepository, VisitFeedRepository)
 
 
 def _interactors():
@@ -37,13 +38,13 @@ def _ports_taken(cls) -> list[type]:
     return [hint for name, hint in hints.items() if name != "return" and hint in PORTS]
 
 
-def test_pg_구현은_다섯_포트를_다_낸다():
+def test_pg_구현은_여섯_포트를_다_낸다():
     assert all(issubclass(VisitPgRepository, port) for port in PORTS)
     missing = sorted(set(VisitPgRepository.__abstractmethods__))
     assert missing == []
 
 
-def test_스텁도_다섯_포트의_메서드를_다_가진다():
+def test_스텁도_여섯_포트의_메서드를_다_가진다():
     for port in PORTS:
         for name in port.__abstractmethods__:
             assert callable(getattr(FakeVisits, name, None)), f"FakeVisits 에 {port.__name__}.{name} 이 없다"

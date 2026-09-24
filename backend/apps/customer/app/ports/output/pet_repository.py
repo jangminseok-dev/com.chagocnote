@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from decimal import Decimal
 
 from customer.domain.entities.pet import Pet
 from customer.domain.value_objects.pet_profile import PetProfile
@@ -31,6 +32,10 @@ class PetRepository(ABC):
 
     @abstractmethod
     async def set_passed_away(self, ctx: ShopContext, pet_id: int, passed_away: bool) -> Pet: ...
+
+    @abstractmethod
+    async def set_weight(self, ctx: ShopContext, pet_id: int, weight_kg: Decimal) -> None:
+        """현재 몸무게만 바꾼다(미용 기록이 알려 준 값). 소속이 아니면 아무것도 바꾸지 않는다."""
 
     @abstractmethod
     async def count_for_customer(self, ctx: ShopContext, customer_id: int) -> int: ...

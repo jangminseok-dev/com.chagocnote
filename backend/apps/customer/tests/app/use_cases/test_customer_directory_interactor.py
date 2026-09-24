@@ -169,3 +169,11 @@ async def test_익명화한_고객과_다른_매장의_ID_는_후보가_아니�
     await customers.anonymize(ctx(), gone.id)
     search.matches = [gone.id, other.id]
     assert await directory.find_draft_candidates(ctx(), ("김민지",)) == []
+
+
+async def test_몸무게는_반려동물_저장소로_넘긴다():
+    journal, customers, pets, _, directory = _directory()
+    customer = customers.seed()
+    pet = pets.seed(customer.id)
+    await directory.set_pet_weight(ctx(), pet.id, Decimal("4.1"))
+    assert (pets.rows[pet.id].weight_kg, journal[-1]) == (Decimal("4.1"), ("set_weight", pet.id, Decimal("4.1")))

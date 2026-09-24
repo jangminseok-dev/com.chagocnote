@@ -12,8 +12,9 @@ class MenuView:
     default_duration_minutes: int | None
     sort_order: int
     archived: bool
+    price: int | None
 
     @classmethod
     def of(cls, menu: Menu) -> MenuView:
         return cls(menu_id=menu.id, name=menu.name, default_duration_minutes=menu.default_duration_minutes,
-                   sort_order=menu.sort_order, archived=menu.archived)
+                   sort_order=menu.sort_order, archived=menu.archived, price=menu.price)

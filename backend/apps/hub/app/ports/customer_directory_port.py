@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
+from decimal import Decimal
 
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import FamilyBriefs
@@ -9,7 +10,8 @@ from hub.app.dtos.shop_context import ShopContext
 
 
 class CustomerDirectoryPort(ABC):
-    """구현: customer. 사용: visit (예약 등록·수정·상태 전이, 목록의 이름 표시, 최근 방문순, 카톡 초안 후보)."""
+    """구현: customer. 사용: visit (예약 등록·수정·상태 전이, 목록의 이름 표시, 최근 방문순, 카톡 초안 후보,
+    미용 기록의 몸무게)."""
 
     @abstractmethod
     async def lock_family(self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...]) -> None:
@@ -30,6 +32,14 @@ class CustomerDirectoryPort(ABC):
     @abstractmethod
     async def set_last_visit(self, ctx: ShopContext, customer_id: int, at: datetime | None) -> None:
         """고객 목록 '최근 방문순'의 키를 바꾼다. 원본(visits)에서 다시 계산한 값을 같은 트랜잭션에서 넘긴다."""
+
+    @abstractmethod
+    async def set_pet_weight(self, ctx: ShopContext, pet_id: int, weight_kg: Decimal) -> None:
+        """반려동물의 현재 몸무게를 바꾼다 — 그 아이의 가장 최근 미용 기록에 적은 몸무게다(설계 8절).
+
+        visit 이 lock_family 로 고객 행을 잠근 **뒤에** 같은 트랜잭션에서 부른다. 살아 있는 이 매장의 아이가
+        아니면 아무것도 바꾸지 않는다(잠근 가족이라 일어나지 않는다).
+        """
 
     @abstractmethod
     async def find_draft_candidates(self, ctx: ShopContext, words: tuple[str, ...]) -> list[DraftCandidate]:

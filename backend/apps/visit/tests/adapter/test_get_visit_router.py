@@ -10,8 +10,9 @@ from visit.tests.helpers.views import visit_view
 
 DETAIL = VisitDetailView(
     visit=visit_view(1), group=[visit_view(2)],
-    previous_visit=PreviousVisitView(visit_id=7, starts_at=datetime(2026, 9, 2, 14, tzinfo=ZoneInfo("Asia/Seoul"))),
-    no_show_count=1,
+    previous_visit=PreviousVisitView(visit_id=7, starts_at=datetime(2026, 9, 2, 14, tzinfo=ZoneInfo("Asia/Seoul")),
+                                     cover="t/70"),
+    no_show_count=1, record=None, cover=None,
 )
 
 
@@ -21,7 +22,8 @@ async def test_직원도_방문_상세를_본다():
         response = await c.get("/v1/shops/3/visits/1")
     body = response.json()
     assert (body["visit"]["visit_id"], [v["visit_id"] for v in body["group"]], body["no_show_count"]) == (1, [2], 1)
-    assert body["previous_visit"] == {"visit_id": 7, "starts_at": "2026-09-02T14:00:00+09:00"}
+    assert body["previous_visit"] == {"visit_id": 7, "starts_at": "2026-09-02T14:00:00+09:00", "cover": "t/70"}
+    assert (body["record"], body["cover"]) == (None, None)
     assert stub.calls[0].visit_id == 1
 
 

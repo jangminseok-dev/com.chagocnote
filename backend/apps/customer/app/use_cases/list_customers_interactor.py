@@ -16,7 +16,10 @@ from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.domain.services.pet_age import age_label
 from customer.domain.services.phone_number import mask_phone
+from customer.app.services.pet_photos import pet_photos
 from customer.domain.services.search_terms import parse_query
+from hub.app.ports.media_library_port import MediaLibraryPort
+from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 
 class ListCustomersInteractor(ListCustomersUseCase):
@@ -24,11 +27,13 @@ class ListCustomersInteractor(ListCustomersUseCase):
 
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository, search: CustomerSearchPort,
-        today: Callable[[], date],
+        ledger: VisitLedgerPort, library: MediaLibraryPort, today: Callable[[], date],
     ) -> None:
         self._customers = customers
         self._pets = pets
         self._search = search
+        self._ledger = ledger
+        self._library = library
         self._today = today
 
     async def list_customers(self, query: ListCustomersQuery) -> CustomerListView:
@@ -45,6 +50,9 @@ class ListCustomersInteractor(ListCustomersUseCase):
                 pets_by_customer.setdefault(pet.customer_id, []).append(pet)
 
         today = self._today()
+        photos = await pet_photos(
+            query.ctx, [p.id for family in pets_by_customer.values() for p in family], self._ledger, self._library
+        )
         items = [
             FamilyCardView(
                 customer_id=customer_id,
@@ -54,7 +62,7 @@ class ListCustomersInteractor(ListCustomersUseCase):
                     PetSummaryView(
                         pet_id=p.id, name=p.name, species=p.species, breed=p.breed,
                         age_label=age_label(p.birth_date, p.birth_year, today),
-                        has_conditions=p.has_conditions, passed_away=p.passed_away,
+                        has_conditions=p.has_conditions, passed_away=p.passed_away, photo=photos.get(p.id),
                     )
                     for p in pets_by_customer.get(customer_id, [])
                 ],

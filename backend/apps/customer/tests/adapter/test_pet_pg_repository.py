@@ -132,3 +132,12 @@ async def test_질병_종류는_칩_순서대로다(db_session):
     types = await ConditionTypePgRepository(db_session).list_all()
     assert [t.code for t in types][:2] == ["patella_luxation", "heart_disease"]
     assert (types[-1].code, types[-1].label) == ("other", "기타")
+
+
+async def test_현재_몸무게만_바꾸고_다른_매장의_아이는_건드리지_않는다(db_session):
+    repo = PetPgRepository(db_session)
+    pet = await repo.add(A, await _family(db_session), pet_profile())
+    await repo.set_weight(A, pet.id, Decimal("4.1"))
+    await repo.set_weight(B, pet.id, Decimal("9.9"))
+    got = await repo.get(A, pet.id)
+    assert (got.weight_kg, got.name) == (Decimal("4.1"), pet.name)

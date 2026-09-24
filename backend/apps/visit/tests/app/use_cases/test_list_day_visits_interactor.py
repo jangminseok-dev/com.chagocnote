@@ -6,8 +6,8 @@ from visit.app.dtos.list_day_visits_dto import ListDayVisitsQuery
 from visit.app.use_cases.list_day_visits_interactor import ListDayVisitsInteractor
 from visit.domain.errors import VisitInputError
 from visit.domain.value_objects.schedule_settings import ScheduleSettings
-from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeSchedule, FakeVisits
+from visit.tests.helpers.builders import ctx, kst, record
+from visit.tests.helpers.fakes import FakeDirectory, FakeLibrary, FakeMenus, FakeRecords, FakeSchedule, FakeVisits
 
 NOW = kst(9, 23, 15)
 
@@ -17,7 +17,8 @@ def _setup(settings=None):
     directory.family(1, pets=(101, 102))
     directory.family(2, pets=(201,), name=None)   # 익명화한 고객
     schedule = FakeSchedule() if settings is None else FakeSchedule(settings=settings)
-    interactor = ListDayVisitsInteractor(visits, FakeMenus(), schedule, directory, now=lambda: NOW)
+    interactor = ListDayVisitsInteractor(visits, FakeMenus(), schedule, directory, FakeRecords(visits),
+                                         FakeLibrary(), now=lambda: NOW)
     return visits, interactor
 
 
@@ -78,8 +79,25 @@ async def test_휴무일을_알린다():
 async def test_범위_밖_날짜는_설정을_읽기_전에_거절한다():
     visits, directory = FakeVisits(), FakeDirectory()
     schedule = FakeSchedule()
-    interactor = ListDayVisitsInteractor(visits, FakeMenus(), schedule, directory, now=lambda: NOW)
+    interactor = ListDayVisitsInteractor(visits, FakeMenus(), schedule, directory, FakeRecords(visits),
+                                         FakeLibrary(), now=lambda: NOW)
     for day in (date(1, 1, 1), date(9999, 12, 31)):
         with pytest.raises(VisitInputError):
             await interactor.list_day_visits(ListDayVisitsQuery(ctx=ctx(), day=day))
     assert schedule.journal == []
+
+
+async def test_기록이_있는지와_대표_사진을_준다():
+    visits, directory = FakeVisits(), FakeDirectory()
+    directory.family(1, pets=(101, 102))
+    records, library = FakeRecords(visits), FakeLibrary()
+    library.add(51, attached=True)
+    interactor = ListDayVisitsInteractor(visits, FakeMenus(), FakeSchedule(), directory, records, library,
+                                         now=lambda: NOW)
+    photographed = visits.seed(pet_id=101, starts_at=kst(9, 23, 10), status="in_progress", started_at=kst(9, 23, 10))
+    noted = visits.seed(pet_id=102, starts_at=kst(9, 23, 11), status="in_progress", started_at=kst(9, 23, 11))
+    visits.seed(pet_id=101, starts_at=kst(9, 23, 16))
+    records.seed(record(photographed.id, media=((51, "photo", "before", 0),)))
+    records.seed(record(noted.id, care_note="메모만"))
+    view = await _day(interactor, date(2026, 9, 23))
+    assert [(i.has_record, i.cover) for i in view.items] == [(True, "t/51"), (True, None), (False, None)]

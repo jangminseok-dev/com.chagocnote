@@ -1,13 +1,19 @@
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
-from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeVisits
+from visit.tests.helpers.builders import ctx, kst, record
+from visit.tests.helpers.fakes import FakeRecords, FakeVisits
 
 NOW = kst(9, 23, 15)
 
 
 def _ledger():
     visits = FakeVisits()
-    return visits, VisitLedgerInteractor(visits, now=lambda: NOW)
+    return visits, VisitLedgerInteractor(visits, FakeRecords(visits), now=lambda: NOW)
+
+
+def _with_records():
+    visits = FakeVisits()
+    records = FakeRecords(visits)
+    return visits, records, VisitLedgerInteractor(visits, records, now=lambda: NOW)
 
 
 async def test_반려동물의_방문과_앞으로의_예약():
@@ -44,3 +50,32 @@ async def test_메모를_비운다():
     other = visits.seed(customer_id=2, memo="남의 메모")
     await ledger.clear_customer_memos(ctx(), 1)
     assert (visits.rows[mine.id].memo, visits.rows[other.id].memo) == (None, "남의 메모")
+
+
+async def test_익명화는_방문_메모와_기록의_두_메모를_비우고_사진은_남긴다():
+    visits, records, ledger = _with_records()
+    mine = visits.seed(customer_id=1, memo="010-1234-5678 로 연락", status="completed", started_at=kst(9, 2, 10),
+                       completed_at=kst(9, 2, 12))
+    other = visits.seed(customer_id=2, status="completed", started_at=kst(9, 2, 10), completed_at=kst(9, 2, 12))
+    records.seed(record(mine.id, media=((51, "photo", "after", 0),), care_note="보호자 이름", internal_note="번호"))
+    records.seed(record(other.id, care_note="남의 기록"))
+    await ledger.clear_customer_memos(ctx(), 1)
+    kept = records.rows[mine.id]
+    assert (visits.rows[mine.id].memo, kept.care_note, kept.internal_note, len(kept.media)) == (None, None, None, 1)
+    assert records.rows[other.id].care_note == "남의 기록"
+
+
+async def test_반려동물마다_사진이_붙은_가장_최근_완료_방문의_대표():
+    visits, records, ledger = _with_records()
+    done = dict(status="completed", started_at=kst(9, 1, 10), completed_at=kst(9, 1, 12))
+    old = visits.seed(pet_id=101, starts_at=kst(9, 1, 10), **done)
+    latest = visits.seed(pet_id=101, starts_at=kst(9, 10, 10), **done)
+    newest_no_photo = visits.seed(pet_id=101, starts_at=kst(9, 20, 10), **done)
+    working = visits.seed(pet_id=101, starts_at=kst(9, 23, 10), status="in_progress", started_at=kst(9, 23, 10))
+    only_video = visits.seed(pet_id=102, starts_at=kst(9, 5, 10), **done)
+    records.seed(record(old.id, media=((51, "photo", "after", 0),)))
+    records.seed(record(latest.id, media=((52, "photo", "before", 0), (53, "photo", "after", 0))))
+    records.seed(record(newest_no_photo.id, care_note="사진 없음"))
+    records.seed(record(working.id, media=((54, "photo", "after", 0),)))
+    records.seed(record(only_video.id, media=((61, "video", "after", 0),)))
+    assert await ledger.latest_covers(ctx(), [101, 102, 103]) == {101: 53, 102: 61}

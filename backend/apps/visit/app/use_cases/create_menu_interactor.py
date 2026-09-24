@@ -18,5 +18,5 @@ class CreateMenuInteractor(CreateMenuUseCase):
             check_duration(command.default_duration_minutes)
         await self._schedule.ensure(command.ctx)   # 메뉴는 설정 행을 가리킨다(외래 키)
         return MenuView.of(
-            await self._menus.create(command.ctx, command.name, command.default_duration_minutes)
+            await self._menus.create(command.ctx, command.name, command.default_duration_minutes, command.price)
         )

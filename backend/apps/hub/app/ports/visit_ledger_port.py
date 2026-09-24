@@ -7,7 +7,7 @@ from hub.app.dtos.upcoming_visit import UpcomingVisit
 
 
 class VisitLedgerPort(ABC):
-    """구현: visit. 사용: customer (반려동물 삭제·무지개다리·고객 익명화의 규칙, 고객 상세).
+    """구현: visit. 사용: customer (반려동물 삭제·무지개다리·고객 익명화의 규칙, 고객 상세, 반려동물 프로필 사진).
 
     '앞으로의 예약'은 예약됨·미용 중인 방문이다 — 날짜가 지났어도 정리하지 않았으면 여기에 든다.
     customer 는 고객 행을 잠근 **뒤에** 부른다(잠금 순서: 고객 행 → 방문 행). 방문을 쓰는 visit 유스케이스도
@@ -33,4 +33,10 @@ class VisitLedgerPort(ABC):
 
     @abstractmethod
     async def clear_customer_memos(self, ctx: ShopContext, customer_id: int) -> None:
-        """그 고객 방문들의 메모를 비운다 — 익명화 때 방문 메모에 남은 개인정보를 지운다(V11)."""
+        """그 고객 방문들의 메모와 미용 기록의 두 메모(케어·내부)를 비운다 — 익명화 때 메모에 남은 개인정보를
+        지운다(V11, 설계 6.4). 사진은 매장의 미용 기록이라 남긴다."""
+
+    @abstractmethod
+    async def latest_covers(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, int]:
+        """{반려동물 ID: 대표 사진의 media_id} — 사진·영상이 붙은 가장 최근 완료 방문의 대표(후 → 전 → 영상).
+        그런 방문이 없는 아이는 빠진다. 반려동물 프로필 사진의 원본이다(설계 8절). 한 번에 묻는다(N+1 없음)."""

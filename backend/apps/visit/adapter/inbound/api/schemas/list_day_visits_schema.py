@@ -23,6 +23,8 @@ class DayVisitItemSchema(BaseModel):
     group_key: str
     overlapping: bool
     unresolved: bool
+    has_record: bool
+    cover: str | None   # 대표 사진 썸네일 URL
 
 
 class DayVisitsSchema(BaseModel):

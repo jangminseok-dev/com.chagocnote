@@ -32,6 +32,8 @@ def main() -> None:
         "REDIS_URL=redis://redis:6379/0\n"
         f"JWT_PUBLIC_KEY_B64={base64.b64encode(public_pem).decode()}\n"
         "S3_ENDPOINT_URL=http://minio:9000\n"
+        "S3_PUBLIC_ENDPOINT_URL=http://127.0.0.1:9010\n"
+        "S3_REGION=us-east-1\n"
         "S3_ACCESS_KEY=chagoc\n"
         "S3_SECRET_KEY=chagoc_dev_minio\n"
         "S3_BUCKET=chagocnote-dev\n",
