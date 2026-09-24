@@ -2344,7 +2344,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: Task 2 의 `TransitionVisitsInteractor(visits: VisitWriteRepository, history: VisitHistoryRepository, menus, directory, now)`, `lock_visits`, `VisitHistoryRepository.latest_completed_start`, `CustomerDirectoryPort.set_last_visit`.
-- Produces: `visit.domain.state.visit_state.TransitionRequest(now, tz, cancel_reason=None)` — 모든 상태 메서드가 `(visit, request)`를 받는다; `check_action(action, cancel_reason)`; `SLOT_RECLAIMING_ACTIONS = frozenset({"revert"})`; `pets_to_confirm(action, visits: list[Visit]) -> tuple[int, ...]`; `transition(visit, action, now, tz, cancel_reason=None)` 서명 그대로. `visit.app.services.completion_effects.completion_changed(before, after) -> bool`, `apply_completion_effects(ctx, before, after, history, directory) -> None` — ④-1 의 기록 슬라이스가 몸무게 동기화를 이 함수에 더한다. `TransitionVisitsInteractor.transition_visits`의 호출 순서(journal)는 그대로: lock_family → lock_visits → apply_changes → (완료 변화 시) set_last_visit.
+- Produces: `visit.domain.state.visit_state.TransitionRequest(now, tz, cancel_reason=None)` — 모든 상태 메서드가 `(visit, request)`를 받는다; `check_action(action, cancel_reason)`; `SLOT_RECLAIMING_ACTIONS = frozenset({"revert"})`; `pets_to_confirm(action, visits: list[Visit]) -> tuple[int, ...]`; `transition(visit, action, now, tz, cancel_reason=None)` 서명 그대로. `visit.app.services.completion_effects.touches_completion(before, after) -> bool`, `apply_completion_effects(ctx, before, after, history, directory) -> None` — ④-1 의 기록 슬라이스가 몸무게 동기화를 이 함수에 더한다. `TransitionVisitsInteractor.transition_visits`의 호출 순서(journal)는 그대로: lock_family → lock_visits → apply_changes → (완료 변화 시) set_last_visit.
 
 감사 결과(설계 4.1 B4·B6): 전이 인터랙터에 되돌리기 전용 `if` 둘과 완료 후속 동기화가 쌓여 있었고, `transition()`은 행동마다 if 체인이었다. 행동을 더할 때 고치는 곳은 이제 둘 — `ACTIONS`와 바탕 클래스의 같은 이름 메서드. 되돌리기가 가족 확인을 거쳐야 한다는 사실은 `SLOT_RECLAIMING_ACTIONS`가 말하고, 인터랙터는 행동 이름을 모른다. 완료 후속 처리는 `completion_effects.py` 한 곳이다. 남는 것(결정 기록 007): 되돌리기가 아니어도 잠그기 전에 `get_many`를 한 번 읽는다(`lock_visits`도 읽으므로 조회 하나가 늘었다).
 
@@ -2362,7 +2362,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 """완료 후속 처리 — 완료가 생기거나 풀릴 때만 최근 방문을 다시 계산해 customer 에 넘긴다."""
 from dataclasses import replace
 
-from visit.app.services.completion_effects import apply_completion_effects, completion_changed
+from visit.app.services.completion_effects import apply_completion_effects, touches_completion
 from visit.tests.helpers.builders import ctx, kst, visit
 from visit.tests.helpers.fakes import FakeDirectory, FakeVisits, Journal
 
@@ -2377,19 +2377,19 @@ def _setup():
 def test_완료가_생기면_바뀐_것이다():
     before = [visit(status="in_progress", started_at=kst(9, 23, 13))]
     after = [replace(before[0], status="completed", completed_at=kst(9, 23, 14))]
-    assert completion_changed(before, after)
+    assert touches_completion(before, after)
 
 
 def test_완료가_풀리면_바뀐_것이다():
     before = [visit(status="completed", started_at=kst(9, 23, 13), completed_at=kst(9, 23, 14))]
     after = [replace(before[0], status="reserved", started_at=None, completed_at=None)]
-    assert completion_changed(before, after)
+    assert touches_completion(before, after)
 
 
 def test_완료와_상관없는_전이는_바뀐_것이_아니다():
     before = [visit(status="reserved")]
     after = [replace(before[0], status="canceled", canceled_at=kst(9, 23, 15), cancel_reason="shop_reason")]
-    assert not completion_changed(before, after)
+    assert not touches_completion(before, after)
 
 
 async def test_완료가_바뀌면_그_보호자의_마지막_완료_시각을_넘긴다():
@@ -2619,7 +2619,7 @@ from visit.app.ports.output.visit_history_repository import VisitHistoryReposito
 from visit.domain.entities.visit import COMPLETED, Visit
 
 
-def completion_changed(before: list[Visit], after: list[Visit]) -> bool:
+def touches_completion(before: list[Visit], after: list[Visit]) -> bool:
     """완료 방문이 생겼거나 사라졌는가. 전이 전후의 같은 방문 목록을 받는다."""
     return any(v.status == COMPLETED for v in before) or any(v.status == COMPLETED for v in after)
 
@@ -2629,7 +2629,7 @@ async def apply_completion_effects(
     history: VisitHistoryRepository, directory: CustomerDirectoryPort,
 ) -> None:
     """완료 여부가 바뀌었으면 후속 처리를 한다. 아니면 아무것도 부르지 않는다."""
-    if not completion_changed(before, after):
+    if not touches_completion(before, after):
         return
     customer_id = after[0].customer_id
     latest = await history.latest_completed_start(ctx, customer_id)
@@ -2721,7 +2721,7 @@ Run (`infra/`): `docker compose run --rm backend pytest tests/integration/test_v
 
 각 변이를 하나씩 넣고 그 테스트가 실패하는지 본 뒤 되돌린다.
 
-- `completion_effects.apply_completion_effects`에서 `if not completion_changed(before, after): return` 두 줄을 뺀다 → `test_완료가_바뀌지_않으면_아무것도_부르지_않는다` 실패.
+- `completion_effects.apply_completion_effects`에서 `if not touches_completion(before, after): return` 두 줄을 뺀다 → `test_완료가_바뀌지_않으면_아무것도_부르지_않는다` 실패.
 - `visit_state.pets_to_confirm`이 항상 `()`를 돌려주게 한다 → `test_되돌리기만_반려동물을_가족_확인에_넘긴다`와 인터랙터의 `test_완료를_되돌리면_최근_방문을_다시_계산한다`·`test_무지개다리_아이의_방문은_되돌리지_못한다`·`test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_보고_거절한다` 실패(4개).
 - 인터랙터의 `if pets_to_confirm(command.action, locked) != pet_ids: raise ...`를 `if False:`로 → `test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_보고_거절한다` 실패.
 

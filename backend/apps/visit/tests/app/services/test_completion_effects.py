@@ -1,7 +1,7 @@
 """완료 후속 처리 — 완료가 생기거나 풀릴 때만 최근 방문을 다시 계산해 customer 에 넘긴다."""
 from dataclasses import replace
 
-from visit.app.services.completion_effects import apply_completion_effects, completion_changed
+from visit.app.services.completion_effects import apply_completion_effects, touches_completion
 from visit.tests.helpers.builders import ctx, kst, visit
 from visit.tests.helpers.fakes import FakeDirectory, FakeVisits, Journal
 
@@ -13,22 +13,27 @@ def _setup():
     return journal, visits, directory
 
 
-def test_완료가_생기면_바뀐_것이다():
+def test_완료가_생기면_완료를_건드린_것이다():
     before = [visit(status="in_progress", started_at=kst(9, 23, 13))]
     after = [replace(before[0], status="completed", completed_at=kst(9, 23, 14))]
-    assert completion_changed(before, after)
+    assert touches_completion(before, after)
 
 
-def test_완료가_풀리면_바뀐_것이다():
+def test_완료가_풀리면_완료를_건드린_것이다():
     before = [visit(status="completed", started_at=kst(9, 23, 13), completed_at=kst(9, 23, 14))]
     after = [replace(before[0], status="reserved", started_at=None, completed_at=None)]
-    assert completion_changed(before, after)
+    assert touches_completion(before, after)
 
 
-def test_완료와_상관없는_전이는_바뀐_것이_아니다():
+def test_완료와_상관없는_전이는_완료를_건드리지_않는다():
     before = [visit(status="reserved")]
     after = [replace(before[0], status="canceled", canceled_at=kst(9, 23, 15), cancel_reason="shop_reason")]
-    assert not completion_changed(before, after)
+    assert not touches_completion(before, after)
+
+
+def test_전후_모두_완료여도_완료를_건드린_것이다():
+    before = [visit(status="completed", started_at=kst(9, 23, 13), completed_at=kst(9, 23, 14))]
+    assert touches_completion(before, before)
 
 
 async def test_완료가_바뀌면_그_보호자의_마지막_완료_시각을_넘긴다():
