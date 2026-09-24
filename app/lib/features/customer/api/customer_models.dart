@@ -267,7 +267,7 @@ class UpcomingVisit {
   final int? petId;
   final String? petName;
 
-  /// 매장 시간대가 붙은 시각 문자열. 화면은 `visit` 기능의 `ShopTime`으로 읽는다.
+  /// 매장 시간대가 붙은 시각 문자열. 화면은 `core/time`의 `ShopTime`으로 읽는다.
   final String startsAt;
 }
 

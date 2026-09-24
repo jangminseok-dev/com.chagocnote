@@ -1,30 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/api_exception.dart';
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/clipboard.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
-import '../../../design/tokens/app_colors.dart';
-import '../../../design/tokens/app_radius.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
+import '../../../design/widgets/app_error_retry.dart';
+import '../../../design/widgets/app_search_field.dart';
 import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../customer/api/customer_models.dart';
 import '../../customer/state/customer_input.dart';
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
 import '../../customer/state/search_debouncer.dart';
-import '../../home/state/today_provider.dart';
+import '../../../core/time/today_provider.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_prefill.dart';
@@ -37,12 +36,7 @@ import 'visit_labels.dart';
 ///
 /// 저장하면 저장한 날짜를 돌려주며 닫는다 — 부른 화면이 그 날로 옮겨 간다.
 class RegisterVisitScreen extends ConsumerStatefulWidget {
-  const RegisterVisitScreen({
-    super.key,
-    this.date,
-    this.draft,
-    this.prefill,
-  });
+  const RegisterVisitScreen({super.key, this.date, this.draft, this.prefill});
 
   final DateTime? date;
   final NextVisitDraft? draft;
@@ -61,10 +55,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   void _backToSearch() => setState(() {
     _customerId = null;
@@ -310,8 +301,8 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
   /// 클립보드의 카톡 글로 초안 화면을 연다(③-A3). 초안에서 예약을 저장하고
   /// 돌아오면 ①도 그 날짜로 닫힌다 — 홈이 그날을 고른다.
   Future<void> _pasteFromKakao(BuildContext context) async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    var text = data?.text?.trim() ?? '';
+    final data = await ref.read(clipboardProvider).readText();
+    var text = data?.trim() ?? '';
     if (!context.mounted) return;
     if (text.isEmpty) {
       setState(() => _pasteNote = AppStrings.clipboardEmpty);
@@ -365,47 +356,20 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-          child: TextField(
+          child: AppSearchField(
             controller: _search,
+            hintText: AppStrings.customerSearchHint,
             autofocus: true,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: AppStrings.customerSearchHint,
-              hintStyle: AppTypography.body.copyWith(
-                color: AppColors.secondary,
-              ),
-              prefixIcon: const Icon(Icons.search, color: AppColors.secondary),
-              filled: true,
-              fillColor: AppColors.white,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: const BorderSide(color: AppColors.line),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: const BorderSide(color: AppColors.line),
-              ),
-            ),
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
         Expanded(
           child: list.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(messageFor(error), style: AppTypography.body),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    label: AppStrings.retry,
-                    onPressed: () =>
-                        ref.invalidate(customerListControllerProvider(query)),
-                  ),
-                ],
-              ),
+            error: (error, _) => AppErrorRetry(
+              message: messageFor(error),
+              onRetry: () =>
+                  ref.invalidate(customerListControllerProvider(query)),
             ),
             data: (state) => ListView(
               padding: const EdgeInsets.fromLTRB(

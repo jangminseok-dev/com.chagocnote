@@ -23,7 +23,9 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const CupertinoApp(home: Center(child: GlassSurface(child: Text('안녕')))),
+      const CupertinoApp(
+        home: Center(child: GlassSurface(child: Text('안녕'))),
+      ),
     );
     await tester.pump();
 
@@ -42,5 +44,33 @@ void main() {
     await tester.pump();
 
     expect(find.byType(GlassContainer), findsNothing);
+  });
+
+  testWidgets('반지름 하나가 두 구현에 같은 값으로 닿는다 — 불투명 표면은 네 모서리, 유리는 모양', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: GlassBridge(
+          factory: OpaqueSurfaceFactory(),
+          child: Center(child: GlassSurface(radius: 24, child: Text('안녕'))),
+        ),
+      ),
+    );
+    final decoration =
+        tester.widget<Container>(find.byType(Container)).decoration
+            as BoxDecoration;
+    expect(decoration.borderRadius, BorderRadius.circular(24));
+
+    await tester.pumpWidget(
+      const CupertinoApp(
+        home: Center(child: GlassSurface(radius: 24, child: Text('안녕'))),
+      ),
+    );
+    await tester.pump();
+    final shape =
+        tester.widget<GlassContainer>(find.byType(GlassContainer)).shape
+            as LiquidRoundedRectangle;
+    expect(shape.borderRadius, 24);
   });
 }

@@ -11,12 +11,13 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_sheet_action.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
@@ -47,10 +48,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
   bool _asking = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   /// 앵커(이 방문) + 같은 묶음에서 상태가 같은 형제. 서버의 `group`은 자기를
   /// 뺀 형제만 주므로 앵커를 먼저 넣는다.
@@ -60,7 +58,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
       if (v.status == detail.visit.status) v.visitId,
   ];
 
-  Future<void> _act(VisitDetail detail, String action) async {
+  Future<void> _act(VisitDetail detail, VisitAction action) async {
     final shopId = _shopId;
     if (shopId == null || _busy || _asking) return;
     setState(() => _asking = true);
@@ -102,39 +100,44 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
 
   Future<void> _openMore(VisitDetail detail) async {
     final status = detail.visit.status;
-    final choice = await AppSheet.show<String>(
+    final choice = await AppSheet.show<_More>(
       context,
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (status != VisitStatus.canceled && status != VisitStatus.noShow)
-            const _SheetAction(label: AppStrings.edit, value: 'edit'),
+            AppSheetAction(
+              label: AppStrings.edit,
+              onTap: () => Navigator.of(context).pop(_More.edit),
+            ),
           if (status == VisitStatus.reserved)
-            const _SheetAction(
+            AppSheetAction(
               label: AppStrings.actionCompleteNow,
-              value: VisitAction.complete,
+              onTap: () => Navigator.of(context).pop(_More.completeNow),
             ),
           if (status != VisitStatus.reserved)
-            const _SheetAction(
+            AppSheetAction(
               label: AppStrings.actionRevert,
-              value: VisitAction.revert,
+              onTap: () => Navigator.of(context).pop(_More.revert),
             ),
           if (status == VisitStatus.completed)
-            const _SheetAction(
+            AppSheetAction(
               label: AppStrings.actionNextReservation,
-              value: 'next',
+              onTap: () => Navigator.of(context).pop(_More.next),
             ),
         ],
       ),
     );
     if (choice == null || !mounted) return;
     switch (choice) {
-      case 'edit':
+      case _More.edit:
         context.push('/visits/${detail.visit.visitId}/edit');
-      case 'next':
+      case _More.next:
         await _openNext(detail);
-      default:
-        await _act(detail, choice);
+      case _More.completeNow:
+        await _act(detail, VisitAction.complete);
+      case _More.revert:
+        await _act(detail, VisitAction.revert);
     }
   }
 
@@ -201,19 +204,9 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
                 child: detail.when(
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () =>
-                              ref.invalidate(visitDetailProvider(key)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () => ref.invalidate(visitDetailProvider(key)),
                   ),
                   data: (detail) => _Body(
                     detail: detail,
@@ -242,7 +235,7 @@ class _Body extends StatelessWidget {
   final VisitDetail detail;
   final bool busy;
   final String? errorText;
-  final ValueChanged<String> onAction;
+  final ValueChanged<VisitAction> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -315,13 +308,14 @@ class _StatusButtons extends StatelessWidget {
     required this.onAction,
   });
 
-  final String status;
+  final VisitStatus status;
   final bool busy;
-  final ValueChanged<String> onAction;
+  final ValueChanged<VisitAction> onAction;
 
   @override
   Widget build(BuildContext context) {
-    VoidCallback? on(String action) => busy ? null : () => onAction(action);
+    VoidCallback? on(VisitAction action) =>
+        busy ? null : () => onAction(action);
     return switch (status) {
       VisitStatus.reserved => Row(
         children: [
@@ -349,7 +343,10 @@ class _StatusButtons extends StatelessWidget {
         busy: busy,
         onPressed: on(VisitAction.complete),
       ),
-      _ => const SizedBox.shrink(),
+      VisitStatus.completed ||
+      VisitStatus.canceled ||
+      VisitStatus.noShow ||
+      VisitStatus.unknown => const SizedBox.shrink(),
     };
   }
 }
@@ -420,23 +417,5 @@ class _GroupCard extends StatelessWidget {
   }
 }
 
-class _SheetAction extends StatelessWidget {
-  const _SheetAction({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: () => Navigator.of(context).pop(value),
-      semanticLabel: label,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-        alignment: Alignment.center,
-        child: Text(label, style: AppTypography.body),
-      ),
-    );
-  }
-}
+/// `···` 시트의 항목. 문자열 대신 닫힌 enum 이라 처리 `switch`가 완전 열거된다.
+enum _More { edit, completeNow, revert, next }

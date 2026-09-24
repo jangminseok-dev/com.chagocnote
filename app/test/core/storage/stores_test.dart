@@ -21,19 +21,21 @@ void main() {
     expect(await prefs.readLastShopId(), isNull);
   });
 
-  test('고객 목록 보기 방식은 기억하고, 로그아웃 정리(clear)로 지워지지 않는다', () async {
+  test('키로 읽고 쓴다 — 설정이 늘어도 저장소 인터페이스는 그대로다', () async {
     final prefs = MemoryPrefsStore();
-    expect(await prefs.readCustomerViewMode(), isNull);
-    await prefs.writeCustomerViewMode('grid');
-    await prefs.clear();
-    expect(await prefs.readCustomerViewMode(), 'grid');
+    expect(await prefs.read('anything'), isNull);
+    await prefs.write('anything', 'value');
+    expect(await prefs.read('anything'), 'value');
   });
 
-  test('하루 화면 보기 방식은 기억하고, 로그아웃 정리(clear)로 지워지지 않는다', () async {
+  test('보기 방식 같은 기기 설정은 clear 가 지우지 않는다', () async {
     final prefs = MemoryPrefsStore();
-    expect(await prefs.readDayViewMode(), isNull);
-    await prefs.writeDayViewMode('timeline');
+    await prefs.write(PrefsKeys.customerViewMode, 'grid');
+    await prefs.write(PrefsKeys.dayViewMode, 'timeline');
+    await prefs.writeLastShopId(3);
     await prefs.clear();
-    expect(await prefs.readDayViewMode(), 'timeline');
+    expect(await prefs.read(PrefsKeys.customerViewMode), 'grid');
+    expect(await prefs.read(PrefsKeys.dayViewMode), 'timeline');
+    expect(await prefs.readLastShopId(), isNull);
   });
 }

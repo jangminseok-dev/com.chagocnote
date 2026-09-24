@@ -29,7 +29,7 @@ class DayGroup {
   bool get occupiesTime => items.any((i) => i.visit.occupiesTime);
 
   /// 묶음의 상태가 모두 같으면 그 상태, 섞였으면 null.
-  String? get uniformStatus {
+  VisitStatus? get uniformStatus {
     final statuses = {for (final i in items) i.visit.status};
     return statuses.length == 1 ? statuses.single : null;
   }
@@ -44,7 +44,7 @@ class DayGroup {
   ];
 
   /// 진행 가능한 구성원의 상태가 하나면 그 상태(버튼을 낼 수 있다), 아니면 null.
-  String? get actionableStatus {
+  VisitStatus? get actionableStatus {
     final statuses = {for (final v in actionable) v.status};
     return statuses.length == 1 ? statuses.single : null;
   }
@@ -99,4 +99,26 @@ List<int> timelineColumns(List<DayGroup> groups) {
     result.add(column);
   }
   return result;
+}
+
+/// 시간표가 그릴 첫 시와 마지막 시(끝 포함). 영업시간을 기본으로, 그 밖에 걸친 묶음이
+/// 있으면 넓힌다. [settings]가 아직 없으면 10~19시.
+({int first, int last}) timelineHours(
+  VisitSettings? settings,
+  List<DayGroup> active,
+) {
+  var first = settings == null
+      ? 10
+      : int.parse(settings.opensAt.substring(0, 2));
+  var last = settings == null
+      ? 19
+      : int.parse(settings.closesAt.substring(0, 2)) +
+            (int.parse(settings.closesAt.substring(3, 5)) > 0 ? 1 : 0);
+  for (final g in active) {
+    if (g.startsAt.wall.hour < first) first = g.startsAt.wall.hour;
+    final end = g.endsAt;
+    final endHour = end.minute == 0 ? end.hour : end.hour + 1;
+    if (endHour > last) last = endHour;
+  }
+  return (first: first, last: last);
 }

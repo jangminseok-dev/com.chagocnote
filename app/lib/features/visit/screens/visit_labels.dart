@@ -1,24 +1,16 @@
 import '../../../l10n/app_strings.dart';
 import '../api/visit_models.dart';
 
-/// `14:00`.
-String hhmm(DateTime t) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+// 시각·날짜 표기(hhmm·dayLabel·sameDay)는 core/time 에 있다. 이 모듈을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
+export '../../../core/time/time_labels.dart';
 
-/// `10월 2일 금`.
-String dayLabel(DateTime d) =>
-    '${d.month}월 ${d.day}일 ${AppStrings.weekdaysShort[d.weekday - 1]}';
-
-bool sameDay(DateTime a, DateTime b) =>
-    a.year == b.year && a.month == b.month && a.day == b.day;
-
-String statusLabel(String status) => switch (status) {
+String statusLabel(VisitStatus status) => switch (status) {
   VisitStatus.reserved => AppStrings.statusReserved,
   VisitStatus.inProgress => AppStrings.statusInProgress,
   VisitStatus.completed => AppStrings.statusCompleted,
   VisitStatus.canceled => AppStrings.statusCanceled,
   VisitStatus.noShow => AppStrings.statusNoShow,
-  _ => status,
+  VisitStatus.unknown => AppStrings.statusUnknown,
 };
 
 String warningLabel(String warning) => switch (warning) {

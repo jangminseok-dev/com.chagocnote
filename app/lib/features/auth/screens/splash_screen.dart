@@ -6,7 +6,7 @@ import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
-import '../../../design/widgets/app_button.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../state/session_controller.dart';
 
@@ -33,23 +33,9 @@ class SplashScreen extends ConsumerWidget {
                 const CircularProgressIndicator(),
               ],
             ),
-            error: (error, _) => Padding(
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    messageFor(error),
-                    style: AppTypography.body,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    label: AppStrings.retry,
-                    onPressed: () => ref.invalidate(sessionControllerProvider),
-                  ),
-                ],
-              ),
+            error: (error, _) => AppErrorRetry.inline(
+              message: messageFor(error),
+              onRetry: () => ref.invalidate(sessionControllerProvider),
             ),
           ),
         ),

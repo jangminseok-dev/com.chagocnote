@@ -12,10 +12,10 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
-import '../../home/state/today_provider.dart';
+import '../../auth/state/shop_selection.dart';
+import '../../../core/time/today_provider.dart';
 import '../api/customer_models.dart';
 import '../state/customer_commands.dart';
 import '../state/customer_input.dart';
@@ -61,10 +61,7 @@ class _RegisterCustomerScreenState
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   String get _digits => phoneDigits(_phone.text);
 
@@ -324,19 +321,9 @@ class _RegisterCustomerScreenState
             ),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(messageFor(error), style: AppTypography.body),
-                const SizedBox(height: AppSpacing.lg),
-                AppButton(
-                  label: AppStrings.retry,
-                  onPressed: () =>
-                      ref.invalidate(conditionTypesProvider(shopId)),
-                ),
-              ],
-            ),
+          error: (error, _) => AppErrorRetry(
+            message: messageFor(error),
+            onRetry: () => ref.invalidate(conditionTypesProvider(shopId)),
           ),
         );
   }

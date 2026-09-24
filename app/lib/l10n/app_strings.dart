@@ -215,6 +215,7 @@ class AppStrings {
   // 예약·방문
   static const weekdaysShort = ['월', '화', '수', '목', '금', '토', '일'];
   static const statusReserved = '예약됨';
+  static const statusUnknown = '알 수 없음';
   static const statusInProgress = '미용 중';
   static const statusCompleted = '완료';
   static const statusCanceled = '취소';

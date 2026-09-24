@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/clipboard.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
@@ -11,12 +11,12 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/shop_api.dart';
 import '../state/members_controller.dart';
 
@@ -32,18 +32,16 @@ class MembersScreen extends ConsumerStatefulWidget {
 class _MembersScreenState extends ConsumerState<MembersScreen> {
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   Future<void> _createInvite() async {
     final shopId = _shopId;
     if (shopId == null) return;
     setState(() => _errorText = null);
     try {
-      final invite =
-          await ref.read(membersControllerProvider(shopId).notifier).createInvite();
+      final invite = await ref
+          .read(membersControllerProvider(shopId).notifier)
+          .createInvite();
       if (!mounted) return;
       _showInviteSheet(invite);
     } catch (e) {
@@ -58,10 +56,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            invite.code,
-            style: AppTypography.inviteCode,
-          ),
+          Text(invite.code, style: AppTypography.inviteCode),
           const SizedBox(height: AppSpacing.sm),
           Text(
             '${AppStrings.inviteExpiresAtLabel} ${_formatDateTime(invite.expiresAt)}',
@@ -70,7 +65,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
           const SizedBox(height: AppSpacing.lg),
           AppButton(
             label: AppStrings.copy,
-            onPressed: () => Clipboard.setData(ClipboardData(text: invite.code)),
+            onPressed: () => ref.read(clipboardProvider).writeText(invite.code),
           ),
         ],
       ),
@@ -87,8 +82,8 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
             label: member.isOwner
                 ? AppStrings.demoteToStaff
                 : AppStrings.promoteToOwner,
-            onTap: () => Navigator.of(context)
-                .pop(member.isOwner ? 'staff' : 'owner'),
+            onTap: () =>
+                Navigator.of(context).pop(member.isOwner ? 'staff' : 'owner'),
           ),
           _ActionRow(
             label: AppStrings.removeMember,
@@ -171,11 +166,11 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shopId = _shopId;
-    final session = ref.watch(sessionControllerProvider).value;
-    final isOwner =
-        session is SignedIn && (session.selectedShop?.isOwner ?? false);
-    final myUserId = session is SignedIn ? session.me.id : null;
+    // 매장이 바뀌면 다시 그려야 하므로 build 안에서는 watch 한다(_shopId
+    // getter 는 read 라 액션 메서드 전용).
+    final shopId = ref.watch(selectedShopIdProvider);
+    final isOwner = ref.watch(isOwnerProvider);
+    final myUserId = ref.watch(currentUserIdProvider);
     final members = shopId == null
         ? const AsyncValue<List<ShopMember>>.data(<ShopMember>[])
         : ref.watch(membersControllerProvider(shopId));
@@ -214,10 +209,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.lg,
                   ),
-                  child: Text(
-                    _errorText!,
-                    style: AppTypography.caption,
-                  ),
+                  child: Text(_errorText!, style: AppTypography.caption),
                 ),
               Expanded(
                 child: members.when(
@@ -275,19 +267,10 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                   ),
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () => ref
-                              .invalidate(membersControllerProvider(shopId!)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () =>
+                        ref.invalidate(membersControllerProvider(shopId!)),
                   ),
                 ),
               ),

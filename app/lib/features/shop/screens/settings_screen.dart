@@ -11,8 +11,7 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_chip.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 
 /// 설정 허브. 매장/다른 매장/계정 세 묶음으로 이동한다.
 class SettingsScreen extends ConsumerWidget {
@@ -20,9 +19,10 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionControllerProvider).value;
-    final shop = session is SignedIn ? session.selectedShop : null;
-    final shopCount = session is SignedIn ? session.me.shops.length : 0;
+    final shopId = ref.watch(selectedShopIdProvider);
+    final shopName = ref.watch(shopNameProvider);
+    final isOwner = ref.watch(isOwnerProvider);
+    final shopCount = ref.watch(shopCountProvider);
 
     return Scaffold(
       key: ScreenKeys.settings,
@@ -38,13 +38,13 @@ class SettingsScreen extends ConsumerWidget {
                 child: AppBackButton(),
               ),
               const SizedBox(height: AppSpacing.lg),
-              if (shop != null) ...[
+              if (shopId != null) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(shop.shopName, style: AppTypography.titleKo),
+                    Text(shopName, style: AppTypography.titleKo),
                     AppChip(
-                      label: shop.isOwner
+                      label: isOwner
                           ? AppStrings.roleOwner
                           : AppStrings.roleStaff,
                     ),
@@ -62,12 +62,12 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.push('/settings/shop'),
               ),
               // 일정·메뉴는 사장만 바꾼다(보안 경계는 서버 403) — 직원에게는 보이지 않는다.
-              if (shop?.isOwner ?? false)
+              if (isOwner)
                 _SettingsRow(
                   label: AppStrings.settingsSchedule,
                   onTap: () => context.push('/settings/schedule'),
                 ),
-              if (shop?.isOwner ?? false)
+              if (isOwner)
                 _SettingsRow(
                   label: AppStrings.settingsMenus,
                   onTap: () => context.push('/settings/menus'),

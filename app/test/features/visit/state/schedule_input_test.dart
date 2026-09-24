@@ -1,4 +1,4 @@
-import 'package:chagocnote/features/shop/state/schedule_input.dart';
+import 'package:chagocnote/features/visit/state/schedule_input.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

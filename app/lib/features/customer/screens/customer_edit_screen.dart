@@ -9,10 +9,10 @@ import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/customer_models.dart';
 import '../state/customer_commands.dart';
 import '../state/customer_providers.dart';
@@ -33,10 +33,7 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   /// 쓰기 하나를 돌린다(연타 방지, 실패 문구). 성공하면 true.
   Future<bool> _run(Future<void> Function(int shopId) action) async {
@@ -106,10 +103,10 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shopId = _shopId;
-    final session = ref.watch(sessionControllerProvider).value;
-    final isOwner =
-        session is SignedIn && (session.selectedShop?.isOwner ?? false);
+    // 매장이 바뀌면 다시 그려야 하므로 build 안에서는 watch 한다(_shopId
+    // getter 는 read 라 액션 메서드 전용).
+    final shopId = ref.watch(selectedShopIdProvider);
+    final isOwner = ref.watch(isOwnerProvider);
     final key = shopId == null
         ? null
         : (shopId: shopId, customerId: widget.customerId);
@@ -167,19 +164,9 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
                   ),
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () =>
-                              ref.invalidate(customerDetailProvider(key!)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () => ref.invalidate(customerDetailProvider(key!)),
                   ),
                 ),
               ),

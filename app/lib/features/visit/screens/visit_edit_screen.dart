@@ -10,10 +10,10 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
@@ -36,10 +36,7 @@ class _VisitEditScreenState extends ConsumerState<VisitEditScreen> {
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   /// 같이 옮길 수 있는 묶음의 다른 예약(예약됨만 옮길 수 있다). 서버의
   /// group 은 이미 자기를 뺀 형제만 준다.
@@ -160,19 +157,9 @@ class _VisitEditScreenState extends ConsumerState<VisitEditScreen> {
                 child: detail.when(
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () =>
-                              ref.invalidate(visitDetailProvider(key)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () => ref.invalidate(visitDetailProvider(key)),
                   ),
                   data: (detail) => _form(shopId!, detail),
                 ),

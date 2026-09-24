@@ -15,14 +15,14 @@ import '../../../design/widgets/app_big_date.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_fab.dart';
 import '../../../design/widgets/app_icon_toggle.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/visit_models.dart';
 import '../state/day_layout.dart';
 import '../state/day_view_mode.dart';
@@ -52,12 +52,9 @@ class _DayScreenState extends ConsumerState<DayScreen> {
   bool _asking = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
-  Future<void> _act(DayGroup group, String action) async {
+  Future<void> _act(DayGroup group, VisitAction action) async {
     final shopId = _shopId;
     if (shopId == null || _busyVisitId != null || _asking) return;
     // 상태가 섞인 묶음이면 아직 진행 가능한 아이들만(다음 예약 초안도 그 아이 기준).
@@ -148,16 +145,16 @@ class _DayScreenState extends ConsumerState<DayScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shopId = _shopId;
+    // 매장이 바뀌면 다시 그려야 하므로 build 안에서는 watch 한다(_shopId
+    // getter 는 read 라 액션 메서드 전용).
+    final shopId = ref.watch(selectedShopIdProvider);
     final key = (shopId: shopId ?? 0, date: widget.date);
     final day = shopId == null
         ? const AsyncValue<DayVisits>.loading()
         : ref.watch(dayVisitsProvider(key));
     final mode = ref.watch(dayViewModeProvider).value ?? DayViewMode.list;
     final data = day.value;
-    final session = ref.watch(sessionControllerProvider).value;
-    final isOwner =
-        session is SignedIn && (session.selectedShop?.isOwner ?? false);
+    final isOwner = ref.watch(isOwnerProvider);
     return Scaffold(
       key: ScreenKeys.day,
       floatingActionButton: AppFab(
@@ -267,19 +264,9 @@ class _DayScreenState extends ConsumerState<DayScreen> {
                 child: day.when(
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () =>
-                              ref.invalidate(dayVisitsProvider(key)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () => ref.invalidate(dayVisitsProvider(key)),
                   ),
                   data: (data) {
                     final groups = groupDay(data.items);
@@ -338,7 +325,7 @@ class _DayList extends StatelessWidget {
   /// 완료 시트를 띄우기 전 초안을 읽는 동안(설계 6.2) — 이때는 카드 버튼을
   /// 전부 막지만 스피너는 켜지 않는다.
   final bool asking;
-  final void Function(DayGroup group, String action) onAction;
+  final void Function(DayGroup group, VisitAction action) onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -388,7 +375,7 @@ class _GroupCard extends StatelessWidget {
   final DayGroup group;
   final bool busy;
   final bool otherBusy;
-  final ValueChanged<String> onAction;
+  final ValueChanged<VisitAction> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +388,7 @@ class _GroupCard extends StatelessWidget {
     // 상태가 섞였으면 아직 진행 가능한 아이들의 상태로 버튼을 정한다(A2 잔여).
     final mixed = status == null;
     final buttonStatus = mixed ? group.actionableStatus : status;
-    VoidCallback? on(String action) =>
+    VoidCallback? on(VisitAction action) =>
         busy || otherBusy ? null : () => onAction(action);
     final Widget trailing = switch (buttonStatus) {
       VisitStatus.reserved => AppButton(
@@ -416,7 +403,11 @@ class _GroupCard extends StatelessWidget {
         busy: busy,
         onPressed: on(VisitAction.complete),
       ),
-      _ => AppChip(label: statusLabel(status ?? first.status)),
+      null ||
+      VisitStatus.completed ||
+      VisitStatus.canceled ||
+      VisitStatus.noShow ||
+      VisitStatus.unknown => AppChip(label: statusLabel(status ?? first.status)),
     };
     final caption = [
       menusLabel(first.menus),
@@ -519,20 +510,7 @@ class _Timeline extends ConsumerWidget {
       for (final g in groups)
         if (g.occupiesTime) g,
     ];
-    // 영업시간을 기본으로, 그 밖의 방문이 있으면 넓힌다.
-    var firstHour = settings == null
-        ? 10
-        : int.parse(settings.opensAt.substring(0, 2));
-    var lastHour = settings == null
-        ? 19
-        : int.parse(settings.closesAt.substring(0, 2)) +
-              (int.parse(settings.closesAt.substring(3, 5)) > 0 ? 1 : 0);
-    for (final g in active) {
-      if (g.startsAt.wall.hour < firstHour) firstHour = g.startsAt.wall.hour;
-      final end = g.endsAt;
-      final endHour = end.minute == 0 ? end.hour : end.hour + 1;
-      if (endHour > lastHour) lastHour = endHour;
-    }
+    final (first: firstHour, last: lastHour) = timelineHours(settings, active);
     final columns = timelineColumns(active);
     final columnCount = columns.isEmpty
         ? 1

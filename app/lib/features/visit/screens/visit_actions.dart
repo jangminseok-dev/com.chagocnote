@@ -106,20 +106,36 @@ abstract final class VisitSheets {
   );
 }
 
-/// 시트에서 고른 상태 전이. [cancelReason]은 취소일 때만, [thenNext]는
-/// "완료하고 다음 예약 잡기"일 때 true, [draft]는 그때 미리 받아 둔 초안.
+/// 완료 뒤에 이어서 할 일. 완료 시트의 선택이다 — bool 둘 대신 닫힌 타입으로 두어
+/// 종류가 늘 때(④-2 "기록으로") `switch` 한 곳에 분기가 붙는다.
+sealed class AfterComplete {
+  const AfterComplete();
+}
+
+/// 완료만 한다.
+class AfterNothing extends AfterComplete {
+  const AfterNothing();
+}
+
+/// 완료하고 다음 예약 잡기. [draft]는 시트를 띄우기 전에 미리 받아 둔 초안(없을 수 있다).
+class AfterNextReservation extends AfterComplete {
+  const AfterNextReservation({this.draft});
+
+  final NextVisitDraft? draft;
+}
+
+/// 시트에서 고른 상태 전이. [cancelReason]은 취소일 때만, [after]는 완료일 때
+/// 이어서 할 일.
 class VisitChoice {
   const VisitChoice(
     this.action, {
     this.cancelReason,
-    this.thenNext = false,
-    this.draft,
+    this.after = const AfterNothing(),
   });
 
-  final String action;
+  final VisitAction action;
   final String? cancelReason;
-  final bool thenNext;
-  final NextVisitDraft? draft;
+  final AfterComplete after;
 }
 
 /// 전이에 필요한 것을 시트로 묻는다(취소 사유, 노쇼 확인, 완료 / 완료하고
@@ -136,10 +152,13 @@ Future<VisitChoice?> askVisitAction(
   BuildContext context,
   WidgetRef ref, {
   required int shopId,
-  required String action,
+  required VisitAction action,
   required int anchorVisitId,
 }) async {
   switch (action) {
+    case VisitAction.start:
+    case VisitAction.revert:
+      return VisitChoice(action);
     case VisitAction.cancel:
       final reason = await VisitSheets.cancelReason(context);
       return reason == null ? null : VisitChoice(action, cancelReason: reason);
@@ -157,11 +176,11 @@ Future<VisitChoice?> askVisitAction(
       }
       if (!context.mounted) return null;
       final next = await VisitSheets.complete(context, draft: draft);
-      return next == null
-          ? null
-          : VisitChoice(VisitAction.complete, thenNext: next, draft: draft);
-    default:
-      return VisitChoice(action);
+      if (next == null) return null;
+      return VisitChoice(
+        VisitAction.complete,
+        after: next ? AfterNextReservation(draft: draft) : const AfterNothing(),
+      );
   }
 }
 
@@ -183,8 +202,12 @@ Future<void> sendVisitAction(
     action: choice.action,
     cancelReason: choice.cancelReason,
   );
-  if (!choice.thenNext) return;
-  final draft = choice.draft ?? await commands.nextDraft(shopId, anchorVisitId);
-  // 기다리지 않는다 — 예약 화면이 닫힐 때까지 부른 화면이 "보내는 중"에 묶이지 않게.
-  if (context.mounted) context.push('/visits/new', extra: draft);
+  switch (choice.after) {
+    case AfterNothing():
+      return;
+    case AfterNextReservation(:final draft):
+      final next = draft ?? await commands.nextDraft(shopId, anchorVisitId);
+      // 기다리지 않는다 — 예약 화면이 닫힐 때까지 부른 화면이 "보내는 중"에 묶이지 않게.
+      if (context.mounted) context.push('/visits/new', extra: next);
+  }
 }

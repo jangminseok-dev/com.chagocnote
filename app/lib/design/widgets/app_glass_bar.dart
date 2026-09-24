@@ -33,7 +33,7 @@ class AppGlassBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassSurface(
-      borderRadius: const BorderRadius.all(Radius.circular(AppRadius.pill)),
+      radius: AppRadius.pill,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: SizedBox(
         height: 56,

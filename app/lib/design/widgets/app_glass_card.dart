@@ -21,7 +21,7 @@ class AppGlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassSurface(
-      borderRadius: const BorderRadius.all(Radius.circular(AppRadius.lg)),
+      radius: AppRadius.lg,
       padding: padding,
       child: child,
     );

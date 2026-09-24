@@ -12,6 +12,7 @@ import 'package:chagocnote/app.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/design/tokens/app_colors.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_chip.dart';
@@ -485,8 +486,10 @@ void main() {
       await shot('02a-day-list');
       await tap(p(AppStrings.viewAsTimeline), after: const Duration(seconds: 1));
       await shot('02b-day-timeline');
-      final saved = await container.read(prefsStoreProvider).readDayViewMode();
-      note('시간표로 바꾼 뒤 PrefsStore.readDayViewMode() = $saved');
+      final saved = await container
+          .read(prefsStoreProvider)
+          .read(PrefsKeys.dayViewMode);
+      note('시간표로 바꾼 뒤 PrefsStore.read(PrefsKeys.dayViewMode) = $saved');
       expect(saved, 'timeline');
       await tap(p(AppStrings.back));
       await waitFor(find.byKey(ScreenKeys.home));
@@ -499,7 +502,9 @@ void main() {
       await shot('02c-day-reopened-timeline');
       expect(idx, 1);
       await tap(p(AppStrings.viewAsList), after: const Duration(seconds: 1));
-      final back = await container.read(prefsStoreProvider).readDayViewMode();
+      final back = await container
+          .read(prefsStoreProvider)
+          .read(PrefsKeys.dayViewMode);
       note('목록으로 되돌린 뒤 저장값 = $back');
       await shot('02d-day-list-again');
       expect(back, 'list');

@@ -2,17 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/error_messages.dart';
-import '../../../design/tokens/app_colors.dart';
-import '../../../design/tokens/app_radius.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
-import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_choice_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_icon_toggle.dart';
+import '../../../design/widgets/app_search_field.dart';
 import '../../../design/widgets/app_segment.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../state/customer_list_controller.dart';
 import '../state/customer_view_mode.dart';
 import '../state/search_debouncer.dart';
@@ -67,8 +65,7 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
   }
 
   CustomerListQuery? get _query {
-    final session = ref.read(sessionControllerProvider).value;
-    final shopId = session is SignedIn ? session.selectedShopId : null;
+    final shopId = ref.read(selectedShopIdProvider);
     if (shopId == null) return null;
     return (shopId: shopId, q: _q, sort: _sort, includePassed: _includePassed);
   }
@@ -86,7 +83,7 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(sessionControllerProvider);
+    ref.watch(selectedShopIdProvider); // 매장이 바뀌면 다시 그린다
     final query = _query;
     final mode =
         ref.watch(customerViewModeProvider).value ?? CustomerViewMode.list;
@@ -163,27 +160,9 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
             AppSpacing.lg,
             AppSpacing.sm,
           ),
-          child: TextField(
+          child: AppSearchField(
             controller: _search,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: AppStrings.customerSearchHint,
-              hintStyle: AppTypography.body.copyWith(
-                color: AppColors.secondary,
-              ),
-              prefixIcon: const Icon(Icons.search, color: AppColors.secondary),
-              filled: true,
-              fillColor: AppColors.white,
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: const BorderSide(color: AppColors.line),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: const BorderSide(color: AppColors.line),
-              ),
-            ),
+            hintText: AppStrings.customerSearchHint,
           ),
         ),
         Expanded(
@@ -198,20 +177,10 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
                       .loadMore(),
                 )
               : async.hasError
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(messageFor(async.error!), style: AppTypography.body),
-                      const SizedBox(height: AppSpacing.lg),
-                      AppButton(
-                        label: AppStrings.retry,
-                        onPressed: () => ref.invalidate(
-                          customerListControllerProvider(query!),
-                        ),
-                      ),
-                    ],
-                  ),
+              ? AppErrorRetry(
+                  message: messageFor(async.error!),
+                  onRetry: () =>
+                      ref.invalidate(customerListControllerProvider(query!)),
                 )
               : const Center(child: CircularProgressIndicator()),
         ),
@@ -278,15 +247,9 @@ class _CardList extends StatelessWidget {
           if (state.loadMoreError != null) {
             return Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                children: [
-                  Text(
-                    messageFor(state.loadMoreError!),
-                    style: AppTypography.caption,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(label: AppStrings.retry, onPressed: onRetryMore),
-                ],
+              child: AppErrorRetry.row(
+                message: messageFor(state.loadMoreError!),
+                onRetry: onRetryMore,
               ),
             );
           }

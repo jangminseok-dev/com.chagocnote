@@ -1,14 +1,14 @@
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
-import 'package:chagocnote/features/home/state/today_provider.dart';
+import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../support/customer_test_app.dart';
-import '../../../support/fake_http_client_adapter.dart';
-import '../../../support/visit_fixtures.dart';
-import '../../../support/visit_test_backend.dart';
+import '../../../../support/customer_test_app.dart';
+import '../../../../support/fake_http_client_adapter.dart';
+import '../../../../support/visit_fixtures.dart';
+import '../../../../support/visit_test_backend.dart';
 
 final _today = [todayProvider.overrideWithValue(DateTime(2026, 9, 23))];
 

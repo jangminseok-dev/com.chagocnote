@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
 import '../api/shop_api.dart';
-import 'shop_errors.dart';
+import '../../auth/state/shop_scoped.dart';
 import 'shop_providers.dart';
 
 /// 매장 하나의 멤버 목록과 그 관리 동작. 매장 id로 만든

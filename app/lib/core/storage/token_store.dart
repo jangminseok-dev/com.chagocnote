@@ -11,7 +11,7 @@ abstract class TokenStore {
 /// flutter_secure_storage 로 토큰을 보관하는 구현체.
 class SecureTokenStore implements TokenStore {
   SecureTokenStore({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   static const _accessKey = 'access_token';
   static const _refreshKey = 'refresh_token';

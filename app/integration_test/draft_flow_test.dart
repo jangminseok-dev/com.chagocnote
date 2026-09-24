@@ -907,7 +907,7 @@ void main() {
       await shot('08c-mixed-completed');
       soft(
         after.length == 2 &&
-            after.every((s) => s.endsWith(VisitStatus.completed)),
+            after.every((s) => s.endsWith(VisitStatus.completed.code)),
         '$mixedAt 두 마리가 모두 완료가 아니다',
       );
 

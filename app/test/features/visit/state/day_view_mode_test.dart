@@ -1,3 +1,4 @@
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/features/visit/state/day_view_mode.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,7 +24,7 @@ void main() {
       setup.container.read(dayViewModeProvider).value,
       DayViewMode.timeline,
     );
-    expect(await setup.prefs.readDayViewMode(), 'timeline');
+    expect(await setup.prefs.read(PrefsKeys.dayViewMode), 'timeline');
   });
 
   test('기억한 것이 시간표면 시간표로 시작한다', () async {
@@ -31,7 +32,7 @@ void main() {
       (options, body) => const FakeResponse(statusCode: 500),
     );
     addTearDown(setup.container.dispose);
-    await setup.prefs.writeDayViewMode('timeline');
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
 
     expect(
       await setup.container.read(dayViewModeProvider.future),

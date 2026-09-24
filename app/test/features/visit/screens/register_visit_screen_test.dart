@@ -4,7 +4,7 @@ import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/tokens/app_colors.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
-import 'package:chagocnote/features/home/state/today_provider.dart';
+import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
 import 'package:chagocnote/features/visit/state/visit_prefill.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
