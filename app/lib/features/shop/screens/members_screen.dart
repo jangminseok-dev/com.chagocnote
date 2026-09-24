@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/clipboard.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
@@ -65,8 +65,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
           const SizedBox(height: AppSpacing.lg),
           AppButton(
             label: AppStrings.copy,
-            onPressed: () =>
-                Clipboard.setData(ClipboardData(text: invite.code)),
+            onPressed: () => ref.read(clipboardProvider).writeText(invite.code),
           ),
         ],
       ),

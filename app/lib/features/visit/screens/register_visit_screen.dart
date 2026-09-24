@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/api_exception.dart';
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/clipboard.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
@@ -301,8 +301,8 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
   /// 클립보드의 카톡 글로 초안 화면을 연다(③-A3). 초안에서 예약을 저장하고
   /// 돌아오면 ①도 그 날짜로 닫힌다 — 홈이 그날을 고른다.
   Future<void> _pasteFromKakao(BuildContext context) async {
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    var text = data?.text?.trim() ?? '';
+    final data = await ref.read(clipboardProvider).readText();
+    var text = data?.trim() ?? '';
     if (!context.mounted) return;
     if (text.isEmpty) {
       setState(() => _pasteNote = AppStrings.clipboardEmpty);

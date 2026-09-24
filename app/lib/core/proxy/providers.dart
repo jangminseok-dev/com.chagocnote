@@ -5,6 +5,7 @@ import '../config/app_config.dart';
 import '../storage/prefs_store.dart';
 import '../storage/token_store.dart';
 import 'api_client.dart';
+import 'upload_client.dart';
 
 final appConfigProvider = Provider<AppConfig>((ref) => AppConfig.fromEnvironment());
 
@@ -64,3 +65,13 @@ final apiClientProvider = Provider<ApiClient>((ref) {
     onSessionEnded: signal.fire,
   );
 });
+
+/// [UploadClient]가 쓰는 민짜 `Dio`. 인터셉터도 인증도 없다. 테스트는 [dioProvider]처럼
+/// 가짜 어댑터를 문 `Dio`를 꽂는다.
+final uploadDioProvider = Provider<Dio>(
+  (ref) => Dio(BaseOptions(connectTimeout: UploadClient.connectTimeout)),
+);
+
+final uploadClientProvider = Provider<UploadClient>(
+  (ref) => UploadClient(dio: ref.watch(uploadDioProvider)),
+);

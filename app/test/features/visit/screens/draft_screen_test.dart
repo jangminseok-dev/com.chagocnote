@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_chip.dart';
+import 'package:chagocnote/core/proxy/clipboard.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_fixtures.dart';
 import '../../../support/customer_test_app.dart';
+import '../../../support/fake_clipboard.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/visit_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
@@ -33,21 +34,6 @@ Finder _button(String label) =>
 Finder _guessChips() => find.byWidgetPredicate(
   (w) => w is AppChip && w.label == AppStrings.draftGuessed,
 );
-
-/// `Clipboard.getData`가 [text]를 돌려주게 한다(null 이면 빈 클립보드).
-void _mockClipboard(WidgetTester tester, String? text) {
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        if (call.method == 'Clipboard.getData') {
-          return text == null ? null : {'text': text};
-        }
-        return null;
-      });
-  addTearDown(
-    () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(SystemChannels.platform, null),
-  );
-}
 
 void main() {
   testWidgets(
@@ -261,7 +247,11 @@ void main() {
       draftBody = bodyOf(body);
       return FakeResponse(statusCode: 200, data: visitDraftJson());
     };
-    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    final clipboard = FakeClipboard('가' * 1200);
+    final setup = CustomerTestSetup(
+      backend.call,
+      overrides: [..._today, clipboardProvider.overrideWithValue(clipboard)],
+    );
     addTearDown(setup.container.dispose);
     await _open(
       tester,
@@ -270,7 +260,6 @@ void main() {
       extra: null,
     );
 
-    _mockClipboard(tester, '가' * 1200);
     await tester.tap(_button(AppStrings.pasteFromKakao));
     await settle(tester);
     expect((draftBody?['text'] as String).length, 1000);
@@ -285,7 +274,11 @@ void main() {
       draftBody = bodyOf(body);
       return FakeResponse(statusCode: 200, data: visitDraftJson());
     };
-    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    final clipboard = FakeClipboard();
+    final setup = CustomerTestSetup(
+      backend.call,
+      overrides: [..._today, clipboardProvider.overrideWithValue(clipboard)],
+    );
     addTearDown(setup.container.dispose);
     final result = await _open(
       tester,
@@ -294,13 +287,12 @@ void main() {
       extra: null,
     );
 
-    _mockClipboard(tester, null);
     await tester.tap(_button(AppStrings.pasteFromKakao));
     await settle(tester);
     expect(find.text(AppStrings.clipboardEmpty), findsOneWidget);
     expect(find.byKey(ScreenKeys.visitDraft), findsNothing);
 
-    _mockClipboard(tester, '  $_text  ');
+    clipboard.text = '  $_text  ';
     await tester.tap(_button(AppStrings.pasteFromKakao));
     await settle(tester);
     expect(find.byKey(ScreenKeys.visitDraft), findsOneWidget);
