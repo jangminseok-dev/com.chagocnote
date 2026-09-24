@@ -34,25 +34,11 @@ class _SessionRefreshListenable extends ChangeNotifier {
   void ping() => notifyListeners();
 }
 
-/// 매장이 선택되어 있어야만 열리는 경로.
-const _shopScopedSettings = {
-  '/settings',
-  '/settings/members',
-  '/settings/shop',
-  '/settings/schedule',
-  '/settings/menus',
-};
-
-/// 고객·반려동물·방문 화면도 매장이 선택되어 있어야 열린다(경로에 ID 가 들어간다).
-bool _isShopScoped(String location) =>
-    _shopScopedSettings.contains(location) ||
-    location.startsWith('/customers/') ||
-    location.startsWith('/pets/') ||
-    location.startsWith('/visits/');
-
-/// 매장이 없어도(0-shop 사용자도) 열려 있어야 하는 계정 관련 경로 — 로그아웃,
-/// 로그인 수단 해제, 탈퇴는 매장 유무와 무관하게 가능해야 한다.
-const _accountExemptRoutes = {'/settings/account', '/settings/account/withdraw'};
+/// 매장을 고르지 않아도 열리는 계정 경로 — 로그아웃, 로그인 수단 해제, 탈퇴는 매장 유무와 무관하게
+/// 가능해야 한다. **이 밖의 모든 경로는 매장 범위다**(기본이 매장 범위라 새 경로를 더하며 가드를 잊을 수
+/// 없다). `test/core/router/app_router_test.dart`가 라우터의 경로를 전부 돌며 이 목록 밖은 매장 선택으로
+/// 밀리는지 확인한다.
+const accountRoutes = {'/settings/account', '/settings/account/withdraw'};
 
 /// 로그인/스플래시처럼 "머물 이유가 없는" 진입 화면. 로그인된 사용자가
 /// 여기 있으면 홈으로 밀어낸다. `/invite`, `/shops/select`는 매장을 이미 가진
@@ -85,16 +71,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       return switch (session.value) {
         null || SignedOut() => location == '/login' ? null : '/login',
         SignedIn(:final me, :final selectedShopId) => _redirectSignedIn(
-            location: location,
-            shopCount: me.shops.length,
-            selectedShopId: selectedShopId,
-          ),
+          location: location,
+          shopCount: me.shops.length,
+          selectedShopId: selectedShopId,
+        ),
       };
     },
     routes: [
-      GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/invite', builder: (context, state) => const InviteCodeScreen()),
+      GoRoute(
+        path: '/invite',
+        builder: (context, state) => const InviteCodeScreen(),
+      ),
       GoRoute(
         path: '/shops/select',
         builder: (context, state) => const ShopSelectScreen(),
@@ -130,9 +122,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/pets/:petId',
-        builder: (context, state) => PetDetailScreen(
-          petId: int.parse(state.pathParameters['petId']!),
-        ),
+        builder: (context, state) =>
+            PetDetailScreen(petId: int.parse(state.pathParameters['petId']!)),
       ),
       GoRoute(
         path: '/pets/:petId/edit',
@@ -174,8 +165,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/visits/draft',
-        builder: (context, state) =>
-            DraftScreen(text: state.extra as String),
+        builder: (context, state) => DraftScreen(text: state.extra as String),
       ),
       GoRoute(
         path: '/visits/day/:date',
@@ -208,17 +198,13 @@ String? _redirectSignedIn({
   required int? selectedShopId,
 }) {
   if (shopCount == 0) {
-    if (_accountExemptRoutes.contains(location)) return null;
+    if (accountRoutes.contains(location)) return null;
     return location == '/invite' ? null : '/invite';
   }
 
   if (shopCount >= 2 && selectedShopId == null) {
-    if (_accountExemptRoutes.contains(location)) return null;
+    if (accountRoutes.contains(location)) return null;
     return location == '/shops/select' ? null : '/shops/select';
-  }
-
-  if (_isShopScoped(location) && selectedShopId == null) {
-    return '/home';
   }
 
   if (_entryOnlyRoutes.contains(location)) {
