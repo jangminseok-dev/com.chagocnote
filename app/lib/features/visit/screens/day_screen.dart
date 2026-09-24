@@ -410,7 +410,11 @@ class _GroupCard extends StatelessWidget {
         busy: busy,
         onPressed: on(VisitAction.complete),
       ),
-      _ => AppChip(label: statusLabel(status ?? first.status)),
+      null ||
+      VisitStatus.completed ||
+      VisitStatus.canceled ||
+      VisitStatus.noShow ||
+      VisitStatus.unknown => AppChip(label: statusLabel(status ?? first.status)),
     };
     final caption = [
       menusLabel(first.menus),

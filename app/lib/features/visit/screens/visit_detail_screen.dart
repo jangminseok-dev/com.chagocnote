@@ -348,7 +348,10 @@ class _StatusButtons extends StatelessWidget {
         busy: busy,
         onPressed: on(VisitAction.complete),
       ),
-      _ => const SizedBox.shrink(),
+      VisitStatus.completed ||
+      VisitStatus.canceled ||
+      VisitStatus.noShow ||
+      VisitStatus.unknown => const SizedBox.shrink(),
     };
   }
 }
