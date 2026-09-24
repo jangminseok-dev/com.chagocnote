@@ -9,10 +9,14 @@ import '../tokens/app_shadows.dart';
 /// 구현체를 바꿔치기하면 실제 리퀴드 글래스 렌더러(`GlassContainer`)와
 /// 완전 불투명 대체 표면(`OpaqueSurfaceFactory`)을 동일한 인터페이스로
 /// 다룰 수 있다.
+///
+/// 모서리는 네 곳이 같은 반지름 [radius] 하나다. 리퀴드 글래스 모양이 대칭
+/// 반지름만 받으므로 계약도 그만큼만 약속한다 — 비대칭 반지름을 받아 놓고
+/// 구현마다 다르게 그리던 것을 없앤다.
 abstract class GlassSurfaceFactory {
   Widget build({
     required Widget child,
-    required BorderRadius borderRadius,
+    required double radius,
     EdgeInsetsGeometry? padding,
   });
 }
@@ -27,14 +31,12 @@ class LiquidGlassSurfaceFactory implements GlassSurfaceFactory {
   @override
   Widget build({
     required Widget child,
-    required BorderRadius borderRadius,
+    required double radius,
     EdgeInsetsGeometry? padding,
   }) {
-    // LiquidRoundedRectangle은 모서리 반지름을 double 하나로 받는다(대칭 모양
-    // 전용). 카드류는 보통 네 모서리가 같으므로 topLeft 값을 대표로 쓴다.
     return GlassContainer(
       useOwnLayer: true,
-      shape: LiquidRoundedRectangle(borderRadius: borderRadius.topLeft.x),
+      shape: LiquidRoundedRectangle(borderRadius: radius),
       padding: padding,
       child: child,
     );
@@ -55,14 +57,14 @@ class OpaqueSurfaceFactory implements GlassSurfaceFactory {
   @override
   Widget build({
     required Widget child,
-    required BorderRadius borderRadius,
+    required double radius,
     EdgeInsetsGeometry? padding,
   }) {
     return Container(
       padding: padding,
       decoration: BoxDecoration(
         color: _fill,
-        borderRadius: borderRadius,
+        borderRadius: BorderRadius.circular(radius),
         border: Border.all(color: AppColors.line, width: 1),
         boxShadow: AppShadows.soft,
       ),
@@ -113,12 +115,14 @@ class GlassSurface extends StatelessWidget {
   const GlassSurface({
     super.key,
     required this.child,
-    this.borderRadius = const BorderRadius.all(Radius.circular(16)),
+    this.radius = 16,
     this.padding,
   });
 
   final Widget child;
-  final BorderRadius borderRadius;
+
+  /// 네 모서리 공통 반지름.
+  final double radius;
   final EdgeInsetsGeometry? padding;
 
   @override
@@ -130,7 +134,7 @@ class GlassSurface extends StatelessWidget {
         : GlassBridge.of(context);
     return factory.build(
       child: child,
-      borderRadius: borderRadius,
+      radius: radius,
       padding: padding,
     );
   }
