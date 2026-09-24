@@ -70,9 +70,9 @@ class FakeMenus(MenuRepository):
         self.rows: dict[int, Menu] = {}
         self._next = 1
 
-    def seed(self, name="목욕", minutes=60, shop_id=1, archived=False) -> Menu:
+    def seed(self, name="목욕", minutes=60, shop_id=1, archived=False, price=None) -> Menu:
         menu = Menu(id=self._next, shop_id=shop_id, name=name, default_duration_minutes=minutes,
-                    sort_order=self._next, archived_at=kst(9, 1) if archived else None)
+                    sort_order=self._next, archived_at=kst(9, 1) if archived else None, price=price)
         self.rows[menu.id] = menu
         self._next += 1
         return menu
@@ -96,17 +96,17 @@ class FakeMenus(MenuRepository):
         return [m for m in self.rows.values() if m.id in menu_ids and m.shop_id == ctx.shop_id
                 and not m.archived]
 
-    async def create(self, ctx, name, default_duration_minutes):
+    async def create(self, ctx, name, default_duration_minutes, price):
         self._check_name(ctx, name)
-        menu = self.seed(name=name, minutes=default_duration_minutes, shop_id=ctx.shop_id)
+        menu = self.seed(name=name, minutes=default_duration_minutes, shop_id=ctx.shop_id, price=price)
         self.journal.append(("create_menu", name))
         return menu
 
-    async def update(self, ctx, menu_id, name, default_duration_minutes, sort_order):
+    async def update(self, ctx, menu_id, name, default_duration_minutes, sort_order, price):
         current = self._find(ctx, menu_id)
         self._check_name(ctx, name, menu_id)
         self.rows[menu_id] = replace(current, name=name, default_duration_minutes=default_duration_minutes,
-                                     sort_order=sort_order)
+                                     sort_order=sort_order, price=price)
         self.journal.append(("update_menu", menu_id))
         return self.rows[menu_id]
 

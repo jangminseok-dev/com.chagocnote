@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     SmallInteger,
     String,
     Time,
@@ -95,6 +96,7 @@ class ServiceMenuOrm(Base):
             + _DURATION_RULE.format(col="default_duration_minutes"),
             name="ck_service_menus_duration",
         ),
+        CheckConstraint("price IS NULL OR price BETWEEN 0 AND 100000000", name="ck_service_menus_price"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -103,6 +105,7 @@ class ServiceMenuOrm(Base):
     default_duration_minutes: Mapped[int | None] = mapped_column(SmallInteger)
     sort_order: Mapped[int] = mapped_column(SmallInteger)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    price: Mapped[int | None] = mapped_column(Integer)   # 정가(원). NULL 이면 가격 미정
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

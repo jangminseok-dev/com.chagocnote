@@ -39,9 +39,9 @@ def visit(**overrides) -> Visit:
 
 
 def menu(menu_id: int = 1, name: str = "목욕", minutes: int | None = 60, shop_id: int = 1,
-         archived: bool = False) -> Menu:
+         archived: bool = False, price: int | None = None) -> Menu:
     return Menu(id=menu_id, shop_id=shop_id, name=name, default_duration_minutes=minutes,
-                sort_order=menu_id, archived_at=kst(9, 1) if archived else None)
+                sort_order=menu_id, archived_at=kst(9, 1) if archived else None, price=price)
 
 
 def but(entity, **changes):

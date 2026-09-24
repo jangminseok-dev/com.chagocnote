@@ -4,7 +4,7 @@ from visit.dependencies.update_menu_provider import get_update_menu_use_case
 from visit.domain.errors import MenuNotFoundError
 from visit.tests.helpers.api import STAFF, Recorder, build_app, client, error_of
 
-BATH = MenuView(menu_id=1, name="목욕", default_duration_minutes=60, sort_order=1, archived=False)
+BATH = MenuView(menu_id=1, name="목욕", default_duration_minutes=60, sort_order=1, archived=False, price=None)
 BODY = {"name": "목욕", "default_duration_minutes": 60, "sort_order": 2}
 
 
@@ -12,7 +12,15 @@ async def test_사장은_메뉴를_고친다():
     stub = Recorder(BATH)
     async with client(build_app(update_menu_router, get_update_menu_use_case, stub)) as c:
         assert (await c.put("/v1/shops/3/menus/1", json=BODY)).status_code == 200
-    assert (stub.calls[0].menu_id, stub.calls[0].sort_order) == (1, 2)
+    assert (stub.calls[0].menu_id, stub.calls[0].sort_order, stub.calls[0].price) == (1, 2, None)
+
+
+async def test_정가를_보내면_넘기고_보내지_않으면_미정이다():
+    stub = Recorder(BATH)
+    async with client(build_app(update_menu_router, get_update_menu_use_case, stub)) as c:
+        await c.put("/v1/shops/3/menus/1", json={**BODY, "price": 35_000})
+        await c.put("/v1/shops/3/menus/1", json=BODY)
+    assert [call.price for call in stub.calls] == [35_000, None]
 
 
 async def test_직원은_메뉴를_고치지_못한다():
@@ -20,11 +28,12 @@ async def test_직원은_메뉴를_고치지_못한다():
         assert error_of(await c.put("/v1/shops/3/menus/1", json=BODY)) == (403, "PERMISSION_DENIED")
 
 
-async def test_순서값이_상한을_넘으면_422_다():
+async def test_순서값이나_정가가_범위를_넘으면_422_다():
     stub = Recorder(BATH)
     async with client(build_app(update_menu_router, get_update_menu_use_case, stub)) as c:
-        body = {**BODY, "sort_order": 10000}
-        assert error_of(await c.put("/v1/shops/3/menus/1", json=body)) == (422, "VALIDATION_ERROR")
+        for body in ({**BODY, "sort_order": 10000}, {**BODY, "price": -1}, {**BODY, "price": 100_000_001},
+                     {**BODY, "price": "30000"}):
+            assert error_of(await c.put("/v1/shops/3/menus/1", json=body)) == (422, "VALIDATION_ERROR")
 
 
 async def test_없는_메뉴는_404_범위를_넘는_ID_는_422_다():

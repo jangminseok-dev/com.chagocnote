@@ -10,3 +10,4 @@ class CreateMenuCommand:
     ctx: ShopContext
     name: str
     default_duration_minutes: int | None
+    price: int | None

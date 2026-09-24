@@ -3,7 +3,7 @@ from visit.app.dtos.menu_view_dto import MenuView
 from visit.dependencies.archive_menu_provider import get_archive_menu_use_case
 from visit.tests.helpers.api import STAFF, Recorder, build_app, client, error_of
 
-ARCHIVED = MenuView(menu_id=1, name="목욕", default_duration_minutes=60, sort_order=1, archived=True)
+ARCHIVED = MenuView(menu_id=1, name="목욕", default_duration_minutes=60, sort_order=1, archived=True, price=None)
 
 
 async def test_사장은_메뉴를_보관한다():

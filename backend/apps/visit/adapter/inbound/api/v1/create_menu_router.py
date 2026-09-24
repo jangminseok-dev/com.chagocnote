@@ -18,6 +18,7 @@ async def create_menu(
     use_case: CreateMenuUseCase = Depends(get_create_menu_use_case),
 ) -> MenuSchema:
     view = await use_case.create_menu(
-        CreateMenuCommand(ctx=ctx, name=body.name, default_duration_minutes=body.default_duration_minutes)
+        CreateMenuCommand(ctx=ctx, name=body.name, default_duration_minutes=body.default_duration_minutes,
+                          price=body.price)
     )
     return MenuSchema.of(view)
