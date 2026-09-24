@@ -51,3 +51,41 @@ class MediaPgRepository(MediaRepository):
             .values(status=READY, size_bytes=size_bytes, ready_at=func.now())
         )
         return result.rowcount == 1
+
+    async def attach_all(self, ctx: ShopContext, media_ids: list[int]) -> dict[int, str] | None:
+        wanted = set(media_ids)
+        savepoint = await self._session.begin_nested()
+        # 조건부 UPDATE — 같은 미디어를 동시에 가져가는 두 요청 가운데 늦은 쪽은 앞선 쪽이 커밋할 때까지 행에서
+        # 기다렸다가 조건(attached_at IS NULL)을 다시 보고 0행이 된다.
+        rows = (
+            await self._session.execute(
+                update(MediaObjectOrm)
+                .where(MediaObjectOrm.id.in_(wanted), MediaObjectOrm.shop_id == ctx.shop_id,
+                       MediaObjectOrm.status == READY, MediaObjectOrm.attached_at.is_(None))
+                .values(attached_at=func.now())
+                .returning(MediaObjectOrm.id, MediaObjectOrm.kind)
+            )
+        ).all()
+        if len(rows) != len(wanted):
+            await savepoint.rollback()
+            return None
+        await savepoint.commit()
+        return {media_id: kind for media_id, kind in rows}
+
+    async def detach(self, ctx: ShopContext, media_ids: list[int]) -> None:
+        await self._session.execute(
+            update(MediaObjectOrm)
+            .where(MediaObjectOrm.id.in_(media_ids), MediaObjectOrm.shop_id == ctx.shop_id)
+            .values(attached_at=None)
+        )
+
+    async def list(self, ctx: ShopContext, media_ids: list[int]) -> list[MediaObject]:
+        rows = (
+            await self._session.execute(
+                select(MediaObjectOrm)
+                .where(MediaObjectOrm.id.in_(media_ids), MediaObjectOrm.shop_id == ctx.shop_id)
+                .order_by(MediaObjectOrm.id)
+                .execution_options(populate_existing=True)
+            )
+        ).scalars()
+        return [to_media(row) for row in rows]

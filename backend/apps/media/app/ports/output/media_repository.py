@@ -21,3 +21,15 @@ class MediaRepository(ABC):
     @abstractmethod
     async def mark_ready(self, ctx: ShopContext, media_id: int, size_bytes: int) -> bool:
         """pending 일 때만 ready 로 바꾼다(조건부 UPDATE). 바꿨으면 True — 동시에 두 번 확인해도 한 번만 바뀐다."""
+
+    @abstractmethod
+    async def attach_all(self, ctx: ShopContext, media_ids: list[int]) -> dict[int, str] | None:
+        """준비됐고 아무도 가져가지 않은 이 매장의 미디어에 attached_at 을 찍는다. 전부 찍었으면 {id: kind},
+        하나라도 못 찍었으면 아무것도 바꾸지 않고 None(세이브포인트)."""
+
+    @abstractmethod
+    async def detach(self, ctx: ShopContext, media_ids: list[int]) -> None: ...
+
+    @abstractmethod
+    async def list(self, ctx: ShopContext, media_ids: list[int]) -> list[MediaObject]:
+        """이 매장의 것만, 상태와 상관없이."""

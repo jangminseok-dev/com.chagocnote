@@ -58,6 +58,24 @@ class FakeMedia(MediaRepository):
         self.journal.append(("mark_ready", media_id, size_bytes))
         return True
 
+    async def attach_all(self, ctx, media_ids):
+        mine = [self.rows.get(i) for i in set(media_ids)]
+        if any(m is None or m.shop_id != ctx.shop_id or not m.ready or m.attached_at for m in mine):
+            return None
+        for m in mine:
+            self.rows[m.id] = replace(m, attached_at=NOW)
+        self.journal.append(("attach", sorted(media_ids)))
+        return {m.id: m.kind for m in mine}
+
+    async def detach(self, ctx, media_ids):
+        for i in media_ids:
+            if i in self.rows and self.rows[i].shop_id == ctx.shop_id:
+                self.rows[i] = replace(self.rows[i], attached_at=None)
+        self.journal.append(("detach", sorted(media_ids)))
+
+    async def list(self, ctx, media_ids):
+        return [m for i, m in sorted(self.rows.items()) if i in media_ids and m.shop_id == ctx.shop_id]
+
 
 class FakeStorage(ObjectStoragePort):
     """객체는 {키: ObjectInfo}. 서명 URL 은 키와 형식이 보이는 가짜 문자열이다."""
