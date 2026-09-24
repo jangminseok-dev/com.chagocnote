@@ -1,3 +1,4 @@
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'dart:async';
 
 import 'package:chagocnote/core/router/screen_keys.dart';
@@ -434,7 +435,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel(AppStrings.viewAsTimeline));
     await settle(tester);
 
-    expect(await setup.prefs.readDayViewMode(), 'timeline');
+    expect(await setup.prefs.read(PrefsKeys.dayViewMode), 'timeline');
     expect(find.text('10:00'), findsOneWidget);
     expect(find.text('19:00'), findsOneWidget);
     expect(find.text('Wednesday'), findsOneWidget);
@@ -450,7 +451,7 @@ void main() {
   testWidgets('기억한 것이 시간표면 시간표로 연다', (tester) async {
     final setup = CustomerTestSetup(_backend().call, overrides: _today);
     addTearDown(setup.container.dispose);
-    await setup.prefs.writeDayViewMode('timeline');
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
     await _open(tester, setup);
 
     expect(find.text('10:00'), findsOneWidget);
@@ -463,7 +464,7 @@ void main() {
       overrides: _today,
     );
     addTearDown(setup.container.dispose);
-    await setup.prefs.writeDayViewMode('timeline');
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
     await _open(tester, setup);
 
     expect(tester.takeException(), isNull);
@@ -481,7 +482,7 @@ void main() {
         );
     final setup = CustomerTestSetup(backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
-    await setup.prefs.writeDayViewMode('timeline');
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
     await _open(tester, setup);
 
     expect(find.text('19:00'), findsOneWidget);
@@ -600,7 +601,7 @@ void main() {
   testWidgets('하루 시간표 골든', (tester) async {
     final setup = CustomerTestSetup(_backend().call, overrides: _today);
     addTearDown(setup.container.dispose);
-    await setup.prefs.writeDayViewMode('timeline');
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
     await _open(tester, setup);
     tester.view.physicalSize = const Size(390, 844);
     await tester.pumpAndSettle();

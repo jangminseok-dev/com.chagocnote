@@ -1,3 +1,4 @@
+import 'package:chagocnote/core/storage/prefs_store.dart';
 // ③-A2 Task 12 Step 3 — 실제 백엔드에 붙은 앱을 시뮬레이터에서 조작해 완료 기준
 // 12개를 확인한다. 확인마다 스크린샷을 찍고, 단언이 실패해도 다음 확인으로
 // 넘어가며, 마지막에 결과를 모아 찍는다.
@@ -485,8 +486,8 @@ void main() {
       await shot('02a-day-list');
       await tap(p(AppStrings.viewAsTimeline), after: const Duration(seconds: 1));
       await shot('02b-day-timeline');
-      final saved = await container.read(prefsStoreProvider).readDayViewMode();
-      note('시간표로 바꾼 뒤 PrefsStore.readDayViewMode() = $saved');
+      final saved = await container.read(prefsStoreProvider).read(PrefsKeys.dayViewMode);
+      note('시간표로 바꾼 뒤 PrefsStore.read(PrefsKeys.dayViewMode) = $saved');
       expect(saved, 'timeline');
       await tap(p(AppStrings.back));
       await waitFor(find.byKey(ScreenKeys.home));
@@ -499,7 +500,7 @@ void main() {
       await shot('02c-day-reopened-timeline');
       expect(idx, 1);
       await tap(p(AppStrings.viewAsList), after: const Duration(seconds: 1));
-      final back = await container.read(prefsStoreProvider).readDayViewMode();
+      final back = await container.read(prefsStoreProvider).read(PrefsKeys.dayViewMode);
       note('목록으로 되돌린 뒤 저장값 = $back');
       await shot('02d-day-list-again');
       expect(back, 'list');

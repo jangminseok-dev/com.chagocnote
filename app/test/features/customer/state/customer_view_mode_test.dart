@@ -1,3 +1,4 @@
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/features/customer/state/customer_view_mode.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,7 +24,7 @@ void main() {
       setup.container.read(customerViewModeProvider).value,
       CustomerViewMode.grid,
     );
-    expect(await setup.prefs.readCustomerViewMode(), 'grid');
+    expect(await setup.prefs.read(PrefsKeys.customerViewMode), 'grid');
   });
 
   test('기억한 것이 격자면 격자로 시작한다', () async {
@@ -31,7 +32,7 @@ void main() {
       (options, body) => const FakeResponse(statusCode: 500),
     );
     addTearDown(setup.container.dispose);
-    await setup.prefs.writeCustomerViewMode('grid');
+    await setup.prefs.write(PrefsKeys.customerViewMode, 'grid');
 
     expect(
       await setup.container.read(customerViewModeProvider.future),

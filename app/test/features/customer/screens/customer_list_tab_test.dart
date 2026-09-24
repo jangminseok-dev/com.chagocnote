@@ -1,3 +1,4 @@
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'dart:async';
 
 import 'package:chagocnote/core/router/screen_keys.dart';
@@ -86,7 +87,7 @@ void main() {
 
     expect(find.byKey(const Key('pet_tile_11')), findsOneWidget);
     expect(find.byKey(const Key('pet_row_11')), findsNothing);
-    expect(await setup.prefs.readCustomerViewMode(), 'grid');
+    expect(await setup.prefs.read(PrefsKeys.customerViewMode), 'grid');
   });
 
   testWidgets('기억한 보기가 격자면 격자로 시작한다', (tester) async {
@@ -94,7 +95,7 @@ void main() {
       (options, body) => FakeResponse(statusCode: 200, data: _twoFamilies),
     );
     addTearDown(setup.container.dispose);
-    await setup.prefs.writeCustomerViewMode('grid');
+    await setup.prefs.write(PrefsKeys.customerViewMode, 'grid');
 
     await _openTab(tester, setup);
 
@@ -339,7 +340,7 @@ void main() {
         (options, body) => FakeResponse(statusCode: 200, data: _twoFamilies),
       );
       addTearDown(setup.container.dispose);
-      if (grid) await setup.prefs.writeCustomerViewMode('grid');
+      if (grid) await setup.prefs.write(PrefsKeys.customerViewMode, 'grid');
 
       await _openTab(tester, setup);
 

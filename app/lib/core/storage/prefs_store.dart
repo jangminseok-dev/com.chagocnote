@@ -1,80 +1,63 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-/// 기기에 남기는 작은 설정. "마지막으로 고른 매장"과 "고객 목록·하루 화면 보기 방식"이다.
+/// 기기에 남기는 작은 설정. 키로 읽고 쓴다 — 항목이 늘어도 인터페이스와 구현 둘을
+/// 고치지 않는다(설정마다 read/write 쌍을 늘리던 것을 대신한다).
 ///
 /// 저장소 패키지를 늘리지 않으려고 보안 저장소를 같이 쓴다.
 abstract class PrefsStore {
-  Future<int?> readLastShopId();
-  Future<void> writeLastShopId(int shopId);
+  Future<String?> read(String key);
+  Future<void> write(String key, String value);
 
-  /// 고객 목록 보기 방식('list' | 'grid'). 기기 설정이라 [clear]가 지우지 않는다.
-  Future<String?> readCustomerViewMode();
-  Future<void> writeCustomerViewMode(String mode);
-
-  /// 하루 화면 보기 방식('list' | 'timeline'). 기기 설정이라 [clear]가 지우지 않는다.
-  Future<String?> readDayViewMode();
-  Future<void> writeDayViewMode(String mode);
-
-  /// 마지막으로 고른 매장을 지운다(로그아웃·탈퇴).
+  /// 마지막으로 고른 매장을 지운다(로그아웃·탈퇴). 보기 방식 같은 기기 설정은 남긴다.
   Future<void> clear();
+}
+
+/// 잘 알려진 키. 새 설정은 여기에 키만 더한다.
+abstract final class PrefsKeys {
+  static const lastShopId = 'last_shop_id';
+
+  /// 고객 목록 보기 방식('list' | 'grid').
+  static const customerViewMode = 'customer_view_mode';
+
+  /// 하루 화면 보기 방식('list' | 'timeline').
+  static const dayViewMode = 'day_view_mode';
+}
+
+/// 마지막으로 고른 매장 — 정수로 읽고 쓴다.
+extension LastShopPrefs on PrefsStore {
+  Future<int?> readLastShopId() async =>
+      int.tryParse(await read(PrefsKeys.lastShopId) ?? '');
+
+  Future<void> writeLastShopId(int shopId) =>
+      write(PrefsKeys.lastShopId, '$shopId');
 }
 
 class SecurePrefsStore implements PrefsStore {
   SecurePrefsStore([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
-  static const _lastShopKey = 'last_shop_id';
-  static const _customerViewModeKey = 'customer_view_mode';
-  static const _dayViewModeKey = 'day_view_mode';
   final FlutterSecureStorage _storage;
 
   @override
-  Future<int?> readLastShopId() async => int.tryParse(await _storage.read(key: _lastShopKey) ?? '');
+  Future<String?> read(String key) => _storage.read(key: key);
 
   @override
-  Future<void> writeLastShopId(int shopId) => _storage.write(key: _lastShopKey, value: '$shopId');
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
 
   @override
-  Future<String?> readCustomerViewMode() => _storage.read(key: _customerViewModeKey);
-
-  @override
-  Future<void> writeCustomerViewMode(String mode) =>
-      _storage.write(key: _customerViewModeKey, value: mode);
-
-  @override
-  Future<String?> readDayViewMode() => _storage.read(key: _dayViewModeKey);
-
-  @override
-  Future<void> writeDayViewMode(String mode) =>
-      _storage.write(key: _dayViewModeKey, value: mode);
-
-  @override
-  Future<void> clear() => _storage.delete(key: _lastShopKey);
+  Future<void> clear() => _storage.delete(key: PrefsKeys.lastShopId);
 }
 
 class MemoryPrefsStore implements PrefsStore {
-  int? _lastShopId;
-  String? _customerViewMode;
-  String? _dayViewMode;
+  final _values = <String, String>{};
 
   @override
-  Future<int?> readLastShopId() async => _lastShopId;
+  Future<String?> read(String key) async => _values[key];
 
   @override
-  Future<void> writeLastShopId(int shopId) async => _lastShopId = shopId;
+  Future<void> write(String key, String value) async => _values[key] = value;
 
   @override
-  Future<String?> readCustomerViewMode() async => _customerViewMode;
-
-  @override
-  Future<void> writeCustomerViewMode(String mode) async => _customerViewMode = mode;
-
-  @override
-  Future<String?> readDayViewMode() async => _dayViewMode;
-
-  @override
-  Future<void> writeDayViewMode(String mode) async => _dayViewMode = mode;
-
-  @override
-  Future<void> clear() async => _lastShopId = null;
+  Future<void> clear() async => _values.remove(PrefsKeys.lastShopId);
 }
