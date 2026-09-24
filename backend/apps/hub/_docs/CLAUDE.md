@@ -16,3 +16,5 @@
 | `UserDirectoryPort.get_profiles(user_ids) → dict[int, UserProfile]` | auth `get_user_profiles` | tenancy `list_members` |
 | `ActiveUserGuardPort.lock_active(user_id) → bool` | auth `guard_active_user` | tenancy `accept_invite` |
 | `MembershipLifecyclePort.apply_withdrawal(user_id, close_sole_owned)` | tenancy `apply_withdrawal` | auth `withdraw` (인증 프로세스) |
+| `CustomerDirectoryPort.lock_family · briefs · set_last_visit · find_draft_candidates(ctx, words) → list[DraftCandidate]` | customer `customer_directory` | visit (방문 쓰기의 가족 잠금, 이름 표시, 최근 방문순, 카톡 초안 후보) |
+| `VisitLedgerPort` (방문 유무·앞으로의 예약·노쇼 횟수·메모 비우기) | visit `visit_ledger` | customer (삭제·익명화·무지개다리 규칙, 고객 상세) |

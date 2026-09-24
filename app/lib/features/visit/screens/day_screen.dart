@@ -60,6 +60,9 @@ class _DayScreenState extends ConsumerState<DayScreen> {
   Future<void> _act(DayGroup group, String action) async {
     final shopId = _shopId;
     if (shopId == null || _busyVisitId != null || _asking) return;
+    // 상태가 섞인 묶음이면 아직 진행 가능한 아이들만(다음 예약 초안도 그 아이 기준).
+    final ids = group.actionableIds;
+    final anchorVisitId = ids.isEmpty ? group.first.visitId : ids.first;
     setState(() => _asking = true);
     VisitChoice? choice;
     try {
@@ -68,7 +71,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
         ref,
         shopId: shopId,
         action: action,
-        anchorVisitId: group.first.visitId,
+        anchorVisitId: anchorVisitId,
       );
     } finally {
       if (mounted) setState(() => _asking = false);
@@ -84,8 +87,8 @@ class _DayScreenState extends ConsumerState<DayScreen> {
         ref,
         shopId: shopId,
         choice: choice,
-        ids: group.ids,
-        anchorVisitId: group.first.visitId,
+        ids: ids,
+        anchorVisitId: anchorVisitId,
       );
     } catch (e) {
       if (mounted) setState(() => _errorText = messageFor(e));
@@ -395,9 +398,12 @@ class _GroupCard extends StatelessWidget {
       if (group.unresolved) AppStrings.markUnresolved,
     ];
     final status = group.uniformStatus;
+    // 상태가 섞였으면 아직 진행 가능한 아이들의 상태로 버튼을 정한다(A2 잔여).
+    final mixed = status == null;
+    final buttonStatus = mixed ? group.actionableStatus : status;
     VoidCallback? on(String action) =>
         busy || otherBusy ? null : () => onAction(action);
-    final Widget trailing = switch (status) {
+    final Widget trailing = switch (buttonStatus) {
       VisitStatus.reserved => AppButton(
         label: AppStrings.actionStart,
         filled: true,
@@ -412,6 +418,11 @@ class _GroupCard extends StatelessWidget {
       ),
       _ => AppChip(label: statusLabel(status ?? first.status)),
     };
+    final caption = [
+      menusLabel(first.menus),
+      ownerLabel(first.customer),
+      ...marks,
+    ].join(' · ');
     return Opacity(
       opacity: group.occupiesTime ? 1 : 0.5,
       child: Pressable(
@@ -444,14 +455,12 @@ class _GroupCard extends StatelessWidget {
                       visitsTitle(group.visits),
                       style: AppTypography.bodyStrong,
                     ),
-                    Text(
-                      [
-                        menusLabel(first.menus),
-                        ownerLabel(first.customer),
-                        ...marks,
-                      ].join(' · '),
-                      style: AppTypography.caption,
-                    ),
+                    Text(caption, style: AppTypography.caption),
+                    if (mixed)
+                      Text(
+                        statusSummary(group.visits),
+                        style: AppTypography.caption,
+                      ),
                   ],
                 ),
               ),
@@ -620,11 +629,30 @@ class _Block extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  visitsTitle(group.visits),
-                  style: AppTypography.bodyStrong,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                // 둘째 줄이 없으면 메뉴를 이름 뒤에 같은 줄로 잇는다(A2 잔여).
+                if (showCaption)
+                  Text(
+                    visitsTitle(group.visits),
+                    style: AppTypography.bodyStrong,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                else
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: visitsTitle(group.visits),
+                          style: AppTypography.bodyStrong,
+                        ),
+                        TextSpan(
+                          text: ' · ${menusLabel(group.first.menus)}',
+                          style: AppTypography.caption,
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 if (showCaption)
                   Text(
                     [

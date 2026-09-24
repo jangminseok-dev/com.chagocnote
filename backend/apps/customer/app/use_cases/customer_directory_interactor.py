@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
+DRAFT_CANDIDATE_LIMIT = 5
+_MATCH_LIMIT = 20   # 순위를 매기기 전에 읽는 가족 수 — 낱말 하나에 수십 가족이 걸려도 여기서 자른다
+
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.family_brief_repository import FamilyBriefRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.domain.errors import PetNotFoundError, PetPassedAwayError
-from hub.app.dtos.family_brief import FamilyBriefs
+from customer.domain.services.phone_number import mask_phone
+from customer.domain.services.search_terms import parse_query
+from hub.app.dtos.draft_candidate import DraftCandidate
+from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 
@@ -45,3 +51,43 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
 
     async def set_last_visit(self, ctx: ShopContext, customer_id: int, at: datetime | None) -> None:
         await self._search.set_last_visit(ctx, customer_id, at)
+
+    async def find_draft_candidates(self, ctx: ShopContext, words: tuple[str, ...]) -> list[DraftCandidate]:
+        if not words:
+            return []
+        customer_ids = await self._search.match_any(ctx, parse_query(" ".join(words)), limit=_MATCH_LIMIT)
+        if not customer_ids:
+            return []
+        customers = await self._customers.list_active(ctx, customer_ids)   # 익명화한 고객은 여기서 빠진다
+        pets_of = {c.id: [] for c in customers}
+        for pet in await self._pets.list_for_customers(ctx, [c.id for c in customers]):
+            if not pet.passed_away:
+                pets_of[pet.customer_id].append(pet)
+        digits = [w.replace("-", "") for w in words if w.replace("-", "").isdigit()]
+        ranked = []
+        for customer in customers:
+            matched = tuple(p.id for p in pets_of[customer.id] if p.name in words)
+            if matched:
+                rank = 0
+            elif customer.name in words:
+                rank = 1
+            elif any((len(d) >= 8 and d in customer.phone) or (len(d) == 4 and customer.phone.endswith(d))
+                     for d in digits):
+                rank = 2
+            else:
+                rank = 3
+            ranked.append((rank, customer.id, customer, matched))
+        ranked.sort(key=lambda r: (r[0], r[1]))
+        return [
+            DraftCandidate(
+                customer=CustomerBrief(customer_id=c.id, name=c.name, phone_masked=mask_phone(c.phone)),
+                pets=tuple(
+                    PetBrief(pet_id=p.id, customer_id=c.id, name=p.name, species=p.species, breed=p.breed,
+                             weight_kg=p.weight_kg, passed_away=False)
+                    for p in pets_of[c.id]
+                ),
+                matched_pet_ids=matched,
+                exact=rank <= 1,
+            )
+            for rank, _, c, matched in ranked[:DRAFT_CANDIDATE_LIMIT]
+        ]

@@ -430,6 +430,66 @@ void main() {
     );
   });
 
+  test('카톡 초안은 text 를 본문으로 보내고 날짜·시간·후보·짐작을 읽는다', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: visitDraftJson(
+          time: '14:30',
+          menuIds: [1, 3],
+          guessedTime: true,
+          candidates: [
+            draftCandidateJson(),
+            draftCandidateJson(
+              customerId: 8,
+              name: '김민지',
+              pets: [draftPetJson(petId: 21, name: '콩이')],
+              matchedPetIds: [],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final draft = await s.api.parseDraft(3, '내일 2시반 두부 목욕이랑 부분미용');
+    expect(s.adapter.requests.last.path, '/v1/shops/3/visit-drafts');
+    expect(_json(s.adapter.lastBodyByPath['/v1/shops/3/visit-drafts']), {
+      'text': '내일 2시반 두부 목욕이랑 부분미용',
+    });
+    expect(draft.date, DateTime(2026, 10, 2));
+    expect(draft.time, '14:30');
+    expect(draft.petIds, [11]);
+    expect(draft.menuIds, [1, 3]);
+    expect(draft.guessed.time, isTrue);
+    expect(draft.guessed.date, isFalse);
+    expect(draft.candidates.map((c) => c.customerId), [7, 8]);
+    expect(draft.candidates.first.phoneMasked, '010-12··-5678');
+    expect(draft.candidates.first.pets.single.name, '두부');
+    expect(draft.candidates.last.matchedPetIds, isEmpty);
+  });
+
+  test('카톡 초안의 날짜·시간·후보는 비어 있을 수 있다', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: visitDraftJson(
+          date: null,
+          time: null,
+          candidates: [],
+          petIds: [],
+          menuIds: [],
+        ),
+      ),
+    );
+
+    final draft = await s.api.parseDraft(3, '안녕하세요');
+    expect(draft.date, isNull);
+    expect(draft.time, isNull);
+    expect(draft.candidates, isEmpty);
+    expect(draft.petIds, isEmpty);
+    expect(draft.menuIds, isEmpty);
+  });
+
   test('서버 오류는 코드 그대로 ApiException 이 된다', () async {
     final s = _build(
       (options, body) => const FakeResponse(

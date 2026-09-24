@@ -258,3 +258,47 @@ List<Map<String, dynamic>> defaultMenusJson() => [
   menuJson(menuId: 4, name: '전체 미용', defaultDurationMinutes: 150, sortOrder: 4),
   menuJson(menuId: 5, name: '스포팅', defaultDurationMinutes: 120, sortOrder: 5),
 ];
+
+/// 카톡 예약 초안 응답(③-A3). 후보가 없으면 `candidates: []`.
+Map<String, dynamic> visitDraftJson({
+  String? date = '2026-10-02',
+  String? time = '14:00',
+  List<Map<String, dynamic>>? candidates,
+  List<int> petIds = const [11],
+  List<int> menuIds = const [1],
+  bool guessedDate = false,
+  bool guessedTime = false,
+  bool guessedWho = false,
+  bool guessedMenu = false,
+}) => {
+  'date': date,
+  'time': time,
+  'customer_candidates': candidates ?? [draftCandidateJson()],
+  'pet_ids': petIds,
+  'menu_ids': menuIds,
+  'guessed': {
+    'date': guessedDate,
+    'time': guessedTime,
+    'who': guessedWho,
+    'menu': guessedMenu,
+  },
+};
+
+Map<String, dynamic> draftCandidateJson({
+  int customerId = 7,
+  String name = '이수진',
+  String phoneMasked = '010-12··-5678',
+  List<Map<String, dynamic>>? pets,
+  List<int> matchedPetIds = const [11],
+}) => {
+  'customer_id': customerId,
+  'name': name,
+  'phone_masked': phoneMasked,
+  'pets': pets ?? [draftPetJson()],
+  'matched_pet_ids': matchedPetIds,
+};
+
+Map<String, dynamic> draftPetJson({int petId = 11, String name = '두부'}) => {
+  'pet_id': petId,
+  'name': name,
+};

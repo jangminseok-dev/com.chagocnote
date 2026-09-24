@@ -57,6 +57,10 @@ class VisitCommands {
   Future<NextVisitDraft> nextDraft(int shopId, int visitId) =>
       runShopScoped(_ref, () => _api.nextDraft(shopId, visitId));
 
+  /// 카톡 초안(저장하지 않는다 — 읽기라 아무것도 다시 부르지 않는다).
+  Future<VisitDraft> parseDraft(int shopId, String text) =>
+      runShopScoped(_ref, () => _api.parseDraft(shopId, text));
+
   Future<VisitSettings> updateSettings(int shopId, VisitSettings settings) =>
       _scheduleWrite(() => _api.updateSettings(shopId, settings));
 

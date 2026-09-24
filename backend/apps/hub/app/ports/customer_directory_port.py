@@ -3,12 +3,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import FamilyBriefs
 from hub.app.dtos.shop_context import ShopContext
 
 
 class CustomerDirectoryPort(ABC):
-    """구현: customer. 사용: visit (예약 등록·수정·상태 전이, 목록의 이름 표시, 최근 방문순)."""
+    """구현: customer. 사용: visit (예약 등록·수정·상태 전이, 목록의 이름 표시, 최근 방문순, 카톡 초안 후보)."""
 
     @abstractmethod
     async def lock_family(self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...]) -> None:
@@ -29,3 +30,12 @@ class CustomerDirectoryPort(ABC):
     @abstractmethod
     async def set_last_visit(self, ctx: ShopContext, customer_id: int, at: datetime | None) -> None:
         """고객 목록 '최근 방문순'의 키를 바꾼다. 원본(visits)에서 다시 계산한 값을 같은 트랜잭션에서 넘긴다."""
+
+    @abstractmethod
+    async def find_draft_candidates(self, ctx: ShopContext, words: tuple[str, ...]) -> list[DraftCandidate]:
+        """카톡 예약 초안의 "누구" 후보. 낱말 하나라도 걸리는 이 매장의 가족을 최대 5 가족 돌려준다.
+
+        순서는 반려동물 이름 정확 일치 → 보호자 이름 정확 일치 → 전화(8자리 이상 포함 / 4자리 뒷자리) → 부분 일치,
+        같은 순위면 고객 ID 오름차순. 익명화한 고객은 후보가 아니고, 무지개다리를 건넌 아이는 pets 에서 뺀다.
+        낱말은 저장하지도 로그에 남기지도 않는다(설계 10절 V9).
+        """

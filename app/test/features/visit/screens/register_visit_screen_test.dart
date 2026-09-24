@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/design/tokens/app_colors.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/home/state/today_provider.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
+import 'package:chagocnote/features/visit/state/visit_prefill.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,6 +117,8 @@ void main() {
             ? slotsJson(
                 warnings: {
                   15: ['overlap'],
+                  16: ['closed_day'],
+                  17: ['overlap', 'outside_hours'],
                 },
               )
             : slotAtJson(at: at, warnings: ['overlap']),
@@ -125,10 +129,33 @@ void main() {
     await _open(tester, setup);
     await _pickCustomer(tester);
 
+    // 겹침은 흰 바탕에 잉크색 줄긋기, 휴무·영업 밖은 옅은 바탕에 옅은 글자 —
+    // 둘이 구분된다(A2 잔여). 둘 다면 옅은 바탕에 줄긋기.
+    Color tileColor(String at) =>
+        (tester
+                    .widget<Container>(
+                      find.ancestor(
+                        of: find.text(at),
+                        matching: find.byType(Container),
+                      ).first,
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color!;
     final struck = tester.widget<Text>(find.text('15:00'));
     expect(struck.style!.decoration, TextDecoration.lineThrough);
+    expect(struck.style!.color, AppColors.ink);
+    expect(tileColor('15:00'), AppColors.white);
+    final faint = tester.widget<Text>(find.text('16:00'));
+    expect(faint.style!.decoration, isNot(TextDecoration.lineThrough));
+    expect(faint.style!.color, AppColors.secondary);
+    expect(tileColor('16:00'), AppColors.backgroundTop);
+    final both = tester.widget<Text>(find.text('17:00'));
+    expect(both.style!.decoration, TextDecoration.lineThrough);
+    expect(tileColor('17:00'), AppColors.backgroundTop);
     final plain = tester.widget<Text>(find.text('14:00'));
     expect(plain.style!.decoration, isNot(TextDecoration.lineThrough));
+    expect(tileColor('14:00'), AppColors.white);
 
     await _tapLabel(tester, '15:00');
     expect(find.text('· ${AppStrings.warningOverlap}'), findsOneWidget);
@@ -351,6 +378,34 @@ void main() {
 
     expect(result.closed, isTrue);
     expect(result.value, DateTime(2026, 10, 2));
+    // 닫힌 뒤 홈 위에 스낵바로 알린다(A2 잔여 — 설계 6.2 "이미 저장됐어요").
+    expect(find.text(AppStrings.duplicateVisitNotice), findsOneWidget);
+  });
+
+  testWidgets('다음 예약 초안의 저장이 VISIT_DUPLICATE 면(한 아이가 이미 예약됨) 문구를 보이고 닫는다', (
+    tester,
+  ) async {
+    final backend = VisitTestBackend();
+    backend.routes['POST /v1/shops/3/visits'] = (o, b) => const FakeResponse(
+      statusCode: 409,
+      data: {'code': 'VISIT_DUPLICATE', 'message': 'x'},
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    final result = await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: NextVisitDraft.fromJson(nextDraftJson(petIds: [11, 12])),
+    );
+
+    await tester.tap(_save());
+    await settle(tester);
+
+    expect(result.closed, isTrue);
+    expect(result.value, DateTime(2026, 10, 30));
+    expect(find.text(AppStrings.duplicateVisitNotice), findsOneWidget);
+    expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
   });
 
   testWidgets('서버가 거절하면 문구를 보이고 폼에 남는다', (tester) async {
@@ -512,6 +567,117 @@ void main() {
     );
     expect(find.text(AppStrings.durationText(90)), findsOneWidget);
     expect(setup.calls, isNot(contains('GET /v1/shops/3/visits/defaults')));
+  });
+
+  testWidgets('카톡 초안(보호자 있음)으로 열면 ①을 건너뛰고 날짜·시각·메뉴로 채우며, 뒤로 가면 닫힌다', (
+    tester,
+  ) async {
+    final setup = CustomerTestSetup(VisitTestBackend().call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    final result = await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(
+        customerId: 7,
+        date: DateTime(2026, 10, 2),
+        at: '14:30',
+        petIds: const {11},
+        menus: const [MenuBrief(menuId: 3, name: '부분 미용')],
+      ),
+    );
+
+    expect(find.text(AppStrings.reserveWhenTitle), findsOneWidget);
+    expect(find.text(AppStrings.changeCustomer), findsNothing);
+    expect(
+      find.text(AppStrings.saveReservation('10월 2일 금 14:30')),
+      findsOneWidget,
+    );
+    // 소요는 메뉴 기본 소요의 합(부분 미용 90분)이고, "지난번처럼"은 부르지 않는다.
+    expect(find.text(AppStrings.durationText(90)), findsOneWidget);
+    expect(find.text(AppStrings.prefilledFromLast), findsNothing);
+    expect(setup.calls, isNot(contains('GET /v1/shops/3/visits/defaults')));
+    expect(_slotQueries(setup), contains('2026-10-02 14:30'));
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.back));
+    await settle(tester);
+    expect(result.closed, isTrue);
+    expect(result.value, isNull);
+  });
+
+  testWidgets('카톡 초안(보호자 없음)으로 열면 ①에서 고른 뒤 ②가 초안의 날짜·시각·메뉴로 채워진다', (
+    tester,
+  ) async {
+    final setup = CustomerTestSetup(VisitTestBackend().call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(
+        date: DateTime(2026, 10, 3),
+        at: '11:00',
+        menus: const [MenuBrief(menuId: 1, name: '목욕')],
+      ),
+    );
+
+    expect(find.text(AppStrings.reserveWhoTitle), findsOneWidget);
+    await _pickCustomer(tester);
+
+    expect(find.text(AppStrings.reserveWhenTitle), findsOneWidget);
+    expect(
+      find.text(AppStrings.saveReservation('10월 3일 토 11:00')),
+      findsOneWidget,
+    );
+    expect(find.text(AppStrings.durationText(60)), findsOneWidget);
+    expect(setup.calls, isNot(contains('GET /v1/shops/3/visits/defaults')));
+    // 보호자를 골랐으니 [바꾸기]와 뒤로 가기는 ①로 돌아간다.
+    expect(find.text(AppStrings.changeCustomer), findsOneWidget);
+  });
+
+  testWidgets('카톡 초안이 넘긴 아이가 이 보호자의 아이가 아니면 버리고, 하나뿐인 아이를 고른다', (
+    tester,
+  ) async {
+    final backend = VisitTestBackend();
+    Map<String, dynamic>? sent;
+    backend.routes['POST /v1/shops/3/visits'] = (o, body) {
+      sent = bodyOf(body);
+      return FakeResponse(statusCode: 201, data: savedJson([visitJson()]));
+    };
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(
+        customerId: 7,
+        date: DateTime(2026, 10, 2),
+        at: '14:00',
+        petIds: const {99},
+        menus: const [MenuBrief(menuId: 1, name: '목욕')],
+      ),
+    );
+
+    await tester.tap(_save());
+    await settle(tester);
+    expect(sent?['pet_ids'], [11]);
+  });
+
+  testWidgets('카톡 초안에 메뉴가 없으면 "지난번처럼"으로 채운다', (tester) async {
+    final setup = CustomerTestSetup(VisitTestBackend().call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(
+      tester,
+      setup,
+      path: '/visits/new',
+      extra: VisitPrefill(customerId: 7, date: DateTime(2026, 10, 2)),
+    );
+
+    expect(find.text(AppStrings.reserveWhenTitle), findsOneWidget);
+    expect(setup.calls, contains('GET /v1/shops/3/visits/defaults'));
+    expect(find.text(AppStrings.prefilledFromLast), findsOneWidget);
+    expect(find.text(AppStrings.pickTimeFirst), findsOneWidget);
   });
 
   testWidgets('[바꾸기]와 뒤로 가기는 ①로 돌아간다', (tester) async {

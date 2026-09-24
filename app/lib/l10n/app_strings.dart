@@ -247,6 +247,21 @@ class AppStrings {
   static const warningClosedDay = '쉬는 날이에요';
   static const warningOutsideHours = '영업시간 밖이에요';
 
+  // 카톡 예약 초안(③-A3)
+  static const pasteFromKakao = '카톡 붙여넣기';
+  static const clipboardEmpty = '복사한 글이 없어요';
+  static const draftTitle = '카톡 예약 초안';
+  static const draftReceivedText = '받은 글';
+  static const draftOwnerSection = '보호자';
+  static const draftNoCandidates = '찾은 보호자가 없어요';
+  static const draftGuessed = '짐작';
+  static const draftEmptyValue = '—';
+  static const draftContinue = '예약 이어서';
+  static const draftFindCustomer = '고객 찾기';
+  static const draftHint = '확인한 뒤 저장돼요. 짐작한 칸은 다음 화면에서 고칠 수 있어요.';
+
+  static const duplicateVisitNotice = '이미 같은 시각에 잡힌 예약이 있어요. 그날 목록을 확인해 주세요.';
+
   static const editVisitTitle = '예약 수정';
   static const moveTogether = '같이 옮기기';
   static const moveOnlyThis = '이 방문만';
@@ -278,6 +293,8 @@ class AppStrings {
   static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해집니다.';
 
   static String noShowCount(int count) => '노쇼 $count회';
+  static const noShowCountLabel = '노쇼 횟수';
+  static String timesCount(int count) => '$count회';
   static const dayTitleEn = 'Schedule';
   static const viewAsTimeline = '시간표로 보기';
   static const actionCompleteShort = '완료하기';
@@ -310,6 +327,7 @@ class AppStrings {
   static const prevMonth = '이전 달';
   static const nextMonth = '다음 달';
   static const closedShort = '휴무';
+  static String moreGroups(int count) => '외 $count건';
 
   static String unresolvedBanner(int count) => '정리 안 된 예약 $count건';
   static String dayHeading(int day, int weekday) => '$day일 ${weekdaysLong[weekday - 1]}';

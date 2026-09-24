@@ -37,3 +37,11 @@ class CustomerSearchPort(ABC):
         self, ctx: ShopContext, words: tuple[SearchWord, ...], include_passed: bool
     ) -> int:
         """검색에 걸린 가족들의 반려동물 수(목록 제목의 'N마리'). 쪽과 상관없이 전체를 센다."""
+
+    @abstractmethod
+    async def match_any(self, ctx: ShopContext, words: tuple[SearchWord, ...], limit: int) -> list[int]:
+        """낱말 **하나라도** 걸리는(OR) 이 매장의 가족(검색 줄이 있는 = 익명화하지 않은)의 고객 ID.
+
+        고객 ID 오름차순으로 limit 개까지. 무지개다리만 남은 가족도 든다(보호자만의 예약이 있다).
+        카톡 초안의 후보 찾기가 쓴다 — 순위는 부르는 쪽이 이름을 읽어 매긴다.
+        """

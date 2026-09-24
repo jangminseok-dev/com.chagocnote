@@ -236,3 +236,46 @@ async def test_최근_방문순의_커서를_다른_정렬에_쓰면_VALIDATION_
     page = await _find(db_session, "", sort="last_visit", limit=1)
     with pytest.raises(CustomerInputError):
         await _find(db_session, "", sort="recent", cursor=page.next_cursor)
+
+
+# --- 카톡 초안 후보 — 낱말 하나라도 걸리는 가족(match_any) ---
+
+
+async def _any(session, q, shop=A, limit=20):
+    return await CustomerSearchPgAdapter(session).match_any(shop, parse_query(q), limit=limit)
+
+
+async def test_낱말_하나라도_걸리면_고객_ID_오름차순으로_찾는다(db_session):
+    kong = await _family(db_session, "김민지", "01012345678", ["콩이"])
+    dubu = await _family(db_session, "박서준", "01098765678", ["두부"])
+    await _family(db_session, "이하나", "01011112222", ["구름"])
+    assert await _any(db_session, "두부 콩이 없는이름") == [kong, dubu]
+    assert await _any(db_session, "5678") == [kong, dubu]              # 뒷자리
+    assert await _any(db_session, "01098765678") == [dubu]             # 전체 번호
+    assert await _any(db_session, "두부 콩이", limit=1) == [kong]
+    assert await _any(db_session, "") == []
+
+
+async def test_match_any_는_다른_매장과_익명화한_가족을_찾지_않고_무지개다리만_남은_가족은_찾는다(db_session):
+    await _family(db_session, "김민지", "01012345678", ["콩이"], shop=B)
+    gone = await _family(db_session, "박서준", "01098765678", ["콩이"])
+    await CustomerPgRepository(db_session).anonymize(A, gone)
+    await CustomerSearchPgAdapter(db_session).rebuild_search_entry(A, gone)
+    passed = await _family(db_session, "이하나", "01011112222", ["콩이"])
+    pet_id = (await PetPgRepository(db_session).list_for_customers(A, [passed]))[0].id
+    await PetPgRepository(db_session).set_passed_away(A, pet_id, True)
+    assert await _any(db_session, "콩이") == [passed]
+
+
+async def test_한_글자_낱말은_통단어로만_찾는다(db_session):
+    bom = await _family(db_session, "김민지", "01012345678", ["봄"])
+    bomi = await _family(db_session, "박서준", "01098765678", ["봄이"])
+    assert await _any(db_session, "봄") == [bom]          # "봄이"·"봄" 둘 다가 아니라 통단어 "봄"만
+    assert await _any(db_session, "봄이") == [bomi]
+
+
+async def test_match_any_도_LIKE_특수_문자를_글자_그대로_찾는다(db_session):
+    percent = await _family(db_session, "100%보호자", "01012345678", ["콩이"])
+    await _family(db_session, "김민지", "01098765678", ["두부"])
+    assert await _any(db_session, "%보") == [percent]   # "%" 는 글자 그대로(두 글자라 부분 일치)
+    assert await _any(db_session, "\\") == []

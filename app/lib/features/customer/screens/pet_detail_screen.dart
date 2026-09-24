@@ -429,8 +429,8 @@ class _OwnerTab extends ConsumerWidget {
                   value: c.memo ?? AppStrings.none,
                 ),
                 _InfoCard(
-                  label: AppStrings.actionNoShow,
-                  value: AppStrings.noShowCount(detail.noShowCount),
+                  label: AppStrings.noShowCountLabel,
+                  value: AppStrings.timesCount(detail.noShowCount),
                 ),
                 _UpcomingVisits(visits: detail.upcomingVisits),
                 const SizedBox(height: AppSpacing.sm),

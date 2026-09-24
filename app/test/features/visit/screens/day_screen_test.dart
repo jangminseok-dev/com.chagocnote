@@ -157,6 +157,90 @@ void main() {
     expect(find.text(AppStrings.statusCompleted), findsOneWidget);
   });
 
+  testWidgets('상태가 섞인 가족 카드는 아이별 상태를 적고, 아직 진행 가능한 아이만 버튼으로 보낸다', (
+    tester,
+  ) async {
+    final backend = _backend([
+      dayItemJson(
+        _v(
+          2,
+          '13:00',
+          status: 'completed',
+          pet: '두부',
+          owner: '이수진',
+          customerId: 8,
+        ),
+        groupKey: 'duo',
+      ),
+      dayItemJson(
+        _v(
+          3,
+          '13:00',
+          status: 'in_progress',
+          pet: '보리',
+          petId: 12,
+          owner: '이수진',
+          customerId: 8,
+        ),
+        groupKey: 'duo',
+      ),
+      dayItemJson(
+        _v(
+          4,
+          '15:00',
+          status: 'canceled',
+          pet: '몽이',
+          owner: '박하늘',
+          customerId: 9,
+        ),
+        groupKey: 'trio',
+      ),
+      dayItemJson(
+        _v(
+          5,
+          '15:00',
+          status: 'completed',
+          pet: '코코',
+          petId: 13,
+          owner: '박하늘',
+          customerId: 9,
+        ),
+        groupKey: 'trio',
+      ),
+    ]);
+    Map<String, dynamic>? sent;
+    backend.routes['POST /v1/shops/3/visits/transitions'] = (o, body) {
+      sent = bodyOf(body);
+      return FakeResponse(
+        statusCode: 200,
+        data: {
+          'visits': [_v(3, '13:00', status: 'completed', pet: '보리', petId: 12)],
+        },
+      );
+    };
+    backend.routes['GET /v1/shops/3/visits/3/next-draft'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: nextDraftJson(petIds: [12]));
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    expect(find.text('두부 완료 · 보리 미용 중'), findsOneWidget);
+    // 진행 가능한 아이가 없는 묶음(취소·완료)은 칩만.
+    expect(find.text('몽이 취소 · 코코 완료'), findsOneWidget);
+    expect(_button(AppStrings.actionCompleteShort), findsOneWidget);
+    expect(_button(AppStrings.actionStart), findsNothing);
+
+    await tester.tap(_button(AppStrings.actionCompleteShort));
+    await settle(tester);
+    await tester.tap(find.text(AppStrings.actionComplete));
+    await settle(tester);
+    expect(sent, {
+      'visit_ids': [3],
+      'action': 'complete',
+    });
+    expect(setup.calls, contains('GET /v1/shops/3/visits/3/next-draft'));
+  });
+
   testWidgets('카드의 [시작]은 묶음 전체를 한 번에 보내고 그날 목록을 다시 불러온다', (tester) async {
     final backend = _backend(_mockupItems(duoStatus: 'reserved'));
     Map<String, dynamic>? sent;
@@ -383,6 +467,9 @@ void main() {
     await _open(tester, setup);
 
     expect(tester.takeException(), isNull);
+    // 이름만으로는 아쉽다 — 메뉴를 같은 줄에 잇는다(A2 잔여).
+    expect(find.text('콩이 · 목욕', findRichText: true), findsOneWidget);
+    expect(find.text('콩이'), findsNothing);
   });
 
   testWidgets('마감이 19:30 이면 시간표가 20:00 까지 그린다', (tester) async {

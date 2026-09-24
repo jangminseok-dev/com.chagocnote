@@ -116,6 +116,7 @@ class FakeDirectory:
         self.journal = journal if journal is not None else Journal()
         self.families: dict[int, tuple[int, dict[int, bool]]] = {}
         self.names: dict[int, str | None] = {}
+        self.candidates: list = []
 
     def family(self, customer_id=1, pets=(101,), shop_id=1, name="김민지", passed=()) -> None:
         self.families[customer_id] = (shop_id, {p: p in passed for p in pets})
@@ -142,6 +143,11 @@ class FakeDirectory:
 
     async def set_last_visit(self, ctx, customer_id, at):
         self.journal.append(("set_last_visit", customer_id, at))
+
+    async def find_draft_candidates(self, ctx, words):
+        """카톡 초안 후보 — 미리 넣어 둔 후보(self.candidates)를 그대로 준다."""
+        self.journal.append(("find_draft_candidates", tuple(words)))
+        return list(self.candidates)
 
 
 class FakeVisits:

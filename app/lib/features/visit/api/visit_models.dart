@@ -585,3 +585,100 @@ class VisitUpdate {
     'memo': memo,
   };
 }
+
+/// 카톡 글을 해석한 예약 초안(설계 7절). 서버는 저장하지 않는다 — 사람이
+/// 확인한 뒤 등록 API 로 저장한다. 못 찾은 칸은 null·빈 목록이다.
+class VisitDraft {
+  const VisitDraft({
+    required this.date,
+    required this.time,
+    required this.candidates,
+    required this.petIds,
+    required this.menuIds,
+    required this.guessed,
+  });
+
+  factory VisitDraft.fromJson(Map<String, dynamic> json) => VisitDraft(
+    date: json['date'] == null ? null : parseDay(json['date'] as String),
+    time: json['time'] as String?,
+    candidates: (json['customer_candidates'] as List)
+        .map((e) => DraftCandidate.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    petIds: (json['pet_ids'] as List).cast<int>(),
+    menuIds: (json['menu_ids'] as List).cast<int>(),
+    guessed: DraftGuess.fromJson(json['guessed'] as Map<String, dynamic>),
+  );
+
+  final DateTime? date;
+
+  /// `HH:MM`.
+  final String? time;
+
+  /// 글의 낱말로 찾은 보호자 후보(최대 5). 하나면 그 보호자로 짐작한 것이다.
+  final List<DraftCandidate> candidates;
+
+  /// 후보가 하나일 때 글에 이름이 나온 그 집 아이들.
+  final List<int> petIds;
+  final List<int> menuIds;
+  final DraftGuess guessed;
+}
+
+class DraftCandidate {
+  const DraftCandidate({
+    required this.customerId,
+    required this.name,
+    required this.phoneMasked,
+    required this.pets,
+    required this.matchedPetIds,
+  });
+
+  factory DraftCandidate.fromJson(Map<String, dynamic> json) => DraftCandidate(
+    customerId: json['customer_id'] as int,
+    name: json['name'] as String,
+    phoneMasked: json['phone_masked'] as String,
+    pets: (json['pets'] as List)
+        .map((e) => DraftPet.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    matchedPetIds: (json['matched_pet_ids'] as List).cast<int>(),
+  );
+
+  final int customerId;
+  final String name;
+  final String phoneMasked;
+  final List<DraftPet> pets;
+
+  /// 글의 낱말과 이름이 맞은 아이.
+  final List<int> matchedPetIds;
+}
+
+class DraftPet {
+  const DraftPet({required this.petId, required this.name});
+
+  factory DraftPet.fromJson(Map<String, dynamic> json) =>
+      DraftPet(petId: json['pet_id'] as int, name: json['name'] as String);
+
+  final int petId;
+  final String name;
+}
+
+/// 해석기가 확신하지 못한 칸 — 화면에 "짐작" 표시를 단다.
+class DraftGuess {
+  const DraftGuess({
+    required this.date,
+    required this.time,
+    required this.who,
+    required this.menu,
+  });
+
+  factory DraftGuess.fromJson(Map<String, dynamic> json) => DraftGuess(
+    date: json['date'] as bool,
+    time: json['time'] as bool,
+    who: json['who'] as bool,
+    menu: json['menu'] as bool,
+  );
+
+  final bool date;
+  final bool time;
+  final bool who;
+  final bool menu;
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,6 +14,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
+import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/session.dart';
@@ -25,6 +27,7 @@ import '../../customer/state/search_debouncer.dart';
 import '../../home/state/today_provider.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
+import '../state/visit_prefill.dart';
 import 'visit_form.dart';
 import 'visit_labels.dart';
 
@@ -34,10 +37,18 @@ import 'visit_labels.dart';
 ///
 /// 저장하면 저장한 날짜를 돌려주며 닫는다 — 부른 화면이 그 날로 옮겨 간다.
 class RegisterVisitScreen extends ConsumerStatefulWidget {
-  const RegisterVisitScreen({super.key, this.date, this.draft});
+  const RegisterVisitScreen({
+    super.key,
+    this.date,
+    this.draft,
+    this.prefill,
+  });
 
   final DateTime? date;
   final NextVisitDraft? draft;
+
+  /// 카톡 초안(③-A3). 보호자가 있으면 ①을 건너뛴다.
+  final VisitPrefill? prefill;
 
   @override
   ConsumerState<RegisterVisitScreen> createState() =>
@@ -45,7 +56,8 @@ class RegisterVisitScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
-  late int? _customerId = widget.draft?.customerId;
+  late int? _customerId =
+      widget.draft?.customerId ?? widget.prefill?.customerId;
   bool _busy = false;
   String? _errorText;
 
@@ -85,9 +97,12 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
       // 서버가 저장한 날짜를 돌려준다 — [지금 시작]은 보던 날과 다를 수 있다.
       if (mounted) context.pop(saved.visits.first.startsAt.day);
     } on ApiException catch (e) {
-      // 저장을 두 번 누른 경우다 — 이미 저장됐으니 닫는다(결정 기록 006).
+      // 저장을 두 번 눌렀거나(이미 저장됐다), 다음 예약의 한 아이가 그 시각에
+      // 이미 예약돼 있다(아무것도 저장되지 않았다). 둘 다 그날 목록을 보면
+      // 알 수 있으니 알리고 그날로 닫는다(결정 기록 006, ③-A3).
       if (e.code == 'VISIT_DUPLICATE') {
         if (mounted) {
+          AppSnackBar.show(context, AppStrings.duplicateVisitNotice);
           final today = ref.read(todayProvider);
           context.pop(
             walkIn ? DateTime(today.year, today.month, today.day) : value.date,
@@ -115,7 +130,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
     final customerId = _customerId;
     final onSearch = customerId == null;
     // 초안으로 열었으면 ①이 없다 — 뒤로 가면 닫는다.
-    final backToSearch = !onSearch && widget.draft == null;
+    final backToSearch = !onSearch && !_skippedSearch;
     return PopScope(
       canPop: !backToSearch,
       onPopInvokedWithResult: (didPop, _) {
@@ -171,8 +186,13 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
     );
   }
 
+  /// 다음 예약 초안이나 보호자가 있는 카톡 초안으로 열었으면 ①이 없었다.
+  bool get _skippedSearch =>
+      widget.draft != null || widget.prefill?.customerId != null;
+
   Widget _formFor(int shopId, int customerId) {
     final draft = widget.draft;
+    final prefill = widget.prefill;
     final initial = draft != null
         ? VisitFormInitial(
             date: draft.startsAt.day,
@@ -182,6 +202,15 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
             durationMinutes: draft.durationMinutes,
             menus: draft.menus,
             prefilled: true,
+          )
+        : prefill != null
+        ? VisitFormInitial(
+            date: prefill.date ?? ref.read(todayProvider),
+            petIds: prefill.petIds,
+            at: prefill.at,
+            menus: prefill.menus,
+            // 메뉴가 글에 있었으면 "지난번처럼"으로 덮어쓰지 않는다.
+            prefilled: prefill.menus.isNotEmpty,
           )
         : VisitFormInitial(date: widget.date ?? ref.read(todayProvider));
     return VisitForm(
@@ -193,7 +222,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
       header: _OwnerCard(
         shopId: shopId,
         customerId: customerId,
-        onChange: draft == null ? _backToSearch : null,
+        onChange: _skippedSearch ? null : _backToSearch,
       ),
       submitLabel: (date, at) =>
           AppStrings.saveReservation('${dayLabel(date)} $at'),
@@ -263,6 +292,7 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
     onSearch: (q) => setState(() => _q = q),
   );
   String _q = '';
+  String? _pasteNote;
 
   @override
   void initState() {
@@ -275,6 +305,22 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
     _debouncer.dispose();
     _search.dispose();
     super.dispose();
+  }
+
+  /// 클립보드의 카톡 글로 초안 화면을 연다(③-A3). 초안에서 예약을 저장하고
+  /// 돌아오면 ①도 그 날짜로 닫힌다 — 홈이 그날을 고른다.
+  Future<void> _pasteFromKakao(BuildContext context) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    var text = data?.text?.trim() ?? '';
+    if (!context.mounted) return;
+    if (text.isEmpty) {
+      setState(() => _pasteNote = AppStrings.clipboardEmpty);
+      return;
+    }
+    if (text.length > 1000) text = text.substring(0, 1000);
+    setState(() => _pasteNote = null);
+    final saved = await context.push<DateTime>('/visits/draft', extra: text);
+    if (saved != null && context.mounted) context.pop(saved);
   }
 
   /// 새 고객을 등록하고 돌아오면 그 고객으로 ②에 바로 간다.
@@ -294,6 +340,29 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
     final list = ref.watch(customerListControllerProvider(query));
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              AppButton(
+                label: AppStrings.pasteFromKakao,
+                icon: Icons.content_paste,
+                onPressed: () => _pasteFromKakao(context),
+              ),
+              if (_pasteNote != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(_pasteNote!, style: AppTypography.caption),
+                ),
+              ],
+            ],
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: TextField(
