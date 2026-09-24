@@ -15,6 +15,9 @@
 | 고객·반려동물 흐름 (게이트웨이 경유) | `bash ../backend/scripts/check_customer_flow.sh` — 개발 DB에 확인용 매장·유저와 익명화한 고객이 남는다 |
 | 고객 검색 줄 재생성 | `docker compose run --rm backend python scripts/rebuild_customer_search.py` (검색 줄이 원본과 어긋났을 때) |
 | 예약·방문 흐름 (게이트웨이 경유) | `bash ../backend/scripts/check_visit_flow.sh` — 개발 DB에 확인용 매장·유저·고객·방문이 남는다 |
+| 미디어 버킷 준비 | `docker compose run --rm backend python scripts/ensure_media_bucket.py` (버킷 생성 + 원본 수명주기 규칙. MinIO 는 계층 이동을 받지 않아 규칙을 건너뛴다) |
+| 사진·기록 흐름 (게이트웨이·MinIO 경유) | `bash ../backend/scripts/check_media_flow.sh` — 버킷 준비 뒤. 서명 URL 로 저장소에 바로 올리고 읽는다. 개발 DB·버킷에 확인용 매장·사진이 남는다 |
+| 미디어 정리 | `docker compose run --rm backend python scripts/purge_stale_media.py` (하루 넘게 어느 기록도 가져가지 않은 사진·영상 — 운영은 주기적으로) |
 | 최근 방문순 키 복구 | `docker compose run --rm backend python scripts/rebuild_last_visit.py` (고객 목록 '최근 방문순'이 방문 기록과 어긋났을 때) |
 | 플랫폼 운영자 지정 | `docker compose run --rm backend python scripts/grant_operator.py <user_id>` |
 | 앱 정적 분석 | `flutter analyze` (`app/`에서, 경고 0) |
@@ -36,5 +39,6 @@
 - 허브 포트 자리를 새로 만들어도 더할 목록은 없다. `tests/route_inspection.py`가 두 앱의 라우트 의존성 트리를 훑어 ① 채우지 않은 허브 포트 자리 ② `{shop_id}` 경로인데 `get_shop_context`를 거치지 않는 라우트 ③ `/v1/platform/` 경로인데 `require_operator`를 거치지 않는 라우트를 잡는다. API 프로세스는 `tests/test_hub_port_binding.py`가, 인증 프로세스는 `tests/integration/test_route_wiring.py`가 돌린다.
 - 권한이나 불변식이 걸린 슬라이스를 계획할 때는 악의적이거나 운 나쁜 시나리오(내보내진 사람이 쥔 것, 같은 요청이 동시에 두 번, 읽기와 쓰기 사이)를 먼저 표로 적고, 각각을 막는 코드와 테스트를 작업에 넣는다. 작업별 검토는 계획서와의 일치가 아니라 그 표를 기준으로 한다.
 - 통합 테스트에서 두 번째 로그인 수단이 필요하면 `fake_kakao` 픽스처를 쓴다.
+- 통합 테스트는 compose 의 MinIO 도 쓴다(`backend` 서비스가 `minio`에 기댄다). 미디어가 필요한 테스트는 `media_storage` 픽스처를 쓴다 — 테스트 버킷 `chagocnote-test`를 시작 때 비우고(테스트마다 DB ID 가 1부터라 키가 겹친다), 컨테이너 안에서 서명 URL 로 PUT 하도록 공개 주소를 내부 주소로 둔다. 사진 하나를 확인까지 마치는 도우미는 `tests/integration/support.py`의 `ready_photo`다.
 - 마이그레이션에 시드 표를 새로 만들면 루트 `conftest.py`의 `_KEEP_TABLES`에 더한다. 빠뜨리면 첫 테스트가 시드를 비워 그다음 테스트부터 실패한다.
 - 두 세션 경합 테스트는 막힌 호출을 `asyncio.create_task`로 들고 있다가 앞선 세션이 커밋한 뒤의 결과를 본다. "기다렸다"만으로 판별하지 않는다 — 외래 키의 암묵적 잠금이나 같은 행의 다른 잠금 때문에 잠금 코드가 없어도 기다릴 수 있다. 잠금 코드를 빼는 변이로 테스트가 실패하는지 확인한다.

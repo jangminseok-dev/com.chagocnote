@@ -62,3 +62,35 @@
 - 폼 위임의 작은 정정(작업 8): `VisitFormValue.startsAt`의 주석을 옛 문구("지금 시작이면 null")로 되돌렸고, `_prefill`은 `applyPrefill`이 false(옛 응답·손댄 뒤)면 `setState`를 부르지 않아 옛 동작과 정확히 같다. `timelineHours`의 "끝이 정각이면 올리지 않는다" 분기에 테스트를 더했다. 커밋 739c98e.
 - `UploadClient`의 취소(작업 10, 남는 것): `cancelToken`으로 취소하면 `DioExceptionType.cancel`이 응답 없는 오류라 `ApiException.network`(NETWORK)로 보인다. ④-2 에서 업로드 UI 를 붙이기 전에 `CANCELLED` 코드를 두거나 호출자가 `cancelToken.isCancelled`를 먼저 보는 규칙을 정한다. `receiveTimeout` 30초를 확인하는 단언도 없다.
 - 테스트 수: 계획서는 542 였으나 작업 8(739c98e)의 정각 끝 테스트 하나가 더해져 543 이다.
+
+## ④-1 백엔드에서 정한 것
+
+새 스포크 media(발급·확인·`MediaLibraryPort`), visit 의 미용 기록(쓰기·덧붙이기·삭제·읽기 넓히기·피드), 메뉴 정가, customer 의 프로필 사진·익명화, 스크립트 셋(버킷 준비·정리·흐름 확인). 새 라우트 7개(media 셋, visit 넷 — 라우트 표의 나머지는 그대로), 마이그레이션 셋(0007 미디어 · 0008 메뉴 정가 · 0009 기록), 새 의존성 `boto3`. 단위 767 → 882, 통합 264 → 299, 구조 계약 6종(media 를 모든 계약에 더했다).
+
+### 설계와 다르게 간 것
+
+- **빠진 미디어를 바로 지우지 않는다.** 설계 8절은 "빠진 미디어는 release + 커밋 뒤 discard"였다. 커밋 뒤 백그라운드 삭제는 요청 세션이 닫힌 뒤 자기 세션을 여는 장치가 따로 필요하고, 사진을 뺐다가 되돌리거나 업로드 대기열이 다시 보내는 여유도 없앤다. 그래서 `MediaLibraryPort`에 `discard`를 두지 않고, 놓인 미디어는 정리 스크립트가 하루 뒤 지운다(가져가지 않은 미디어와 같은 규칙). 앱에는 빼는 즉시 보이지 않는다. 운영에서는 정리 스크립트를 주기적으로 돌려야 한다.
+- **객체 키는 렌디션이 앞이다**(`original/shops/{매장}/{ID}.jpg` 등, 설계 6.1 은 `shops/{매장}/media/{ID}/original.jpg`). S3 수명주기 규칙은 접두사로만 거르기 때문에, 원본만 싼 계층으로 옮기려면 원본이 한 접두사 아래 모여야 한다. 영상 원본은 `original-video/`로 따로 둔다.
+- **읽기 서명은 직접 만든다.** 하루 동안 같은 URL(설계 7.3)은 서명 시각을 고정해야 하는데 botocore 는 늘 지금으로 찍는다. 서명 시각을 매장 시간대 가장 최근 04:00, 유효 48시간으로 두는 SigV4 쿼리 서명을 표준 라이브러리로 만들었고(`media/adapter/outbound/s3/sigv4_query.py`), 같은 시각의 botocore URL 과 글자까지 같은지 테스트한다. 경로 방식 주소를 쓴다.
+- **설정 이름은 `S3_*`.** 설계는 `MEDIA_S3_*`였지만 개발 `.env`에 이미 `S3_ENDPOINT_URL`·`S3_ACCESS_KEY`·`S3_SECRET_KEY`·`S3_BUCKET`이 있어 그대로 쓰고 `S3_PUBLIC_ENDPOINT_URL`(기본 `http://127.0.0.1:9010`)·`S3_REGION`(기본 `us-east-1`)을 더했다. 운영은 S3 서울 리전 주소와 `ap-northeast-2`를 넣는다.
+- **`claim`이 종류를 돌려주고, visit 이 연결 표에 적는다**(`visit_record_media.kind`). 대표 사진(후 → 전 → 영상 포스터)과 방문당 한도를 visit 표만으로 계산하려는 것이다. 종류는 바뀌지 않는 사실이라 옮겨 적어도 어긋나지 않는다. 허브 오류는 `MediaClaimNotFoundError`·`MediaClaimNotReadyError`·`MediaClaimAlreadyAttachedError`(media 도메인 오류와 이름을 나눴다).
+- **`set_pet_weight(ctx, pet_id, weight_kg)`** — 설계의 `at` 인자는 쓸 곳이 없어 뺐다.
+- **기록 삭제는 `record:delete`(사장).** 설계 9절은 `record:write`였지만 권한 시드(0002)가 `record:delete`를 "기록 삭제"로 두고 사장에게만 줬다. 사진 한 장 빼기는 전체 교체(`record:write`)로 한다.
+- **메뉴 정가의 CHECK 는 0~1억**(설계는 ≥0) — 기록 금액의 입력 경계와 맞췄다. `PUT /menus/{id}`의 `price`는 빠지면 가격 미정이다(④ 이전 앱이 그대로 불러도 된다).
+- **프로필 사진은 조회 응답 셋에만.** 목록·고객 상세·반려동물 상세(GET)에 `photo`가 있고 쓰기 응답(`PetDetailSchema`·`CustomerDetailSchema`)에는 없다 — 쓰기 뒤 다시 읽는 규칙(③)이라 쓰기 인터랙터 일곱에 포트를 더하지 않았다. 프로필 사진은 "사진이 붙은 가장 최근 완료 방문의 대표"다(가장 최근 완료 기록에 사진이 없으면 그 전 것).
+
+### 이 계획에서 새로 정한 것
+
+- 기록 버전(`visit_records.version`)과 409 `RECORD_VERSION_CONFLICT`, 덧붙이기 API — 업로드 대기열 결정(2026-09-24)에 따라 설계 문서에 먼저 더했다.
+- 덧붙이기는 그 칸을 순서대로 0부터 다시 매기고 맨 뒤에 붙인다 — 빼고 붙이기를 거듭해도 순서 상한(99)에 닿지 않는다. 같은 칸·같은 순서는 유일 색인(`uq_visit_record_media_order`)이 막는다.
+- 보관한 메뉴도 기록 항목에 적을 수 있다(`MenuRepository.list_by_ids`) — 옛 기록을 고칠 때 막히지 않게.
+- 돈 칸의 403 은 잠그기 전에 판정한다(권한은 방문과 상관없다).
+- 기록 여러 개는 `VisitRecordRepository.list_many`가 방문 수와 상관없이 질의 셋으로 읽는다(상세·하루·달력·피드·프로필 사진). 피드는 방문 리포지토리의 여섯째 축 `VisitFeedRepository`다(`test_visit_port_segregation.py`의 포트 목록에 더했다).
+- 정리 스크립트는 객체마다 행을 pending 으로 되돌려 커밋한 뒤(그사이 기록이 가져가지 못한다) 저장소에서 지우고 행을 지운다. 중간에 멈추면 행이 오래된 pending 으로 남아 다음 실행이 잡는다.
+- 통합 테스트는 MinIO 를 쓴다(compose `backend`가 `minio`에 기댄다, 픽스처 `media_storage`).
+
+### 남는 것 — 알고 미룬다
+
+- 확인(confirm)과 정리가 같은 오래된 pending 객체에 동시에 닿으면, 정리가 저장소에서 지운 뒤 확인이 ready 로 바꿀 수 있다(하루 넘게 확인하지 않은 객체를 그 순간 다시 확인하는 경우뿐). 앱의 대기열은 URL 이 만료되면 발급부터 다시 하므로 부딪힐 일이 드물다.
+- 서명 URL 은 경로 방식이다. 운영 S3 에서 가상 호스트 방식이 필요해지면 `sigv4_query`와 boto3 설정을 함께 바꾼다.
+- 밤 22시 반 이후에는 `test_visit_flow_wiring.py::test_직원은_예약을_다루지만_일정과_메뉴는_못_바꾼다`가 실패한다(걷기 손님 기본 90분이 자정을 넘긴다). ③부터 있던 시각 의존 테스트이고 이 계획이 건드리지 않았다. 새 기록 테스트는 어제 11시 예약을 시작해 시각과 상관없이 돈다.
