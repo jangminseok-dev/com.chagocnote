@@ -6,11 +6,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from hub.app.dtos.shop_context import ShopContext
+from hub.app.errors import WithdrawalOwnershipTransferRequiredError
 from tenancy.adapter.outbound.pg.invite_pg_repository import InvitePgRepository
 from tenancy.adapter.outbound.pg.member_pg_repository import MemberPgRepository
 from tenancy.adapter.outbound.pg.shop_pg_repository import ShopPgRepository
 from tenancy.app.use_cases.apply_withdrawal_interactor import ApplyWithdrawalInteractor
-from tenancy.domain.errors import OwnershipTransferRequiredError
 from tenancy.domain.value_objects.role_code import RoleCode
 
 pytestmark = pytest.mark.integration
@@ -43,7 +43,7 @@ async def test_막힌_탈퇴는_앞서_처리한_매장도_되돌린다(db_engin
         await setup.commit()
 
     async with factory() as session:
-        with pytest.raises(OwnershipTransferRequiredError):
+        with pytest.raises(WithdrawalOwnershipTransferRequiredError):
             await _interactor(session).apply_withdrawal(7, close_sole_owned=True)
         # 막히기 전에 첫 매장은 이미 처리됐다. 그래서 아래의 롤백이 의미가 있다.
         assert await _active_user_ids(session, first.id) == [1]

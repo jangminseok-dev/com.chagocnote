@@ -3,7 +3,7 @@ import pytest
 from hub.app.dtos.shop_context import ShopContext
 from tenancy.app.dtos.shop_access_record import ShopAccessRecord
 from tenancy.app.use_cases.resolve_shop_access_interactor import ResolveShopAccessInteractor
-from tenancy.domain.errors import NotAMemberError, ShopClosedError, ShopSuspendedError
+from hub.app.errors import ShopAccessClosedError, ShopAccessDeniedError, ShopAccessSuspendedError
 
 
 class _StubMembers:
@@ -31,15 +31,15 @@ async def test_멤버면_컨텍스트를_돌려준다():
 
 
 async def test_멤버가_아니면_NOT_A_MEMBER_다():
-    with pytest.raises(NotAMemberError):
+    with pytest.raises(ShopAccessDeniedError):
         await ResolveShopAccessInteractor(_StubMembers(None)).resolve(user_id=5, shop_id=3)
 
 
 async def test_닫힌_매장은_SHOP_CLOSED_다():
-    with pytest.raises(ShopClosedError):
+    with pytest.raises(ShopAccessClosedError):
         await ResolveShopAccessInteractor(_StubMembers(_record(shop_closed=True))).resolve(5, 3)
 
 
 async def test_정지된_매장은_SHOP_SUSPENDED_다():
-    with pytest.raises(ShopSuspendedError):
+    with pytest.raises(ShopAccessSuspendedError):
         await ResolveShopAccessInteractor(_StubMembers(_record(shop_suspended=True))).resolve(5, 3)

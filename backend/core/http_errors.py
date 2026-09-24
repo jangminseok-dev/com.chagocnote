@@ -6,6 +6,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from core.hub_errors import HUB_ERROR_STATUS
+
 
 class ApiError(Exception):
     def __init__(self, status_code: int, code: str, message: str) -> None:
@@ -16,9 +18,10 @@ class ApiError(Exception):
 
 
 def install_error_handlers(app: FastAPI, domain_errors: dict[type[Exception], int]) -> None:
-    """ApiError 와 스포크의 도메인 오류를 같은 형식의 응답으로 바꾼다.
+    """ApiError 와 스포크의 도메인 오류, 허브 포트 오류를 같은 형식의 응답으로 바꾼다.
 
     domain_errors 는 {도메인 예외 클래스: HTTP 상태 코드}. 예외는 code 속성을 가져야 한다.
+    허브 포트 오류(`core/hub_errors.py`)는 어느 프로세스에서든 같은 상태로 나가야 하므로 여기서 함께 등록한다.
     """
 
     @app.exception_handler(ApiError)
@@ -36,7 +39,7 @@ def install_error_handlers(app: FastAPI, domain_errors: dict[type[Exception], in
 
         return _handler
 
-    for exc_type, status_code in domain_errors.items():
+    for exc_type, status_code in {**HUB_ERROR_STATUS, **domain_errors}.items():
         app.add_exception_handler(exc_type, _make(status_code))
 
     @app.exception_handler(RequestValidationError)

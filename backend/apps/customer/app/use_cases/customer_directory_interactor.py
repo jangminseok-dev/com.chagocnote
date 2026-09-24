@@ -9,12 +9,13 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.family_brief_repository import FamilyBriefRepository
 from customer.app.ports.output.pet_repository import PetRepository
-from customer.domain.errors import PetNotFoundError, PetPassedAwayError
+from customer.domain.errors import CustomerNotFoundError
 from customer.domain.services.phone_number import mask_phone
 from customer.domain.services.search_terms import parse_query
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.shop_context import ShopContext
+from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 
 
@@ -32,15 +33,19 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
 
     async def lock_family(self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...]) -> None:
         # 가족을 바꾸는 customer 유스케이스와 같은 잠금이다 — 익명화와 예약 생성이 서로를 기다린다.
-        await self._customers.lock_active(ctx, customer_id)
+        # 스포크 경계를 넘는 오류는 허브 오류로 바꿔 던진다 — 부르는 쪽은 customer 의 도메인 오류를 모른다.
+        try:
+            await self._customers.lock_active(ctx, customer_id)
+        except CustomerNotFoundError as exc:
+            raise FamilyNotFoundError(str(exc)) from exc
         if not pet_ids:
             return
         family = {pet.id: pet for pet in await self._pets.list_for_customers(ctx, [customer_id])}
         for pet_id in pet_ids:
             if pet_id not in family:
-                raise PetNotFoundError("반려동물을 찾을 수 없습니다.")
+                raise FamilyPetNotFoundError("반려동물을 찾을 수 없습니다.")
             if family[pet_id].passed_away:
-                raise PetPassedAwayError("무지개다리를 건넌 아이에게는 예약을 잡을 수 없습니다.")
+                raise FamilyPetPassedAwayError("무지개다리를 건넌 아이에게는 예약을 잡을 수 없습니다.")
 
     async def briefs(self, ctx: ShopContext, customer_ids: list[int], pet_ids: list[int]) -> FamilyBriefs:
         customers = await self._briefs.list_customer_briefs(ctx, customer_ids) if customer_ids else []

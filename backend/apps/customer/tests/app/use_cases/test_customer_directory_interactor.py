@@ -4,10 +4,10 @@ from decimal import Decimal
 import pytest
 
 from customer.app.use_cases.customer_directory_interactor import CustomerDirectoryInteractor
-from customer.domain.errors import CustomerNotFoundError, PetNotFoundError, PetPassedAwayError
 from customer.tests.helpers.fakes import family
 from customer.tests.helpers.profiles import ctx
 from hub.app.dtos.family_brief import CustomerBrief, PetBrief
+from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
 
 
 class _FakeBriefs:
@@ -45,27 +45,27 @@ async def test_반려동물_없이_보호자만_잠글_수_있다():
     assert journal == [("lock_customer", customer.id)]
 
 
-async def test_다른_보호자의_반려동물이면_PET_NOT_FOUND_다():
+async def test_다른_보호자의_반려동물이면_허브_오류_PET_NOT_FOUND_다():
     """V2 — 같은 매장이라도 다른 가족의 아이를 끼워 넣을 수 없다."""
     _, customers, pets, _, directory = _directory()
     mine, theirs = customers.seed(), customers.seed(phone="01099998888")
     other_pet = pets.seed(theirs.id, "남의 아이")
-    with pytest.raises(PetNotFoundError):
+    with pytest.raises(FamilyPetNotFoundError):
         await directory.lock_family(ctx(), mine.id, (other_pet.id,))
 
 
-async def test_무지개다리_아이면_PET_PASSED_AWAY_다():
+async def test_무지개다리_아이면_허브_오류_PET_PASSED_AWAY_다():
     _, customers, pets, _, directory = _directory()
     customer = customers.seed()
     star = pets.seed(customer.id, "별이", passed_away=True)
-    with pytest.raises(PetPassedAwayError):
+    with pytest.raises(FamilyPetPassedAwayError):
         await directory.lock_family(ctx(), customer.id, (star.id,))
 
 
-async def test_다른_매장의_고객이면_CUSTOMER_NOT_FOUND_다():
+async def test_다른_매장의_고객이면_허브_오류_CUSTOMER_NOT_FOUND_다():
     _, customers, _, _, directory = _directory()
     customer = customers.seed(shop_id=2)
-    with pytest.raises(CustomerNotFoundError):
+    with pytest.raises(FamilyNotFoundError):
         await directory.lock_family(ctx(shop_id=1), customer.id, ())
 
 

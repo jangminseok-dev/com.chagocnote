@@ -5,6 +5,7 @@ from dataclasses import replace
 from decimal import Decimal
 
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
+from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
 from visit.domain.entities.menu import Menu
 from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
 from visit.domain.errors import (
@@ -105,10 +106,6 @@ class FakeMenus:
         return self.rows[menu_id]
 
 
-class FamilyRejected(Exception):
-    """FakeDirectory 가 가족을 거절할 때 던진다 — 실제로는 customer 의 도메인 오류(404·422)다."""
-
-
 class FakeDirectory:
     """CustomerDirectoryPort 스텁. families 는 {고객 ID: (매장 ID, {반려동물 ID: 무지개다리 여부})}."""
 
@@ -123,10 +120,16 @@ class FakeDirectory:
         self.names[customer_id] = name
 
     async def lock_family(self, ctx, customer_id, pet_ids):
+        """실제 구현(customer)과 같은 허브 오류를 같은 조건에서 던진다 — 포트 계약이 곧 스텁의 계약이다."""
         self.journal.append(("lock_family", customer_id, tuple(pet_ids)))
         shop, pets = self.families.get(customer_id, (None, {}))
-        if shop != ctx.shop_id or any(p not in pets or pets[p] for p in pet_ids):
-            raise FamilyRejected(customer_id)
+        if shop != ctx.shop_id:
+            raise FamilyNotFoundError("고객을 찾을 수 없습니다.")
+        for pet_id in pet_ids:
+            if pet_id not in pets:
+                raise FamilyPetNotFoundError("반려동물을 찾을 수 없습니다.")
+            if pets[pet_id]:
+                raise FamilyPetPassedAwayError("무지개다리를 건넌 아이에게는 예약을 잡을 수 없습니다.")
 
     async def briefs(self, ctx, customer_ids, pet_ids):
         customers = {

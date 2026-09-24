@@ -5,7 +5,10 @@ import pytest
 from tenancy.app.use_cases.apply_withdrawal_interactor import ApplyWithdrawalInteractor
 from tenancy.domain.entities.member import Member
 from tenancy.domain.entities.shop import Shop
-from tenancy.domain.errors import OwnershipTransferRequiredError, ShopCloseConfirmRequiredError
+from hub.app.errors import (
+    WithdrawalOwnershipTransferRequiredError,
+    WithdrawalShopCloseConfirmRequiredError,
+)
 from tenancy.domain.value_objects.role_code import RoleCode
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
@@ -92,7 +95,7 @@ async def test_다른_사장이_있으면_사장도_그냥_나간다():
 async def test_혼자_사장인_매장에_다른_멤버가_있으면_막는다():
     members = _StubMembers([_member(21, 3, RoleCode.OWNER)], owners={3: 1}, actives={3: 2})
     interactor, shops, _ = _run(members)
-    with pytest.raises(OwnershipTransferRequiredError) as exc:
+    with pytest.raises(WithdrawalOwnershipTransferRequiredError) as exc:
         await interactor.apply_withdrawal(5, close_sole_owned=True)   # 확인을 줬어도 막는다
     assert "매장 3" in str(exc.value)
     assert members.removed == [] and shops.closed == []
@@ -101,7 +104,7 @@ async def test_혼자_사장인_매장에_다른_멤버가_있으면_막는다()
 async def test_혼자뿐인_매장은_확인_없이는_닫지_않는다():
     members = _StubMembers([_member(21, 3, RoleCode.OWNER)], owners={3: 1}, actives={3: 1})
     interactor, shops, _ = _run(members)
-    with pytest.raises(ShopCloseConfirmRequiredError) as exc:
+    with pytest.raises(WithdrawalShopCloseConfirmRequiredError) as exc:
         await interactor.apply_withdrawal(5, close_sole_owned=False)
     assert "매장 3" in str(exc.value)
     assert members.removed == [] and shops.closed == []
@@ -137,7 +140,7 @@ async def test_잠근_뒤에_다시_읽은_역할로_판단한다():
         under_lock={21: _member(21, 3, RoleCode.OWNER)}, owners={3: 1}, actives={3: 2},
     )
     interactor, _, _ = _run(members)
-    with pytest.raises(OwnershipTransferRequiredError):
+    with pytest.raises(WithdrawalOwnershipTransferRequiredError):
         await interactor.apply_withdrawal(5, close_sole_owned=False)
     assert members.removed == []
 

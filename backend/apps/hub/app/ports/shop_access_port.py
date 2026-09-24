@@ -10,4 +10,8 @@ class ShopAccessPort(ABC):
 
     @abstractmethod
     async def resolve(self, user_id: int, shop_id: int) -> ShopContext:
-        """소속·역할·권한과 매장 상태를 매 요청마다 DB 에서 확인한다. 통과하지 못하면 구현 쪽 도메인 오류를 던진다."""
+        """소속·역할·권한과 매장 상태를 매 요청마다 DB 에서 확인한다.
+
+        통과하지 못하면 허브 오류를 던진다: ShopAccessDeniedError(멤버가 아니거나 매장이 없음 — 둘을 구분해
+        주지 않는다), ShopAccessClosedError, ShopAccessSuspendedError.
+        """

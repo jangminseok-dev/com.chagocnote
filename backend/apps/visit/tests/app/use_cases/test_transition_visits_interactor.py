@@ -12,7 +12,8 @@ from visit.domain.errors import (
     VisitStateConflictError,
 )
 from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeVisits, FamilyRejected, Journal
+from hub.app.errors import FamilyPetPassedAwayError
+from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeVisits, Journal
 
 NOW = kst(9, 23, 15)
 
@@ -92,7 +93,7 @@ async def test_무지개다리_아이의_방문은_되돌리지_못한다():
     _, visits, interactor = _setup()
     canceled = visits.seed(customer_id=1, pet_id=103, starts_at=kst(9, 30, 14), status="canceled",
                            canceled_at=NOW, cancel_reason="shop_reason")
-    with pytest.raises(FamilyRejected):
+    with pytest.raises(FamilyPetPassedAwayError):
         await interactor.transition_visits(_act([canceled.id], "revert"))
 
 
