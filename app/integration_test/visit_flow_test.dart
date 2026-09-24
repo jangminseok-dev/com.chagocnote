@@ -486,7 +486,9 @@ void main() {
       await shot('02a-day-list');
       await tap(p(AppStrings.viewAsTimeline), after: const Duration(seconds: 1));
       await shot('02b-day-timeline');
-      final saved = await container.read(prefsStoreProvider).read(PrefsKeys.dayViewMode);
+      final saved = await container
+          .read(prefsStoreProvider)
+          .read(PrefsKeys.dayViewMode);
       note('시간표로 바꾼 뒤 PrefsStore.read(PrefsKeys.dayViewMode) = $saved');
       expect(saved, 'timeline');
       await tap(p(AppStrings.back));
@@ -500,7 +502,9 @@ void main() {
       await shot('02c-day-reopened-timeline');
       expect(idx, 1);
       await tap(p(AppStrings.viewAsList), after: const Duration(seconds: 1));
-      final back = await container.read(prefsStoreProvider).read(PrefsKeys.dayViewMode);
+      final back = await container
+          .read(prefsStoreProvider)
+          .read(PrefsKeys.dayViewMode);
       note('목록으로 되돌린 뒤 저장값 = $back');
       await shot('02d-day-list-again');
       expect(back, 'list');
