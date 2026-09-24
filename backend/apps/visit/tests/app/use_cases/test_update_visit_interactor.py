@@ -27,7 +27,7 @@ def _setup():
     visits, menus, directory = FakeVisits(journal), FakeMenus(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102, 103), passed=(103,))
     directory.family(2, pets=(201,))
-    interactor = UpdateVisitInteractor(visits, menus, FakeSchedule(), directory, now=lambda: NOW)
+    interactor = UpdateVisitInteractor(visits, visits, menus, FakeSchedule(), directory, now=lambda: NOW)
     return journal, visits, menus, interactor
 
 

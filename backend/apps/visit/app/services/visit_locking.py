@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_lookup_repository import VisitLookupRepository
 from visit.domain.entities.visit import Visit
 from visit.domain.errors import VisitGroupMismatchError, VisitNotFoundError
 
 
 async def lock_visits(
-    ctx: ShopContext, visit_ids: list[int], visits: VisitRepository, directory: CustomerDirectoryPort,
+    ctx: ShopContext, visit_ids: list[int], visits: VisitLookupRepository, directory: CustomerDirectoryPort,
     pet_ids: tuple[int, ...] = (),
 ) -> list[Visit]:
     """visit_ids 의 방문을 잠그고 다시 읽은 목록(ID 순)을 돌려준다.

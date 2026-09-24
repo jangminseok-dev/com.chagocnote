@@ -45,8 +45,9 @@ def _directory(session):
 
 
 def _register(session, customer_id, pet_ids, starts_at=kst(10, 2, 14)):
+    visits = VisitPgRepository(session)
     interactor = RegisterVisitInteractor(
-        VisitPgRepository(session), MenuPgRepository(session), SchedulePgRepository(session),
+        visits, visits, MenuPgRepository(session), SchedulePgRepository(session),
         _directory(session), now=lambda: NOW,
     )
     return interactor.register_visit(RegisterVisitCommand(
@@ -56,8 +57,9 @@ def _register(session, customer_id, pet_ids, starts_at=kst(10, 2, 14)):
 
 
 def _transition(session, visit_ids, action, reason=None):
+    visits = VisitPgRepository(session)
     interactor = TransitionVisitsInteractor(
-        VisitPgRepository(session), MenuPgRepository(session), _directory(session), now=lambda: NOW
+        visits, visits, MenuPgRepository(session), _directory(session), now=lambda: NOW
     )
     return interactor.transition_visits(TransitionVisitsCommand(
         ctx=SHOP, visit_ids=tuple(visit_ids), action=action, cancel_reason=reason,

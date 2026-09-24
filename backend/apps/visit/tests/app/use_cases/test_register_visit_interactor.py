@@ -30,7 +30,7 @@ def _setup(settings=None):
     schedule = FakeSchedule(journal) if settings is None else FakeSchedule(journal, settings)
     menus, visits, directory = FakeMenus(journal), FakeVisits(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102))
-    interactor = RegisterVisitInteractor(visits, menus, schedule, directory, now=lambda: NOW)
+    interactor = RegisterVisitInteractor(visits, visits, menus, schedule, directory, now=lambda: NOW)
     return journal, schedule, menus, visits, directory, interactor
 
 

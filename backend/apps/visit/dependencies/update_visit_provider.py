@@ -18,7 +18,8 @@ from visit.domain.services.visit_schedule import utc_now
 def get_update_visit_use_case(
     db: DbSession, directory: CustomerDirectoryPort = Depends(get_customer_directory)
 ) -> UpdateVisitUseCase:
+    visits = build_visit_repository(db)
     return UpdateVisitInteractor(
-        visits=build_visit_repository(db), menus=build_menu_repository(db),
+        visits=visits, board=visits, menus=build_menu_repository(db),
         schedule=build_schedule_repository(db), directory=directory, now=utc_now,
     )

@@ -13,6 +13,7 @@ from visit.dependencies.visit_wiring import build_menu_repository, build_visit_r
 def get_get_visit_use_case(
     db: DbSession, directory: CustomerDirectoryPort = Depends(get_customer_directory)
 ) -> GetVisitUseCase:
+    visits = build_visit_repository(db)
     return GetVisitInteractor(
-        visits=build_visit_repository(db), menus=build_menu_repository(db), directory=directory
+        visits=visits, history=visits, ledger=visits, menus=build_menu_repository(db), directory=directory
     )

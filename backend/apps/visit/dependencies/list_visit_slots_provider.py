@@ -7,4 +7,4 @@ from visit.dependencies.visit_wiring import build_schedule_repository, build_vis
 
 
 def get_list_visit_slots_use_case(db: DbSession) -> ListVisitSlotsUseCase:
-    return ListVisitSlotsInteractor(visits=build_visit_repository(db), schedule=build_schedule_repository(db))
+    return ListVisitSlotsInteractor(board=build_visit_repository(db), schedule=build_schedule_repository(db))

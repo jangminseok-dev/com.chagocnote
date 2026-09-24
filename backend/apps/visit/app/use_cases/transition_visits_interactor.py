@@ -7,7 +7,8 @@ from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from visit.app.dtos.transition_visits_dto import TransitionedVisitsView, TransitionVisitsCommand
 from visit.app.ports.input.transition_visits_use_case import TransitionVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
+from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.app.services.visit_locking import lock_visits
 from visit.app.services.visit_reader import describe_visits
 from visit.domain.entities.visit import COMPLETED
@@ -17,10 +18,11 @@ from visit.domain.state.visit_state import transition
 
 class TransitionVisitsInteractor(TransitionVisitsUseCase):
     def __init__(
-        self, visits: VisitRepository, menus: MenuRepository, directory: CustomerDirectoryPort,
-        now: Callable[[], datetime],
+        self, visits: VisitWriteRepository, history: VisitHistoryRepository, menus: MenuRepository,
+        directory: CustomerDirectoryPort, now: Callable[[], datetime],
     ) -> None:
         self._visits = visits
+        self._history = history
         self._menus = menus
         self._directory = directory
         self._now = now
@@ -47,7 +49,7 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
 
         if any(v.status == COMPLETED for v in locked) or any(c.status == COMPLETED for _, c in changes):
             customer_id = locked[0].customer_id
-            latest = await self._visits.latest_completed_start(ctx, customer_id)
+            latest = await self._history.latest_completed_start(ctx, customer_id)
             await self._directory.set_last_visit(ctx, customer_id, latest)
         return TransitionedVisitsView(
             visits=await describe_visits(ctx, changed, self._directory, self._menus)

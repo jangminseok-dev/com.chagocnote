@@ -9,7 +9,7 @@ from visit.tests.helpers.fakes import FakeMenus, FakeVisits
 
 def _setup():
     visits, menus = FakeVisits(), FakeMenus()
-    return visits, menus, GetNextVisitDraftInteractor(visits, menus)
+    return visits, menus, GetNextVisitDraftInteractor(visits, visits, menus)
 
 
 def _done(visits, **fields):

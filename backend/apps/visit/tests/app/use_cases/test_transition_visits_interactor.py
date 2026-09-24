@@ -23,7 +23,7 @@ def _setup():
     visits, directory = FakeVisits(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102, 103), passed=(103,))
     directory.family(2, pets=(201,))
-    return journal, visits, TransitionVisitsInteractor(visits, FakeMenus(), directory, now=lambda: NOW)
+    return journal, visits, TransitionVisitsInteractor(visits, visits, FakeMenus(), directory, now=lambda: NOW)
 
 
 def _act(ids, action, reason=None, member_id=11):
@@ -137,6 +137,6 @@ async def test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_�
     canceled = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 30, 14), status="canceled",
                            canceled_at=NOW, cancel_reason="customer_request")
     visits._swap_visit_id = canceled.id
-    interactor = TransitionVisitsInteractor(visits, FakeMenus(), directory, now=lambda: NOW)
+    interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), directory, now=lambda: NOW)
     with pytest.raises(VisitStateConflictError):
         await interactor.transition_visits(_act([canceled.id], "revert"))

@@ -10,7 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hub.app.dtos.shop_context import ShopContext
 from visit.adapter.outbound.mappers.visit_mapper import to_visit
 from visit.adapter.outbound.orm.visit_orm import VisitMenuOrm, VisitOrm
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
+from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
+from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.entities.visit import ACTIVE_STATUSES, COMPLETED, NO_SHOW, RESERVED, Visit
 from visit.domain.errors import VisitDuplicateError, VisitNotFoundError
 from visit.domain.services.visit_schedule import MAX_DURATION
@@ -20,7 +23,9 @@ from visit.domain.value_objects.new_visit import NewVisit
 _DUPLICATE = {"uq_visits_pet_start_active", "uq_visits_customer_start_active"}
 
 
-class VisitPgRepository(VisitRepository):
+class VisitPgRepository(VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository):
+    """visits 표 하나를 다섯 포트로 내놓는다 — 유스케이스는 자기가 쓰는 포트만 받는다(ISP)."""
+
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 

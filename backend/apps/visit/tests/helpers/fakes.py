@@ -154,6 +154,8 @@ class FakeDirectory:
 
 
 class FakeVisits:
+    """visits 표 스텁 — pg 구현처럼 다섯 포트(찾기·잠금, 쓰기, 이력, 원장, 게시판)를 한 객체가 다 낸다."""
+
     def __init__(self, journal: Journal | None = None) -> None:
         self.journal = journal if journal is not None else Journal()
         self.rows: dict[int, Visit] = {}

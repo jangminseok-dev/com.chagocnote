@@ -7,4 +7,5 @@ from visit.dependencies.visit_wiring import build_menu_repository, build_visit_r
 
 
 def get_get_next_visit_draft_use_case(db: DbSession) -> GetNextVisitDraftUseCase:
-    return GetNextVisitDraftInteractor(visits=build_visit_repository(db), menus=build_menu_repository(db))
+    visits = build_visit_repository(db)
+    return GetNextVisitDraftInteractor(visits=visits, history=visits, menus=build_menu_repository(db))

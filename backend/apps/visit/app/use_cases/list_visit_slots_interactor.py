@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from visit.app.dtos.list_visit_slots_dto import ListVisitSlotsQuery, SlotView, VisitSlotsView
 from visit.app.ports.input.list_visit_slots_use_case import ListVisitSlotsUseCase
 from visit.app.ports.output.schedule_repository import ScheduleRepository
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.domain.errors import VisitInputError
 from visit.domain.services.visit_schedule import (
     STEP_MINUTES,
@@ -22,8 +22,8 @@ from visit.domain.services.visit_schedule import (
 class ListVisitSlotsInteractor(ListVisitSlotsUseCase):
     """예약 ② 화면의 시간 칸. 경고 판단은 서버 한 곳에만 둔다 — 앱은 이 응답만 보고 줄을 긋는다(설계 6.3)."""
 
-    def __init__(self, visits: VisitRepository, schedule: ScheduleRepository) -> None:
-        self._visits = visits
+    def __init__(self, board: VisitBoardRepository, schedule: ScheduleRepository) -> None:
+        self._board = board
         self._schedule = schedule
 
     async def list_visit_slots(self, query: ListVisitSlotsQuery) -> VisitSlotsView:
@@ -40,7 +40,7 @@ class ListVisitSlotsInteractor(ListVisitSlotsUseCase):
         start, end = day_bounds(day, tz)
         occupied = [
             Occupied(v.starts_at, v.ends_at, v.group_key)
-            for v in await self._visits.list_occupied(ctx, start, end) if v.id not in query.exclude
+            for v in await self._board.list_occupied(ctx, start, end) if v.id not in query.exclude
         ]
         closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, day, day))
         starts = [at_local(day, query.at, tz)] if query.at is not None else hourly_starts(day, settings, tz)
