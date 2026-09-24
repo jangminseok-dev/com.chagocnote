@@ -23,3 +23,10 @@
 - `transition_visits`가 잠그기 전에 `get_many`를 한 번 더 읽는다(되돌리기가 아니어도). `lock_visits`도 같은 것을 읽으므로 방문당 조회 하나가 늘었다. 조회 결과를 `lock_visits`에 넘기는 인자를 두면 없앨 수 있으나 잠금 순서 서비스의 서명을 늘리는 값어치가 없다고 봤다.
 - 행동 축의 스키마 `Literal`(`transition_visits_schema.py`)은 API 계약이라 남긴다. 행동을 더하면 `ACTIONS`·바탕 메서드·스키마 셋을 고친다.
 - 상태를 더하면 여전히 새 마이그레이션을 손으로 써야 한다(CHECK·부분 색인). `test_schema_drift`는 이를 잡지 못하므로(compare_metadata 는 CHECK·부분 색인 WHERE 를 비교하지 않는다 — 최종 검토가 확인) `tests/integration/test_visit_status_schema.py`가 실제 DB 를 표와 대조한다.
+
+### 최종 검토(2026-09-24, 브랜치 전체)에서 고친 것
+
+- `tests/test_schema_drift.py`의 `compare_metadata`는 CHECK·부분 색인의 WHERE 를 비교하지 않는다(개발 DB 에서 확인). 설계 B5 가 요구한 "도메인 상태 집합 = CHECK 목록" 대조가 빠져 있어 `tests/integration/test_visit_status_schema.py`를 더했다 — 실제 DB 의 `pg_get_constraintdef`·`pg_get_expr`에서 상태 이름을 뽑아 표와 순서까지 대조한다. 거짓이던 문서 네 곳을 사실로 고쳤다.
+- `completion_changed`를 `touches_completion`으로 바꿨다. 판정은 "전후 어느 쪽에든 완료 방문이 있는가"이고 둘 다 완료여도 참이다(후속 처리는 멱등). ④-1 의 기록 유스케이스가 이 함수를 부를 때 "최근 방문일 때만 몸무게 동기화" 같은 조건은 `apply_completion_effects` 안에서 따로 판정한다. 계획서(작업 4)의 코드 블록은 옛 이름 그대로다 — 계획서는 실행 기록이라 고치지 않았다.
+- 탈퇴 인터랙터 테스트의 스텁이 자체 예외 대신 허브 오류 `WithdrawalOwnershipTransferRequiredError`를 던진다(설계 B2 "스텁도 같은 예외"). 오류 배선 통합 테스트의 docstring 이 "리포지토리 오류가 샐 수도 있다"고 하던 것을 사실("포트 구현은 도메인 오류를 내보내지 않는다; tenancy 맵 등록은 방어용")로 고쳤다.
+- 미룬 것(최종 검토 판정): import 정렬 세 테스트 파일, `membership_lifecycle_port.py` 긴 docstring 줄, `test_포트끼리_메서드가_겹치지_않는다` docstring, `visit_orm.py`의 상태별 칸 CHECK 에 남은 `'canceled'`·`'completed'` 리터럴, `test_visit_status.py`의 비공개 `_STATES` import, `visit_board.COUNTED` 별칭, `RecentLogin(auth_time=…)`의 정적 타입 `int | None`. 기각한 것: 분리 구조 테스트의 사용 차원 검사(타입 힌트가 계약), 서비스 함수 둘의 포트 검사, `X | None` 힌트, `phone_digits` 재계산, 가드 테스트의 키 쌍 직접 생성(`now` 고정에 필요).
