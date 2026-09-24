@@ -15,14 +15,8 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.services.visit_reader import describe_visits
-from visit.domain.entities.visit import CANCELED, COMPLETED, IN_PROGRESS, NO_SHOW, RESERVED
 from visit.domain.errors import VisitInputError
-from visit.domain.services.visit_board import (
-    COUNTED,
-    is_unresolved,
-    overlaps_other_group,
-    status_counts,
-)
+from visit.domain.services.visit_board import is_unresolved, overlaps_other_group, status_counts
 from visit.domain.services.visit_schedule import day_bounds, is_closed_day, local_date
 
 
@@ -59,14 +53,9 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
             )
             for visit, view in zip(visits, views)
         ]
-        counts = status_counts(visits)
         return DayVisitsView(
             date=day,
             closed_day=is_closed_day(day, settings, closed),
-            counts=DayCountsView(
-                visit_count=sum(counts[s] for s in COUNTED), reserved=counts[RESERVED],
-                in_progress=counts[IN_PROGRESS], completed=counts[COMPLETED], canceled=counts[CANCELED],
-                no_show=counts[NO_SHOW], unresolved=sum(item.unresolved for item in items),
-            ),
+            counts=DayCountsView.of(status_counts(visits), unresolved=sum(item.unresolved for item in items)),
             items=items,
         )

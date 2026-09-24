@@ -4,11 +4,12 @@ from __future__ import annotations
 from collections import Counter
 from datetime import date
 
-from visit.domain.entities.visit import COMPLETED, IN_PROGRESS, RESERVED, Visit
+from visit.domain.entities.visit import RESERVED, Visit
 from visit.domain.services.visit_schedule import local_date
+from visit.domain.state.visit_status import COUNTED_STATUSES
 
-# 마릿수로 치는 상태 — 취소·노쇼는 그날 한 일이 아니다.
-COUNTED = frozenset({RESERVED, IN_PROGRESS, COMPLETED})
+# 마릿수로 치는 상태 — 취소·노쇼는 그날 한 일이 아니다. 어느 상태가 그런지는 visit_status 의 표가 정한다.
+COUNTED = COUNTED_STATUSES
 
 
 def is_unresolved(visit: Visit, today: date, tz: str) -> bool:

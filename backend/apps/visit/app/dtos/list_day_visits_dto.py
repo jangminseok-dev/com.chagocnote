@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, fields
 from datetime import date
 
 from hub.app.dtos.shop_context import ShopContext
 from visit.app.dtos.visit_view_dto import VisitView
+from visit.domain.state.visit_status import COUNTED_STATUSES
 
 
 @dataclass(frozen=True)
@@ -15,6 +17,8 @@ class ListDayVisitsQuery:
 
 @dataclass(frozen=True)
 class DayCountsView:
+    """상태별 수. 상태 이름과 같은 칸이 하나씩 있다 — 상태가 늘면 칸을 더하고, `of`가 그것을 채운다."""
+
     visit_count: int   # 마릿수 — 예약됨·미용 중·완료
     reserved: int
     in_progress: int
@@ -22,6 +26,16 @@ class DayCountsView:
     canceled: int
     no_show: int
     unresolved: int
+
+    @classmethod
+    def of(cls, counts: Mapping[str, int], unresolved: int) -> DayCountsView:
+        """상태 이름 → 수 매핑에서 만든다. 어느 칸이 상태인지는 필드 이름으로 안다(visit_count·unresolved 는 아니다)."""
+        status_fields = [f.name for f in fields(cls) if f.name not in ("visit_count", "unresolved")]
+        return cls(
+            visit_count=sum(counts.get(s, 0) for s in COUNTED_STATUSES),
+            unresolved=unresolved,
+            **{name: counts.get(name, 0) for name in status_fields},
+        )
 
 
 @dataclass(frozen=True)

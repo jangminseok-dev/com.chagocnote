@@ -18,8 +18,19 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base
+from visit.domain.state.visit_status import (
+    ACTIVE_STATUSES,
+    ALL_STATUSES,
+    STARTED_STATUSES,
+    status_list_sql,
+)
 
 _DURATION_RULE = "BETWEEN 10 AND 600 AND {col} % 10 = 0"
+# 상태 이름을 여기 적지 않는다 — 도메인 표(visit_status)에서 만든다. 상태가 늘면 새 마이그레이션이 필요하고,
+# tests/test_schema_drift.py 가 그것을 알려 준다.
+_STATUS_IN = "status IN (" + status_list_sql(ALL_STATUSES) + ")"
+_ACTIVE_IN = "status IN (" + status_list_sql(ACTIVE_STATUSES) + ")"
+_STARTED_IN = "status IN (" + status_list_sql(STARTED_STATUSES) + ")"
 
 
 class VisitShopSettingsOrm(Base):
@@ -99,10 +110,7 @@ class VisitOrm(Base):
 
     __tablename__ = "visits"
     __table_args__ = (
-        CheckConstraint(
-            "status IN ('reserved', 'in_progress', 'completed', 'canceled', 'no_show')",
-            name="ck_visits_status",
-        ),
+        CheckConstraint(_STATUS_IN, name="ck_visits_status"),
         CheckConstraint(
             "duration_minutes " + _DURATION_RULE.format(col="duration_minutes"),
             name="ck_visits_duration",
@@ -120,18 +128,15 @@ class VisitOrm(Base):
         CheckConstraint(
             "(status = 'completed') = (completed_at IS NOT NULL)", name="ck_visits_completed_at"
         ),
-        CheckConstraint(
-            "(status IN ('in_progress', 'completed')) = (started_at IS NOT NULL)",
-            name="ck_visits_started_at",
-        ),
+        CheckConstraint("(" + _STARTED_IN + ") = (started_at IS NOT NULL)", name="ck_visits_started_at"),
         # 중복 예약 방지 — 저장을 두 번 눌러도 살아 있는 예약은 하나다(설계 V5).
         Index(
             "uq_visits_pet_start_active", "pet_id", "starts_at", unique=True,
-            postgresql_where=text("pet_id IS NOT NULL AND status IN ('reserved', 'in_progress')"),
+            postgresql_where=text("pet_id IS NOT NULL AND " + _ACTIVE_IN),
         ),
         Index(
             "uq_visits_customer_start_active", "customer_id", "starts_at", unique=True,
-            postgresql_where=text("pet_id IS NULL AND status IN ('reserved', 'in_progress')"),
+            postgresql_where=text("pet_id IS NULL AND " + _ACTIVE_IN),
         ),
         Index("ix_visits_shop_starts_at", "shop_id", "starts_at"),
         Index("ix_visits_shop_customer", "shop_id", "customer_id"),
