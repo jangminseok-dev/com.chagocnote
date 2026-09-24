@@ -6,6 +6,7 @@
 |---|---|
 | 단위 테스트 | `docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m "not integration and not network"` |
 | 통합 테스트 (실제 Postgres·Redis) | `docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m integration` |
+| 방문 상태 표 ↔ DB CHECK·부분 색인 대조 | 통합 테스트 안(`tests/integration/test_visit_status_schema.py`) — compare_metadata 가 못 보는 것을 본다 |
 | 구조 계약 | `docker compose run --rm --no-deps backend lint-imports --config .importlinter` |
 | 라우트 표 | `docker compose run --rm --no-deps auth python scripts/print_routes.py` (인증 프로세스를 import하려면 개인키가 필요해서 `auth` 서비스에서 돌린다) |
 | 로그인 흐름 (게이트웨이 경유) | `bash ../backend/scripts/check_auth_flow.sh` |

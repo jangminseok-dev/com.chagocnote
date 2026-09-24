@@ -26,8 +26,9 @@ from visit.domain.state.visit_status import (
 )
 
 _DURATION_RULE = "BETWEEN 10 AND 600 AND {col} % 10 = 0"
-# 상태 이름을 여기 적지 않는다 — 도메인 표(visit_status)에서 만든다. 상태가 늘면 새 마이그레이션이 필요하고,
-# tests/test_schema_drift.py 가 그것을 알려 준다.
+# 상태 이름을 여기 적지 않는다 — 도메인 표(visit_status)에서 만든다. 상태가 늘면 새 마이그레이션을 손으로 써야 한다 —
+# tests/test_schema_drift.py 는 CHECK·부분 색인을 비교하지 않으므로, tests/integration/test_visit_status_schema.py 가
+# 실제 DB 의 CHECK·부분 색인을 표와 대조해 알려 준다.
 _STATUS_IN = "status IN (" + status_list_sql(ALL_STATUSES) + ")"
 _ACTIVE_IN = "status IN (" + status_list_sql(ACTIVE_STATUSES) + ")"
 _STARTED_IN = "status IN (" + status_list_sql(STARTED_STATUSES) + ")"

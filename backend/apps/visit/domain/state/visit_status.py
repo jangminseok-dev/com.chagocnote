@@ -2,8 +2,9 @@
 
 상태를 더하면 여기에 한 줄을 더하고 `visit_state.py`에 상태 클래스를 하나 더한다. 그러면 나머지는 따라온다:
 - `ACTIVE_STATUSES`·`COUNTED_STATUSES`·`STARTED_STATUSES`는 성질에서 파생한다.
-- ORM 의 CHECK 와 부분 색인은 `status_list_sql()`로 문자열을 만든다(마이그레이션은 손으로 쓰므로
-  `tests/test_schema_drift.py`가 새 마이그레이션이 필요함을 알려 준다).
+- ORM 의 CHECK 와 부분 색인은 `status_list_sql()`로 문자열을 만든다(마이그레이션은 손으로 써야 한다 —
+  `tests/test_schema_drift.py`는 CHECK·부분 색인을 비교하지 않으므로, `tests/integration/test_visit_status_schema.py`가
+  실제 DB 의 CHECK·부분 색인을 표와 대조해 알려 준다).
 - 하루 집계(`DayCountsView.of`)는 상태 이름을 열거하지 않는다.
 - `tests/domain/test_visit_status.py`가 상태 클래스와 이 표가 같은 집합인지 확인한다.
 """

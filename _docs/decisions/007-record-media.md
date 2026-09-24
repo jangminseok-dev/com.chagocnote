@@ -22,4 +22,4 @@
 
 - `transition_visits`가 잠그기 전에 `get_many`를 한 번 더 읽는다(되돌리기가 아니어도). `lock_visits`도 같은 것을 읽으므로 방문당 조회 하나가 늘었다. 조회 결과를 `lock_visits`에 넘기는 인자를 두면 없앨 수 있으나 잠금 순서 서비스의 서명을 늘리는 값어치가 없다고 봤다.
 - 행동 축의 스키마 `Literal`(`transition_visits_schema.py`)은 API 계약이라 남긴다. 행동을 더하면 `ACTIONS`·바탕 메서드·스키마 셋을 고친다.
-- 상태를 더하면 여전히 새 마이그레이션이 필요하다(CHECK·부분 색인). 표 하나에서 파생되므로 빠뜨릴 수 없을 뿐이다.
+- 상태를 더하면 여전히 새 마이그레이션을 손으로 써야 한다(CHECK·부분 색인). `test_schema_drift`는 이를 잡지 못하므로(compare_metadata 는 CHECK·부분 색인 WHERE 를 비교하지 않는다 — 최종 검토가 확인) `tests/integration/test_visit_status_schema.py`가 실제 DB 를 표와 대조한다.
