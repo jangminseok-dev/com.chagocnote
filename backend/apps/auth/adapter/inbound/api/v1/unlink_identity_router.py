@@ -5,8 +5,8 @@ from auth.app.dtos.unlink_identity_dto import UnlinkIdentityCommand
 from auth.app.ports.input.unlink_identity_use_case import UnlinkIdentityUseCase
 from auth.app.services.provider_revoker import ProviderRevoker
 from auth.dependencies.provider_revoker_provider import get_provider_revoker
+from auth.dependencies.recent_login_guard import RecentLogin, require_recent_login
 from auth.dependencies.unlink_identity_provider import get_unlink_identity_use_case
-from core.security import RecentLogin, require_recent_login
 
 unlink_identity_router = APIRouter(prefix="/v1/auth", tags=["auth"])
 

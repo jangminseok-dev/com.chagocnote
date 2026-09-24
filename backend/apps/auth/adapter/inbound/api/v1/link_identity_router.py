@@ -7,7 +7,7 @@ from auth.adapter.inbound.api.schemas.link_identity_schema import (
 from auth.app.dtos.link_identity_dto import LinkIdentityCommand
 from auth.app.ports.input.link_identity_use_case import LinkIdentityUseCase
 from auth.dependencies.link_identity_provider import get_link_identity_use_case
-from core.security import RecentLogin, require_recent_login
+from auth.dependencies.recent_login_guard import RecentLogin, require_recent_login
 
 link_identity_router = APIRouter(prefix="/v1/auth", tags=["auth"])
 

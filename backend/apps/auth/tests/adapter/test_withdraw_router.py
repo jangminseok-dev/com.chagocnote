@@ -5,13 +5,13 @@ from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.withdraw_router import withdraw_router
 from auth.app.dtos.withdraw_dto import WithdrawResult
 from auth.dependencies.provider_revoker_provider import get_provider_revoker
+from auth.dependencies.recent_login_guard import RecentLogin, require_recent_login
 from auth.dependencies.withdraw_provider import get_withdraw_use_case
 from auth.domain.errors import UserNotFoundError
 from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from core.database import get_db
 from core.http_errors import install_error_handlers
-from core.security import RecentLogin, require_recent_login
 
 KAKAO = IdentityRevocation(Provider.KAKAO, "kakao-100", None)
 

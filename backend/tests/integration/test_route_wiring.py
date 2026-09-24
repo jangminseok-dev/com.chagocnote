@@ -4,7 +4,7 @@ auth_main 은 import 시점에 JWT 개인키를 요구하므로 키를 넣어 �
 """
 import pytest
 
-from core.security import require_recent_login
+from auth.dependencies.recent_login_guard import require_recent_login
 from tests.route_inspection import find_route_violations, routes_calling
 
 pytestmark = pytest.mark.integration

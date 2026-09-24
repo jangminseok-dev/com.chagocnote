@@ -5,6 +5,7 @@ from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.link_identity_router import link_identity_router
 from auth.app.dtos.link_identity_dto import LinkedIdentities
 from auth.dependencies.link_identity_provider import get_link_identity_use_case
+from auth.dependencies.recent_login_guard import RecentLogin, require_recent_login
 from auth.domain.errors import (
     IdentityAlreadyLinkedError,
     ProviderAlreadyLinkedError,
@@ -12,7 +13,6 @@ from auth.domain.errors import (
 )
 from core.database import get_db
 from core.http_errors import install_error_handlers
-from core.security import RecentLogin, require_recent_login
 
 
 class _StubUseCase:

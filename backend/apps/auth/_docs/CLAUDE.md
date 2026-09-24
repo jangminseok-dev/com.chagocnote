@@ -16,5 +16,5 @@
 - **현재 세대로 토큰을 발급하는 경로(`SessionIssuer.issue(..., generation=None)`)는 유저 행을 잠그고 다시 확인한다.** `social_login`·`unlink_identity`가 여기 해당한다. `social_login`은 기존 유저를 찾으면 그 행을 잠근 뒤 신원을 다시 조회한다 — 잠금이 없으면 해제·탈퇴와 겹친 로그인이 사라진 수단으로 30일 세션을 쥔다. 어긋나면 조회를 처음부터 한 번만 다시 하고(해제된 수단은 새 계정이 된다), 두 번째에도 어긋나면 거절한다. 로그인이 잠그는 것은 유저 행 하나뿐이고 그 뒤로는 아무것도 잠그지 않는다. `grant_operator`도 같은 이유로 `lock`으로 읽는다. `refresh_token`은 이 규칙 밖이다 — 유저를 `get`으로 읽지만, 꺼낼 때(`take`) 받은 세대로 새 토큰을 저장하므로 그 사이 끼어든 전체 폐기가 새 토큰도 함께 무효로 만든다.
 - 잠금을 쥔 채 외부 HTTP를 부르지 않는다. 제공자 검증은 잠금 전에, 제공자 쪽 연결 끊기는 커밋 뒤 백그라운드 작업(`ProviderRevoker`)으로 한다. 끊지 못해도 탈퇴·해제는 끝난 것이며 로그만 남긴다. 구글은 서버가 끊지 않는다(앱이 `disconnect()`를 부른다).
 - 로그인 수단을 해제하면 모든 세션을 폐기하고 요청한 기기에만 새 토큰을 준다.
-- 민감한 계정 경로를 더할 때는 `require_recent_login` 을 쓰고 `tests/route_inspection.py` 의 `_RECENT_LOGIN_PREFIXES` 에 경로를 적는다. `auth_time` 은 소셜 로그인만 새로 찍고(`fresh_login=True`), 갱신은 찍지 않으며, 해제는 요청 토큰의 값을 물려준다.
+- 민감한 계정 경로를 더할 때는 `dependencies/recent_login_guard.require_recent_login` 을 쓰고 `tests/route_inspection.py` 의 `_RECENT_LOGIN_PREFIXES` 에 경로를 적는다. 최근 로그인의 창(300초)과 시계 차 허용폭은 `domain/services/recent_login.py`가 정한다 — core 는 토큰 검증(`get_access_claims`)만 한다. `auth_time` 은 소셜 로그인만 새로 찍고(`fresh_login=True`), 갱신은 찍지 않으며, 해제는 요청 토큰의 값을 물려준다.
 - 탈퇴의 DB 변경은 요청 하나의 트랜잭션이다. 소속 정리는 허브의 `MembershipLifecyclePort`(구현: tenancy)가 같은 세션에서 한다. 이 자리는 `auth_main.py`가 채운다.
