@@ -15,8 +15,7 @@ import '../../../design/widgets/app_choice_chip.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../home/state/today_provider.dart';
 import '../../visit/api/visit_models.dart';
 import '../../visit/screens/visit_labels.dart';
@@ -52,10 +51,7 @@ class _ScheduleSettingsScreenState
   String? _successText;
   String? _dateError;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   @override
   void dispose() {

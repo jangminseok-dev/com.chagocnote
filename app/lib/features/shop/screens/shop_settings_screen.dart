@@ -9,8 +9,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/shop_api.dart';
 import '../state/shop_settings_controller.dart';
 
@@ -34,10 +33,7 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
   String? _errorText;
   String? _successText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   void _initFields(ShopSettings settings) {
     if (_fieldsInitialized) return;
@@ -96,9 +92,7 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final shopId = _shopId;
-    final session = ref.watch(sessionControllerProvider).value;
-    final isOwner =
-        session is SignedIn && (session.selectedShop?.isOwner ?? false);
+    final isOwner = ref.watch(isOwnerProvider);
     final settingsAsync = shopId == null
         ? const AsyncValue<ShopSettings>.loading()
         : ref.watch(shopSettingsControllerProvider(shopId));

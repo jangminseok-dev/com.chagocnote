@@ -13,8 +13,7 @@ import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/visit_models.dart';
 import '../state/visit_prefill.dart';
@@ -42,10 +41,7 @@ class _DraftScreenState extends ConsumerState<DraftScreen> {
   bool _expanded = false;
   bool _continuing = false;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   /// 예약 ②(보호자가 있으면 바로, 없으면 ① 뒤)를 초안으로 채워 연다. 저장한
   /// 날짜가 돌아오면 이 화면도 그 날짜로 닫힌다.

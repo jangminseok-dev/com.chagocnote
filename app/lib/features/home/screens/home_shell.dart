@@ -12,8 +12,7 @@ import '../../../design/widgets/app_glass_bar.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../customer/screens/customer_list_tab.dart';
 import '../../visit/api/visit_models.dart';
 import '../../visit/screens/calendar_tab.dart';
@@ -69,9 +68,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final today = ref.watch(todayProvider);
-    final session = ref.watch(sessionControllerProvider).value;
-    final shopName =
-        session is SignedIn ? session.selectedShop?.shopName ?? '' : '';
+    final shopName = ref.watch(shopNameProvider);
 
     return Scaffold(
       key: ScreenKeys.home,

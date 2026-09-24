@@ -15,8 +15,7 @@ import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
@@ -47,10 +46,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
   bool _asking = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   /// 앵커(이 방문) + 같은 묶음에서 상태가 같은 형제. 서버의 `group`은 자기를
   /// 뺀 형제만 주므로 앵커를 먼저 넣는다.

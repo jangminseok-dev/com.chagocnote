@@ -16,8 +16,7 @@ import '../../../design/widgets/app_segment.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../visit/api/visit_models.dart';
 import '../../visit/screens/visit_labels.dart';
 import '../api/customer_models.dart';
@@ -42,10 +41,7 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   Future<void> _openActions(PetDetail detail) async {
     final action = await AppSheet.show<String>(
@@ -394,8 +390,7 @@ class _OwnerTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(sessionControllerProvider).value;
-    final shopId = session is SignedIn ? session.selectedShopId : null;
+    final shopId = ref.watch(selectedShopIdProvider);
     if (shopId == null) return const SizedBox.shrink();
     final key = (shopId: shopId, customerId: customerId);
     return ref

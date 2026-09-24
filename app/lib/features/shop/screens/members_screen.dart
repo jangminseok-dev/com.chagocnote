@@ -15,8 +15,7 @@ import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/shop_api.dart';
 import '../state/members_controller.dart';
 
@@ -32,10 +31,7 @@ class MembersScreen extends ConsumerStatefulWidget {
 class _MembersScreenState extends ConsumerState<MembersScreen> {
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   Future<void> _createInvite() async {
     final shopId = _shopId;
@@ -172,10 +168,8 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   @override
   Widget build(BuildContext context) {
     final shopId = _shopId;
-    final session = ref.watch(sessionControllerProvider).value;
-    final isOwner =
-        session is SignedIn && (session.selectedShop?.isOwner ?? false);
-    final myUserId = session is SignedIn ? session.me.id : null;
+    final isOwner = ref.watch(isOwnerProvider);
+    final myUserId = ref.watch(currentUserIdProvider);
     final members = shopId == null
         ? const AsyncValue<List<ShopMember>>.data(<ShopMember>[])
         : ref.watch(membersControllerProvider(shopId));

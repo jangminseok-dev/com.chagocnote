@@ -10,8 +10,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../home/state/today_provider.dart';
 import '../api/customer_models.dart';
 import '../state/customer_commands.dart';
@@ -37,10 +36,7 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   Future<void> _submit(PetFields fields) async {
     final shopId = _shopId;

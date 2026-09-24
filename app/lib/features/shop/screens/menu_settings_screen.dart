@@ -15,8 +15,7 @@ import '../../../design/widgets/app_choice_chip.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../visit/api/visit_models.dart';
 import '../../visit/state/visit_commands.dart';
 import '../../visit/state/visit_form_rules.dart';
@@ -35,10 +34,7 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   /// 쓰기 하나를 돌린다. 도는 동안 다른 쓰기를 막고, 실패하면 문구를 보인다.
   Future<void> _run(Future<void> Function() action) async {

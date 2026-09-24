@@ -21,8 +21,7 @@ import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/visit_models.dart';
 import '../state/day_layout.dart';
 import '../state/day_view_mode.dart';
@@ -52,10 +51,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
   bool _asking = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   Future<void> _act(DayGroup group, String action) async {
     final shopId = _shopId;
@@ -155,9 +151,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
         : ref.watch(dayVisitsProvider(key));
     final mode = ref.watch(dayViewModeProvider).value ?? DayViewMode.list;
     final data = day.value;
-    final session = ref.watch(sessionControllerProvider).value;
-    final isOwner =
-        session is SignedIn && (session.selectedShop?.isOwner ?? false);
+    final isOwner = ref.watch(isOwnerProvider);
     return Scaffold(
       key: ScreenKeys.day,
       floatingActionButton: AppFab(

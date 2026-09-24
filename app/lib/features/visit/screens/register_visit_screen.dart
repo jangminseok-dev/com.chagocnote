@@ -17,8 +17,7 @@ import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../customer/api/customer_models.dart';
 import '../../customer/state/customer_input.dart';
 import '../../customer/state/customer_list_controller.dart';
@@ -61,10 +60,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
   bool _busy = false;
   String? _errorText;
 
-  int? get _shopId {
-    final session = ref.read(sessionControllerProvider).value;
-    return session is SignedIn ? session.selectedShopId : null;
-  }
+  int? get _shopId => ref.read(selectedShopIdProvider);
 
   void _backToSearch() => setState(() {
     _customerId = null;

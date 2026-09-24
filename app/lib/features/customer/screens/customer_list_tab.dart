@@ -11,8 +11,7 @@ import '../../../design/widgets/app_choice_chip.dart';
 import '../../../design/widgets/app_icon_toggle.dart';
 import '../../../design/widgets/app_segment.dart';
 import '../../../l10n/app_strings.dart';
-import '../../auth/state/session.dart';
-import '../../auth/state/session_controller.dart';
+import '../../auth/state/shop_selection.dart';
 import '../state/customer_list_controller.dart';
 import '../state/customer_view_mode.dart';
 import '../state/search_debouncer.dart';
@@ -67,8 +66,7 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
   }
 
   CustomerListQuery? get _query {
-    final session = ref.read(sessionControllerProvider).value;
-    final shopId = session is SignedIn ? session.selectedShopId : null;
+    final shopId = ref.read(selectedShopIdProvider);
     if (shopId == null) return null;
     return (shopId: shopId, q: _q, sort: _sort, includePassed: _includePassed);
   }
@@ -86,7 +84,7 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(sessionControllerProvider);
+    ref.watch(selectedShopIdProvider);   // 매장이 바뀌면 다시 그린다
     final query = _query;
     final mode =
         ref.watch(customerViewModeProvider).value ?? CustomerViewMode.list;
