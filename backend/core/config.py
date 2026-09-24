@@ -33,3 +33,12 @@ APPLE_BUNDLE_ID: str = _m.get("APPLE_BUNDLE_ID", "") or ""
 APPLE_TEAM_ID: str = _m.get("APPLE_TEAM_ID", "") or ""
 APPLE_KEY_ID: str = _m.get("APPLE_KEY_ID", "") or ""
 APPLE_PRIVATE_KEY: str = _b64_pem("APPLE_PRIVATE_KEY_B64")
+
+# 미디어 객체 저장소(S3 호환 — 개발은 compose 의 MinIO). 서버는 내부 주소로 HEAD·DELETE 하고, 앱에 줄 URL 은
+# 공개 주소로 서명한다(서명에 호스트가 들어간다). 운영은 S3 서울 리전 주소와 ap-northeast-2 를 넣는다.
+S3_ENDPOINT_URL: str = _m.get("S3_ENDPOINT_URL", "http://minio:9000") or "http://minio:9000"
+S3_PUBLIC_ENDPOINT_URL: str = _m.get("S3_PUBLIC_ENDPOINT_URL", "http://127.0.0.1:9010") or "http://127.0.0.1:9010"
+S3_REGION: str = _m.get("S3_REGION", "us-east-1") or "us-east-1"
+S3_BUCKET: str = _m.get("S3_BUCKET", "chagocnote-media") or "chagocnote-media"
+S3_ACCESS_KEY: str = _m.get("S3_ACCESS_KEY", "") or ""
+S3_SECRET_KEY: str = _m.get("S3_SECRET_KEY", "") or ""
