@@ -16,11 +16,15 @@ void main() {
   };
   const shared = {'auth'};
   const shell = {'home'};
+  // import 뿐 아니라 export 지시문도 같은 규칙을 받는다.
+  final directive = RegExp(
+    r"^(?:import|export) '(\.\.?/[^']+)'",
+    multiLine: true,
+  );
 
   test('기능 폴더끼리는 정해진 방향으로만 import 한다', () {
     final root = Directory('lib/features');
     final violations = <String>[];
-    final relative = RegExp(r"^import '(\.\.?/[^']+)';", multiLine: true);
 
     for (final entity in root.listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
@@ -28,7 +32,7 @@ void main() {
       final from = normalized.split('lib/features/')[1].split('/')[0];
       if (shell.contains(from)) continue;
 
-      for (final match in relative.allMatches(entity.readAsStringSync())) {
+      for (final match in directive.allMatches(entity.readAsStringSync())) {
         // 상대 경로를 파일 위치 기준으로 풀어 어느 기능 폴더로 가는지 본다.
         final target = Uri.file(normalized).resolve(match.group(1)!).path;
         final marker = target.indexOf('lib/features/');
@@ -47,7 +51,13 @@ void main() {
   });
 
   test('아무도 home 을 import 하지 않는다', () {
-    final violations = <String>[];
+    final violations = <String>{};
+    // 패키지 절대 경로로 home 을 가리키는 경우(`package:chagocnote/features/home/...`)도 잡는다.
+    final packageDirective = RegExp(
+      "^(?:import|export) 'package:chagocnote/([^']+)'",
+      multiLine: true,
+    );
+
     for (final entity in Directory('lib').listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;
       final normalized = entity.path.replaceAll(r'\', '/');
@@ -55,9 +65,19 @@ void main() {
       if (normalized == 'lib/core/router/app_router.dart') {
         continue; // 라우터는 조립 지점이다
       }
-      if (entity.readAsStringSync().contains('features/home/')) {
-        violations.add(normalized);
-      }
+
+      final content = entity.readAsStringSync();
+
+      final hitsByRelative = directive.allMatches(content).any((match) {
+        // 상대 경로를 파일 위치 기준으로 풀어 home 기능 폴더를 가리키는지 본다.
+        final target = Uri.file(normalized).resolve(match.group(1)!).path;
+        return target.contains('lib/features/home/');
+      });
+      final hitsByPackage = packageDirective
+          .allMatches(content)
+          .any((match) => match.group(1)!.startsWith('features/home/'));
+
+      if (hitsByRelative || hitsByPackage) violations.add(normalized);
     }
     expect(violations, isEmpty, reason: 'home 을 import 함: $violations');
   });
