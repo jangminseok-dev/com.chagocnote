@@ -38,6 +38,8 @@ class VisitMyselfInteractor(VisitMyselfUseCase):
                 "DELETE /visits/{visit_id}/record 는 기록 삭제입니다(record:delete, 방문은 남습니다). "
                 "방문 상세는 record(기록 전체, 사진 URL 포함)와 cover(대표 사진 썸네일 — 후 → 전 → 영상 포스터), "
                 "하루 목록은 항목마다 has_record·cover, 달력은 날마다 완료 방문의 cover·covers(최대 4장)를 줍니다. "
+                "GET /visits/feed?cursor=&limit=&pet_id= 는 완료 방문을 완료 시각 역순으로 이어 읽는 피드입니다"
+                "(카드마다 보호자·아이 요약, cover, 메뉴, 케어 메모 앞 80자, 사진 수, next_cursor 로 다음 쪽). "
                 "GET·PUT /visit-settings(영업시간·기본 소요·쉬는 요일), GET·POST /closed-dates, "
                 "DELETE /closed-dates/{date}(임시 휴무), GET·POST /menus, PUT /menus/{menu_id}(이름·기본 소요·순서·정가 price, "
                 "원 단위, 비우면 가격 미정), "

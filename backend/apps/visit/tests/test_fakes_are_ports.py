@@ -4,6 +4,7 @@ from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_feed_repository import VisitFeedRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_lookup_repository import VisitLookupRepository
@@ -26,6 +27,6 @@ def test_스텁은_포트를_상속하고_추상_메서드가_남아_있지_않�
     assert isinstance(FakeLibrary(), MediaLibraryPort)
     visits = FakeVisits()
     for port in (VisitLookupRepository, VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository,
-                 VisitBoardRepository):
+                 VisitBoardRepository, VisitFeedRepository):
         assert isinstance(visits, port), port.__name__
     assert isinstance(FakeRecords(visits), VisitRecordRepository)

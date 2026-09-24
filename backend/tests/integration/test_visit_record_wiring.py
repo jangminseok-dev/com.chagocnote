@@ -69,6 +69,7 @@ async def test_다른_매장의_방문과_미디어로는_기록을_쓸_수_없�
 
     assert error_of(await wired.api.put(f"/v1/shops/{b_shop}/visits/{b_visit}/record", json={}, headers=a)) == (
         403, "NOT_A_MEMBER")
+    assert error_of(await wired.api.get(f"/v1/shops/{b_shop}/visits/feed", headers=a)) == (403, "NOT_A_MEMBER")
     assert error_of(await wired.api.put(f"/v1/shops/{a_shop}/visits/{b_visit}/record", json={}, headers=a)) == (
         404, "VISIT_NOT_FOUND")
     theirs = await wired.api.put(f"/v1/shops/{a_shop}/visits/{a_visit}/record", headers=a,
@@ -142,7 +143,7 @@ async def test_덧붙이기는_기록을_만들고_다시_보내도_한_번이�
     assert attached == 0
 
 
-async def test_상세_하루_달력이_기록과_대표_사진을_보여_준다(wired, media_storage):
+async def test_상세_하루_달력_피드가_기록과_대표_사진을_보여_준다(wired, media_storage):
     shop_id, o, _ = await _shop(wired)
     customer_id, pet_id = await _family(wired, shop_id, o)
     visit_id = await _visit(wired, shop_id, o, customer_id, pet_id)
@@ -163,3 +164,6 @@ async def test_상세_하루_달력이_기록과_대표_사진을_보여_준다(
     calendar = (await wired.api.get(f"/v1/shops/{shop_id}/visits/calendar?month={day[:7]}", headers=o)).json()
     that_day = next(d for d in calendar["days"] if d["date"] == day)
     assert (that_day["cover"], that_day["covers"]) == (after_thumb, [after_thumb])
+    feed = (await wired.api.get(f"/v1/shops/{shop_id}/visits/feed?pet_id={pet_id}", headers=o)).json()
+    assert [(i["visit_id"], i["cover"], i["care_note"], i["media_count"]) for i in feed["items"]] == [
+        (visit_id, after_thumb, "눈물 자국 관리", 2)]

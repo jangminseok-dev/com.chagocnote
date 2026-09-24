@@ -23,6 +23,7 @@ from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
@@ -182,8 +183,13 @@ class FakeDirectory(CustomerDirectoryPort):
         return list(self.candidates)
 
 
-class FakeVisits(VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository):
-    """visits 표 스텁 — pg 구현처럼 다섯 포트(찾기·잠금, 쓰기, 이력, 원장, 게시판)를 한 객체가 다 낸다."""
+class FakeVisits(
+    VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository, VisitFeedRepository,
+):
+    """visits 표 스텁 — pg 구현처럼 여섯 포트(찾기·잠금, 쓰기, 이력, 원장, 게시판, 피드)를 한 객체가 다 낸다.
+
+    피드 커서는 마지막으로 준 방문 ID 를 글자로 쓴다(pg 구현의 모양과 다르다 — 부르는 쪽은 커서를 열어 보지 않는다).
+    """
 
     def __init__(self, journal: Journal | None = None) -> None:
         self.journal = journal if journal is not None else Journal()
@@ -321,6 +327,15 @@ class FakeVisits(VisitWriteRepository, VisitHistoryRepository, VisitLedgerReposi
     async def unresolved_before(self, ctx, before):
         found = [v for v in self._mine(ctx) if v.status == "reserved" and v.starts_at < before]
         return len(found), (found[0].starts_at if found else None)
+
+    async def list_completed(self, ctx, cursor, limit, pet_id):
+        done = sorted((v for v in self._mine(ctx) if v.status == "completed" and (pet_id is None or v.pet_id == pet_id)),
+                      key=lambda v: (v.completed_at, v.id), reverse=True)
+        if cursor is not None:
+            after = self.rows[int(cursor)]
+            done = [v for v in done if (v.completed_at, v.id) < (after.completed_at, after.id)]
+        page = done[:limit]
+        return FeedPage(visits=page, next_cursor=str(page[-1].id) if len(done) > limit else None)
 
     async def list_occupied(self, ctx, start, end):
         return sorted((v for v in self.rows.values() if v.shop_id == ctx.shop_id and v.is_active
