@@ -16,8 +16,9 @@ from customer.adapter.outbound.pg.pet_pg_repository import PetPgRepository
 from customer.app.dtos.delete_customer_dto import DeleteCustomerCommand
 from customer.app.use_cases.customer_directory_interactor import CustomerDirectoryInteractor
 from customer.app.use_cases.delete_customer_interactor import DeleteCustomerInteractor
-from customer.domain.errors import CustomerHasUpcomingVisitsError, CustomerNotFoundError
+from customer.domain.errors import CustomerHasUpcomingVisitsError
 from customer.tests.helpers.profiles import customer_profile, pet_profile
+from hub.app.errors import FamilyNotFoundError
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
@@ -44,8 +45,9 @@ def _directory(session):
 
 
 def _register(session, customer_id, pet_ids, starts_at=kst(10, 2, 14)):
+    visits = VisitPgRepository(session)
     interactor = RegisterVisitInteractor(
-        VisitPgRepository(session), MenuPgRepository(session), SchedulePgRepository(session),
+        visits, visits, MenuPgRepository(session), SchedulePgRepository(session),
         _directory(session), now=lambda: NOW,
     )
     return interactor.register_visit(RegisterVisitCommand(
@@ -55,8 +57,9 @@ def _register(session, customer_id, pet_ids, starts_at=kst(10, 2, 14)):
 
 
 def _transition(session, visit_ids, action, reason=None):
+    visits = VisitPgRepository(session)
     interactor = TransitionVisitsInteractor(
-        VisitPgRepository(session), MenuPgRepository(session), _directory(session), now=lambda: NOW
+        visits, visits, MenuPgRepository(session), _directory(session), now=lambda: NOW
     )
     return interactor.transition_visits(TransitionVisitsCommand(
         ctx=SHOP, visit_ids=tuple(visit_ids), action=action, cancel_reason=reason,
@@ -101,7 +104,7 @@ async def test_익명화가_고객을_쥔_동안_예약은_기다리고_뒤에�
         assert await _still_waiting(book)
 
         await deleting.commit()
-        with pytest.raises(CustomerNotFoundError):
+        with pytest.raises(FamilyNotFoundError):   # customer 의 오류가 아니라 허브 오류로 나온다
             await book
         await booking.rollback()
 

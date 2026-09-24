@@ -18,7 +18,8 @@ from visit.domain.services.visit_schedule import utc_now
 def get_reschedule_visits_use_case(
     db: DbSession, directory: CustomerDirectoryPort = Depends(get_customer_directory)
 ) -> RescheduleVisitsUseCase:
+    visits = build_visit_repository(db)
     return RescheduleVisitsInteractor(
-        visits=build_visit_repository(db), menus=build_menu_repository(db),
+        visits=visits, board=visits, menus=build_menu_repository(db),
         schedule=build_schedule_repository(db), directory=directory, now=utc_now,
     )

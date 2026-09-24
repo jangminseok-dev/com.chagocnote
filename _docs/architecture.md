@@ -30,9 +30,10 @@
 - 허브는 `apps/hub`다. 포트(ABC)와 DTO만 가진다.
 - 스포크는 허브의 추상에만 의존한다. 스포크끼리 import하지 않고, 허브는 스포크를 import하지 않는다.
 - 스포크를 넘는 외래 키는 걸지 않는다. 다른 스포크의 ID는 인덱스만 있는 정수 컬럼이다.
-- `core/`는 인프라 공유(DB 세션, 설정, 토큰 검증)만 맡는다. `core/security.py`가 `users` 테이블을 원시 SQL로 조회하는 것은 의도한 예외다. core가 스포크의 ORM을 import할 수 없기 때문이다.
+- `core/`는 인프라 공유(DB 세션, 설정, 토큰 검증)만 맡는다. `core/security.py`가 `users` 테이블을 원시 SQL로 조회하는 것은 의도한 예외다. core가 스포크의 ORM을 import할 수 없기 때문이다. 정책(예: 재인증의 최근 로그인 창)은 core에 두지 않고 그 스포크의 도메인에 둔다 — `auth/domain/services/recent_login.py`.
 - `core/`는 허브의 추상(포트 ABC와 DTO)을 import할 수 있다. 스포크는 import할 수 없다.
 - 허브 포트를 구현하는 슬라이스는 그 포트를 입력 포트로 삼는다. 인터랙터가 허브 포트 ABC를 직접 상속하고, HTTP 표면이 없으므로 schema와 router를 생략한다.
+- 허브 포트가 던지는 오류는 `hub/app/errors.py`의 `HubPortError` 하위 타입뿐이다. 구현 스포크는 자기 도메인 오류를 잡아 허브 오류로 바꿔 던지고, 소비 스포크와 테스트 스텁은 그 타입만 안다. HTTP 상태는 `core/hub_errors.py`에 적고 `install_error_handlers`가 두 진입점에 자동으로 등록한다(`tests/test_hub_errors.py`가 빠진 것을 잡는다).
 
 ## 허브 포트 조립
 

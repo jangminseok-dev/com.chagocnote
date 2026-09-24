@@ -5,8 +5,8 @@ from auth.app.dtos.withdraw_dto import WithdrawCommand
 from auth.app.ports.input.withdraw_use_case import WithdrawUseCase
 from auth.app.services.provider_revoker import ProviderRevoker
 from auth.dependencies.provider_revoker_provider import get_provider_revoker
+from auth.dependencies.recent_login_guard import RecentLogin, require_recent_login
 from auth.dependencies.withdraw_provider import get_withdraw_use_case
-from core.security import RecentLogin, require_recent_login
 
 withdraw_router = APIRouter(prefix="/v1/auth", tags=["auth"])
 

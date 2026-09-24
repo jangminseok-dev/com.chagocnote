@@ -12,7 +12,7 @@ from visit.app.dtos.get_visit_calendar_dto import (
 )
 from visit.app.ports.input.get_visit_calendar_use_case import GetVisitCalendarUseCase
 from visit.app.ports.output.schedule_repository import ScheduleRepository
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.domain.entities.visit import COMPLETED
 from visit.domain.errors import VisitInputError
 from visit.domain.services.visit_board import COUNTED, is_unresolved
@@ -23,9 +23,9 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
     """월 달력 — 날마다 마릿수·완료·예약·정리 안 됨, 휴무. 위쪽 '정리 안 된 예약 N건'은 매장 전체다."""
 
     def __init__(
-        self, visits: VisitRepository, schedule: ScheduleRepository, now: Callable[[], datetime]
+        self, board: VisitBoardRepository, schedule: ScheduleRepository, now: Callable[[], datetime]
     ) -> None:
-        self._visits = visits
+        self._board = board
         self._schedule = schedule
         self._now = now
 
@@ -41,7 +41,7 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
         today = local_date(self._now(), tz)
 
         by_day = defaultdict(list)
-        for visit in await self._visits.list_between(ctx, start, end):
+        for visit in await self._board.list_between(ctx, start, end):
             by_day[local_date(visit.starts_at, tz)].append(visit)
         closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, first_day, last_day))
         days = []
@@ -57,7 +57,7 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
                 closed_day=is_closed_day(day, settings, closed),
             ))
         today_start, _ = day_bounds(today, tz)
-        total, oldest = await self._visits.unresolved_before(ctx, today_start)
+        total, oldest = await self._board.unresolved_before(ctx, today_start)
         return VisitCalendarView(
             year=query.year, month=query.month, days=days, unresolved_total=total,
             oldest_unresolved_date=local_date(oldest, tz) if oldest else None,

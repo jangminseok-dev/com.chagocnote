@@ -10,7 +10,7 @@ from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeVisits
 def _setup():
     visits, directory = FakeVisits(), FakeDirectory()
     directory.family(1, pets=(101, 102))
-    return visits, GetVisitInteractor(visits, FakeMenus(), directory)
+    return visits, GetVisitInteractor(visits, visits, visits, FakeMenus(), directory)
 
 
 async def test_묶음_지난_방문_노쇼_횟수를_함께_준다():

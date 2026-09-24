@@ -8,7 +8,8 @@ from visit.app.dtos.reschedule_visits_dto import RescheduledVisitsView, Reschedu
 from visit.app.ports.input.reschedule_visits_use_case import RescheduleVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.app.services.visit_locking import lock_visits
 from visit.app.services.visit_reader import describe_visits
 from visit.app.services.visit_warnings import warnings_after_save
@@ -19,10 +20,11 @@ from visit.domain.services.visit_schedule import check_same_day, check_start
 
 class RescheduleVisitsInteractor(RescheduleVisitsUseCase):
     def __init__(
-        self, visits: VisitRepository, menus: MenuRepository, schedule: ScheduleRepository,
-        directory: CustomerDirectoryPort, now: Callable[[], datetime],
+        self, visits: VisitWriteRepository, board: VisitBoardRepository, menus: MenuRepository,
+        schedule: ScheduleRepository, directory: CustomerDirectoryPort, now: Callable[[], datetime],
     ) -> None:
         self._visits = visits
+        self._board = board
         self._menus = menus
         self._schedule = schedule
         self._directory = directory
@@ -39,7 +41,7 @@ class RescheduleVisitsInteractor(RescheduleVisitsUseCase):
         moved = await self._visits.reschedule(ctx, [v.id for v in locked], command.starts_at)
         settings = await self._schedule.ensure(ctx)
         warnings = await warnings_after_save(
-            ctx, locked[0].customer_id, command.starts_at, longest, settings, self._visits, self._schedule
+            ctx, locked[0].customer_id, command.starts_at, longest, settings, self._board, self._schedule
         )
         return RescheduledVisitsView(
             visits=await describe_visits(ctx, moved, self._directory, self._menus), warnings=warnings

@@ -8,7 +8,8 @@ from visit.app.dtos.update_visit_dto import UpdatedVisitView, UpdateVisitCommand
 from visit.app.ports.input.update_visit_use_case import UpdateVisitUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.app.services.visit_locking import lock_visits
 from visit.app.services.visit_reader import describe_visits
 from visit.app.services.visit_warnings import warnings_after_save
@@ -19,10 +20,11 @@ from visit.domain.services.visit_schedule import check_duration, check_same_day,
 
 class UpdateVisitInteractor(UpdateVisitUseCase):
     def __init__(
-        self, visits: VisitRepository, menus: MenuRepository, schedule: ScheduleRepository,
-        directory: CustomerDirectoryPort, now: Callable[[], datetime],
+        self, visits: VisitWriteRepository, board: VisitBoardRepository, menus: MenuRepository,
+        schedule: ScheduleRepository, directory: CustomerDirectoryPort, now: Callable[[], datetime],
     ) -> None:
         self._visits = visits
+        self._board = board
         self._menus = menus
         self._schedule = schedule
         self._directory = directory
@@ -60,7 +62,7 @@ class UpdateVisitInteractor(UpdateVisitUseCase):
         if updated.is_active:
             settings = await self._schedule.ensure(ctx)
             warnings = await warnings_after_save(
-                ctx, updated.customer_id, updated.starts_at, updated.duration_minutes, settings, self._visits,
+                ctx, updated.customer_id, updated.starts_at, updated.duration_minutes, settings, self._board,
                 self._schedule,
             )
         [view] = await describe_visits(ctx, [updated], self._directory, self._menus)

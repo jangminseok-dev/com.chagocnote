@@ -14,6 +14,7 @@ from visit.domain.services.visit_schedule import utc_now
 def get_transition_visits_use_case(
     db: DbSession, directory: CustomerDirectoryPort = Depends(get_customer_directory)
 ) -> TransitionVisitsUseCase:
+    visits = build_visit_repository(db)
     return TransitionVisitsInteractor(
-        visits=build_visit_repository(db), menus=build_menu_repository(db), directory=directory, now=utc_now
+        visits=visits, history=visits, menus=build_menu_repository(db), directory=directory, now=utc_now
     )

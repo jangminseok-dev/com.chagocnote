@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, iter_route_contexts
 
-from core.security import require_recent_login
+from auth.dependencies.recent_login_guard import require_recent_login
 from core.shop_guard import get_shop_access_port, get_shop_context
 from platform_admin.dependencies.operator_guard import require_operator
 

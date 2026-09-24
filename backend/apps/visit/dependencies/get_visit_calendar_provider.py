@@ -9,5 +9,5 @@ from visit.domain.services.visit_schedule import utc_now
 
 def get_get_visit_calendar_use_case(db: DbSession) -> GetVisitCalendarUseCase:
     return GetVisitCalendarInteractor(
-        visits=build_visit_repository(db), schedule=build_schedule_repository(db), now=utc_now
+        board=build_visit_repository(db), schedule=build_schedule_repository(db), now=utc_now
     )

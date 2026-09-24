@@ -8,13 +8,10 @@ from auth.domain.entities.user import User
 from auth.domain.errors import AccountSuspendedError
 from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
+from hub.app.errors import WithdrawalOwnershipTransferRequiredError
 
 KAKAO = IdentityRevocation(Provider.KAKAO, "kakao-100", None)
 APPLE = IdentityRevocation(Provider.APPLE, "apple-1", "apple-refresh")
-
-
-class _Blocked(Exception):
-    """소속 정리가 막혔을 때 구현 쪽(tenancy)이 던지는 오류를 대신한다."""
 
 
 def _user(deleted=False, suspended=False):
@@ -61,7 +58,7 @@ class _StubLifecycle:
         self.calls.append("apply_withdrawal")
         self.seen.append((user_id, close_sole_owned))
         if self.blocked:
-            raise _Blocked()
+            raise WithdrawalOwnershipTransferRequiredError("막힘")
 
 
 class _StubStore:
@@ -96,7 +93,7 @@ async def test_잠그고_소속을_정리한_뒤에_익명화하고_신원을_�
 
 async def test_소속_정리가_막히면_계정은_건드리지_않는다():
     interactor, _, calls = _run(blocked=True)
-    with pytest.raises(_Blocked):
+    with pytest.raises(WithdrawalOwnershipTransferRequiredError):
         await interactor.withdraw(WithdrawCommand(user_id=5, confirm_close_shops=False))
     assert calls == ["lock:5", "apply_withdrawal"]
 

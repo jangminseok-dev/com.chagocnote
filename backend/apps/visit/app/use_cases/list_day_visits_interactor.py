@@ -13,16 +13,10 @@ from visit.app.dtos.list_day_visits_dto import (
 from visit.app.ports.input.list_day_visits_use_case import ListDayVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
-from visit.app.ports.output.visit_repository import VisitRepository
+from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.services.visit_reader import describe_visits
-from visit.domain.entities.visit import CANCELED, COMPLETED, IN_PROGRESS, NO_SHOW, RESERVED
 from visit.domain.errors import VisitInputError
-from visit.domain.services.visit_board import (
-    COUNTED,
-    is_unresolved,
-    overlaps_other_group,
-    status_counts,
-)
+from visit.domain.services.visit_board import is_unresolved, overlaps_other_group, status_counts
 from visit.domain.services.visit_schedule import day_bounds, is_closed_day, local_date
 
 
@@ -30,10 +24,10 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
     """하루 화면 — 그날 시작하는 방문 전부(취소·노쇼 포함)를 시작 순으로."""
 
     def __init__(
-        self, visits: VisitRepository, menus: MenuRepository, schedule: ScheduleRepository,
+        self, board: VisitBoardRepository, menus: MenuRepository, schedule: ScheduleRepository,
         directory: CustomerDirectoryPort, now: Callable[[], datetime],
     ) -> None:
-        self._visits = visits
+        self._board = board
         self._menus = menus
         self._schedule = schedule
         self._directory = directory
@@ -45,8 +39,8 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
             raise VisitInputError("날짜가 올바르지 않습니다.")
         settings = await self._schedule.ensure(ctx)
         start, end = day_bounds(day, tz)
-        visits = await self._visits.list_between(ctx, start, end)
-        occupied = await self._visits.list_occupied(ctx, start, end)   # 전날 밤에 시작한 방문도 겹칠 수 있다
+        visits = await self._board.list_between(ctx, start, end)
+        occupied = await self._board.list_occupied(ctx, start, end)   # 전날 밤에 시작한 방문도 겹칠 수 있다
         closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, day, day))
         today = local_date(self._now(), tz)
         views = await describe_visits(ctx, visits, self._directory, self._menus)
@@ -59,14 +53,9 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
             )
             for visit, view in zip(visits, views)
         ]
-        counts = status_counts(visits)
         return DayVisitsView(
             date=day,
             closed_day=is_closed_day(day, settings, closed),
-            counts=DayCountsView(
-                visit_count=sum(counts[s] for s in COUNTED), reserved=counts[RESERVED],
-                in_progress=counts[IN_PROGRESS], completed=counts[COMPLETED], canceled=counts[CANCELED],
-                no_show=counts[NO_SHOW], unresolved=sum(item.unresolved for item in items),
-            ),
+            counts=DayCountsView.of(status_counts(visits), unresolved=sum(item.unresolved for item in items)),
             items=items,
         )

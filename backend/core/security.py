@@ -3,11 +3,12 @@
 발급은 auth 스포크 몫이고 여기는 서명 검증과 계정 상태 확인만 한다.
 스포크가 auth 를 import 하면 허브-스포크 위반이라 순수 인프라(core)에 둔다.
 users 를 원시 SQL 로 조회하는 이유는 core 가 스포크의 ORM 을 import 할 수 없어서다.
+"최근 로그인" 같은 정책은 여기 없다 — auth 스포크(`auth/domain/services/recent_login.py`)의 몫이고,
+그 가드(`auth/dependencies/recent_login_guard.py`)는 여기의 `get_access_claims` 위에 선다.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -25,25 +26,10 @@ class InvalidAccessToken(Exception):
     pass
 
 
-RECENT_LOGIN_SECONDS = 300
-# 발급 프로세스와 검증 프로세스의 시계 차로 봐줄 수 있는 폭. 이보다 먼 미래의 로그인 시각은 믿지 않는다.
-MAX_CLOCK_SKEW_SECONDS = 60
-
-
 @dataclass(frozen=True)
 class AccessClaims:
     user_id: int
     auth_time: int | None  # 소셜 로그인으로 받은 토큰에만 있다 (갱신으로 받은 토큰에는 없다)
-
-
-@dataclass(frozen=True)
-class RecentLogin:
-    user_id: int
-    auth_time: int
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 def decode_access_claims(token: str, public_key: str) -> AccessClaims:
@@ -67,7 +53,10 @@ def decode_access_token(token: str, public_key: str) -> int:
     return decode_access_claims(token, public_key).user_id
 
 
-async def _authenticate(db, credentials: HTTPAuthorizationCredentials | None) -> AccessClaims:
+async def get_access_claims(
+    db: DbSession,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> AccessClaims:
     """서명 검증 + 계정 상태 확인. 정지·탈퇴는 이미 발급된 토큰도 즉시 막는다."""
     if credentials is None:
         raise ApiError(401, "UNAUTHENTICATED", "로그인이 필요합니다.")
@@ -92,19 +81,4 @@ async def get_current_user_id(
     db: DbSession,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> int:
-    return (await _authenticate(db, credentials)).user_id
-
-
-async def require_recent_login(
-    db: DbSession,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-) -> RecentLogin:
-    """로그인 수단 연결·해제와 회원 탈퇴 앞의 재인증. 소셜 로그인한 지 RECENT_LOGIN_SECONDS 안의
-    토큰만 받는다. 훔친 액세스 토큰 하나로 계정을 빼앗는 것을 막는다 — 갱신으로 받은 토큰은 통과하지 못한다."""
-    claims = await _authenticate(db, credentials)
-    if claims.auth_time is None:
-        raise ApiError(403, "REAUTH_REQUIRED", "보안을 위해 다시 로그인해 주세요.")
-    elapsed = int(_utcnow().timestamp()) - claims.auth_time
-    if elapsed > RECENT_LOGIN_SECONDS or elapsed < -MAX_CLOCK_SKEW_SECONDS:
-        raise ApiError(403, "REAUTH_REQUIRED", "보안을 위해 다시 로그인해 주세요.")
-    return RecentLogin(user_id=claims.user_id, auth_time=claims.auth_time)
+    return (await get_access_claims(db, credentials)).user_id

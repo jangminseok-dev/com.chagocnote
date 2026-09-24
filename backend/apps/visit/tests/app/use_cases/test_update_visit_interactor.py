@@ -1,5 +1,6 @@
 import pytest
 
+from hub.app.errors import FamilyPetNotFoundError
 from visit.app.dtos.update_visit_dto import UpdateVisitCommand
 from visit.app.use_cases.update_visit_interactor import UpdateVisitInteractor
 from visit.domain.errors import (
@@ -15,7 +16,6 @@ from visit.tests.helpers.fakes import (
     FakeMenus,
     FakeSchedule,
     FakeVisits,
-    FamilyRejected,
     Journal,
 )
 
@@ -27,7 +27,7 @@ def _setup():
     visits, menus, directory = FakeVisits(journal), FakeMenus(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102, 103), passed=(103,))
     directory.family(2, pets=(201,))
-    interactor = UpdateVisitInteractor(visits, menus, FakeSchedule(), directory, now=lambda: NOW)
+    interactor = UpdateVisitInteractor(visits, visits, menus, FakeSchedule(), directory, now=lambda: NOW)
     return journal, visits, menus, interactor
 
 
@@ -57,7 +57,7 @@ async def test_다른_보호자의_아이로는_바꾸지_못한다():
     """V13 — 반려동물은 같은 보호자의 아이로만. 가족 확인이 거절한다."""
     journal, visits, _, interactor = _setup()
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
-    with pytest.raises(FamilyRejected):
+    with pytest.raises(FamilyPetNotFoundError):
         await interactor.update_visit(_command(kong, pet_id=201))
     assert "update_visit" not in [entry[0] for entry in journal]
 

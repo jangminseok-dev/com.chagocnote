@@ -21,7 +21,7 @@ def _setup():
     visits, directory = FakeVisits(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102))
     directory.family(2, pets=(201,))
-    return journal, visits, RescheduleVisitsInteractor(visits, FakeMenus(), FakeSchedule(), directory,
+    return journal, visits, RescheduleVisitsInteractor(visits, visits, FakeMenus(), FakeSchedule(), directory,
                                                        now=lambda: NOW)
 
 

@@ -6,13 +6,13 @@ from auth.adapter.inbound.api.v1.unlink_identity_router import unlink_identity_r
 from auth.app.dtos.token_dto import TokenPair
 from auth.app.dtos.unlink_identity_dto import UnlinkIdentityResult
 from auth.dependencies.provider_revoker_provider import get_provider_revoker
+from auth.dependencies.recent_login_guard import RecentLogin, require_recent_login
 from auth.dependencies.unlink_identity_provider import get_unlink_identity_use_case
 from auth.domain.errors import IdentityNotFoundError, LastIdentityError, UnsupportedProviderError
 from auth.domain.value_objects.identity_revocation import IdentityRevocation
 from auth.domain.value_objects.provider import Provider
 from core.database import get_db
 from core.http_errors import install_error_handlers
-from core.security import RecentLogin, require_recent_login
 
 APPLE = IdentityRevocation(Provider.APPLE, "apple-1", "apple-refresh")
 

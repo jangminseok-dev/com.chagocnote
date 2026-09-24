@@ -19,6 +19,6 @@ def get_list_day_visits_use_case(
     db: DbSession, directory: CustomerDirectoryPort = Depends(get_customer_directory)
 ) -> ListDayVisitsUseCase:
     return ListDayVisitsInteractor(
-        visits=build_visit_repository(db), menus=build_menu_repository(db),
+        board=build_visit_repository(db), menus=build_menu_repository(db),
         schedule=build_schedule_repository(db), directory=directory, now=utc_now,
     )

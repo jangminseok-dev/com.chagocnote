@@ -2,6 +2,7 @@ from datetime import date, time
 
 import pytest
 
+from hub.app.errors import FamilyPetNotFoundError
 from visit.app.dtos.register_visit_dto import RegisterVisitCommand
 from visit.app.use_cases.register_visit_interactor import RegisterVisitInteractor
 from visit.domain.errors import (
@@ -18,7 +19,6 @@ from visit.tests.helpers.fakes import (
     FakeMenus,
     FakeSchedule,
     FakeVisits,
-    FamilyRejected,
     Journal,
 )
 
@@ -30,7 +30,7 @@ def _setup(settings=None):
     schedule = FakeSchedule(journal) if settings is None else FakeSchedule(journal, settings)
     menus, visits, directory = FakeMenus(journal), FakeVisits(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102))
-    interactor = RegisterVisitInteractor(visits, menus, schedule, directory, now=lambda: NOW)
+    interactor = RegisterVisitInteractor(visits, visits, menus, schedule, directory, now=lambda: NOW)
     return journal, schedule, menus, visits, directory, interactor
 
 
@@ -124,7 +124,7 @@ async def test_시각_규칙에_어긋나면_잠그지도_않는다(fields, erro
 async def test_가족_확인에서_거절되면_넣지_않는다():
     """V2 — 다른 가족·다른 매장의 반려동물, 무지개다리 아이는 customer 가 거절한다."""
     journal, *_, interactor = _setup()
-    with pytest.raises(FamilyRejected):
+    with pytest.raises(FamilyPetNotFoundError):
         await interactor.register_visit(_command(pet_ids=(999,)))
     assert "create_visits" not in [entry[0] for entry in journal]
 

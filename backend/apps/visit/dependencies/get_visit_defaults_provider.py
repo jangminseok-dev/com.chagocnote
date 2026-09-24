@@ -12,5 +12,5 @@ from visit.dependencies.visit_wiring import (
 
 def get_get_visit_defaults_use_case(db: DbSession) -> GetVisitDefaultsUseCase:
     return GetVisitDefaultsInteractor(
-        visits=build_visit_repository(db), menus=build_menu_repository(db), schedule=build_schedule_repository(db)
+        history=build_visit_repository(db), menus=build_menu_repository(db), schedule=build_schedule_repository(db)
     )

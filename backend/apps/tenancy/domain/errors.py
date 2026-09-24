@@ -44,14 +44,6 @@ class TooManyAttemptsError(TenancyError):
     code = "TOO_MANY_ATTEMPTS"
 
 
-class OwnershipTransferRequiredError(TenancyError):
-    code = "OWNERSHIP_TRANSFER_REQUIRED"
-
-
-class ShopCloseConfirmRequiredError(TenancyError):
-    code = "SHOP_CLOSE_CONFIRM_REQUIRED"
-
-
 class AccountUnavailableError(TenancyError):
     """요청 시작 때는 인증을 통과했지만, 유저 행을 잠근 뒤에 보니 탈퇴했거나 정지된 유저다.
 

@@ -3,14 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-RESERVED = "reserved"
-IN_PROGRESS = "in_progress"
-COMPLETED = "completed"
-CANCELED = "canceled"
-NO_SHOW = "no_show"
-
-# 살아 있는 방문 — 시간을 차지하고, 앞으로의 예약으로 센다.
-ACTIVE_STATUSES = frozenset({RESERVED, IN_PROGRESS})
+# 상태 이름과 집합의 원천은 domain/state/visit_status.py 다. 여기서는 부르는 쪽의 편의로 다시 내보낸다.
+from visit.domain.state.visit_status import (  # noqa: F401 — 다시 내보냄
+    ACTIVE_STATUSES,
+    CANCELED,
+    COMPLETED,
+    IN_PROGRESS,
+    NO_SHOW,
+    RESERVED,
+)
 
 CANCEL_REASONS = frozenset({"customer_request", "shop_reason"})
 

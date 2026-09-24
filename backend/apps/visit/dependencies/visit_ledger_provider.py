@@ -8,4 +8,4 @@ from visit.domain.services.visit_schedule import utc_now
 
 
 def get_visit_ledger_use_case(db: DbSession) -> VisitLedgerPort:
-    return VisitLedgerInteractor(visits=build_visit_repository(db), now=utc_now)
+    return VisitLedgerInteractor(ledger=build_visit_repository(db), now=utc_now)

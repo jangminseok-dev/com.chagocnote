@@ -14,8 +14,8 @@ class CustomerDirectoryPort(ABC):
     @abstractmethod
     async def lock_family(self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...]) -> None:
         """고객 행을 FOR UPDATE 로 잠그고 확인한다: 살아 있는 이 매장의 고객인가, 반려동물이 모두 그 보호자의
-        아이이고 무지개다리가 아닌가. 통과하지 못하면 구현 쪽 도메인 오류(CUSTOMER_NOT_FOUND·PET_NOT_FOUND·
-        PET_PASSED_AWAY)를 던진다.
+        아이이고 무지개다리가 아닌가. 통과하지 못하면 허브 오류를 던진다: FamilyNotFoundError(익명화됐거나
+        다른 매장), FamilyPetNotFoundError(그 보호자의 아이가 아님), FamilyPetPassedAwayError(무지개다리).
 
         잠금은 부르는 쪽 트랜잭션이 끝날 때 풀린다. 방문을 쓰는 유스케이스는 방문 행을 잠그기 **전에** 부른다
         (잠금 순서: 고객 행 → 방문 행). 익명화·무지개다리·반려동물 삭제와 겹치지 않게 하려는 것이다.
