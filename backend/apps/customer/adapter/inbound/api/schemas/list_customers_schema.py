@@ -13,6 +13,7 @@ class PetSummarySchema(BaseModel):
     age_label: str
     has_conditions: bool
     passed_away: bool
+    photo: str | None   # 프로필 사진 썸네일 URL
 
 
 class FamilyCardSchema(BaseModel):
@@ -39,7 +40,7 @@ class CustomerListSchema(BaseModel):
                         PetSummarySchema(
                             pet_id=p.pet_id, name=p.name, species=p.species, breed=p.breed,
                             age_label=p.age_label, has_conditions=p.has_conditions,
-                            passed_away=p.passed_away,
+                            passed_away=p.passed_away, photo=p.photo,
                         )
                         for p in card.pets
                     ],

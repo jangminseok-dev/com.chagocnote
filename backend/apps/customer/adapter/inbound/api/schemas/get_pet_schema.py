@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from customer.adapter.inbound.api.schemas.get_customer_schema import PetSchema
-from customer.app.dtos.customer_view_dto import PetDetailView
+from customer.adapter.inbound.api.schemas.get_customer_schema import PetSchema, PetWithPhotoSchema
+from customer.app.dtos.customer_view_dto import PetDetailView, PetOverviewView
 
 
 class OwnerSummarySchema(BaseModel):
@@ -38,3 +38,15 @@ class PetDetailSchema(BaseModel):
                 for s in view.siblings
             ],
         )
+
+
+class PetOverviewSchema(PetDetailSchema):
+    """반려동물 상세(GET) — pet 에 프로필 사진을 더한다. 쓰기 응답은 사진 없는 PetDetailSchema 다."""
+
+    pet: PetWithPhotoSchema
+
+    @classmethod
+    def of_overview(cls, view: PetOverviewView) -> PetOverviewSchema:
+        detail = PetDetailSchema.of(view.detail)
+        return cls(pet=PetWithPhotoSchema.with_photo(view.detail.pet, view.photo), owner=detail.owner,
+                   siblings=detail.siblings)

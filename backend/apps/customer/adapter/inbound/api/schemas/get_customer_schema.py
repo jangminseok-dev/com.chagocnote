@@ -54,6 +54,16 @@ class PetSchema(BaseModel):
         )
 
 
+class PetWithPhotoSchema(PetSchema):
+    """조회 응답(고객 상세·반려동물 상세)의 반려동물 — 프로필 사진을 더한다."""
+
+    photo: str | None   # 가장 최근 완료 기록의 대표 사진 썸네일 URL
+
+    @classmethod
+    def with_photo(cls, view: PetView, photo: str | None) -> PetWithPhotoSchema:
+        return cls(**PetSchema.of(view).model_dump(), photo=photo)
+
+
 class CustomerSchema(BaseModel):
     customer_id: int
     name: str
@@ -91,15 +101,17 @@ class UpcomingVisitSchema(BaseModel):
 
 
 class CustomerOverviewSchema(CustomerDetailSchema):
-    """고객 상세(GET) — 방문 요약을 더한다. 등록·수정 응답은 방문 요약 없는 CustomerDetailSchema 다."""
+    """고객 상세(GET) — 방문 요약과 반려동물 프로필 사진을 더한다. 등록·수정 응답은 둘 다 없는 CustomerDetailSchema 다."""
 
+    pets: list[PetWithPhotoSchema]
     no_show_count: int
     upcoming_visits: list[UpcomingVisitSchema]
 
     @classmethod
     def of(cls, view: CustomerOverviewView) -> CustomerOverviewSchema:
         return cls(
-            customer=CustomerSchema.of(view.customer), pets=[PetSchema.of(p) for p in view.pets],
+            customer=CustomerSchema.of(view.customer),
+            pets=[PetWithPhotoSchema.with_photo(p, view.photos.get(p.pet_id)) for p in view.pets],
             no_show_count=view.no_show_count,
             upcoming_visits=[UpcomingVisitSchema.model_validate(u, from_attributes=True) for u in view.upcoming_visits],
         )

@@ -32,6 +32,7 @@ class _StubUseCase:
         return CustomerOverviewView(
             customer=detail.customer, pets=detail.pets, no_show_count=2,
             upcoming_visits=[UpcomingVisitView(visit_id=7, pet_id=101, pet_name="콩이", starts_at=NOW)],
+            photos={101: "t/51"},
         )
 
 
@@ -49,6 +50,7 @@ async def test_멤버는_전체_번호가_든_고객_상세를_본다():
     assert response.json()["no_show_count"] == 2
     assert response.json()["upcoming_visits"] == [
         {"visit_id": 7, "pet_id": 101, "pet_name": "콩이", "starts_at": "2026-09-22T01:00:00Z"}]
+    assert [(p["pet_id"], p["photo"]) for p in response.json()["pets"]] == [(101, "t/51")]
     assert (stub.queries[0].ctx.shop_id, stub.queries[0].customer_id) == (3, 1)
 
 

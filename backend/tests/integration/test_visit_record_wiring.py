@@ -167,3 +167,28 @@ async def test_상세_하루_달력_피드가_기록과_대표_사진을_보여_
     feed = (await wired.api.get(f"/v1/shops/{shop_id}/visits/feed?pet_id={pet_id}", headers=o)).json()
     assert [(i["visit_id"], i["cover"], i["care_note"], i["media_count"]) for i in feed["items"]] == [
         (visit_id, after_thumb, "눈물 자국 관리", 2)]
+
+
+async def test_프로필_사진은_최근_완료_기록의_대표이고_익명화하면_기록_메모만_비운다(wired, media_storage):
+    shop_id, o, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    visit_id = await _visit(wired, shop_id, o, customer_id, pet_id)
+    photo = await ready_photo(wired, shop_id, o)
+    await wired.api.put(f"/v1/shops/{shop_id}/visits/{visit_id}/record", headers=o, json={
+        "care_note": "보호자 010-1234-5678", "internal_note": "김민지 님",
+        "media": [{"media_id": photo, "phase": "after", "sort_order": 0}]})
+    no_photo_yet = (await wired.api.get(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=o)).json()["pet"]["photo"]
+    await wired.api.post(f"/v1/shops/{shop_id}/visits/transitions", headers=o,
+                         json={"visit_ids": [visit_id], "action": "complete"})
+
+    pet = (await wired.api.get(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=o)).json()["pet"]
+    customer = (await wired.api.get(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=o)).json()
+    listed = (await wired.api.get(f"/v1/shops/{shop_id}/customers", headers=o)).json()
+    assert no_photo_yet is None   # 미용 중인 방문은 아직 프로필이 아니다
+    assert pet["photo"] and pet["photo"] == customer["pets"][0]["photo"] == listed["items"][0]["pets"][0]["photo"]
+
+    assert (await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=o)).status_code == 204
+    async with wired.engine.connect() as conn:
+        notes = (await conn.execute(text("SELECT care_note, internal_note FROM visit_records"))).one()
+        attached = (await conn.execute(text("SELECT attached_at IS NOT NULL FROM media_objects"))).scalar()
+    assert (tuple(notes), attached) == ((None, None), True)

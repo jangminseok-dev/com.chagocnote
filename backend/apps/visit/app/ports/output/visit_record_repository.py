@@ -22,6 +22,14 @@ class VisitRecordRepository(ABC):
         대표 사진을 방문 수와 상관없이 한 번에 읽는다."""
 
     @abstractmethod
+    async def latest_with_media(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, int]:
+        """{반려동물 ID: 방문 ID} — 사진·영상이 붙은 기록이 있는 가장 최근(시작 시각) 완료 방문."""
+
+    @abstractmethod
+    async def clear_notes(self, ctx: ShopContext, customer_id: int) -> None:
+        """그 보호자의 방문 기록들의 케어 메모·내부 메모를 비운다(익명화)."""
+
+    @abstractmethod
     async def save(self, ctx: ShopContext, record: VisitRecord) -> VisitRecord:
         """행이 없으면 넣고 있으면 바꾼다. 항목·미디어는 통째로 바꾼다. 버전은 부르는 쪽이 정해 넘긴다."""
 

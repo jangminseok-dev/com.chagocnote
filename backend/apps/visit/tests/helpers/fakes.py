@@ -363,6 +363,21 @@ class FakeRecords(VisitRecordRepository):
     async def list_many(self, ctx, visit_ids):
         return {i: self.rows[i] for i in visit_ids if i in self.rows and self.visits.rows[i].shop_id == ctx.shop_id}
 
+    async def latest_with_media(self, ctx, pet_ids):
+        found = {}
+        for visit in sorted(self.visits._mine(ctx), key=lambda v: (v.starts_at, v.id)):
+            if visit.pet_id in pet_ids and visit.status == "completed" and visit.id in self.rows \
+                    and self.rows[visit.id].media:
+                found[visit.pet_id] = visit.id
+        return found
+
+    async def clear_notes(self, ctx, customer_id):
+        for visit_id, record in self.rows.items():
+            visit = self.visits.rows[visit_id]
+            if visit.shop_id == ctx.shop_id and visit.customer_id == customer_id:
+                self.rows[visit_id] = replace(record, care_note=None, internal_note=None)
+        self.journal.append(("clear_record_notes", customer_id))
+
     async def save(self, ctx, record):
         self.rows[record.visit_id] = record
         self.journal.append(("save_record", record.visit_id, record.version))

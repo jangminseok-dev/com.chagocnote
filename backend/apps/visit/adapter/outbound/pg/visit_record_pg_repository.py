@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,7 @@ from hub.app.dtos.shop_context import ShopContext
 from visit.adapter.outbound.mappers.visit_record_mapper import to_record
 from visit.adapter.outbound.orm.visit_orm import VisitOrm, VisitRecordItemOrm, VisitRecordMediaOrm, VisitRecordOrm
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.domain.entities.visit import COMPLETED
 from visit.domain.entities.visit_record import VisitRecord
 
 
@@ -51,6 +52,29 @@ class VisitRecordPgRepository(VisitRecordRepository):
             )).scalars():
                 media[m.visit_id].append(m)
         return {row.visit_id: to_record(row, items[row.visit_id], media[row.visit_id]) for row in rows}
+
+    async def latest_with_media(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, int]:
+        if not pet_ids:
+            return {}
+        rows = await self._session.execute(
+            select(VisitOrm.pet_id, VisitOrm.id)
+            .distinct(VisitOrm.pet_id)
+            .where(
+                VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id.in_(pet_ids), VisitOrm.status == COMPLETED,
+                VisitOrm.id.in_(select(VisitRecordMediaOrm.visit_id)),
+            )
+            .order_by(VisitOrm.pet_id, VisitOrm.starts_at.desc(), VisitOrm.id.desc())
+        )
+        return dict(rows.all())
+
+    async def clear_notes(self, ctx: ShopContext, customer_id: int) -> None:
+        await self._session.execute(
+            update(VisitRecordOrm)
+            .where(VisitRecordOrm.visit_id.in_(
+                select(VisitOrm.id).where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id)
+            ))
+            .values(care_note=None, internal_note=None)
+        )
 
     async def save(self, ctx: ShopContext, record: VisitRecord) -> VisitRecord:
         fields = dict(

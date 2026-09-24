@@ -97,6 +97,7 @@ class CustomerOverviewView:
     pets: list[PetView]
     no_show_count: int
     upcoming_visits: list[UpcomingVisitView]
+    photos: dict[int, str]   # 반려동물 ID → 프로필 사진 썸네일 URL(사진이 없는 아이는 빠진다)
 
 
 @dataclass(frozen=True)
@@ -125,3 +126,11 @@ class PetDetailView:
     pet: PetView
     owner: OwnerSummaryView
     siblings: list[SiblingView]
+
+
+@dataclass(frozen=True)
+class PetOverviewView:
+    """반려동물 상세 화면(GET) — 상세에 프로필 사진을 더한다. 쓰기 응답은 사진 없는 PetDetailView 다."""
+
+    detail: PetDetailView
+    photo: str | None

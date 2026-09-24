@@ -20,4 +20,5 @@ async def test_자기소개는_실제_엔드포인트와_제약을_말하고_기
                  "/pets/{pet_id}/passed-away", "/pet-condition-types"):
         assert path in result.introduction
     assert "customer:delete" in result.introduction and "익명화" in result.introduction
+    assert "photo" in result.introduction and "미용 기록의 두 메모" in result.introduction
     assert record.records[0][0] == "introduce_myself"

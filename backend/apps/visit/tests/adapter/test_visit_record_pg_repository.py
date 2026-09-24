@@ -76,3 +76,28 @@ async def test_기록이_있는_방문마다_기록_전체를_한_번에_읽는�
         (RecordMedia(8, "photo", "before", 0), RecordMedia(7, "photo", "after", 0)), (RecordItem(bath, 1),), ())
     assert await repo.list_many(B, [visit_id]) == {}
     assert await repo.list_many(A, []) == {}
+
+
+async def test_사진이_붙은_가장_최근_완료_방문을_아이마다_한_번에(db_session):
+    repo, _, _, _ = await _setup(db_session)
+    old = await insert_visit(db_session, kst(9, 1, 14), "completed")
+    latest = await insert_visit(db_session, kst(9, 10, 14), "completed")
+    no_photo = await insert_visit(db_session, kst(9, 20, 14), "completed")
+    working = await insert_visit(db_session, kst(9, 22, 14), "in_progress")
+    theirs = await insert_visit(db_session, kst(9, 21, 14), "completed", shop_id=2)
+    other_pet = await insert_visit(db_session, kst(9, 5, 14), "completed", pet_id=102)
+    for visit_id, media_id in ((old, 1), (latest, 2), (working, 3), (theirs, 4), (other_pet, 5)):
+        await repo.save(A, _record(visit_id, media=[RecordMedia(media_id, "photo", "after", 0)]))
+    await repo.save(A, _record(no_photo))
+    assert await repo.latest_with_media(A, [101, 102, 103]) == {101: latest, 102: other_pet}
+    assert await repo.latest_with_media(A, []) == {}
+
+
+async def test_익명화는_그_보호자의_기록_메모만_비운다(db_session):
+    repo, visit_id, _, _ = await _setup(db_session)
+    other = await insert_visit(db_session, kst(9, 24, 14), "in_progress", customer_id=2)
+    await repo.save(A, _record(visit_id, media=[RecordMedia(7, "photo", "after", 0)]))
+    await repo.save(A, _record(other))
+    await repo.clear_notes(A, 1)
+    cleared, kept = await repo.get(A, visit_id), await repo.get(A, other)
+    assert (cleared.care_note, cleared.internal_note, len(cleared.media), kept.care_note) == (None, None, 1, "케어")

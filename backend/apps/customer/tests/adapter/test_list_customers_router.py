@@ -13,7 +13,7 @@ class _StubUseCase:
     async def list_customers(self, query):
         self.queries.append(query)
         pet = PetSummaryView(pet_id=101, name="콩이", species="dog", breed="말티즈", age_label="5살",
-                             has_conditions=True, passed_away=False)
+                             has_conditions=True, passed_away=False, photo="t/51")
         card = FamilyCardView(customer_id=1, name="김민지", phone_masked="010-12··-5678", pets=[pet])
         return CustomerListView(items=[card], next_cursor="next", pet_count=1)
 
@@ -32,6 +32,7 @@ async def test_멤버는_기본값으로_목록을_본다():
     assert (body["pet_count"], body["next_cursor"]) == (1, "next")
     assert body["items"][0]["phone_masked"] == "010-12··-5678"
     assert "phone" not in body["items"][0]   # 목록에는 전체 번호 칸이 없다
+    assert body["items"][0]["pets"][0]["photo"] == "t/51"
     query = stub.queries[0]
     assert (query.q, query.sort, query.include_passed, query.cursor) == (None, "recent", False, None)
 

@@ -39,6 +39,7 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
 from customer.dependencies.hub_ports import get_visit_ledger
 from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
 from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_router
@@ -88,7 +89,8 @@ from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
-from visit.dependencies.hub_ports import get_customer_directory, get_media_library
+from visit.dependencies.hub_ports import get_customer_directory
+from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 
 
@@ -181,7 +183,8 @@ app.dependency_overrides[get_membership_directory] = get_list_memberships_use_ca
 app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
-app.dependency_overrides[get_media_library] = get_media_library_use_case
+app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
+app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
 
 
 @app.get("/health")
