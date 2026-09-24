@@ -18,56 +18,12 @@ import '../../customer/api/customer_models.dart';
 import '../../customer/state/customer_providers.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
-import '../state/visit_form_rules.dart';
+import '../state/visit_form_draft.dart';
 import '../state/visit_providers.dart';
 import 'visit_labels.dart';
 
-/// 예약 폼이 내보내는 값. [petIds]가 비었으면 보호자만의 방문이다.
-class VisitFormValue {
-  const VisitFormValue({
-    required this.petIds,
-    required this.date,
-    required this.startsAt,
-    required this.durationMinutes,
-    required this.menuIds,
-    required this.memo,
-  });
-
-  final List<int> petIds;
-  final DateTime date;
-
-  /// 서버가 시간 칸으로 준 시각 문자열. 지금 시작이면 null.
-  final String? startsAt;
-  final int durationMinutes;
-  final List<int> menuIds;
-  final String? memo;
-}
-
-/// 폼의 처음 값. [prefilled]면 반려동물을 골라도 "지난번처럼"으로 덮어쓰지
-/// 않는다(다음 예약 초안·수정).
-class VisitFormInitial {
-  const VisitFormInitial({
-    required this.date,
-    this.petIds = const {},
-    this.ownerOnly = false,
-    this.at,
-    this.durationMinutes,
-    this.menus = const [],
-    this.memo,
-    this.prefilled = false,
-  });
-
-  final DateTime date;
-  final Set<int> petIds;
-  final bool ownerOnly;
-
-  /// `HH:MM`.
-  final String? at;
-  final int? durationMinutes;
-  final List<MenuBrief> menus;
-  final String? memo;
-  final bool prefilled;
-}
+// 폼의 값·처음 값은 state/visit_form_draft 에 있다. 이 화면을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
+export '../state/visit_form_draft.dart' show VisitFormInitial, VisitFormValue;
 
 /// 예약 ②(등록)와 수정이 함께 쓰는 폼 — 반려동물 칩, 날짜 줄, 시간 칸,
 /// 메뉴·소요, 메모, 저장 버튼(설계 9.1).
@@ -121,25 +77,10 @@ class VisitForm extends ConsumerStatefulWidget {
 
 class _VisitFormState extends ConsumerState<VisitForm> {
   late final _memo = TextEditingController(text: widget.initial.memo);
-
-  late Set<int> _petIds = {...widget.initial.petIds};
-  late bool _ownerOnly = widget.initial.ownerOnly;
-  late DateTime _date = widget.initial.date;
   late DateTime _stripStart = _weekStart(widget.initial.date);
-  late String? _at = widget.initial.at;
-  late int? _duration = widget.initial.durationMinutes;
-  late List<int> _menuIds = [for (final m in widget.initial.menus) m.menuId];
 
-  /// 보관돼 메뉴표에 없지만 이 방문에 붙어 있는 메뉴(이름을 보이려고 둔다).
-  late List<MenuBrief> _knownMenus = [...widget.initial.menus];
-
-  bool _menusTouched = false;
-  bool _durationTouched = false;
-  bool _prefilledNote = false;
-  bool _petsInitialized = false;
-
-  /// "지난번처럼"은 반려동물을 고를 때마다 나갈 수 있다 — 늦게 온 옛 결과를 버린다.
-  int _defaultsSeq = 0;
+  /// 폼의 상태와 규칙. 위젯은 이것을 바꾸고 `setState`만 부른다.
+  late final _draft = VisitFormDraft(widget.initial);
 
   @override
   void dispose() {
@@ -152,96 +93,49 @@ class _VisitFormState extends ConsumerState<VisitForm> {
 
   String get _exclude => widget.excludeVisitIds.join(',');
 
-  int _effectiveDuration(VisitSettings settings) =>
-      _duration ?? settings.defaultDurationMinutes;
-
-  /// 반려동물이 하나뿐인 보호자면 그 아이를 미리 고른다. 미리 골라진 아이는
-  /// 이 보호자의 아이만 남긴다(카톡 초안이 다른 집 아이를 넘길 수 없게).
+  /// 반려동물이 하나뿐인 보호자면 그 아이를 미리 고르고 "지난번처럼"을 채운다(처음 한 번).
   void _initPets(List<Pet> living) {
-    if (_petsInitialized) return;
-    _petsInitialized = true;
-    _petIds.removeWhere((id) => !living.any((p) => p.petId == id));
-    if (_petIds.isNotEmpty || _ownerOnly || living.length != 1) return;
-    _petIds = {living.single.petId};
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _prefill(living.single.petId),
-    );
+    final only = _draft.initPets(living);
+    if (only != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _prefill(only));
+    }
   }
 
   void _togglePet(int petId) {
-    setState(() {
-      _ownerOnly = false;
-      if (widget.singlePet) {
-        _petIds = {petId};
-      } else if (!_petIds.remove(petId)) {
-        _petIds.add(petId);
-      }
-    });
-    // 한 마리만 남으면(처음 골랐든, 하나를 풀어 하나가 남았든) 그 아이로 채운다.
-    if (_petIds.length == 1) _prefill(_petIds.single);
+    int? only;
+    setState(() => only = _draft.togglePet(petId, single: widget.singlePet));
+    if (only != null) _prefill(only!);
   }
 
-  void _chooseOwnerOnly() {
-    setState(() {
-      _ownerOnly = true;
-      _petIds = {};
-    });
-  }
+  void _chooseOwnerOnly() => setState(_draft.chooseOwnerOnly);
 
   /// 처음 고른 아이의 지난 완료 방문 메뉴·소요로 채운다. 이미 손댔거나
   /// 초안·수정으로 채워진 폼이면 두고, 실패해도 그대로 둔다(돕는 기능이다).
   Future<void> _prefill(int petId) async {
-    if (widget.initial.prefilled || _menusTouched || _durationTouched) return;
-    final seq = ++_defaultsSeq;
+    final seq = _draft.beginPrefill();
+    if (seq == null) return;
     try {
       final defaults = await ref
           .read(visitCommandsProvider)
           .defaults(widget.shopId, petId);
-      if (!mounted || seq != _defaultsSeq) return;
-      if (_menusTouched || _durationTouched) return;
-      setState(() {
-        _menuIds = [for (final m in defaults.menus) m.menuId];
-        _knownMenus = [..._knownMenus, ...defaults.menus];
-        _duration = defaults.durationMinutes;
-        _prefilledNote = defaults.sourceVisitId != null;
-      });
+      if (!mounted) return;
+      setState(() => _draft.applyPrefill(seq, defaults));
     } catch (_) {
       // 미리 채우기는 돕는 것뿐이다 — 실패하면 빈 채로 둔다.
     }
   }
 
-  void _toggleMenu(Menu menu, List<Menu> all, VisitSettings settings) {
-    setState(() {
-      _menusTouched = true;
-      _prefilledNote = false;
-      if (!_menuIds.remove(menu.menuId)) _menuIds.add(menu.menuId);
-      if (!_durationTouched) {
-        final byId = {for (final m in all) m.menuId: m};
-        _duration = menuDuration([
-          for (final id in _menuIds)
-            byId[id]?.defaultDurationMinutes ?? settings.defaultDurationMinutes,
-        ], settings.defaultDurationMinutes);
-      }
-    });
-  }
+  void _toggleMenu(Menu menu, List<Menu> all, VisitSettings settings) =>
+      setState(() => _draft.toggleMenu(menu, all, settings));
 
   void _stepDuration(
     VisitSettings settings, {
     required bool longer,
     bool long = false,
-  }) {
-    setState(() {
-      _durationTouched = true;
-      _prefilledNote = false;
-      _duration = stepDuration(
-        _effectiveDuration(settings),
-        longer: longer,
-        long: long,
-      );
-    });
-  }
+  }) =>
+      setState(() => _draft.stepDuration(settings, longer: longer, long: long));
 
-  void _pickDate(DateTime date) => setState(() => _date = date);
+  void _pickDate(DateTime date) => setState(() => _draft.date = date);
 
   Future<void> _pickMinute(DateTime hour) async {
     final picked = await AppSheet.show<String>(
@@ -268,29 +162,21 @@ class _VisitFormState extends ConsumerState<VisitForm> {
         ],
       ),
     );
-    if (picked != null && mounted) setState(() => _at = picked);
+    if (picked != null && mounted) setState(() => _draft.at = picked);
   }
 
-  VisitFormValue _value(VisitSettings settings, String? startsAt) {
-    final memo = _memo.text.trim();
-    return VisitFormValue(
-      petIds: _ownerOnly ? const [] : _petIds.toList(),
-      date: _date,
-      startsAt: startsAt,
-      durationMinutes: _effectiveDuration(settings),
-      menuIds: [..._menuIds],
-      memo: memo.isEmpty ? null : memo,
-    );
-  }
+  VisitFormValue _value(VisitSettings settings, String? startsAt) =>
+      _draft.value(settings, startsAt, _memo.text);
 
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(visitSettingsProvider(widget.shopId));
+    // 고객 상세에서 반려동물만 본다 — 전화번호·다가오는 예약이 바뀌어도 폼은 다시 그리지 않는다.
     final customer = ref.watch(
       customerDetailProvider((
         shopId: widget.shopId,
         customerId: widget.customerId,
-      )),
+      )).select((async) => (error: async.error, pets: async.value?.pets)),
     );
     final menus = ref.watch(
       menusProvider((shopId: widget.shopId, includeArchived: false)),
@@ -307,13 +193,13 @@ class _VisitFormState extends ConsumerState<VisitForm> {
       );
     }
     final s = settings.value;
-    final c = customer.value;
+    final pets = customer.pets;
     final m = menus.value;
-    if (s == null || c == null || m == null) {
+    if (s == null || pets == null || m == null) {
       return const Center(child: CircularProgressIndicator());
     }
     final living = [
-      for (final p in c.pets)
+      for (final p in pets)
         if (!p.passedAway || widget.initial.petIds.contains(p.petId)) p,
     ];
     _initPets(living);
@@ -321,30 +207,23 @@ class _VisitFormState extends ConsumerState<VisitForm> {
   }
 
   Widget _buildForm(VisitSettings settings, List<Pet> pets, List<Menu> menus) {
-    // 메뉴만 있고 소요가 없는 초안(카톡)은 메뉴 기본 소요의 합으로 시작한다.
-    if (_duration == null && _menuIds.isNotEmpty && !_durationTouched) {
-      final byId = {for (final m in menus) m.menuId: m};
-      _duration = menuDuration([
-        for (final id in _menuIds)
-          byId[id]?.defaultDurationMinutes ?? settings.defaultDurationMinutes,
-      ], settings.defaultDurationMinutes);
-    }
-    final duration = _effectiveDuration(settings);
-    final selection = _at == null
+    _draft.ensureDuration(menus, settings);
+    final duration = _draft.effectiveDuration(settings);
+    final selection = _draft.at == null
         ? null
         : ref.watch(
             visitSlotsProvider((
               shopId: widget.shopId,
-              date: _date,
+              date: _draft.date,
               duration: duration,
-              at: _at,
+              at: _draft.at,
               exclude: _exclude,
             )),
           );
     final chosen = selection?.value?.slots.firstOrNull;
-    final petsChosen = _ownerOnly || _petIds.isNotEmpty;
+    final petsChosen = _draft.petsChosen;
     final canSubmit =
-        petsChosen && chosen != null && !widget.busy && _at != null;
+        petsChosen && chosen != null && !widget.busy && _draft.at != null;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -358,8 +237,8 @@ class _VisitFormState extends ConsumerState<VisitForm> {
         const SizedBox(height: AppSpacing.md),
         _PetChips(
           pets: pets,
-          selected: _petIds,
-          ownerOnly: _ownerOnly,
+          selected: _draft.petIds,
+          ownerOnly: _draft.ownerOnly,
           locked: widget.scheduleLocked,
           onPet: _togglePet,
           onOwnerOnly: _chooseOwnerOnly,
@@ -368,7 +247,7 @@ class _VisitFormState extends ConsumerState<VisitForm> {
         _DateStrip(
           shopId: widget.shopId,
           start: _stripStart,
-          selected: _date,
+          selected: _draft.date,
           locked: widget.scheduleLocked,
           onMove: (days) => setState(
             () => _stripStart = DateTime(
@@ -394,14 +273,14 @@ class _VisitFormState extends ConsumerState<VisitForm> {
         _SlotGrid(
           slotsKey: (
             shopId: widget.shopId,
-            date: _date,
+            date: _draft.date,
             duration: duration,
             at: null,
             exclude: _exclude,
           ),
-          selectedAt: _at,
+          selectedAt: _draft.at,
           locked: widget.scheduleLocked,
-          onPick: (at) => setState(() => _at = at),
+          onPick: (at) => setState(() => _draft.at = at),
           onLongPress: _pickMinute,
         ),
         if (!widget.scheduleLocked)
@@ -432,10 +311,10 @@ class _VisitFormState extends ConsumerState<VisitForm> {
         const SizedBox(height: AppSpacing.lg),
         _MenuSection(
           menus: menus,
-          knownMenus: _knownMenus,
-          selectedIds: _menuIds,
+          knownMenus: _draft.knownMenus,
+          selectedIds: _draft.menuIds,
           duration: duration,
-          prefilledNote: _prefilledNote,
+          prefilledNote: _draft.prefilledNote,
           onToggle: (menu) => _toggleMenu(menu, menus, settings),
           onShorter: ({bool long = false}) =>
               _stepDuration(settings, longer: false, long: long),
@@ -465,9 +344,9 @@ class _VisitFormState extends ConsumerState<VisitForm> {
         AppButton(
           label: !petsChosen
               ? AppStrings.pickPetFirst
-              : _at == null
+              : _draft.at == null
               ? AppStrings.pickTimeFirst
-              : widget.submitLabel(_date, _at!),
+              : widget.submitLabel(_draft.date, _draft.at!),
           filled: true,
           busy: widget.busy,
           onPressed: canSubmit

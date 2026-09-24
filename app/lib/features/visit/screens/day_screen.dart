@@ -508,20 +508,7 @@ class _Timeline extends ConsumerWidget {
       for (final g in groups)
         if (g.occupiesTime) g,
     ];
-    // 영업시간을 기본으로, 그 밖의 방문이 있으면 넓힌다.
-    var firstHour = settings == null
-        ? 10
-        : int.parse(settings.opensAt.substring(0, 2));
-    var lastHour = settings == null
-        ? 19
-        : int.parse(settings.closesAt.substring(0, 2)) +
-              (int.parse(settings.closesAt.substring(3, 5)) > 0 ? 1 : 0);
-    for (final g in active) {
-      if (g.startsAt.wall.hour < firstHour) firstHour = g.startsAt.wall.hour;
-      final end = g.endsAt;
-      final endHour = end.minute == 0 ? end.hour : end.hour + 1;
-      if (endHour > lastHour) lastHour = endHour;
-    }
+    final (first: firstHour, last: lastHour) = timelineHours(settings, active);
     final columns = timelineColumns(active);
     final columnCount = columns.isEmpty
         ? 1

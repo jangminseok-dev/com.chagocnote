@@ -100,3 +100,25 @@ List<int> timelineColumns(List<DayGroup> groups) {
   }
   return result;
 }
+
+/// 시간표가 그릴 첫 시와 마지막 시(끝 포함). 영업시간을 기본으로, 그 밖에 걸친 묶음이
+/// 있으면 넓힌다. [settings]가 아직 없으면 10~19시.
+({int first, int last}) timelineHours(
+  VisitSettings? settings,
+  List<DayGroup> active,
+) {
+  var first = settings == null
+      ? 10
+      : int.parse(settings.opensAt.substring(0, 2));
+  var last = settings == null
+      ? 19
+      : int.parse(settings.closesAt.substring(0, 2)) +
+            (int.parse(settings.closesAt.substring(3, 5)) > 0 ? 1 : 0);
+  for (final g in active) {
+    if (g.startsAt.wall.hour < first) first = g.startsAt.wall.hour;
+    final end = g.endsAt;
+    final endHour = end.minute == 0 ? end.hour : end.hour + 1;
+    if (endHour > last) last = endHour;
+  }
+  return (first: first, last: last);
+}

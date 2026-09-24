@@ -49,13 +49,7 @@ void main() {
   test('취소된 형제의 긴 소요는 묶음 끝에 들지 않는다', () {
     final group = groupDay([
       _item(1, '13:00', duration: 60, group: 'a'),
-      _item(
-        2,
-        '13:00',
-        duration: 150,
-        group: 'a',
-        status: 'canceled',
-      ),
+      _item(2, '13:00', duration: 150, group: 'a', status: 'canceled'),
     ]).single;
 
     expect(group.endsAt, DateTime(2026, 10, 2, 14));
@@ -108,5 +102,27 @@ void main() {
     ]);
 
     expect(timelineColumns(groups), [0, 1, 0, 1]);
+  });
+
+  group('시간표 범위', () {
+    test('설정이 없으면 10~19시, 영업시간이 있으면 그 시간이 기본이다', () {
+      expect(timelineHours(null, []), (first: 10, last: 19));
+      final settings = VisitSettings.fromJson(
+        settingsJson(opensAt: '09:00:00', closesAt: '18:30:00'),
+      );
+      expect(timelineHours(settings, []), (
+        first: 9,
+        last: 19,
+      )); // 18:30 은 19시 칸까지
+    });
+
+    test('영업시간 밖에 걸친 묶음이 있으면 그만큼 넓힌다', () {
+      final settings = VisitSettings.fromJson(settingsJson());
+      final groups = groupDay([
+        _item(1, '08:30', duration: 60),
+        _item(2, '18:00', duration: 90),
+      ]);
+      expect(timelineHours(settings, groups), (first: 8, last: 20));
+    });
   });
 }
