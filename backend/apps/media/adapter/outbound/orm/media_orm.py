@@ -46,4 +46,5 @@ class MediaObjectOrm(Base):
     uploaded_by_member_id: Mapped[int] = mapped_column(BigInteger)
     attached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # 준비됐거나 마지막으로 놓인 시각 — 정리 스크립트의 하루 유예가 여기서 시작한다.
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

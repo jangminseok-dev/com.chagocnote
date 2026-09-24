@@ -89,3 +89,11 @@ async def test_정리_스크립트의_엔진도_hide_parameters를_켠다(migrat
     monkeypatch.setattr(purge_stale_media, "get_object_storage", FakeStorage)
     await purge_stale_media._run()
     assert captured.get("hide_parameters") is True
+
+
+async def test_오래전에_준비됐어도_방금_놓인_미디어는_하루를_기다린다(db_session):
+    now = datetime.now(timezone.utc)
+    media = await _media(db_session, status="ready", at=now - timedelta(hours=25), attached=True)
+    await MediaPgRepository(db_session).detach(ctx(), [media.id])
+    await db_session.commit()
+    assert await purge(db_session, FakeStorage(), now) == 0

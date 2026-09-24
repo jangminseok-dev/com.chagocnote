@@ -73,10 +73,11 @@ class MediaPgRepository(MediaRepository):
         return {media_id: kind for media_id, kind in rows}
 
     async def detach(self, ctx: ShopContext, media_ids: list[int]) -> None:
+        # ready_at 을 다시 찍는다 — 정리 스크립트의 하루 유예가 놓인 시각부터 시작한다.
         await self._session.execute(
             update(MediaObjectOrm)
             .where(MediaObjectOrm.id.in_(media_ids), MediaObjectOrm.shop_id == ctx.shop_id)
-            .values(attached_at=None)
+            .values(attached_at=None, ready_at=func.now())
         )
 
     async def list(self, ctx: ShopContext, media_ids: list[int]) -> list[MediaObject]:
