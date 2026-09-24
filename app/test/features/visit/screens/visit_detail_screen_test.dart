@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_card.dart';
-import 'package:chagocnote/features/home/state/today_provider.dart';
+import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,5 +1,5 @@
 import 'package:chagocnote/core/router/screen_keys.dart';
-import 'package:chagocnote/features/home/state/today_provider.dart';
+import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

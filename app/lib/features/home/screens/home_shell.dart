@@ -17,7 +17,7 @@ import '../../customer/screens/customer_list_tab.dart';
 import '../../visit/api/visit_models.dart';
 import '../../visit/screens/calendar_tab.dart';
 import '../../visit/state/calendar_selection.dart';
-import '../state/today_provider.dart';
+import '../../../core/time/today_provider.dart';
 
 /// 홈 화면. 헤더(날짜 + 매장 이름 + 설정), 탭별 본문, 하단 유리 탭바로
 /// 이루어진다.

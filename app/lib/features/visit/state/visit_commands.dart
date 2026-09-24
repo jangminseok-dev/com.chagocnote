@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
-import '../../shop/state/shop_errors.dart';
+import '../../auth/state/shop_scoped.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
 import 'visit_providers.dart';

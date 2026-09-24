@@ -16,7 +16,7 @@ import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
-import '../../home/state/today_provider.dart';
+import '../../../core/time/today_provider.dart';
 import '../api/visit_models.dart';
 import '../state/calendar_selection.dart';
 import '../state/day_layout.dart';

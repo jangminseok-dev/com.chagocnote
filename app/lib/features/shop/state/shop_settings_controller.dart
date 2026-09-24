@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/state/session_controller.dart';
 import '../api/shop_api.dart';
-import 'shop_errors.dart';
+import '../../auth/state/shop_scoped.dart';
 import 'shop_providers.dart';
 
 /// 매장 하나의 정보. 매장 id로 만든 [shopSettingsControllerProvider]

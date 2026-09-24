@@ -14,7 +14,7 @@ import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
-import '../../home/state/today_provider.dart';
+import '../../../core/time/today_provider.dart';
 import '../api/customer_models.dart';
 import '../state/customer_commands.dart';
 import '../state/customer_input.dart';

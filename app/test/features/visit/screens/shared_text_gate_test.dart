@@ -8,7 +8,7 @@ import 'package:chagocnote/design/bridge/glass_surface.dart';
 import 'package:chagocnote/features/auth/api/social_sign_in.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
-import 'package:chagocnote/features/home/state/today_provider.dart';
+import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';

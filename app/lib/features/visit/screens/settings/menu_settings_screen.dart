@@ -2,24 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/error/error_messages.dart';
-import '../../../core/router/screen_keys.dart';
-import '../../../design/app_theme.dart';
-import '../../../design/tokens/app_colors.dart';
-import '../../../design/tokens/app_spacing.dart';
-import '../../../design/tokens/app_typography.dart';
-import '../../../design/widgets/app_back_button.dart';
-import '../../../design/widgets/app_button.dart';
-import '../../../design/widgets/app_card.dart';
-import '../../../design/widgets/app_choice_chip.dart';
-import '../../../design/widgets/app_sheet.dart';
-import '../../../design/widgets/pressable.dart';
-import '../../../l10n/app_strings.dart';
-import '../../auth/state/shop_selection.dart';
-import '../../visit/api/visit_models.dart';
-import '../../visit/state/visit_commands.dart';
-import '../../visit/state/visit_form_rules.dart';
-import '../../visit/state/visit_providers.dart';
+import '../../../../core/error/error_messages.dart';
+import '../../../../core/router/screen_keys.dart';
+import '../../../../design/app_theme.dart';
+import '../../../../design/tokens/app_colors.dart';
+import '../../../../design/tokens/app_spacing.dart';
+import '../../../../design/tokens/app_typography.dart';
+import '../../../../design/widgets/app_back_button.dart';
+import '../../../../design/widgets/app_button.dart';
+import '../../../../design/widgets/app_card.dart';
+import '../../../../design/widgets/app_choice_chip.dart';
+import '../../../../design/widgets/app_sheet.dart';
+import '../../../../design/widgets/pressable.dart';
+import '../../../../l10n/app_strings.dart';
+import '../../../auth/state/shop_selection.dart';
+import '../../api/visit_models.dart';
+import '../../state/visit_commands.dart';
+import '../../state/visit_form_rules.dart';
+import '../../state/visit_providers.dart';
 
 /// 설정 → 메뉴(사장만) — 메뉴표 추가·이름·기본 소요·순서·보관(설계 9.1).
 /// 메뉴는 지우지 않고 보관한다(지난 방문이 가리킨다).

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/proxy/providers.dart';
-import '../../shop/state/shop_errors.dart';
+import '../../auth/state/shop_scoped.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
 

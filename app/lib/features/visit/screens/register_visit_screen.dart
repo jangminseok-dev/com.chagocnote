@@ -23,7 +23,7 @@ import '../../customer/state/customer_input.dart';
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
 import '../../customer/state/search_debouncer.dart';
-import '../../home/state/today_provider.dart';
+import '../../../core/time/today_provider.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_prefill.dart';

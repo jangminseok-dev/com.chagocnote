@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../shop/state/shop_errors.dart';
+import '../../auth/state/shop_scoped.dart';
 import '../api/customer_api.dart';
 import '../api/customer_models.dart';
 import 'customer_list_controller.dart';

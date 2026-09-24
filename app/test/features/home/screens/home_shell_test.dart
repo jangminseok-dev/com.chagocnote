@@ -1,7 +1,7 @@
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_big_date.dart';
 import 'package:chagocnote/features/customer/screens/customer_list_tab.dart';
-import 'package:chagocnote/features/home/state/today_provider.dart';
+import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/features/visit/screens/calendar_tab.dart';
 import 'package:chagocnote/features/visit/state/calendar_selection.dart';
 import 'package:chagocnote/l10n/app_strings.dart';

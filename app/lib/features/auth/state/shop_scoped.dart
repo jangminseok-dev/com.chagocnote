@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/api_exception.dart';
-import '../../auth/state/session_controller.dart';
+import 'session_controller.dart';
 
 /// 매장 범위 호출 공통 오류 처리.
 ///
