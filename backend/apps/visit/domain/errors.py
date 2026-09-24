@@ -56,3 +56,45 @@ class MenuNotAvailableError(VisitError):
 
 class MenuNameTakenError(VisitError):
     code = "MENU_NAME_TAKEN"
+
+
+class VisitNoRecordYetError(VisitError):
+    """예약됨·취소·노쇼 방문에는 기록을 쓸 수 없다 — 미용을 시작해야 한다. 409."""
+
+    code = "VISIT_NO_RECORD_YET"
+
+
+class RecordNotFoundError(VisitError):
+    """그 방문에 기록이 없다. 404."""
+
+    code = "RECORD_NOT_FOUND"
+
+
+class RecordVersionConflictError(VisitError):
+    """보낸 버전이 지금 기록의 버전과 다르다 — 그 사이 다른 기기나 업로드 대기열이 기록을 바꿨다. 409."""
+
+    code = "RECORD_VERSION_CONFLICT"
+
+
+class RecordWeightWithoutPetError(VisitError):
+    """보호자만의 방문에 몸무게를 적었다. 422."""
+
+    code = "RECORD_WEIGHT_WITHOUT_PET"
+
+
+class RecordItemDuplicateError(VisitError):
+    """같은 메뉴를 두 번 적었다. 422."""
+
+    code = "RECORD_ITEM_DUPLICATE"
+
+
+class RecordMediaLimitError(VisitError):
+    """방문 하나의 사진 30장·영상 3편을 넘는다. 422."""
+
+    code = "MEDIA_LIMIT_EXCEEDED"
+
+
+class RecordSalesForbiddenError(VisitError):
+    """돈 칸(총액·항목·결제 수단)을 적는데 sales:write 가 없다. 403."""
+
+    code = "PERMISSION_DENIED"

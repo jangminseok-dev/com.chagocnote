@@ -147,6 +147,10 @@ class FakePets(PetRepository):
         self.journal.append(("set_passed_away", pet_id, passed_away))
         return self.rows[pet_id]
 
+    async def set_weight(self, ctx, pet_id, weight_kg):
+        self.rows[pet_id] = replace(self._owned(ctx, pet_id), weight_kg=weight_kg)
+        self.journal.append(("set_weight", pet_id, weight_kg))
+
     async def count_for_customer(self, ctx, customer_id):
         return len([p for p in self.rows.values() if p.customer_id == customer_id])
 

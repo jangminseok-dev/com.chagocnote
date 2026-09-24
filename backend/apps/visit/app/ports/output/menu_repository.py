@@ -18,6 +18,10 @@ class MenuRepository(ABC):
         """요청 본문이 고른 메뉴 가운데 이 매장의 보관하지 않은 것만."""
 
     @abstractmethod
+    async def list_by_ids(self, ctx: ShopContext, menu_ids: list[int]) -> list[Menu]:
+        """이 매장의 메뉴만, 보관한 것도 — 지난 기록이 보관한 메뉴를 가리키고 있을 수 있다."""
+
+    @abstractmethod
     async def create(
         self, ctx: ShopContext, name: str, default_duration_minutes: int | None, price: int | None
     ) -> Menu:

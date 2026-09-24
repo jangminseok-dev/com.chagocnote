@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
@@ -57,6 +58,9 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
 
     async def set_last_visit(self, ctx: ShopContext, customer_id: int, at: datetime | None) -> None:
         await self._search.set_last_visit(ctx, customer_id, at)
+
+    async def set_pet_weight(self, ctx: ShopContext, pet_id: int, weight_kg: Decimal) -> None:
+        await self._pets.set_weight(ctx, pet_id, weight_kg)
 
     async def find_draft_candidates(self, ctx: ShopContext, words: tuple[str, ...]) -> list[DraftCandidate]:
         if not words:

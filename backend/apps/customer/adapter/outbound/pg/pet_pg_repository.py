@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,6 +119,13 @@ class PetPgRepository(PetRepository):
             .values(passed_away_at=stamp, updated_at=func.now())
         )
         return await self.get(ctx, pet_id)
+
+    async def set_weight(self, ctx: ShopContext, pet_id: int, weight_kg: Decimal) -> None:
+        await self._session.execute(
+            update(PetOrm)
+            .where(PetOrm.id == pet_id, PetOrm.customer_id.in_(_owner_ids(ctx)))
+            .values(weight_kg=weight_kg, updated_at=func.now())
+        )
 
     async def count_for_customer(self, ctx: ShopContext, customer_id: int) -> int:
         return (

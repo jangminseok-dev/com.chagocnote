@@ -43,6 +43,14 @@ class MenuPgRepository(MenuRepository):
         ).scalars()
         return [to_menu(row) for row in rows]
 
+    async def list_by_ids(self, ctx: ShopContext, menu_ids: list[int]) -> list[Menu]:
+        rows = (
+            await self._session.execute(
+                select(ServiceMenuOrm).where(ServiceMenuOrm.id.in_(menu_ids), ServiceMenuOrm.shop_id == ctx.shop_id)
+            )
+        ).scalars()
+        return [to_menu(row) for row in rows]
+
     async def create(
         self, ctx: ShopContext, name: str, default_duration_minutes: int | None, price: int | None
     ) -> Menu:

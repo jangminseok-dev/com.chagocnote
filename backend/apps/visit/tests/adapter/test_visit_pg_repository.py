@@ -189,3 +189,14 @@ async def test_장부_질문들(db_session):
     await repo.clear_memos(A, 1)
     assert {v.memo for v in await repo.list_between(A, kst(9, 1), kst(11, 1))} == {None}
     assert [v.memo for v in await repo.list_between(B, kst(9, 1), kst(11, 1))] == ["남의"]
+
+
+async def test_그_아이의_가장_최근_시작한_방문(db_session):
+    repo = VisitPgRepository(db_session)
+    assert await repo.latest_started_of_pet(A, 101) is None
+    await insert_visit(db_session, kst(9, 1, 14), "completed")
+    latest = await insert_visit(db_session, kst(9, 20, 14), "in_progress")
+    await insert_visit(db_session, kst(9, 25, 14), "reserved")
+    await insert_visit(db_session, kst(9, 22, 14), "canceled")
+    await insert_visit(db_session, kst(9, 21, 14), "completed", shop_id=2)
+    assert await repo.latest_started_of_pet(A, 101) == latest

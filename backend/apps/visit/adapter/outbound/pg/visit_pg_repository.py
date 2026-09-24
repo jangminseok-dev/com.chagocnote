@@ -18,6 +18,7 @@ from visit.domain.entities.visit import ACTIVE_STATUSES, COMPLETED, NO_SHOW, RES
 from visit.domain.errors import VisitDuplicateError, VisitNotFoundError
 from visit.domain.services.visit_schedule import MAX_DURATION
 from visit.domain.state.visit_state import StatusChange
+from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.new_visit import NewVisit
 
 _DUPLICATE = {"uq_visits_pet_start_active", "uq_visits_customer_start_active"}
@@ -158,6 +159,17 @@ class VisitPgRepository(VisitWriteRepository, VisitHistoryRepository, VisitLedge
             .limit(1),
         )
         return found[0] if found else None
+
+    async def latest_started_of_pet(self, ctx: ShopContext, pet_id: int) -> int | None:
+        return (
+            await self._session.execute(
+                select(VisitOrm.id)
+                .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id == pet_id,
+                       VisitOrm.status.in_(STARTED_STATUSES))
+                .order_by(VisitOrm.starts_at.desc(), VisitOrm.id.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
 
     async def completed_starts(
         self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int

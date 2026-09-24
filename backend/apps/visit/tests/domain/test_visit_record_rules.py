@@ -1,0 +1,89 @@
+from decimal import Decimal
+
+import pytest
+
+from visit.domain.entities.visit_record import RecordItem, RecordMedia, VisitRecord
+from visit.domain.errors import (
+    RecordItemDuplicateError,
+    RecordMediaLimitError,
+    RecordVersionConflictError,
+    RecordWeightWithoutPetError,
+    VisitNoRecordYetError,
+)
+from visit.domain.services.visit_record_rules import (
+    check_input,
+    check_media_limits,
+    check_recordable,
+    check_version,
+    cover_media_id,
+    next_version,
+)
+from visit.domain.value_objects.record_input import RecordInput
+from visit.tests.helpers.builders import visit
+
+
+def _input(weight=None, items=(), **fields):
+    return RecordInput(weight_kg=weight, care_note=None, internal_note=None, payment_method=None,
+                       total_amount=None, items=tuple(items), media=(), **fields)
+
+
+def _record(version=1, media=()):
+    return VisitRecord(visit_id=1, weight_kg=None, care_note=None, internal_note=None, payment_method=None,
+                       total_amount=None, items=(), media=tuple(media), version=version, created_by_member_id=11,
+                       updated_by_member_id=11)
+
+
+def _m(media_id, kind="photo", phase="after", order=0):
+    return RecordMedia(media_id=media_id, kind=kind, phase=phase, sort_order=order)
+
+
+@pytest.mark.parametrize("status", ["in_progress", "completed"])
+def test_미용을_시작한_방문에는_기록을_쓴다(status):
+    check_recordable(visit(status=status))
+
+
+@pytest.mark.parametrize("status", ["reserved", "canceled", "no_show"])
+def test_시작하지_않은_방문에는_VISIT_NO_RECORD_YET(status):
+    with pytest.raises(VisitNoRecordYetError):
+        check_recordable(visit(status=status))
+
+
+def test_보호자만의_방문에는_몸무게가_없다():
+    check_input(visit(pet_id=None), _input())
+    with pytest.raises(RecordWeightWithoutPetError):
+        check_input(visit(pet_id=None), _input(weight=Decimal("3.2")))
+
+
+def test_같은_메뉴를_두_번_적으면_RECORD_ITEM_DUPLICATE():
+    with pytest.raises(RecordItemDuplicateError):
+        check_input(visit(), _input(items=[RecordItem(1, 30000), RecordItem(1, 5000)]))
+
+
+def test_돈_칸은_총액_항목_결제_수단이다():
+    assert not _input().has_money
+    assert _input(items=[RecordItem(1, 0)]).has_money
+    assert RecordInput(None, None, None, "cash", None, (), ()).has_money
+    assert RecordInput(None, None, None, None, 0, (), ()).has_money
+
+
+def test_사진_30장_영상_3편까지():
+    check_media_limits(["photo"] * 30 + ["video"] * 3)
+    for kinds in (["photo"] * 31, ["video"] * 4):
+        with pytest.raises(RecordMediaLimitError):
+            check_media_limits(kinds)
+
+
+def test_버전은_없을_때_보내지_않고_있을_때_지금_값을_보낸다():
+    check_version(None, None)
+    check_version(_record(3), 3)
+    for current, requested in ((None, 1), (_record(3), None), (_record(3), 2)):
+        with pytest.raises(RecordVersionConflictError):
+            check_version(current, requested)
+    assert (next_version(None), next_version(_record(3))) == (1, 4)
+
+
+def test_대표_사진은_후_사진_첫_장_그다음_전_사진_그다음_영상이다():
+    assert cover_media_id([_m(1, phase="before"), _m(2, order=3), _m(3, order=1), _m(9, "video", order=0)]) == 3
+    assert cover_media_id([_m(1, phase="before", order=2), _m(4, phase="before", order=0), _m(9, "video")]) == 4
+    assert cover_media_id([_m(8, "video", "before", 0), _m(9, "video", "after", 5)]) == 9
+    assert cover_media_id([]) is None

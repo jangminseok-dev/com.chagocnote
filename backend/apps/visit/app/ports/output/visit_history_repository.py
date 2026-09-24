@@ -32,6 +32,11 @@ class VisitHistoryRepository(ABC):
         """그 아이의 마지막 완료 방문('지난번처럼'의 원본)."""
 
     @abstractmethod
+    async def latest_started_of_pet(self, ctx: ShopContext, pet_id: int) -> int | None:
+        """그 아이의 가장 최근 방문 가운데 미용을 시작한 것(미용 중·완료)의 ID — 시작 시각, 같으면 ID 가 큰 쪽.
+        기록의 몸무게를 현재 몸무게로 넘길지 정한다(설계 8절)."""
+
+    @abstractmethod
     async def completed_starts(
         self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
     ) -> list[datetime]:
