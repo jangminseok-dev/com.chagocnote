@@ -1,4 +1,8 @@
-"""customer 인터랙터 테스트용 메모리 스텁. 호출 순서를 journal 한 목록에 남겨 '잠근 뒤 쓴다'를 확인할 수 있다."""
+"""customer 인터랙터 테스트용 메모리 스텁. 호출 순서를 journal 한 목록에 남겨 '잠근 뒤 쓴다'를 확인할 수 있다.
+
+스텁은 포트 ABC 를 상속한다 — 포트에 메서드를 더하고 스텁을 빠뜨리면 인스턴스를 만드는 순간 잡힌다.
+`apps/customer/tests/test_fakes_are_ports.py`가 이를 확인한다.
+"""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -6,10 +10,15 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from customer.app.dtos.customer_search_dto import SearchPage
+from customer.app.ports.output.condition_type_repository import ConditionTypeRepository
+from customer.app.ports.output.customer_repository import CustomerRepository
+from customer.app.ports.output.customer_search_port import CustomerSearchPort
+from customer.app.ports.output.pet_repository import PetRepository
 from customer.domain.entities.condition_type import ConditionType
 from customer.domain.entities.customer import Customer
 from customer.domain.entities.pet import Pet, PetCondition
 from customer.domain.errors import CustomerNotFoundError, CustomerPhoneTakenError, PetNotFoundError
+from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 TODAY = date(2026, 9, 22)
 NOW = datetime(2026, 9, 22, 1, 0, tzinfo=timezone.utc)
@@ -25,12 +34,12 @@ class Journal(list):
     """스텁들이 함께 쓰는 호출 기록. 항목은 (이름, 인자…) 튜플이다."""
 
 
-class FakeConditionTypes:
+class FakeConditionTypes(ConditionTypeRepository):
     async def list_all(self):
         return [ConditionType(code=c, label=l, sort_order=i) for i, (c, l) in enumerate(LABELS.items())]
 
 
-class FakeCustomers:
+class FakeCustomers(CustomerRepository):
     def __init__(self, journal: Journal) -> None:
         self.journal = journal
         self.rows: dict[int, Customer] = {}
@@ -86,7 +95,7 @@ class FakeCustomers:
         self.journal.append(("anonymize", customer_id))
 
 
-class FakePets:
+class FakePets(PetRepository):
     def __init__(self, journal: Journal, customers: FakeCustomers) -> None:
         self.journal = journal
         self.customers = customers
@@ -161,7 +170,7 @@ class FakePets:
         )
 
 
-class FakeSearch:
+class FakeSearch(CustomerSearchPort):
     def __init__(self, journal: Journal, page: SearchPage | None = None, pet_count: int = 0) -> None:
         self.journal = journal
         self.page = page or SearchPage(customer_ids=[], next_cursor=None)
@@ -189,7 +198,7 @@ class FakeSearch:
         return self.matches[:limit]
 
 
-class FakeLedger:
+class FakeLedger(VisitLedgerPort):
     """VisitLedgerPort 스텁. 반려동물·고객마다 방문이 있는지, 앞으로의 예약이 있는지를 정해 둔다."""
 
     def __init__(self, journal: Journal) -> None:

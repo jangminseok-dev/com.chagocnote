@@ -1,4 +1,8 @@
-"""visit 인터랙터 테스트용 메모리 스텁. 호출 순서를 journal 한 목록에 남겨 '잠근 뒤 쓴다'를 확인할 수 있다."""
+"""visit 인터랙터 테스트용 메모리 스텁. 호출 순서를 journal 한 목록에 남겨 '잠근 뒤 쓴다'를 확인할 수 있다.
+
+스텁은 포트 ABC 를 상속한다 — 포트에 메서드를 더하고 스텁을 빠뜨리면 AttributeError 로 늦게 잡히는 대신
+인스턴스를 만드는 순간(TypeError) 잡힌다. `apps/visit/tests/test_fakes_are_ports.py`가 이를 확인한다.
+"""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -6,6 +10,13 @@ from decimal import Decimal
 
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
+from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.schedule_repository import ScheduleRepository
+from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
+from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
+from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.entities.menu import Menu
 from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
 from visit.domain.errors import (
@@ -23,7 +34,7 @@ class Journal(list):
     """스텁들이 함께 쓰는 호출 기록. 항목은 (이름, 인자…) 튜플이다."""
 
 
-class FakeSchedule:
+class FakeSchedule(ScheduleRepository):
     def __init__(self, journal: Journal | None = None, settings=DEFAULT_SETTINGS) -> None:
         self.journal = journal if journal is not None else Journal()
         self.settings = settings
@@ -53,7 +64,7 @@ class FakeSchedule:
         self.closed.pop((ctx.shop_id, day), None)
 
 
-class FakeMenus:
+class FakeMenus(MenuRepository):
     def __init__(self, journal: Journal | None = None) -> None:
         self.journal = journal if journal is not None else Journal()
         self.rows: dict[int, Menu] = {}
@@ -106,7 +117,7 @@ class FakeMenus:
         return self.rows[menu_id]
 
 
-class FakeDirectory:
+class FakeDirectory(CustomerDirectoryPort):
     """CustomerDirectoryPort 스텁. families 는 {고객 ID: (매장 ID, {반려동물 ID: 무지개다리 여부})}."""
 
     def __init__(self, journal: Journal | None = None) -> None:
@@ -153,7 +164,7 @@ class FakeDirectory:
         return list(self.candidates)
 
 
-class FakeVisits:
+class FakeVisits(VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository, VisitBoardRepository):
     """visits 표 스텁 — pg 구현처럼 다섯 포트(찾기·잠금, 쓰기, 이력, 원장, 게시판)를 한 객체가 다 낸다."""
 
     def __init__(self, journal: Journal | None = None) -> None:
