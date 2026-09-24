@@ -16,7 +16,7 @@ class VisitFormValue {
   final List<int> petIds;
   final DateTime date;
 
-  /// 서버가 준 시각 문자열(매장 시간대). 없으면 아직 시각을 고르지 않았다.
+  /// 서버가 시간 칸으로 준 시각 문자열. 지금 시작이면 null.
   final String? startsAt;
   final int durationMinutes;
   final List<int> menuIds;

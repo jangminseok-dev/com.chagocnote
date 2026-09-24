@@ -124,5 +124,11 @@ void main() {
       ]);
       expect(timelineHours(settings, groups), (first: 8, last: 20));
     });
+
+    test('영업시간 밖에서 정각에 끝나는 묶음은 그 시까지만 넓힌다', () {
+      final settings = VisitSettings.fromJson(settingsJson());
+      final groups = groupDay([_item(1, '18:00', duration: 120)]); // 20:00 끝
+      expect(timelineHours(settings, groups), (first: 10, last: 20));
+    });
   });
 }

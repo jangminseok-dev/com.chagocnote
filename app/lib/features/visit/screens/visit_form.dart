@@ -119,7 +119,7 @@ class _VisitFormState extends ConsumerState<VisitForm> {
           .read(visitCommandsProvider)
           .defaults(widget.shopId, petId);
       if (!mounted) return;
-      setState(() => _draft.applyPrefill(seq, defaults));
+      if (_draft.applyPrefill(seq, defaults)) setState(() {});
     } catch (_) {
       // 미리 채우기는 돕는 것뿐이다 — 실패하면 빈 채로 둔다.
     }
@@ -171,7 +171,7 @@ class _VisitFormState extends ConsumerState<VisitForm> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(visitSettingsProvider(widget.shopId));
-    // 고객 상세에서 반려동물만 본다 — 전화번호·다가오는 예약이 바뀌어도 폼은 다시 그리지 않는다.
+    // 고객 상세 가운데 pets 만 본다 — 같은 값을 유지한 채 로딩 상태만 바뀔 때는 다시 그리지 않는다.
     final customer = ref.watch(
       customerDetailProvider((
         shopId: widget.shopId,
