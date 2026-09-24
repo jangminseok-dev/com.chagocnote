@@ -192,6 +192,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   return router;
 });
 
+// 불변식: 매장이 하나면 세션(`SessionController._resolveWith`)이 자동으로
+// 선택한다 — 그래서 `selectedShopId == null`은 매장이 둘 이상일 때만 있을 수
+// 있다. 이 함수의 매장 ≥2 분기는 그 불변식에 기대고 있으므로, `_resolveWith`의
+// 자동 선택 규칙을 바꾸면 여기 가드에도 구멍이 생길 수 있다.
 String? _redirectSignedIn({
   required String location,
   required int shopCount,

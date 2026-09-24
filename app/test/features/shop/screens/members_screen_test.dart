@@ -28,6 +28,7 @@ import '../../../support/fake_session_gateway.dart';
 
 const _hissHaus = ShopMembership(shopId: 3, shopName: 'Hiss Haus', role: 'owner');
 const _hissHausStaff = ShopMembership(shopId: 3, shopName: 'Hiss Haus', role: 'staff');
+const _secondShop = ShopMembership(shopId: 4, shopName: '두 번째 매장', role: 'owner');
 
 Me _ownerMe() => const Me(
       id: 99,
@@ -43,6 +44,14 @@ Me _staffMe() => const Me(
       profileImageUrl: null,
       identities: ['apple'],
       shops: [_hissHausStaff],
+    );
+
+Me _twoShopOwnerMe() => const Me(
+      id: 99,
+      displayName: '민석',
+      profileImageUrl: null,
+      identities: ['apple'],
+      shops: [_hissHaus, _secondShop],
     );
 
 const _membersJson = [
@@ -61,6 +70,27 @@ const _membersJson = [
     'profile_image_url': null,
     'role': 'staff',
     'joined_at': '2026-02-02T00:00:00Z',
+  },
+];
+
+// 두 번째 매장(id 4)의 멤버 목록. Hiss Haus 와 겹치지 않는 이름을 써서 화면이
+// 매장을 바꾼 뒤에도 옛 매장의 데이터를 들고 있는지 구분한다.
+const _membersJson2 = [
+  {
+    'member_id': 5,
+    'user_id': 99,
+    'display_name': '민석',
+    'profile_image_url': null,
+    'role': 'owner',
+    'joined_at': '2026-01-01T00:00:00Z',
+  },
+  {
+    'member_id': 30,
+    'user_id': 77,
+    'display_name': '새직원',
+    'profile_image_url': null,
+    'role': 'staff',
+    'joined_at': '2026-03-03T00:00:00Z',
   },
 ];
 
@@ -491,6 +521,43 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('매장을 바꾸면 새 매장의 멤버 목록을 다시 불러온다(최종 검토 Minor 1)', (tester) async {
+    // 역할(owner)은 두 매장에서 같게 둬서, isOwnerProvider·currentUserIdProvider
+    // 만으로는 다시 그려지지 않는다 — build 가 selectedShopIdProvider 를
+    // watch 해야만 매장이 바뀐 걸 알아챈다.
+    final gateway = FakeSessionGateway()
+      ..meOnRestore = _twoShopOwnerMe()
+      ..lastShopId = 3;
+    final setup = _setUp(gateway, (options, body) {
+      if (options.path == '/v1/shops/3/members') {
+        return const FakeResponse(statusCode: 200, data: _membersJson);
+      }
+      if (options.path == '/v1/shops/4/members') {
+        return const FakeResponse(statusCode: 200, data: _membersJson2);
+      }
+      fail('예상하지 못한 경로: ${options.path}');
+    });
+    addTearDown(setup.container.dispose);
+
+    await tester.pumpWidget(_appWith(setup.container));
+    await tester.pumpAndSettle();
+    setup.container.read(routerProvider).go('/settings/members');
+    await tester.pumpAndSettle();
+
+    // '직원'은 role 칩 문구('직원'=staff)와 겹쳐서 찾을 수 있으니, 매장4에만
+    // 있는 표시 이름('새직원')으로 구분한다.
+    expect(find.text('새직원'), findsNothing);
+
+    await setup.container.read(sessionControllerProvider.notifier).selectShop(4);
+    await tester.pumpAndSettle();
+
+    final shop4Gets = setup.adapter.requests.where(
+      (r) => r.path == '/v1/shops/4/members' && r.method == 'GET',
+    );
+    expect(shop4Gets, hasLength(1));
+    expect(find.text('새직원'), findsOneWidget);
   });
 
   group('오류 고착(최종 검토 C)', () {

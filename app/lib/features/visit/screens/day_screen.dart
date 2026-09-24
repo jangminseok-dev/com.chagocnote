@@ -145,7 +145,9 @@ class _DayScreenState extends ConsumerState<DayScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shopId = _shopId;
+    // 매장이 바뀌면 다시 그려야 하므로 build 안에서는 watch 한다(_shopId
+    // getter 는 read 라 액션 메서드 전용).
+    final shopId = ref.watch(selectedShopIdProvider);
     final key = (shopId: shopId ?? 0, date: widget.date);
     final day = shopId == null
         ? const AsyncValue<DayVisits>.loading()
