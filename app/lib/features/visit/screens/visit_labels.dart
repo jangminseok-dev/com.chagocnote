@@ -4,13 +4,13 @@ import '../api/visit_models.dart';
 // 시각·날짜 표기(hhmm·dayLabel·sameDay)는 core/time 에 있다. 이 모듈을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
 export '../../../core/time/time_labels.dart';
 
-String statusLabel(String status) => switch (status) {
+String statusLabel(VisitStatus status) => switch (status) {
   VisitStatus.reserved => AppStrings.statusReserved,
   VisitStatus.inProgress => AppStrings.statusInProgress,
   VisitStatus.completed => AppStrings.statusCompleted,
   VisitStatus.canceled => AppStrings.statusCanceled,
   VisitStatus.noShow => AppStrings.statusNoShow,
-  _ => status,
+  VisitStatus.unknown => AppStrings.statusUnknown,
 };
 
 String warningLabel(String warning) => switch (warning) {

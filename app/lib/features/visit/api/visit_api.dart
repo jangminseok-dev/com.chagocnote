@@ -79,7 +79,7 @@ class VisitApi {
   Future<List<Visit>> transition(
     int shopId, {
     required List<int> visitIds,
-    required String action,
+    required VisitAction action,
     String? cancelReason,
   }) async {
     final data =
@@ -87,7 +87,7 @@ class VisitApi {
               '/v1/shops/$shopId/visits/transitions',
               data: {
                 'visit_ids': visitIds,
-                'action': action,
+                'action': action.code,
                 'cancel_reason': ?cancelReason,
               },
             )

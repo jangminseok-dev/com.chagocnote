@@ -56,7 +56,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
       if (v.status == detail.visit.status) v.visitId,
   ];
 
-  Future<void> _act(VisitDetail detail, String action) async {
+  Future<void> _act(VisitDetail detail, VisitAction action) async {
     final shopId = _shopId;
     if (shopId == null || _busy || _asking) return;
     setState(() => _asking = true);
@@ -98,39 +98,41 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
 
   Future<void> _openMore(VisitDetail detail) async {
     final status = detail.visit.status;
-    final choice = await AppSheet.show<String>(
+    final choice = await AppSheet.show<_More>(
       context,
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (status != VisitStatus.canceled && status != VisitStatus.noShow)
-            const _SheetAction(label: AppStrings.edit, value: 'edit'),
+            const _SheetAction(label: AppStrings.edit, value: _More.edit),
           if (status == VisitStatus.reserved)
             const _SheetAction(
               label: AppStrings.actionCompleteNow,
-              value: VisitAction.complete,
+              value: _More.completeNow,
             ),
           if (status != VisitStatus.reserved)
             const _SheetAction(
               label: AppStrings.actionRevert,
-              value: VisitAction.revert,
+              value: _More.revert,
             ),
           if (status == VisitStatus.completed)
             const _SheetAction(
               label: AppStrings.actionNextReservation,
-              value: 'next',
+              value: _More.next,
             ),
         ],
       ),
     );
     if (choice == null || !mounted) return;
     switch (choice) {
-      case 'edit':
+      case _More.edit:
         context.push('/visits/${detail.visit.visitId}/edit');
-      case 'next':
+      case _More.next:
         await _openNext(detail);
-      default:
-        await _act(detail, choice);
+      case _More.completeNow:
+        await _act(detail, VisitAction.complete);
+      case _More.revert:
+        await _act(detail, VisitAction.revert);
     }
   }
 
@@ -238,7 +240,7 @@ class _Body extends StatelessWidget {
   final VisitDetail detail;
   final bool busy;
   final String? errorText;
-  final ValueChanged<String> onAction;
+  final ValueChanged<VisitAction> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -311,13 +313,14 @@ class _StatusButtons extends StatelessWidget {
     required this.onAction,
   });
 
-  final String status;
+  final VisitStatus status;
   final bool busy;
-  final ValueChanged<String> onAction;
+  final ValueChanged<VisitAction> onAction;
 
   @override
   Widget build(BuildContext context) {
-    VoidCallback? on(String action) => busy ? null : () => onAction(action);
+    VoidCallback? on(VisitAction action) =>
+        busy ? null : () => onAction(action);
     return switch (status) {
       VisitStatus.reserved => Row(
         children: [
@@ -416,11 +419,14 @@ class _GroupCard extends StatelessWidget {
   }
 }
 
+/// `···` 시트의 항목. 문자열 대신 닫힌 enum 이라 처리 `switch`가 완전 열거된다.
+enum _More { edit, completeNow, revert, next }
+
 class _SheetAction extends StatelessWidget {
   const _SheetAction({required this.label, required this.value});
 
   final String label;
-  final String value;
+  final _More value;
 
   @override
   Widget build(BuildContext context) {

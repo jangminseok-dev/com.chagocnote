@@ -9,22 +9,47 @@ import '../../../core/time/shop_time.dart';
 
 export '../../../core/time/shop_time.dart';
 
-/// 방문 상태. 서버 값 그대로다.
-abstract final class VisitStatus {
-  static const reserved = 'reserved';
-  static const inProgress = 'in_progress';
-  static const completed = 'completed';
-  static const canceled = 'canceled';
-  static const noShow = 'no_show';
+/// 방문 상태. 서버 문자열은 `fromJson`에서 한 번만 enum 으로 바꾼다.
+///
+/// 모르는 값은 [unknown] — 서버가 앱보다 먼저 새 상태를 알게 됐을 때 화면은 상태
+/// 이름을 "알 수 없음"으로 보이고 버튼을 내지 않는다. `switch`는 폴백 없이 완전
+/// 열거한다 — 상태를 더하면 컴파일러가 빠진 곳을 알려 준다.
+enum VisitStatus {
+  reserved('reserved'),
+  inProgress('in_progress'),
+  completed('completed'),
+  canceled('canceled'),
+  noShow('no_show'),
+  unknown('');
+
+  const VisitStatus(this.code);
+
+  /// 서버 값.
+  final String code;
+
+  static VisitStatus fromCode(String code) => values.firstWhere(
+    (status) => status.code == code,
+    orElse: () => VisitStatus.unknown,
+  );
+
+  /// 시간을 차지하는 상태(예약됨·미용 중·완료). 취소·노쇼는 빈 시간이다.
+  bool get occupiesTime => switch (this) {
+    reserved || inProgress || completed || unknown => true,
+    canceled || noShow => false,
+  };
 }
 
-/// 상태 전이 행동. 서버 값 그대로다.
-abstract final class VisitAction {
-  static const start = 'start';
-  static const complete = 'complete';
-  static const cancel = 'cancel';
-  static const noShow = 'no_show';
-  static const revert = 'revert';
+/// 상태 전이 행동. 서버에는 [code]를 보낸다.
+enum VisitAction {
+  start('start'),
+  complete('complete'),
+  cancel('cancel'),
+  noShow('no_show'),
+  revert('revert');
+
+  const VisitAction(this.code);
+
+  final String code;
 }
 
 /// 막지 않는 경고. 서버 값 그대로다.
@@ -116,7 +141,7 @@ class Visit {
     startsAt: ShopTime.parse(json['starts_at'] as String),
     endsAt: ShopTime.parse(json['ends_at'] as String),
     durationMinutes: json['duration_minutes'] as int,
-    status: json['status'] as String,
+    status: VisitStatus.fromCode(json['status'] as String),
     cancelReason: json['cancel_reason'] as String?,
     memo: json['memo'] as String?,
     menus: _menus(json['menus']),
@@ -130,7 +155,7 @@ class Visit {
   final ShopTime startsAt;
   final ShopTime endsAt;
   final int durationMinutes;
-  final String status;
+  final VisitStatus status;
 
   /// 'customer_request' | 'shop_reason' — 취소일 때만.
   final String? cancelReason;
@@ -138,8 +163,7 @@ class Visit {
   final List<MenuBrief> menus;
 
   /// 시간을 차지하는 방문(예약됨·미용 중·완료). 취소·노쇼는 빈 시간이다.
-  bool get occupiesTime =>
-      status != VisitStatus.canceled && status != VisitStatus.noShow;
+  bool get occupiesTime => status.occupiesTime;
 }
 
 class DayCounts {

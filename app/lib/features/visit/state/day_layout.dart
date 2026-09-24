@@ -29,7 +29,7 @@ class DayGroup {
   bool get occupiesTime => items.any((i) => i.visit.occupiesTime);
 
   /// 묶음의 상태가 모두 같으면 그 상태, 섞였으면 null.
-  String? get uniformStatus {
+  VisitStatus? get uniformStatus {
     final statuses = {for (final i in items) i.visit.status};
     return statuses.length == 1 ? statuses.single : null;
   }
@@ -44,7 +44,7 @@ class DayGroup {
   ];
 
   /// 진행 가능한 구성원의 상태가 하나면 그 상태(버튼을 낼 수 있다), 아니면 null.
-  String? get actionableStatus {
+  VisitStatus? get actionableStatus {
     final statuses = {for (final v in actionable) v.status};
     return statuses.length == 1 ? statuses.single : null;
   }

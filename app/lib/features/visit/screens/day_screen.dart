@@ -53,7 +53,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
 
   int? get _shopId => ref.read(selectedShopIdProvider);
 
-  Future<void> _act(DayGroup group, String action) async {
+  Future<void> _act(DayGroup group, VisitAction action) async {
     final shopId = _shopId;
     if (shopId == null || _busyVisitId != null || _asking) return;
     // 상태가 섞인 묶음이면 아직 진행 가능한 아이들만(다음 예약 초안도 그 아이 기준).
@@ -332,7 +332,7 @@ class _DayList extends StatelessWidget {
   /// 완료 시트를 띄우기 전 초안을 읽는 동안(설계 6.2) — 이때는 카드 버튼을
   /// 전부 막지만 스피너는 켜지 않는다.
   final bool asking;
-  final void Function(DayGroup group, String action) onAction;
+  final void Function(DayGroup group, VisitAction action) onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -382,7 +382,7 @@ class _GroupCard extends StatelessWidget {
   final DayGroup group;
   final bool busy;
   final bool otherBusy;
-  final ValueChanged<String> onAction;
+  final ValueChanged<VisitAction> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -395,7 +395,7 @@ class _GroupCard extends StatelessWidget {
     // 상태가 섞였으면 아직 진행 가능한 아이들의 상태로 버튼을 정한다(A2 잔여).
     final mixed = status == null;
     final buttonStatus = mixed ? group.actionableStatus : status;
-    VoidCallback? on(String action) =>
+    VoidCallback? on(VisitAction action) =>
         busy || otherBusy ? null : () => onAction(action);
     final Widget trailing = switch (buttonStatus) {
       VisitStatus.reserved => AppButton(

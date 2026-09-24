@@ -38,7 +38,7 @@ class VisitCommands {
   Future<List<Visit>> transition(
     int shopId, {
     required List<int> visitIds,
-    required String action,
+    required VisitAction action,
     String? cancelReason,
   }) => _visitWrite(
     () => _api.transition(
