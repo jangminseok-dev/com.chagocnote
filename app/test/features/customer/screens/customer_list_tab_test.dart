@@ -1,7 +1,7 @@
-import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'dart:async';
 
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';

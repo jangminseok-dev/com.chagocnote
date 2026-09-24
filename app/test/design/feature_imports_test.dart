@@ -21,6 +21,12 @@ void main() {
     r"^(?:import|export) '(\.\.?/[^']+)'",
     multiLine: true,
   );
+  // 패키지 절대 경로(`package:chagocnote/features/...`)도 상대 경로와 같은 규칙을
+  // 받는다 — IDE 자동 import 가 이 형태를 쓸 수 있다.
+  final packageDirective = RegExp(
+    "^(?:import|export) 'package:chagocnote/([^']+)'",
+    multiLine: true,
+  );
 
   test('기능 폴더끼리는 정해진 방향으로만 import 한다', () {
     final root = Directory('lib/features');
@@ -32,7 +38,9 @@ void main() {
       final from = normalized.split('lib/features/')[1].split('/')[0];
       if (shell.contains(from)) continue;
 
-      for (final match in directive.allMatches(entity.readAsStringSync())) {
+      final content = entity.readAsStringSync();
+
+      for (final match in directive.allMatches(content)) {
         // 상대 경로를 파일 위치 기준으로 풀어 어느 기능 폴더로 가는지 본다.
         final target = Uri.file(normalized).resolve(match.group(1)!).path;
         final marker = target.indexOf('lib/features/');
@@ -45,6 +53,16 @@ void main() {
         if (allowed[from]?.contains(to) ?? false) continue;
         violations.add('$normalized → $to');
       }
+
+      for (final match in packageDirective.allMatches(content)) {
+        final targetPath = match.group(1)!;
+        if (!targetPath.startsWith('features/')) continue;
+        final to = targetPath.substring('features/'.length).split('/')[0];
+        if (to == from) continue;
+        if (shared.contains(to)) continue;
+        if (allowed[from]?.contains(to) ?? false) continue;
+        violations.add('$normalized → $to (package:)');
+      }
     }
 
     expect(violations, isEmpty, reason: '허용되지 않은 기능 간 import: $violations');
@@ -52,11 +70,6 @@ void main() {
 
   test('아무도 home 을 import 하지 않는다', () {
     final violations = <String>{};
-    // 패키지 절대 경로로 home 을 가리키는 경우(`package:chagocnote/features/home/...`)도 잡는다.
-    final packageDirective = RegExp(
-      "^(?:import|export) 'package:chagocnote/([^']+)'",
-      multiLine: true,
-    );
 
     for (final entity in Directory('lib').listSync(recursive: true)) {
       if (entity is! File || !entity.path.endsWith('.dart')) continue;

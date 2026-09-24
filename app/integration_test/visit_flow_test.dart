@@ -1,4 +1,3 @@
-import 'package:chagocnote/core/storage/prefs_store.dart';
 // ③-A2 Task 12 Step 3 — 실제 백엔드에 붙은 앱을 시뮬레이터에서 조작해 완료 기준
 // 12개를 확인한다. 확인마다 스크린샷을 찍고, 단언이 실패해도 다음 확인으로
 // 넘어가며, 마지막에 결과를 모아 찍는다.
@@ -13,6 +12,7 @@ import 'package:chagocnote/app.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/design/tokens/app_colors.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_chip.dart';
