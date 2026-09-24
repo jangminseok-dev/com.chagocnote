@@ -12,6 +12,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../../core/time/today_provider.dart';
@@ -320,19 +321,9 @@ class _RegisterCustomerScreenState
             ),
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(messageFor(error), style: AppTypography.body),
-                const SizedBox(height: AppSpacing.lg),
-                AppButton(
-                  label: AppStrings.retry,
-                  onPressed: () =>
-                      ref.invalidate(conditionTypesProvider(shopId)),
-                ),
-              ],
-            ),
+          error: (error, _) => AppErrorRetry(
+            message: messageFor(error),
+            onRetry: () => ref.invalidate(conditionTypesProvider(shopId)),
           ),
         );
   }

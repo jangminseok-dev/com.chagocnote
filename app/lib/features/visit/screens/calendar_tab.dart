@@ -8,9 +8,9 @@ import '../../../design/tokens/app_radius.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_big_date.dart';
-import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_dashed_tile.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_glass_card.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/pressable.dart';
@@ -116,19 +116,9 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
             const _WeekHeader(),
             const SizedBox(height: AppSpacing.xs),
             if (summary.hasError && data == null)
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  children: [
-                    Text(messageFor(summary.error!), style: AppTypography.body),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: AppStrings.retry,
-                      onPressed: () =>
-                          ref.invalidate(calendarMonthProvider(monthKey)),
-                    ),
-                  ],
-                ),
+              AppErrorRetry.inline(
+                message: messageFor(summary.error!),
+                onRetry: () => ref.invalidate(calendarMonthProvider(monthKey)),
               )
             else
               _MonthGrid(

@@ -13,9 +13,11 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_segment.dart';
 import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_sheet_action.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
@@ -49,13 +51,13 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _SheetAction(
+          AppSheetAction(
             label: detail.pet.passedAway
                 ? AppStrings.unmarkPassedAway
                 : AppStrings.markPassedAway,
             onTap: () => Navigator.of(context).pop('passed'),
           ),
-          _SheetAction(
+          AppSheetAction(
             label: AppStrings.deletePet,
             onTap: () => Navigator.of(context).pop('delete'),
           ),
@@ -217,22 +219,10 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
                   ),
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () => ref.invalidate(
-                            petDetailProvider((
-                              shopId: shopId!,
-                              petId: widget.petId,
-                            )),
-                          ),
-                        ),
-                      ],
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () => ref.invalidate(
+                      petDetailProvider((shopId: shopId!, petId: widget.petId)),
                     ),
                   ),
                 ),
@@ -452,15 +442,9 @@ class _OwnerTab extends ConsumerWidget {
             padding: EdgeInsets.all(AppSpacing.lg),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (error, _) => Column(
-            children: [
-              Text(messageFor(error), style: AppTypography.body),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: AppStrings.retry,
-                onPressed: () => ref.invalidate(customerDetailProvider(key)),
-              ),
-            ],
+          error: (error, _) => AppErrorRetry.inline(
+            message: messageFor(error),
+            onRetry: () => ref.invalidate(customerDetailProvider(key)),
           ),
         );
   }
@@ -564,27 +548,6 @@ class _Siblings extends StatelessWidget {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _SheetAction extends StatelessWidget {
-  const _SheetAction({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: onTap,
-      semanticLabel: label,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-        alignment: Alignment.center,
-        child: Text(label, style: AppTypography.body),
       ),
     );
   }

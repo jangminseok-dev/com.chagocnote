@@ -8,7 +8,7 @@ import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
-import '../../../design/widgets/app_button.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../../core/time/today_provider.dart';
@@ -79,28 +79,14 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
 
     Widget body;
     if (types.hasError || pet.hasError) {
-      body = Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              messageFor(types.error ?? pet.error!),
-              style: AppTypography.body,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: AppStrings.retry,
-              onPressed: () {
-                ref.invalidate(conditionTypesProvider(shopId!));
-                if (petId != null) {
-                  ref.invalidate(
-                    petDetailProvider((shopId: shopId, petId: petId)),
-                  );
-                }
-              },
-            ),
-          ],
-        ),
+      body = AppErrorRetry(
+        message: messageFor(types.error ?? pet.error!),
+        onRetry: () {
+          ref.invalidate(conditionTypesProvider(shopId!));
+          if (petId != null) {
+            ref.invalidate(petDetailProvider((shopId: shopId, petId: petId)));
+          }
+        },
       );
     } else if (!types.hasValue || !pet.hasValue) {
       body = const Center(child: CircularProgressIndicator());

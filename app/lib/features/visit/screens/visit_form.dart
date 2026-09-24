@@ -10,6 +10,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_choice_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
@@ -296,22 +297,13 @@ class _VisitFormState extends ConsumerState<VisitForm> {
     );
     final error = settings.error ?? customer.error ?? menus.error;
     if (error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(messageFor(error), style: AppTypography.body),
-            const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: AppStrings.retry,
-              onPressed: () {
-                ref.invalidate(visitSettingsProvider(widget.shopId));
-                ref.invalidate(customerDetailProvider);
-                ref.invalidate(menusProvider);
-              },
-            ),
-          ],
-        ),
+      return AppErrorRetry(
+        message: messageFor(error),
+        onRetry: () {
+          ref.invalidate(visitSettingsProvider(widget.shopId));
+          ref.invalidate(customerDetailProvider);
+          ref.invalidate(menusProvider);
+        },
       );
     }
     final s = settings.value;
@@ -691,16 +683,9 @@ class _SlotGrid extends ConsumerWidget {
         padding: EdgeInsets.all(AppSpacing.md),
         child: Center(child: CircularProgressIndicator()),
       ),
-      error: (error, _) => Row(
-        children: [
-          Expanded(
-            child: Text(messageFor(error), style: AppTypography.caption),
-          ),
-          AppButton(
-            label: AppStrings.retry,
-            onPressed: () => ref.invalidate(visitSlotsProvider(slotsKey)),
-          ),
-        ],
+      error: (error, _) => AppErrorRetry.row(
+        message: messageFor(error),
+        onRetry: () => ref.invalidate(visitSlotsProvider(slotsKey)),
       ),
       data: (data) => Wrap(
         spacing: AppSpacing.sm,

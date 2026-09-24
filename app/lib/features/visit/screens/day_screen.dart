@@ -15,6 +15,7 @@ import '../../../design/widgets/app_big_date.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_fab.dart';
 import '../../../design/widgets/app_icon_toggle.dart';
 import '../../../design/widgets/app_photo_tile.dart';
@@ -261,19 +262,9 @@ class _DayScreenState extends ConsumerState<DayScreen> {
                 child: day.when(
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () =>
-                              ref.invalidate(dayVisitsProvider(key)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () => ref.invalidate(dayVisitsProvider(key)),
                   ),
                   data: (data) {
                     final groups = groupDay(data.items);

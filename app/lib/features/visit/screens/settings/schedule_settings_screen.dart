@@ -12,6 +12,7 @@ import '../../../../design/widgets/app_back_button.dart';
 import '../../../../design/widgets/app_button.dart';
 import '../../../../design/widgets/app_card.dart';
 import '../../../../design/widgets/app_choice_chip.dart';
+import '../../../../design/widgets/app_error_retry.dart';
 import '../../../../design/widgets/app_sheet.dart';
 import '../../../../design/widgets/pressable.dart';
 import '../../../../l10n/app_strings.dart';
@@ -214,19 +215,10 @@ class _ScheduleSettingsScreenState
                 child: settings.when(
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () =>
-                              ref.invalidate(visitSettingsProvider(shopId!)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () =>
+                        ref.invalidate(visitSettingsProvider(shopId!)),
                   ),
                   data: (data) {
                     _init(data);
@@ -350,19 +342,9 @@ class _ScheduleSettingsScreenState
               const SizedBox(height: AppSpacing.sm),
               closedDates.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) => Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        messageFor(error),
-                        style: AppTypography.caption,
-                      ),
-                    ),
-                    AppButton(
-                      label: AppStrings.retry,
-                      onPressed: () => ref.invalidate(closedDatesProvider),
-                    ),
-                  ],
+                error: (error, _) => AppErrorRetry.row(
+                  message: messageFor(error),
+                  onRetry: () => ref.invalidate(closedDatesProvider),
                 ),
                 data: (items) => items.isEmpty
                     ? const Text(

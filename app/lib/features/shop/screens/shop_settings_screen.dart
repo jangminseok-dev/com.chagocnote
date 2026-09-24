@@ -8,6 +8,7 @@ import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../api/shop_api.dart';
@@ -19,8 +20,7 @@ class ShopSettingsScreen extends ConsumerStatefulWidget {
   const ShopSettingsScreen({super.key});
 
   @override
-  ConsumerState<ShopSettingsScreen> createState() =>
-      _ShopSettingsScreenState();
+  ConsumerState<ShopSettingsScreen> createState() => _ShopSettingsScreenState();
 }
 
 class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
@@ -70,7 +70,9 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
     try {
       final phone = _phoneController.text.trim();
       final address = _addressController.text.trim();
-      await ref.read(shopSettingsControllerProvider(shopId).notifier).save(
+      await ref
+          .read(shopSettingsControllerProvider(shopId).notifier)
+          .save(
             name: name,
             phone: phone.isEmpty ? null : phone,
             address: address.isEmpty ? null : address,
@@ -181,20 +183,10 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
                   },
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () => ref.invalidate(
-                            shopSettingsControllerProvider(shopId!),
-                          ),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () =>
+                        ref.invalidate(shopSettingsControllerProvider(shopId!)),
                   ),
                 ),
               ),

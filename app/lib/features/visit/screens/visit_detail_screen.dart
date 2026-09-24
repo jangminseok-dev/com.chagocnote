@@ -11,8 +11,10 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
+import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_sheet_action.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
@@ -104,21 +106,24 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (status != VisitStatus.canceled && status != VisitStatus.noShow)
-            const _SheetAction(label: AppStrings.edit, value: _More.edit),
+            AppSheetAction(
+              label: AppStrings.edit,
+              onTap: () => Navigator.of(context).pop(_More.edit),
+            ),
           if (status == VisitStatus.reserved)
-            const _SheetAction(
+            AppSheetAction(
               label: AppStrings.actionCompleteNow,
-              value: _More.completeNow,
+              onTap: () => Navigator.of(context).pop(_More.completeNow),
             ),
           if (status != VisitStatus.reserved)
-            const _SheetAction(
+            AppSheetAction(
               label: AppStrings.actionRevert,
-              value: _More.revert,
+              onTap: () => Navigator.of(context).pop(_More.revert),
             ),
           if (status == VisitStatus.completed)
-            const _SheetAction(
+            AppSheetAction(
               label: AppStrings.actionNextReservation,
-              value: _More.next,
+              onTap: () => Navigator.of(context).pop(_More.next),
             ),
         ],
       ),
@@ -199,19 +204,9 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
                 child: detail.when(
                   loading: () =>
                       const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(messageFor(error), style: AppTypography.body),
-                        const SizedBox(height: AppSpacing.lg),
-                        AppButton(
-                          label: AppStrings.retry,
-                          onPressed: () =>
-                              ref.invalidate(visitDetailProvider(key)),
-                        ),
-                      ],
-                    ),
+                  error: (error, _) => AppErrorRetry(
+                    message: messageFor(error),
+                    onRetry: () => ref.invalidate(visitDetailProvider(key)),
                   ),
                   data: (detail) => _Body(
                     detail: detail,
@@ -424,24 +419,3 @@ class _GroupCard extends StatelessWidget {
 
 /// `···` 시트의 항목. 문자열 대신 닫힌 enum 이라 처리 `switch`가 완전 열거된다.
 enum _More { edit, completeNow, revert, next }
-
-class _SheetAction extends StatelessWidget {
-  const _SheetAction({required this.label, required this.value});
-
-  final String label;
-  final _More value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Pressable(
-      onTap: () => Navigator.of(context).pop(value),
-      semanticLabel: label,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-        alignment: Alignment.center,
-        child: Text(label, style: AppTypography.body),
-      ),
-    );
-  }
-}
