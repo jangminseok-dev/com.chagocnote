@@ -19,6 +19,7 @@
 | 플랫폼 운영자 지정 | `docker compose run --rm backend python scripts/grant_operator.py <user_id>` |
 | 앱 정적 분석 | `flutter analyze` (`app/`에서, 경고 0) |
 | 앱 테스트 (위젯·골든·`ApiClient` 포함) | `flutter test --timeout 30s` (`app/`에서. 화면이 닫히기를 잘못 기다리는 테스트가 기본 10분을 멈추지 않게) |
+| 앱 구조 테스트 (기능 폴더 import 방향·라우터 가드 전수) | `flutter test test/design/feature_imports_test.dart test/core/router/app_router_test.dart` (`app/`에서. 전체 테스트에 포함되지만 구조를 건드린 변경은 이 둘을 먼저 돌린다) |
 | 앱 골든 갱신 | `flutter test --update-goldens` (`app/`에서, 의도해서 바꿀 때만) |
 | 앱 개발용 실행 | `app/tool/run_dev.sh` (백엔드를 `infra/`에서 먼저 띄운 뒤) |
 | 앱 흐름 확인 (시뮬레이터 + 실서버) | `SHOTS_DIR=<폴더> flutter drive --driver=test_driver/integration_test.dart --target=integration_test/<파일> -d <기기> --dart-define=APP_ENV=dev --dart-define=API_BASE_URL=http://127.0.0.1:8080 …` (`app/`에서. 파일 머리 주석에 준비와 추가 `--dart-define`이 있다 — `visit_flow_test.dart`(③-A2), `draft_flow_test.dart`(③-A3 카톡 초안)) |
@@ -28,6 +29,7 @@
 - 마이그레이션은 손으로 쓴다. `tests/test_schema_drift.py`가 마이그레이션 결과와 ORM이 어긋나면 실패한다. 새 ORM 모듈은 `backend/orm_registry.py`에 등록한다.
 - 구조 위반은 테스트가 아니라 import-linter가 잡는다. 구조를 건드린 변경은 테스트와 구조 계약을 둘 다 돌린다. 계약은 6종이다 — 설계 문서가 말하는 5종에 "core는 스포크를 import하지 않는다"를 하네스에서 더했다.
 - 라우터를 추가하거나 옮긴 변경은 라우트 표를 변경 전후로 비교한다.
+- 앱의 구조 위반은 `test/design/feature_imports_test.dart`(기능 폴더 사이 import 는 `auth` 공용·`home` 껍데기·`visit → customer`만)와 `test/core/router/app_router_test.dart`(열린 경로 목록 밖의 모든 경로는 매장 선택이 없으면 막힌다)가 잡는다. 기능 폴더나 경로를 더한 변경은 이 둘을 돌린다.
 - 유스케이스는 스텁 포트로 검증한다. mock 프레임워크보다 스텁 구현을 쓴다. 공용 스텁(`apps/*/tests/helpers/fakes.py`)은 포트 ABC를 상속한다 — 포트에 메서드를 더하고 스텁을 빠뜨리면 인스턴스를 만드는 순간 잡힌다(`apps/*/tests/test_fakes_are_ports.py`). 테스트 파일 안의 부분 스텁(`_Stub*`)은 그 테스트가 부르는 메서드만 가지므로 상속하지 않는다.
 - `tests/integration/`은 두 프로세스의 실제 앱 객체에 붙어 프로바이더·DB 커밋·Redis까지 통과한다. 인증 프로세스의 개인키는 테스트마다 새로 만든 키로 바꿔 넣는다.
 - 스포크를 새로 만들면 첫 통합 테스트로 "A매장 멤버가 B매장의 경로를 부르면 403"(테넌트 격리)을 둔다.
