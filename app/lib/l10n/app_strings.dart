@@ -411,6 +411,14 @@ class AppStrings {
   static String openPhotoLabel(String phase, int index) =>
       '$phase 사진 $index 크게 보기';
 
+  // 피드(④-2b).
+  static const viewAsCalendar = '달력으로 보기';
+  static const viewAsFeed = '피드로 보기';
+  static const feedTitleEn = 'Feed';
+  static const feedEmpty = '아직 끝난 미용이 없어요';
+  static const feedEmptyCaption = '미용을 완료하면 사진과 함께 여기에 쌓여요.';
+  static String mediaCount(int n) => '사진 $n장';
+
   // 크게 보기(④-2b).
   static const saveOriginal = '원본 저장';
   static const toAfter = '후로 바꾸기';

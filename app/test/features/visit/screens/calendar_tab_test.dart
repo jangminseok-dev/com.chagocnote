@@ -1,5 +1,6 @@
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_dashed_tile.dart';
 import 'package:chagocnote/design/widgets/app_photo_fan.dart';
@@ -299,5 +300,152 @@ void main() {
     await settle(tester);
 
     expect(find.byType(AppPhotoTile), findsNWidgets(2));
+  });
+
+  group('피드', () {
+    /// 피드 두 쪽 — 첫 쪽 [first]개(사진 있는 두부 + 보호자만), 다음 쪽 하나.
+    VisitTestBackend feedBackend({int first = 2}) {
+      final backend = _backend();
+      backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) =>
+          o.queryParameters['cursor'] == null
+          ? FakeResponse(
+              statusCode: 200,
+              data: feedJson(
+                items: [
+                  feedItemJson(
+                    cover: thumbUrl(51),
+                    menus: const ['전체 미용', '발톱'],
+                    mediaCount: 3,
+                  ),
+                  for (var i = 1; i < first; i++)
+                    feedItemJson(
+                      visitId: 101 + i,
+                      date: '2026-09-2${i % 10}',
+                      ownerOnly: true,
+                      careNote: null,
+                    ),
+                ],
+                nextCursor: 'c2',
+              ),
+            )
+          : FakeResponse(
+              statusCode: 200,
+              data: feedJson(
+                items: [
+                  feedItemJson(
+                    visitId: 900,
+                    pet: visitPetJson(petId: 12, name: '보리'),
+                  ),
+                ],
+              ),
+            );
+      backend.routes['GET /v1/shops/3/visits/101'] = (o, b) =>
+          FakeResponse(statusCode: 200, data: visitDetailJson());
+      return backend;
+    }
+
+    ({CustomerTestSetup setup, FakeMediaImages images}) build(
+      VisitTestBackend backend,
+    ) {
+      final images = FakeMediaImages();
+      final setup = CustomerTestSetup(
+        backend.call,
+        overrides: [..._today, mediaImagesProvider.overrideWithValue(images)],
+      );
+      addTearDown(setup.container.dispose);
+      return (setup: setup, images: images);
+    }
+
+    testWidgets('[피드]를 누르면 기기에 기억하고 완료 방문을 사진·이름 카드·날짜·메뉴·케어 메모·사진 수로 보인다', (
+      tester,
+    ) async {
+      final app = build(feedBackend());
+      await _pumpHome(tester, app.setup);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.viewAsFeed));
+      await settle(tester);
+
+      expect(await app.setup.prefs.read(PrefsKeys.calendarViewMode), 'feed');
+      expect(find.text(AppStrings.feedTitleEn), findsOneWidget);
+      expect(find.text('September'), findsNothing);
+      expect(find.text('두부'), findsOneWidget);
+      expect(find.text('말티푸 · 4.2kg'), findsOneWidget);
+      expect(find.text('10월 2일 금 · 전체 미용 · 발톱'), findsOneWidget);
+      expect(find.text('귀 청소했어요'), findsOneWidget);
+      expect(find.text(AppStrings.mediaCount(3)), findsOneWidget);
+      expect(app.images.urls, contains(thumbUrl(51)));
+      // 보호자만의 방문은 보호자 이름, 사진 수 줄 없음.
+      expect(find.text('이수진'), findsOneWidget);
+    });
+
+    testWidgets('카드를 누르면 방문 상세로 가고, [달력]을 누르면 달력으로 돌아온다', (tester) async {
+      final app = build(feedBackend());
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+      expect(find.text(AppStrings.feedTitleEn), findsOneWidget, reason: '기억한 것');
+
+      await tester.tap(find.text('두부'));
+      await settle(tester);
+      expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.back));
+      await settle(tester);
+      await tester.tap(find.bySemanticsLabel(AppStrings.viewAsCalendar));
+      await settle(tester);
+      expect(find.text('September'), findsOneWidget);
+    });
+
+    testWidgets('끝까지 내리면 다음 쪽을 이어 붙인다', (tester) async {
+      final app = build(feedBackend(first: 6));
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+      expect(find.text('보리'), findsNothing);
+
+      await tester.dragUntilVisible(
+        find.text('보리'),
+        find.byType(ListView),
+        const Offset(0, -300),
+      );
+      await settle(tester);
+
+      expect(find.text('보리'), findsOneWidget);
+      expect(
+        [
+          for (final r in app.setup.adapter.requests)
+            if (r.path == '/v1/shops/3/visits/feed')
+              r.queryParameters['cursor'],
+        ],
+        [null, 'c2'],
+      );
+    });
+
+    testWidgets('끝난 미용이 없으면 그렇게 적는다', (tester) async {
+      final backend = _backend();
+      backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) =>
+          FakeResponse(statusCode: 200, data: feedJson());
+      final app = build(backend);
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+
+      expect(find.text(AppStrings.feedEmpty), findsOneWidget);
+    });
+
+    testWidgets('피드 골든', (tester) async {
+      final app = build(feedBackend());
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+      await tester.runAsync(
+        () => precacheImage(
+          app.images.image,
+          tester.element(find.byType(ListView)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byKey(ScreenKeys.home),
+        matchesGoldenFile('goldens/feed.png'),
+      );
+    });
   });
 }
