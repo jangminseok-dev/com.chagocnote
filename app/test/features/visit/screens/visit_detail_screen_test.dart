@@ -254,6 +254,24 @@ void main() {
     );
   });
 
+  testWidgets('다음 예약 잡기를 골랐는데 초안을 다시 못 읽으면 문구를 보이고 예약 화면을 열지 않는다', (
+    tester,
+  ) async {
+    final server = _Server(status: 'in_progress');
+    server.backend.routes['GET /v1/shops/3/visits/101/next-draft'] = (o, b) =>
+        const FakeResponse(statusCode: 503, data: 'x');
+    final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    await _tap(tester, _button(AppStrings.actionComplete));
+    await _tap(tester, _button(AppStrings.completeWithoutRecord));
+    await _tap(tester, _button(AppStrings.actionNextReservation));
+
+    expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
+    expect(find.textContaining('문제가 생겼습니다'), findsOneWidget);
+  });
+
   testWidgets('초안을 못 읽어도 다음 예약 시트는 미리보기 없이 뜬다', (tester) async {
     final server = _Server(status: 'in_progress');
     server.backend.routes['GET /v1/shops/3/visits/101/next-draft'] = (o, b) =>

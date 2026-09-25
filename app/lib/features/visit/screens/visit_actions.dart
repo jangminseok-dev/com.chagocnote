@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/error_messages.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_snack_bar.dart';
 import '../../../l10n/app_strings.dart';
 import '../api/visit_models.dart';
 import '../state/visit_commands.dart';
@@ -172,7 +174,14 @@ Future<void> completeVisit(
   if (!context.mounted) return;
   final next = await VisitSheets.nextReservation(context, draft: draft);
   if (next != true || !context.mounted) return;
-  final chosen = draft ?? await commands.nextDraft(shopId, anchorVisitId);
+  NextVisitDraft chosen;
+  try {
+    chosen = draft ?? await commands.nextDraft(shopId, anchorVisitId);
+  } catch (e) {
+    // 미리보기도 실패했던 초안을 다시 읽다 또 실패하면 문구로 알린다 — 예약 화면은 열지 않는다.
+    if (context.mounted) AppSnackBar.show(context, messageFor(e));
+    return;
+  }
   // 기다리지 않는다 — 예약 화면이 닫힐 때까지 부른 화면이 묶이지 않게.
   if (context.mounted) context.push('/visits/new', extra: chosen);
 }
