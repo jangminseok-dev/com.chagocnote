@@ -683,6 +683,7 @@ class _MenuSection extends StatelessWidget {
             defaultDurationMinutes: null,
             sortOrder: 0,
             archived: true,
+            price: null,
           ),
     ];
     return AppCard(

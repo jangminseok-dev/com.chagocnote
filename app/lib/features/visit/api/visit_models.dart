@@ -496,6 +496,7 @@ class Menu {
     required this.defaultDurationMinutes,
     required this.sortOrder,
     required this.archived,
+    required this.price,
   });
 
   factory Menu.fromJson(Map<String, dynamic> json) => Menu(
@@ -504,6 +505,7 @@ class Menu {
     defaultDurationMinutes: json['default_duration_minutes'] as int?,
     sortOrder: json['sort_order'] as int,
     archived: json['archived'] as bool,
+    price: json['price'] as int?,
   );
 
   final int menuId;
@@ -513,6 +515,9 @@ class Menu {
   final int? defaultDurationMinutes;
   final int sortOrder;
   final bool archived;
+
+  /// 정가(원). null 이면 가격 미정 — 기록 화면이 금액을 미리 채우지 않는다.
+  final int? price;
 }
 
 /// 예약 등록 요청. [startsAt]은 서버가 준 시각 문자열을 그대로 쓴다.

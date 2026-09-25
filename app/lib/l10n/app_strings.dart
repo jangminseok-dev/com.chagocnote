@@ -362,6 +362,21 @@ class AppStrings {
   static const moveUp = '위로';
   static const moveDown = '아래로';
   static const menusEmpty = '메뉴가 없어요. 메뉴 없이도 예약할 수 있어요.';
+  static const menuPriceLabel = '정가';
+  static const priceUnset = '가격 미정';
+  static const wonUnit = '원';
+  static const amountTooLarge = '1억 원까지 적을 수 있어요.';
+
+  /// 35000 → '35,000원'.
+  static String wonText(int amount) {
+    final digits = amount.toString();
+    final out = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+      out.write(digits[i]);
+    }
+    return '$out원';
+  }
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';

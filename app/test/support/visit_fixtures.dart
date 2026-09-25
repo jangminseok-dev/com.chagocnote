@@ -242,12 +242,14 @@ Map<String, dynamic> menuJson({
   int? defaultDurationMinutes = 60,
   int sortOrder = 1,
   bool archived = false,
+  int? price,
 }) => {
   'menu_id': menuId,
   'name': name,
   'default_duration_minutes': defaultDurationMinutes,
   'sort_order': sortOrder,
   'archived': archived,
+  'price': price,
 };
 
 /// 기본 메뉴 다섯(서버가 매장을 처음 쓸 때 넣는 것).

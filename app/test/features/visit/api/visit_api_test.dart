@@ -211,10 +211,7 @@ void main() {
     final s = _build(
       (options, body) => FakeResponse(
         statusCode: 200,
-        data: visitDetailJson(
-          group: [visitJson(visitId: 102)],
-          noShowCount: 2,
-        ),
+        data: visitDetailJson(group: [visitJson(visitId: 102)], noShowCount: 2),
       ),
     );
 
@@ -392,7 +389,12 @@ void main() {
       if (options.method == 'GET') {
         return FakeResponse(
           statusCode: 200,
-          data: {'items': defaultMenusJson()},
+          data: {
+            'items': [
+              ...defaultMenusJson(),
+              menuJson(menuId: 9, name: '발톱', price: 5000),
+            ],
+          },
         );
       }
       return FakeResponse(statusCode: 200, data: menuJson(menuId: 9));
@@ -402,13 +404,25 @@ void main() {
     expect(s.adapter.requests.last.queryParameters, {
       'include_archived': false,
     });
-    expect(menus.map((m) => m.name), ['목욕', '위생', '부분 미용', '전체 미용', '스포팅']);
+    expect(menus.map((m) => m.name), [
+      '목욕',
+      '위생',
+      '부분 미용',
+      '전체 미용',
+      '스포팅',
+      '발톱',
+    ]);
+    expect(menus.map((m) => m.price), [null, null, null, null, null, 5000]);
 
     await s.api.createMenu(3, name: '발톱');
     expect(_json(s.adapter.lastBodyByPath['/v1/shops/3/menus']), {
       'name': '발톱',
       'default_duration_minutes': null,
+      'price': null,
     });
+
+    await s.api.createMenu(3, name: '발톱', price: 5000);
+    expect(_json(s.adapter.lastBodyByPath['/v1/shops/3/menus'])['price'], 5000);
 
     await s.api.updateMenu(
       3,
@@ -416,11 +430,13 @@ void main() {
       name: '발톱 정리',
       defaultDurationMinutes: 20,
       sortOrder: 6,
+      price: 7000,
     );
     expect(_json(s.adapter.lastBodyByPath['/v1/shops/3/menus/9']), {
       'name': '발톱 정리',
       'default_duration_minutes': 20,
       'sort_order': 6,
+      'price': 7000,
     });
 
     await s.api.archiveMenu(3, 9);

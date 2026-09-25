@@ -74,11 +74,13 @@ class VisitCommands {
     int shopId, {
     required String name,
     int? defaultDurationMinutes,
+    int? price,
   }) => _menuWrite(
     () => _api.createMenu(
       shopId,
       name: name,
       defaultDurationMinutes: defaultDurationMinutes,
+      price: price,
     ),
   );
 
@@ -88,6 +90,7 @@ class VisitCommands {
     required String name,
     required int? defaultDurationMinutes,
     required int sortOrder,
+    required int? price,
   }) => _menuWrite(
     () => _api.updateMenu(
       shopId,
@@ -95,6 +98,7 @@ class VisitCommands {
       name: name,
       defaultDurationMinutes: defaultDurationMinutes,
       sortOrder: sortOrder,
+      price: price,
     ),
   );
 

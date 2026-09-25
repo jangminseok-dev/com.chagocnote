@@ -184,12 +184,14 @@ class VisitApi {
     int shopId, {
     required String name,
     int? defaultDurationMinutes,
+    int? price,
   }) async => Menu.fromJson(
     await _client.post(
           '/v1/shops/$shopId/menus',
           data: {
             'name': name,
             'default_duration_minutes': defaultDurationMinutes,
+            'price': price,
           },
         )
         as Map<String, dynamic>,
@@ -201,13 +203,16 @@ class VisitApi {
     required String name,
     required int? defaultDurationMinutes,
     required int sortOrder,
+    required int? price,
   }) async => Menu.fromJson(
+    // 전체 교체다 — 정가를 빼면 서버가 가격 미정으로 바꾼다. 순서만 바꿀 때도 정가를 그대로 보낸다.
     await _client.put(
           '/v1/shops/$shopId/menus/$menuId',
           data: {
             'name': name,
             'default_duration_minutes': defaultDurationMinutes,
             'sort_order': sortOrder,
+            'price': price,
           },
         )
         as Map<String, dynamic>,
