@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
+import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
@@ -371,6 +374,34 @@ void main() {
     expect(server.transitions, isEmpty);
     expect(server.puts, isEmpty);
     expect(closed.closed, isFalse);
+  });
+
+  testWidgets('저장 중에는 시스템 뒤로 가기도 뒤로 버튼도 닫지 않는다 — 저장이 끝나면 완료까지 하고 닫힌다', (
+    tester,
+  ) async {
+    final server = _Server();
+    final put = Completer<FakeResponse>();
+    server.backend.routes['PUT /v1/shops/3/visits/101/record'] = (o, b) =>
+        put.future;
+    final (_, closed) = await _open(tester, server, completing: true);
+
+    await tester.ensureVisible(_button(AppStrings.completeWithRecord));
+    await tester.tap(_button(AppStrings.completeWithRecord));
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.binding.handlePopRoute();
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(closed.closed, isFalse);
+    await tester.tap(find.byType(AppBackButton), warnIfMissed: false);
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(closed.closed, isFalse);
+    expect(find.byKey(ScreenKeys.visitRecord), findsOneWidget);
+
+    put.complete(FakeResponse(statusCode: 200, data: recordJson(version: 9)));
+    await settle(tester);
+
+    expect(server.transitions.single['action'], 'complete');
+    expect(closed.closed, isTrue);
+    expect(closed.value, isTrue);
   });
 
   testWidgets('올리는 중인 사진은 진행 링, 실패해 기다리는 사진은 "대기 중"이고 빼기를 누르면 대기열에서 뺀다', (

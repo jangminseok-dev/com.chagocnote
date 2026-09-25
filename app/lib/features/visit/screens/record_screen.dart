@@ -291,7 +291,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                 ),
                 child: Row(
                   children: [
-                    const AppBackButton(),
+                    // 저장 중에는 시스템 뒤로 가기도 뒤로 버튼도 닫지 않는다 — 닫히면 저장 뒤의 완료가
+                    // 조용히 끊긴다. PopScope 는 경로 안 어디에 있어도 경로 전체에 걸린다.
+                    PopScope(
+                      canPop: !_busy,
+                      child: IgnorePointer(
+                        ignoring: _busy,
+                        child: const AppBackButton(),
+                      ),
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Text(
                       widget.completing
