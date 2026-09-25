@@ -115,7 +115,7 @@ void main() {
     expect(find.byKey(ScreenKeys.photoViewer), findsOneWidget);
     // 보이는 순서는 대표 규칙 — 후 61·62, 전 51·52.
     expect(find.text('후 · 2 / 4'), findsOneWidget);
-    expect(app.images.urls, contains(contains('original/shops/3/62.jpg')));
+    expect(app.images.originals, contains(contains('original/shops/3/62.jpg')));
 
     await tester.drag(find.byType(PageView), const Offset(-400, 0));
     await settle(tester);

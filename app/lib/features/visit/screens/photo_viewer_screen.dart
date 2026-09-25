@@ -260,7 +260,7 @@ class _Page extends ConsumerWidget {
       maxScale: 4,
       child: Center(
         child: Image(
-          image: images.of(media.originalUrl),
+          image: images.original(media.originalUrl),
           fit: BoxFit.contain,
           semanticLabel: phaseLabel(media.phase),
         ),

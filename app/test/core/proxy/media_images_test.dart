@@ -42,12 +42,19 @@ void main() {
     expect(image.cacheManager, same(cache));
   });
 
-  test('원본 파일은 같은 캐시에서 같은 키로 받는다 — 이미 받은 사진은 다시 내려받지 않는다', () async {
+  test('원본은 표시용과 다른 작은 캐시로 보이고, 원본 파일도 그 캐시에서 같은 키로 받는다 — 크게 보기에서 본 원본은 다시 받지 않는다', () async {
     final cache = _Cache();
+    final originals = _Cache();
+    final images = CachedMediaImages(cache, originals);
 
-    final path = await CachedMediaImages(cache).fileOf(today);
+    final image = images.original(today) as CachedNetworkImageProvider;
+    final path = await images.fileOf(today);
 
-    expect(cache.asked.single, (today, mediaCacheKey(today)));
+    expect(image.url, today);
+    expect(image.cacheKey, mediaCacheKey(today));
+    expect(image.cacheManager, same(originals));
+    expect(originals.asked.single, (today, mediaCacheKey(today)));
+    expect(cache.asked, isEmpty);
     expect(path, endsWith('/cached.jpg'));
   });
 }

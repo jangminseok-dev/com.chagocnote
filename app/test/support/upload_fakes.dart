@@ -159,6 +159,15 @@ class FakeMediaImages implements MediaImages {
     return image;
   }
 
+  /// 원본으로 보이라고 한 URL — [urls]에도 적는다.
+  final originals = <String>[];
+
+  @override
+  ImageProvider original(String url) {
+    originals.add(url);
+    return of(url);
+  }
+
   /// 받아 달라고 한 원본 URL.
   final files = <String>[];
 
