@@ -192,6 +192,7 @@ Map<String, dynamic> visitDetailJson({
     'starts_at': '2026-09-02T14:00:00+09:00',
   },
   int noShowCount = 0,
+  Map<String, dynamic>? record,
 }) {
   final v = visit ?? visitJson();
   return {
@@ -200,8 +201,63 @@ Map<String, dynamic> visitDetailJson({
     'group': group ?? [],
     'previous_visit': previousVisit,
     'no_show_count': noShowCount,
+    'record': record,
+    'cover': null,
   };
 }
+
+/// 기록에 붙은 사진 하나. URL 은 서명 URL 모양이다.
+Map<String, dynamic> recordMediaJson({
+  int mediaId = 51,
+  String phase = 'before',
+  int sortOrder = 0,
+  String kind = 'photo',
+}) => {
+  'media_id': mediaId,
+  'kind': kind,
+  'phase': phase,
+  'sort_order': sortOrder,
+  'original_url': 'http://media.test/b/original/shops/3/$mediaId.jpg?sig=a',
+  'display_url': 'http://media.test/b/display/shops/3/$mediaId.jpg?sig=a',
+  'thumb_url': 'http://media.test/b/thumb/shops/3/$mediaId.jpg?sig=a',
+  'width': 3000,
+  'height': 2000,
+  'duration_seconds': null,
+};
+
+/// 미용 기록(설계 9절 응답).
+Map<String, dynamic> recordJson({
+  int visitId = 101,
+  double? weightKg,
+  String? careNote,
+  String? internalNote,
+  String? paymentMethod,
+  int? totalAmount,
+  List<Map<String, dynamic>> items = const [],
+  List<Map<String, dynamic>> media = const [],
+  int version = 1,
+}) => {
+  'visit_id': visitId,
+  'weight_kg': weightKg,
+  'care_note': careNote,
+  'internal_note': internalNote,
+  'payment_method': paymentMethod,
+  'total_amount': totalAmount,
+  'items': items,
+  'media': media,
+  'version': version,
+};
+
+/// 사진 발급 응답(설계 7.1).
+Map<String, dynamic> issuedUploadJson({int mediaId = 51}) => {
+  'media_id': mediaId,
+  'puts': {
+    'original': 'http://media.test/b/original/shops/3/$mediaId.jpg?put=1',
+    'display': 'http://media.test/b/display/shops/3/$mediaId.jpg?put=1',
+    'thumb': 'http://media.test/b/thumb/shops/3/$mediaId.jpg?put=1',
+  },
+  'expires_at': '2026-09-25T10:15:00+09:00',
+};
 
 Map<String, dynamic> savedJson(
   List<Map<String, dynamic>> visits, {

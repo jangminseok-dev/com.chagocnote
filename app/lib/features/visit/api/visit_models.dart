@@ -6,6 +6,7 @@ library;
 
 // 매장 시각·날짜 문자열 도우미는 core/time 에 있다. 이 모듈을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
 import '../../../core/time/shop_time.dart';
+import 'record_models.dart';
 
 export '../../../core/time/shop_time.dart';
 
@@ -374,13 +375,14 @@ class PreviousVisit {
   final ShopTime startsAt;
 }
 
-/// 방문 상세 — 방문, 같은 묶음의 다른 방문(자기 제외), 지난 방문, 노쇼 횟수.
+/// 방문 상세 — 방문, 같은 묶음의 다른 방문(자기 제외), 지난 방문, 노쇼 횟수, 미용 기록.
 class VisitDetail {
   const VisitDetail({
     required this.visit,
     required this.group,
     required this.previousVisit,
     required this.noShowCount,
+    required this.record,
   });
 
   factory VisitDetail.fromJson(Map<String, dynamic> json) => VisitDetail(
@@ -394,12 +396,18 @@ class VisitDetail {
             json['previous_visit'] as Map<String, dynamic>,
           ),
     noShowCount: json['no_show_count'] as int,
+    record: json['record'] == null
+        ? null
+        : VisitRecord.fromJson(json['record'] as Map<String, dynamic>),
   );
 
   final Visit visit;
   final List<Visit> group;
   final PreviousVisit? previousVisit;
   final int noShowCount;
+
+  /// 없으면 null(아직 사진도 메모도 없다).
+  final VisitRecord? record;
 }
 
 /// 다음 예약 초안. 저장하지 않은 값이다.

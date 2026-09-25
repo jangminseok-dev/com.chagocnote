@@ -2,8 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/proxy/providers.dart';
 import '../../auth/state/shop_scoped.dart';
+import '../api/media_api.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
+
+final mediaApiProvider = Provider<MediaApi>(
+  (ref) => MediaApi(ref.watch(apiClientProvider)),
+);
 
 final visitApiProvider = Provider<VisitApi>(
   (ref) => VisitApi(ref.watch(apiClientProvider)),

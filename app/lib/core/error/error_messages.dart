@@ -46,6 +46,19 @@ const Map<String, String> _messages = {
   'VISIT_GROUP_MISMATCH': '같은 보호자의 방문만 함께 바꿀 수 있습니다.',
   'MENU_NOT_FOUND': '없거나 보관된 메뉴입니다. 메뉴를 다시 골라 주세요.',
   'MENU_NAME_TAKEN': '같은 이름의 메뉴가 이미 있습니다.',
+  // 미용 기록·사진(④ 설계 9절)
+  'VISIT_NO_RECORD_YET': '미용을 시작한 방문에만 기록을 쓸 수 있습니다.',
+  'RECORD_NOT_FOUND': '기록이 없습니다. 이미 지워졌을 수 있습니다.',
+  'RECORD_VERSION_CONFLICT': '다른 기기에서 기록이 먼저 바뀌었습니다. 화면을 새로 불러왔어요.',
+  'RECORD_WEIGHT_WITHOUT_PET': '보호자만의 방문에는 몸무게를 적을 수 없습니다.',
+  'RECORD_ITEM_DUPLICATE': '같은 메뉴를 두 번 적을 수 없습니다.',
+  'MEDIA_NOT_FOUND': '사진을 찾을 수 없습니다. 다시 올려 주세요.',
+  'MEDIA_NOT_UPLOADED': '사진이 아직 다 올라가지 않았습니다.',
+  'MEDIA_NOT_READY': '사진이 아직 다 올라가지 않았습니다.',
+  'MEDIA_ALREADY_ATTACHED': '이미 다른 기록에 붙은 사진입니다.',
+  'MEDIA_TOO_LARGE': '사진은 20MB까지 올릴 수 있습니다.',
+  'MEDIA_TYPE_UNSUPPORTED': '올릴 수 없는 형식의 파일입니다.',
+  'MEDIA_LIMIT_EXCEEDED': '방문 하나에 사진은 30장까지 붙일 수 있습니다.',
 };
 
 const String _fallback = '문제가 생겼습니다. 잠시 뒤에 다시 시도해 주세요.';

@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/core/proxy/api_client.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
+import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/api/visit_api.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
 import 'package:dio/dio.dart';
@@ -530,5 +531,148 @@ void main() {
         isA<ApiException>().having((e) => e.code, 'code', 'VISIT_DUPLICATE'),
       ),
     );
+  });
+
+  group('미용 기록', () {
+    test('상세는 기록을 읽는다 — 몸무게·메모·결제·항목·사진·버전', () async {
+      final s = _build(
+        (options, body) => FakeResponse(
+          statusCode: 200,
+          data: visitDetailJson(
+            record: recordJson(
+              weightKg: 4.2,
+              careNote: '발바닥 각질',
+              internalNote: '예민함',
+              paymentMethod: 'transfer',
+              totalAmount: 50000,
+              items: [
+                {'menu_id': 4, 'name': '전체 미용', 'amount': 55000},
+              ],
+              media: [
+                recordMediaJson(mediaId: 51),
+                recordMediaJson(mediaId: 52, phase: 'after'),
+              ],
+              version: 3,
+            ),
+          ),
+        ),
+      );
+
+      final record = (await s.api.detail(3, 101)).record!;
+
+      expect(record.weightKg, 4.2);
+      expect((record.careNote, record.internalNote), ('발바닥 각질', '예민함'));
+      expect(record.paymentMethod, PaymentMethod.transfer);
+      expect(record.totalAmount, 50000);
+      expect(record.items.single.amount, 55000);
+      expect(record.media.map((m) => (m.mediaId, m.phase)), [
+        (51, MediaPhase.before),
+        (52, MediaPhase.after),
+      ]);
+      expect(record.media.first.kind, MediaKind.photo);
+      expect(record.version, 3);
+    });
+
+    test('기록이 없으면 null 이다', () async {
+      final s = _build(
+        (options, body) =>
+            FakeResponse(statusCode: 200, data: visitDetailJson()),
+      );
+
+      expect((await s.api.detail(3, 101)).record, isNull);
+    });
+
+    test('전체 교체는 읽은 버전과 칸 전부를 보낸다 — 기록이 없었으면 버전을 빼고 보낸다', () async {
+      final s = _build(
+        (options, body) =>
+            FakeResponse(statusCode: 200, data: recordJson(version: 1)),
+      );
+
+      final saved = await s.api.putRecord(
+        3,
+        101,
+        const RecordInput(
+          version: null,
+          weightKg: 4.2,
+          careNote: '발바닥 각질',
+          internalNote: null,
+          paymentMethod: PaymentMethod.card,
+          totalAmount: 50000,
+          items: [(menuId: 4, amount: 55000)],
+          media: [
+            MediaPlacement(mediaId: 51, phase: MediaPhase.before, sortOrder: 0),
+          ],
+        ),
+      );
+
+      expect(
+        '${s.adapter.requests.last.method} ${s.adapter.requests.last.path}',
+        'PUT /v1/shops/3/visits/101/record',
+      );
+      expect(_json(s.adapter.lastBodyByPath['/v1/shops/3/visits/101/record']), {
+        'weight_kg': 4.2,
+        'care_note': '발바닥 각질',
+        'internal_note': null,
+        'payment_method': 'card',
+        'total_amount': 50000,
+        'items': [
+          {'menu_id': 4, 'amount': 55000},
+        ],
+        'media': [
+          {'media_id': 51, 'phase': 'before', 'sort_order': 0},
+        ],
+      });
+      expect(saved.version, 1);
+
+      await s.api.putRecord(
+        3,
+        101,
+        const RecordInput(
+          version: 1,
+          weightKg: null,
+          careNote: null,
+          internalNote: null,
+          paymentMethod: null,
+          totalAmount: null,
+          items: [],
+          media: [],
+        ),
+      );
+      expect(
+        _json(
+          s.adapter.lastBodyByPath['/v1/shops/3/visits/101/record'],
+        )['version'],
+        1,
+      );
+    });
+
+    test('덧붙이기는 사진 하나와 전/후를 보내고, 삭제는 DELETE 다', () async {
+      final s = _build(
+        (options, body) => options.method == 'DELETE'
+            ? const FakeResponse(statusCode: 204)
+            : FakeResponse(
+                statusCode: 200,
+                data: recordJson(media: [recordMediaJson(phase: 'after')]),
+              ),
+      );
+
+      final record = await s.api.appendRecordMedia(
+        3,
+        101,
+        mediaId: 51,
+        phase: MediaPhase.after,
+      );
+      expect(
+        _json(s.adapter.lastBodyByPath['/v1/shops/3/visits/101/record/media']),
+        {'media_id': 51, 'phase': 'after'},
+      );
+      expect(record.media.single.phase, MediaPhase.after);
+
+      await s.api.deleteRecord(3, 101);
+      expect(
+        '${s.adapter.requests.last.method} ${s.adapter.requests.last.path}',
+        'DELETE /v1/shops/3/visits/101/record',
+      );
+    });
   });
 }
