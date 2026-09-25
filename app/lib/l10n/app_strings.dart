@@ -367,6 +367,37 @@ class AppStrings {
   static const wonUnit = '원';
   static const amountTooLarge = '1억 원까지 적을 수 있어요.';
 
+  // 미용 기록(④)
+  static const recordTitle = '미용 기록';
+  static const completeRecordTitle = '완료 기록';
+  static const recordPhotosLabel = '사진';
+  static const addPhoto = '사진 추가';
+  static const takePhoto = '카메라';
+  static const pickFromAlbum = '앨범';
+  static const phaseBefore = '전';
+  static const phaseAfter = '후';
+  static const addPhotoPhaseLabel = '어느 사진인가요?';
+  static const uploading = '올리는 중';
+  static const uploadWaiting = '대기 중';
+  static const removeUpload = '빼기';
+  static const removePhoto = '사진 빼기';
+  static const recordMenusLabel = '메뉴 · 금액';
+  static const totalLabel = '총액';
+  static const paymentLabel = '결제 수단';
+  static const paymentCard = '카드';
+  static const paymentCash = '현금';
+  static const paymentTransfer = '계좌';
+  static const careNoteLabel = '케어 메모';
+  static const careNoteHint = '보호자에게 보내는 알림장에 실려요';
+  static const internalNoteLabel = '내부 메모';
+  static const internalNoteHint = '매장만 봐요';
+  static const completeWithRecord = '완료하기';
+  static const completeWithoutRecord = '나중에 적고 완료';
+  static const amountHint = '금액';
+
+  /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
+  static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
+
   /// 35000 → '35,000원'.
   static String wonText(int amount) {
     final digits = amount.toString();

@@ -1,4 +1,5 @@
 import '../../../l10n/app_strings.dart';
+import '../api/record_models.dart';
 import '../api/visit_models.dart';
 
 // 시각·날짜 표기(hhmm·dayLabel·sameDay)는 core/time 에 있다. 이 모듈을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
@@ -11,6 +12,17 @@ String statusLabel(VisitStatus status) => switch (status) {
   VisitStatus.canceled => AppStrings.statusCanceled,
   VisitStatus.noShow => AppStrings.statusNoShow,
   VisitStatus.unknown => AppStrings.statusUnknown,
+};
+
+String paymentLabel(PaymentMethod method) => switch (method) {
+  PaymentMethod.card => AppStrings.paymentCard,
+  PaymentMethod.cash => AppStrings.paymentCash,
+  PaymentMethod.transfer => AppStrings.paymentTransfer,
+};
+
+String phaseLabel(MediaPhase phase) => switch (phase) {
+  MediaPhase.before => AppStrings.phaseBefore,
+  MediaPhase.after => AppStrings.phaseAfter,
 };
 
 String warningLabel(String warning) => switch (warning) {

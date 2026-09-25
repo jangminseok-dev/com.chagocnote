@@ -116,7 +116,7 @@ class _Env {
 
 /// 조건이 설 때까지 진짜 시간으로 조금씩 기다린다(파일 입출력이 있어 가짜 시간을 쓰지 않는다).
 Future<void> _until(bool Function() condition) async {
-  for (var i = 0; i < 400; i++) {
+  for (var i = 0; i < 2000; i++) {
     if (condition()) return;
     await Future<void>.delayed(const Duration(milliseconds: 5));
   }
