@@ -217,31 +217,40 @@ class FeedCard extends ConsumerWidget {
                   ),
                 ),
                 // 글래스는 이 이름 카드에만(설계 10.1 ②).
+                // 긴 이름·품종은 사진 안에서 한 줄로 줄인다 — 짧으면 카드는 글자만큼.
                 Positioned(
                   left: AppSpacing.md,
+                  right: AppSpacing.md,
                   bottom: AppSpacing.md,
-                  child: AppGlassCard(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          name,
-                          style: AppTypography.titleKo.copyWith(fontSize: 17),
-                        ),
-                        // 실제 글래스는 비쳐 보여 사진 위의 옅은 글자가 묻힌다 — 잉크색으로.
-                        if (pet != null)
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: AppGlassCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                           Text(
-                            '${pet.breed} · ${formatWeight(pet.weightKg)}',
-                            style: AppTypography.caption.copyWith(
-                              color: AppColors.ink,
-                            ),
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.titleKo.copyWith(fontSize: 17),
                           ),
-                      ],
+                          // 실제 글래스는 비쳐 보여 사진 위의 옅은 글자가 묻힌다 — 잉크색으로.
+                          if (pet != null)
+                            Text(
+                              '${pet.breed} · ${formatWeight(pet.weightKg)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.ink,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

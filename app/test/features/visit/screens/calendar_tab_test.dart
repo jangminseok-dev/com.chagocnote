@@ -2,13 +2,16 @@ import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/tokens/app_spacing.dart';
 import 'package:chagocnote/design/widgets/app_dashed_tile.dart';
+import 'package:chagocnote/design/widgets/app_glass_card.dart';
 import 'package:chagocnote/design/widgets/app_photo_fan.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/features/visit/state/calendar_selection.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_test_app.dart';
@@ -421,6 +424,41 @@ void main() {
         ],
         [null, 'c2'],
       );
+    });
+
+    testWidgets('이름·품종이 길면 이름 카드는 사진 안에서 한 줄로 줄인다', (tester) async {
+      const name = '초코송이바닐라라떼크림치즈케이크마카롱';
+      const breed = '미니어처오스트레일리안셰퍼드골든리트리버래브라도푸들믹스';
+      final backend = _backend();
+      backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) => FakeResponse(
+        statusCode: 200,
+        data: feedJson(
+          items: [
+            feedItemJson(
+              pet: visitPetJson(name: name, breed: breed),
+            ),
+          ],
+        ),
+      );
+      final app = build(backend);
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+
+      final card = tester.getRect(find.byType(AppGlassCard));
+      final photo = tester.getRect(
+        find
+            .ancestor(
+              of: find.byType(AppGlassCard),
+              matching: find.byType(Stack),
+            )
+            .first,
+      );
+      expect(card.right, lessThanOrEqualTo(photo.right - AppSpacing.md));
+      // 줄바꿈하지 않고 한 줄에서 말줄임한다.
+      for (final text in [name, '$breed · 4.2kg']) {
+        final paragraph = tester.renderObject<RenderParagraph>(find.text(text));
+        expect(paragraph.didExceedMaxLines, isTrue, reason: text);
+      }
     });
 
     testWidgets('끝난 미용이 없으면 그렇게 적는다', (tester) async {
