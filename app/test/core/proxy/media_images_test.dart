@@ -4,8 +4,19 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Cache implements BaseCacheManager {
+  final asked = <(String, String?)>[];
+
+  // getSingleFile 의 File 은 `package:file` 의 것이라, 그 패키지를 들이지 않고 캐시 패키지의 메모리 파일로 돌려준다.
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #getSingleFile) {
+      final url = invocation.positionalArguments.single as String;
+      final key = invocation.namedArguments[#key] as String?;
+      asked.add((url, key));
+      return MemoryCacheSystem().createFile('cached.jpg');
+    }
+    return super.noSuchMethod(invocation);
+  }
 }
 
 void main() {
@@ -29,5 +40,14 @@ void main() {
     expect(image.url, today);
     expect(image.cacheKey, mediaCacheKey(today));
     expect(image.cacheManager, same(cache));
+  });
+
+  test('원본 파일은 같은 캐시에서 같은 키로 받는다 — 이미 받은 사진은 다시 내려받지 않는다', () async {
+    final cache = _Cache();
+
+    final path = await CachedMediaImages(cache).fileOf(today);
+
+    expect(cache.asked.single, (today, mediaCacheKey(today)));
+    expect(path, endsWith('/cached.jpg'));
   });
 }

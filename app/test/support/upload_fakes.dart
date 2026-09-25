@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/proxy/network_watcher.dart';
+import 'package:chagocnote/core/proxy/photo_album.dart';
 import 'package:chagocnote/core/proxy/photo_renditions.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
@@ -156,5 +157,26 @@ class FakeMediaImages implements MediaImages {
   ImageProvider of(String url) {
     urls.add(url);
     return image;
+  }
+
+  /// 받아 달라고 한 원본 URL.
+  final files = <String>[];
+
+  @override
+  Future<String> fileOf(String url) async {
+    files.add(url);
+    return '/fake/${files.length}.jpg';
+  }
+}
+
+/// 앨범 대역 — 저장한 파일 경로를 적어 두고, [denied]면 권한 없음으로 던진다.
+class FakePhotoAlbum implements PhotoAlbum {
+  final saved = <String>[];
+  bool denied = false;
+
+  @override
+  Future<void> save(String path) async {
+    if (denied) throw const PhotoAlbumDenied();
+    saved.add(path);
   }
 }
