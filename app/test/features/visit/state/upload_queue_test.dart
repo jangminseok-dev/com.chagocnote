@@ -365,7 +365,7 @@ void main() {
     ]);
   });
 
-  test('서버가 붙지 않은 사진을 정리했으면(MEDIA_NOT_FOUND) 로컬 파일로 발급부터 다시 한다', () async {
+  test('서버가 붙지 않은 사진을 정리했으면(MEDIA_NOT_FOUND) 간격을 두고 로컬 파일로 발급부터 다시 한다', () async {
     final env = env0(
       saved: [_saved('j1', stage: UploadStage.confirmed, mediaId: 40)],
     );
@@ -382,6 +382,10 @@ void main() {
     };
 
     await env.open();
+    await _until(() => env.jobs.single.waiting);
+    expect(env.jobs.single.stage, UploadStage.prepared);
+    expect(env.jobs.single.mediaId, isNull);
+    env.retries.fire();
     await _until(() => env.drained);
 
     expect(_ordered(env.calls), [
@@ -389,7 +393,38 @@ void main() {
       ..._uploadCalls,
       'POST /v1/shops/3/visits/101/record/media',
     ]);
-    expect(env.retries.delays, isEmpty);
+    expect(env.retries.delays, [const Duration(seconds: 1)]);
+  });
+
+  test('덧붙이기가 계속 MEDIA_NOT_FOUND 여도 쉬지 않고 다시 올리지 않는다 — 재발급마다 간격을 늘린다', () async {
+    final env = env0(
+      saved: [_saved('j1', stage: UploadStage.confirmed, mediaId: 40)],
+    );
+    env.apiFailure = (call) =>
+        call == 'POST /v1/shops/3/visits/101/record/media'
+        ? const FakeResponse(
+            statusCode: 404,
+            data: {'code': 'MEDIA_NOT_FOUND', 'message': 'x'},
+          )
+        : null;
+
+    await env.open();
+    await _until(() => env.jobs.single.waiting);
+    expect(env.calls, ['POST /v1/shops/3/visits/101/record/media']);
+
+    env.retries.fire();
+    await _until(
+      () => env.jobs.single.failures == 2 && env.jobs.single.waiting,
+    );
+    expect(_ordered(env.calls), [
+      'POST /v1/shops/3/visits/101/record/media',
+      ..._uploadCalls,
+      'POST /v1/shops/3/visits/101/record/media',
+    ]);
+    expect(env.retries.delays, [
+      const Duration(seconds: 1),
+      const Duration(seconds: 2),
+    ]);
   });
 
   test('올리는 중에 빼면 취소하고 조용히 끝낸다 — 다시 시도도 덧붙이기도 없고 파일은 지운다', () async {

@@ -219,17 +219,12 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
       if (e is ApiException &&
           e.code == 'MEDIA_NOT_FOUND' &&
           _find(job.id)?.mediaId != null) {
-        // 서버가 붙지 않은 사진을 정리했다 — 로컬 파일로 발급부터 다시 한다.
+        // 서버가 붙지 않은 사진을 정리했다 — 간격을 두고 로컬 파일로 발급부터 다시 한다.
         _update(
           job.id,
-          (j) => j.copyWith(
-            stage: UploadStage.prepared,
-            mediaId: () => null,
-            running: false,
-          ),
+          (j) => j.copyWith(stage: UploadStage.prepared, mediaId: () => null),
         );
         await _persist();
-        return;
       }
       _fail(job.id);
     }
