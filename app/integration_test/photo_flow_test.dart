@@ -160,7 +160,10 @@ void main() {
 
     await step('4', '대표로 → 전으로 바꾸기 → 삭제, 서버의 기록이 따라 바뀐다', () async {
       final before = await gallery();
-      await t.drag(find.byType(PageView), const Offset(-400, 0));
+      // 둘째 후 사진의 크게 보기를 경로로 연다 — 안드로이드는 테스트가 만든 가짜 밀기를 확대 영역(InteractiveViewer)이
+      // 받지 않는다(진짜 터치로는 넘어간다 — 2026-09-26 에뮬레이터에서 확인). 넘기기 자체는 위젯 테스트가 본다.
+      router.push('/visits/$visitA/photos/${before[1].mediaId}');
+      await waitFor(find.text('후 · 2 / 4'));
       await pumpFor(const Duration(seconds: 1));
       soft(find.text('후 · 2 / 4').evaluate().isNotEmpty, '둘째 후 사진으로 넘어가지 않았다');
       await tap(p(AppStrings.makeCover));

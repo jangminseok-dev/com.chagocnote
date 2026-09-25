@@ -55,9 +55,17 @@ Future<void> pumpFor(Duration d) async {
   }
 }
 
+/// 안드로이드는 첫 스크린샷 전에 화면을 이미지로 바꿔 두어야 찍힌다(한 번만).
+var _surfaceConverted = false;
+
 Future<void> shot(String name) async {
   await pumpFor(const Duration(milliseconds: 400));
   try {
+    if (Platform.isAndroid && !_surfaceConverted) {
+      await binding.convertFlutterSurfaceToImage();
+      _surfaceConverted = true;
+      await pumpFor(const Duration(milliseconds: 200));
+    }
     await binding.takeScreenshot(name);
   } catch (e) {
     debugPrint('스크린샷 실패 $name: $e');
@@ -121,7 +129,9 @@ Future<void> enter(String key, String text) async {
   await reveal(f);
   await t.ensureVisible(f);
   await t.enterText(f, text);
-  await pumpFor(const Duration(milliseconds: 300));
+  // 키보드를 내린다 — 안드로이드는 키보드가 화면을 줄여, 다음에 누를 버튼이 목록에서 빠질 수 있다.
+  FocusManager.instance.primaryFocus?.unfocus();
+  await pumpFor(const Duration(milliseconds: 600));
 }
 
 String fieldText(String key) =>
