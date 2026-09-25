@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
 import '../../auth/state/shop_scoped.dart';
+import '../api/record_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
 import 'visit_providers.dart';
@@ -49,6 +50,13 @@ class VisitCommands {
     ),
   );
 
+  /// 기록 저장(전체 교체). 몸무게가 반려동물의 현재 몸무게로 넘어갈 수 있어 고객 쪽도 다시 부른다.
+  Future<VisitRecord> saveRecord(int shopId, int visitId, RecordInput input) =>
+      _visitWrite(() => _api.putRecord(shopId, visitId, input));
+
+  Future<void> deleteRecord(int shopId, int visitId) =>
+      _visitWrite(() => _api.deleteRecord(shopId, visitId));
+
   /// "지난번처럼" — 반려동물을 고를 때 한 번 읽는다(다시 부르지 않는다).
   Future<VisitDefaults> defaults(int shopId, int petId) =>
       runShopScoped(_ref, () => _api.defaults(shopId, petId));
@@ -74,11 +82,13 @@ class VisitCommands {
     int shopId, {
     required String name,
     int? defaultDurationMinutes,
+    int? price,
   }) => _menuWrite(
     () => _api.createMenu(
       shopId,
       name: name,
       defaultDurationMinutes: defaultDurationMinutes,
+      price: price,
     ),
   );
 
@@ -88,6 +98,7 @@ class VisitCommands {
     required String name,
     required int? defaultDurationMinutes,
     required int sortOrder,
+    required int? price,
   }) => _menuWrite(
     () => _api.updateMenu(
       shopId,
@@ -95,6 +106,7 @@ class VisitCommands {
       name: name,
       defaultDurationMinutes: defaultDurationMinutes,
       sortOrder: sortOrder,
+      price: price,
     ),
   );
 

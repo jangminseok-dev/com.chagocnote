@@ -20,7 +20,7 @@ class _Server {
           FakeResponse(statusCode: 200, data: {'items': menus}),
       'POST /v1/shops/3/menus': (o, body) {
         final sent = bodyOf(body);
-        writes.add('POST ${sent['name']}');
+        writes.add('POST ${sent['name']} ${sent['price']}');
         if (menus.any((m) => m['name'] == sent['name'])) {
           return const FakeResponse(
             statusCode: 409,
@@ -32,6 +32,7 @@ class _Server {
           name: sent['name'] as String,
           defaultDurationMinutes: sent['default_duration_minutes'] as int?,
           sortOrder: 6,
+          price: sent['price'] as int?,
         );
         menus.add(created);
         return FakeResponse(statusCode: 201, data: created);
@@ -47,7 +48,9 @@ class _Server {
           name: sent['name'] as String,
           defaultDurationMinutes: sent['default_duration_minutes'] as int?,
           sortOrder: sent['sort_order'] as int,
+          price: sent['price'] as int?,
         );
+        prices[m['menu_id'] as int] = sent['price'] as int?;
         return FakeResponse(statusCode: 200, data: menus[i]);
       };
       backend.routes['POST /v1/shops/3/menus/${m['menu_id']}/archive'] =
@@ -64,6 +67,9 @@ class _Server {
 
   final menus = defaultMenusJson();
   final writes = <String>[];
+
+  /// 메뉴마다 마지막 PUT 이 보낸 정가.
+  final prices = <int, int?>{};
   late final VisitTestBackend backend;
 }
 
@@ -96,7 +102,10 @@ void main() {
 
     expect(find.byKey(ScreenKeys.settingsMenus), findsOneWidget);
     expect(_names(tester), ['목욕', '위생', '부분 미용', '전체 미용', '스포팅']);
-    expect(find.text(AppStrings.durationText(150)), findsOneWidget);
+    expect(
+      find.text('${AppStrings.durationText(150)} · ${AppStrings.priceUnset}'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('메뉴를 더하면 이름·기본 소요를 보내고 목록을 다시 불러온다', (tester) async {
@@ -104,14 +113,14 @@ void main() {
     await _open(tester, server);
 
     await _tap(tester, _button(AppStrings.addMenu));
-    await tester.enterText(find.byType(TextField), '발톱');
+    await tester.enterText(find.byType(TextField).first, '발톱');
     // 매장 기본을 풀면 60분부터 고른다. 길게 누르면 30분씩.
     await _tap(tester, find.bySemanticsLabel(AppStrings.useShopDefault));
     await tester.longPress(find.bySemanticsLabel(AppStrings.shorter));
     await settle(tester);
     await _tap(tester, _button(AppStrings.save));
 
-    expect(server.writes, ['POST 발톱']);
+    expect(server.writes, ['POST 발톱 null']);
     expect(server.menus.last['default_duration_minutes'], 30);
     expect(_names(tester).last, '발톱');
   });
@@ -127,7 +136,7 @@ void main() {
     expect(find.text(AppStrings.menuNameRequired), findsOneWidget);
     expect(server.writes, isEmpty);
 
-    await tester.enterText(find.byType(TextField), '목욕');
+    await tester.enterText(find.byType(TextField).first, '목욕');
     await _tap(tester, _button(AppStrings.save));
     expect(find.textContaining('같은 이름의 메뉴'), findsOneWidget);
   });
@@ -138,7 +147,7 @@ void main() {
 
     await _tap(tester, find.bySemanticsLabel('${AppStrings.edit} 목욕'));
     expect(find.text(AppStrings.editMenu), findsOneWidget);
-    await tester.enterText(find.byType(TextField), '목욕+');
+    await tester.enterText(find.byType(TextField).first, '목욕+');
     await tester.longPress(find.bySemanticsLabel(AppStrings.longer));
     await settle(tester);
     await _tap(tester, _button(AppStrings.save));
@@ -227,5 +236,68 @@ void main() {
     await _open(tester, server);
 
     expect(find.text(AppStrings.menusEmpty), findsOneWidget);
+  });
+
+  testWidgets('정가를 적어 더하면 보내고, 목록에 소요와 정가를 보인다 — 비우면 가격 미정', (tester) async {
+    final server = _Server();
+    await _open(tester, server);
+    expect(
+      find.text('${AppStrings.durationText(60)} · ${AppStrings.priceUnset}'),
+      findsNWidgets(2),
+    );
+
+    await _tap(tester, _button(AppStrings.addMenu));
+    await tester.enterText(find.byType(TextField).first, '발톱');
+    await tester.enterText(find.byType(TextField).last, '35000');
+    await _tap(tester, _button(AppStrings.save));
+
+    expect(server.writes, ['POST 발톱 35000']);
+    expect(find.text('${AppStrings.useShopDefault} · 35,000원'), findsOneWidget);
+  });
+
+  testWidgets('정가만 고쳐도 보내고, 순서를 바꿀 때도 정가를 그대로 보낸다 — 빼면 가격 미정이 된다', (
+    tester,
+  ) async {
+    final server = _Server();
+    server.menus[0] = menuJson(
+      menuId: 1,
+      name: '목욕',
+      sortOrder: 1,
+      price: 30000,
+    );
+    await _open(tester, server);
+
+    await _tap(tester, find.bySemanticsLabel('${AppStrings.edit} 목욕'));
+    expect(find.text('30000'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, '32000');
+    await _tap(tester, _button(AppStrings.save));
+    expect(server.prices[1], 32000);
+
+    await _tap(tester, find.bySemanticsLabel('${AppStrings.moveDown} 목욕'));
+    expect(server.prices, {1: 32000, 2: null});
+    expect(
+      find.text('${AppStrings.durationText(60)} · 32,000원'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('정가가 1억 원을 넘으면 보내지 않는다', (tester) async {
+    final server = _Server();
+    await _open(tester, server);
+
+    await _tap(tester, _button(AppStrings.addMenu));
+    await tester.enterText(find.byType(TextField).first, '발톱');
+    await tester.enterText(find.byType(TextField).last, '100000001');
+    await _tap(tester, _button(AppStrings.save));
+
+    expect(find.text(AppStrings.amountTooLarge), findsOneWidget);
+    expect(server.writes, isEmpty);
+  });
+
+  test('금액은 세 자리마다 쉼표를 찍는다', () {
+    expect(AppStrings.wonText(0), '0원');
+    expect(AppStrings.wonText(999), '999원');
+    expect(AppStrings.wonText(1000), '1,000원');
+    expect(AppStrings.wonText(100000000), '100,000,000원');
   });
 }

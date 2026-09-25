@@ -2,6 +2,7 @@ import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/customer/state/customer_list_controller.dart';
 import 'package:chagocnote/features/customer/state/customer_providers.dart';
+import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
 import 'package:chagocnote/features/visit/state/visit_commands.dart';
 import 'package:chagocnote/features/visit/state/visit_providers.dart';
@@ -213,5 +214,43 @@ void main() {
     await setup.container.read(menusProvider(key).future);
 
     expect(setup.calls, ['POST /v1/shops/3/menus', 'GET /v1/shops/3/menus']);
+  });
+
+  test('기록 저장·삭제가 끝나면 하루·달·상세와 고객 쪽을 다시 불러온다 — 몸무게가 고객 쪽으로 넘어갈 수 있다', () async {
+    final setup = await _watchingEverything(
+      (options, body) => options.method == 'DELETE'
+          ? const FakeResponse(statusCode: 204)
+          : FakeResponse(statusCode: 200, data: recordJson(weightKg: 4.2)),
+    );
+    addTearDown(setup.container.dispose);
+    final commands = setup.container.read(visitCommandsProvider);
+
+    await commands.saveRecord(
+      _shop,
+      101,
+      const RecordInput(
+        version: null,
+        weightKg: 4.2,
+        careNote: null,
+        internalNote: null,
+        paymentMethod: null,
+        totalAmount: null,
+        items: [],
+        media: [],
+      ),
+    );
+    await _settle(setup);
+    expect(
+      setup.calls,
+      unorderedEquals(['PUT /v1/shops/3/visits/101/record', ..._reads]),
+    );
+
+    setup.adapter.requests.clear();
+    await commands.deleteRecord(_shop, 101);
+    await _settle(setup);
+    expect(
+      setup.calls,
+      unorderedEquals(['DELETE /v1/shops/3/visits/101/record', ..._reads]),
+    );
   });
 }

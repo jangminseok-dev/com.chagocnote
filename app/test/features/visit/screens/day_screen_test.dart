@@ -221,6 +221,14 @@ void main() {
     };
     backend.routes['GET /v1/shops/3/visits/3/next-draft'] = (o, b) =>
         FakeResponse(statusCode: 200, data: nextDraftJson(petIds: [12]));
+    // 기록 화면은 보리(3)의 상세를 읽는다 — 묶음의 두부(2)는 이미 완료라 함께 보내지 않는다.
+    backend.routes['GET /v1/shops/3/visits/3'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: visitDetailJson(
+        visit: _v(3, '13:00', status: 'in_progress', pet: '보리', petId: 12),
+        group: [_v(2, '13:00', status: 'completed', pet: '두부')],
+      ),
+    );
     final setup = CustomerTestSetup(backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
@@ -233,7 +241,7 @@ void main() {
 
     await tester.tap(_button(AppStrings.actionCompleteShort));
     await settle(tester);
-    await tester.tap(find.text(AppStrings.actionComplete));
+    await tester.tap(_button(AppStrings.completeWithoutRecord));
     await settle(tester);
     expect(sent, {
       'visit_ids': [3],
@@ -269,77 +277,51 @@ void main() {
     expect(setup.calls, contains('GET /v1/shops/3/visits'));
   });
 
-  testWidgets('카드의 [완료하기]는 완료 시트를 거쳐 보낸다', (tester) async {
-    final backend = _backend();
-    Map<String, dynamic>? sent;
-    backend.routes['POST /v1/shops/3/visits/transitions'] = (o, body) {
-      sent = bodyOf(body);
-      return FakeResponse(
+  testWidgets(
+    '카드의 [완료하기]는 묶음 첫 아이의 기록 화면을 열고, 완료하면 묶음을 함께 완료한 뒤 다음 예약 시트를 띄운다',
+    (tester) async {
+      final backend = _backend();
+      Map<String, dynamic>? sent;
+      backend.routes['GET /v1/shops/3/visits/2'] = (o, b) => FakeResponse(
         statusCode: 200,
-        data: {
-          'visits': [_v(2, '13:00', status: 'completed')],
-        },
-      );
-    };
-    final setup = CustomerTestSetup(backend.call, overrides: _today);
-    addTearDown(setup.container.dispose);
-    await _open(tester, setup);
-
-    await tester.tap(_button(AppStrings.actionCompleteShort));
-    await settle(tester);
-    expect(find.text(AppStrings.completeTitle), findsOneWidget);
-    expect(
-      find.text(AppStrings.nextPreview('10월 21일 수 13:00')),
-      findsOneWidget,
-    );
-    await tester.tap(_button(AppStrings.actionComplete));
-    await settle(tester);
-
-    expect(sent, {
-      'visit_ids': [2, 3],
-      'action': 'complete',
-    });
-  });
-
-  testWidgets('초안을 읽는 동안 [완료하기]를 다시 눌러도 초안을 한 번만 읽고, 다른 카드의 [시작]은 막힌다', (
-    tester,
-  ) async {
-    final backend = _backend();
-    var draftCalls = 0;
-    final gate = Completer<FakeResponse>();
-    backend.routes['GET /v1/shops/3/visits/2/next-draft'] = (o, b) {
-      draftCalls++;
-      return gate.future;
-    };
-    final setup = CustomerTestSetup(backend.call, overrides: _today);
-    addTearDown(setup.container.dispose);
-    await _open(tester, setup);
-
-    await tester.tap(_button(AppStrings.actionCompleteShort));
-    await settle(tester);
-    await tester.tap(_button(AppStrings.actionCompleteShort));
-    await settle(tester);
-
-    expect(draftCalls, 1);
-    expect(find.text(AppStrings.completeTitle), findsNothing);
-    final startButtons = tester.widgetList<AppButton>(
-      _button(AppStrings.actionStart),
-    );
-    expect(startButtons.every((b) => b.onPressed == null), isTrue);
-
-    gate.complete(
-      FakeResponse(
-        statusCode: 200,
-        data: nextDraftJson(
-          petIds: [11, 12],
-          startsAt: '2026-10-21T13:00:00+09:00',
+        data: visitDetailJson(
+          visit: _v(2, '13:00', status: 'in_progress', pet: '두부'),
+          group: [_v(3, '13:00', status: 'in_progress', pet: '보리', petId: 12)],
         ),
-      ),
-    );
-    await settle(tester);
+      );
+      backend.routes['POST /v1/shops/3/visits/transitions'] = (o, body) {
+        sent = bodyOf(body);
+        return FakeResponse(
+          statusCode: 200,
+          data: {
+            'visits': [_v(2, '13:00', status: 'completed')],
+          },
+        );
+      };
+      final setup = CustomerTestSetup(backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _open(tester, setup);
 
-    expect(find.text(AppStrings.completeTitle), findsOneWidget);
-  });
+      await tester.tap(_button(AppStrings.actionCompleteShort));
+      await settle(tester);
+      expect(find.byKey(ScreenKeys.visitRecord), findsOneWidget);
+      await tester.tap(_button(AppStrings.completeWithoutRecord));
+      await settle(tester);
+
+      expect(sent, {
+        'visit_ids': [2, 3],
+        'action': 'complete',
+      });
+      expect(find.text(AppStrings.completeTitle), findsOneWidget);
+      expect(
+        find.text(AppStrings.nextPreview('10월 21일 수 13:00')),
+        findsOneWidget,
+      );
+      await tester.tap(_button(AppStrings.close));
+      await settle(tester);
+      expect(find.byKey(ScreenKeys.day), findsOneWidget);
+    },
+  );
 
   testWidgets('한 카드를 보내는 동안 다른 카드의 버튼도 막는다', (tester) async {
     final backend = _backend(_mockupItems(duoStatus: 'reserved'));
@@ -476,10 +458,7 @@ void main() {
   testWidgets('마감이 19:30 이면 시간표가 20:00 까지 그린다', (tester) async {
     final backend = _backend([dayItemJson(_v(1, '10:00', duration: 60))]);
     backend.routes['GET /v1/shops/3/visit-settings'] = (o, b) =>
-        FakeResponse(
-          statusCode: 200,
-          data: settingsJson(closesAt: '19:30:00'),
-        );
+        FakeResponse(statusCode: 200, data: settingsJson(closesAt: '19:30:00'));
     final setup = CustomerTestSetup(backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');

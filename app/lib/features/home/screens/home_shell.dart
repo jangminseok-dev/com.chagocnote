@@ -17,6 +17,7 @@ import '../../customer/screens/customer_list_tab.dart';
 import '../../visit/api/visit_models.dart';
 import '../../visit/screens/calendar_tab.dart';
 import '../../visit/state/calendar_selection.dart';
+import '../../visit/state/upload_queue.dart';
 import '../../../core/time/today_provider.dart';
 
 /// 홈 탭 하나 — 탭바 항목, 본문, + 버튼(없으면 준비 중 안내), 머리를 스스로 그리는지.
@@ -119,6 +120,8 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    // 업로드 대기열을 깨운다 — 앱이 꺼졌다 켜져도 남은 사진을 바로 이어 올린다(설계 10.2).
+    ref.listen(uploadQueueProvider, (_, _) {});
     final today = ref.watch(todayProvider);
     final shopName = ref.watch(shopNameProvider);
     final tab = _tabs[_tabIndex];

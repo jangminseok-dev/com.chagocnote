@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:chagocnote/core/error/api_exception.dart';
@@ -85,6 +86,36 @@ void main() {
         contentType: 'video/mp4',
       ),
       throwsA(isA<ApiException>().having((e) => e.code, 'code', 'NETWORK')),
+    );
+  });
+
+  test('취소한 업로드는 CANCELLED 로 던진다 — 네트워크 오류가 아니다', () async {
+    final started = Completer<void>();
+    final setup = _setUp((options, body) async {
+      started.complete();
+      await Future<void>.delayed(const Duration(seconds: 5));
+      return const FakeResponse(statusCode: 200);
+    });
+    final token = CancelToken();
+
+    final put = setup.client.put(
+      _url,
+      body: Stream.value(_bytes),
+      length: _bytes.length,
+      contentType: 'image/jpeg',
+      cancelToken: token,
+    );
+    await started.future;
+    token.cancel();
+
+    await expectLater(
+      put,
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.code, 'code', 'CANCELLED')
+            .having((e) => e.isCancelled, 'isCancelled', true)
+            .having((e) => e.isNetwork, 'isNetwork', false),
+      ),
     );
   });
 }

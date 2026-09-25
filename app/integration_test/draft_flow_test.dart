@@ -894,9 +894,12 @@ void main() {
           matching: btn(AppStrings.actionCompleteShort),
         ),
       );
+      // ④-2: 완료는 기록 화면(완료 모드)을 거친다 — 기록 없이 완료하고 다음 예약 시트는 닫는다.
+      await waitFor(find.byKey(ScreenKeys.visitRecord));
+      await shot('08b-complete-record');
+      await tap(btn(AppStrings.completeWithoutRecord));
       await waitFor(find.text(AppStrings.completeTitle));
-      await shot('08b-complete-sheet');
-      await tap(btn(AppStrings.actionComplete));
+      await tap(btn(AppStrings.close));
       await waitGone(find.text(AppStrings.completeTitle));
       await pumpFor(const Duration(seconds: 1));
       final after = (await dayItems(today))

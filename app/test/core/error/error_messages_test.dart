@@ -69,4 +69,15 @@ void main() {
     expect(messageFor(_error('VISIT_CROSSES_MIDNIGHT', status: 422)), contains('소요'));
     expect(messageFor(_error('PET_HAS_VISITS', status: 409)), contains('무지개다리'));
   });
+
+  test('기록·사진 코드(④ 설계 9절)는 모두 앱의 문구가 있다', () {
+    const codes = [
+      'VISIT_NO_RECORD_YET', 'RECORD_NOT_FOUND', 'RECORD_VERSION_CONFLICT', 'RECORD_WEIGHT_WITHOUT_PET',
+      'RECORD_ITEM_DUPLICATE', 'MEDIA_NOT_FOUND', 'MEDIA_NOT_UPLOADED', 'MEDIA_NOT_READY',
+      'MEDIA_ALREADY_ATTACHED', 'MEDIA_TOO_LARGE', 'MEDIA_TYPE_UNSUPPORTED', 'MEDIA_LIMIT_EXCEEDED',
+    ];
+    for (final code in codes) {
+      expect(messageFor(_error(code, message: '서버 문구')), isNot('서버 문구'), reason: code);
+    }
+  });
 }

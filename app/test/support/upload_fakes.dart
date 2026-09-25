@@ -1,0 +1,160 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:chagocnote/core/proxy/media_images.dart';
+import 'package:chagocnote/core/proxy/media_picker.dart';
+import 'package:chagocnote/core/proxy/network_watcher.dart';
+import 'package:chagocnote/core/proxy/photo_renditions.dart';
+import 'package:chagocnote/features/visit/api/record_models.dart';
+import 'package:chagocnote/features/visit/state/upload_job.dart';
+import 'package:chagocnote/features/visit/state/upload_queue.dart';
+import 'package:flutter/widgets.dart';
+
+/// 렌디션 대역 — 크기가 정해진 파일 셋을 쓴다. [broken]에 든 원본은 읽을 수 없는 사진이다.
+class FakeRenditionMaker implements PhotoRenditionMaker {
+  final broken = <String>{};
+
+  /// 원본·표시용·썸네일 바이트 수.
+  static const sizes = (original: 300, display: 100, thumb: 20);
+
+  @override
+  Future<PhotoRenditions> make(String source, Directory outDir) async {
+    if (broken.contains(source)) throw StateError('읽을 수 없는 사진');
+    await outDir.create(recursive: true);
+    Future<String> write(String name, int length) async {
+      final path = '${outDir.path}/$name.jpg';
+      await File(path).writeAsBytes(List<int>.filled(length, 7));
+      return path;
+    }
+
+    return PhotoRenditions(
+      original: await write('original', sizes.original),
+      display: await write('display', sizes.display),
+      thumb: await write('thumb', sizes.thumb),
+      width: 3000,
+      height: 2000,
+    );
+  }
+}
+
+/// 인터넷 복귀 신호 대역 — [restore]로 신호를 보낸다.
+class FakeNetworkWatcher implements NetworkWatcher {
+  final _controller = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get restored => _controller.stream;
+
+  void restore() => _controller.add(null);
+}
+
+/// 다시 시도 예약 대역 — 기다리지 않고 요청된 간격만 적어 두고, [fire]로 예약된 것을 돌린다.
+class FakeRetryScheduler {
+  final delays = <Duration>[];
+  final _timers = <_FakeTimer>[];
+
+  Timer call(Duration delay, void Function() run) {
+    delays.add(delay);
+    final timer = _FakeTimer(run);
+    _timers.add(timer);
+    return timer;
+  }
+
+  /// 아직 취소되지 않은 예약을 모두 돌린다.
+  void fire() {
+    final due = [
+      for (final t in _timers)
+        if (t.isActive) t,
+    ];
+    _timers.clear();
+    for (final t in due) {
+      t.run();
+    }
+  }
+}
+
+class _FakeTimer implements Timer {
+  _FakeTimer(this._run);
+
+  final void Function() _run;
+  bool _active = true;
+
+  void run() {
+    if (!_active) return;
+    _active = false;
+    _run();
+  }
+
+  @override
+  void cancel() => _active = false;
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  int get tick => 0;
+}
+
+/// 사진 고르기 대역 — 고를 경로와 찍을 경로를 미리 정해 둔다.
+class FakeMediaPicker implements MediaPicker {
+  FakeMediaPicker({this.picked = const [], this.taken});
+
+  List<String> picked;
+  String? taken;
+  final limits = <int>[];
+
+  @override
+  Future<List<String>> pickPhotos({required int limit}) async {
+    limits.add(limit);
+    return picked;
+  }
+
+  @override
+  Future<String?> takePhoto() async => taken;
+}
+
+/// 대기열 대역 — 정해 둔 항목을 보이고, 넣기·빼기를 적어 둔다(파일·네트워크 없음).
+class FakeUploadQueue extends UploadQueue {
+  FakeUploadQueue([this.initial = const []]);
+
+  final List<UploadJob> initial;
+  final added = <({int visitId, MediaPhase phase, List<String> sources})>[];
+  final removed = <String>[];
+
+  @override
+  Future<List<UploadJob>> build() async => initial;
+
+  @override
+  Future<void> addPhotos({
+    required int shopId,
+    required int visitId,
+    required MediaPhase phase,
+    required List<String> sources,
+  }) async => added.add((visitId: visitId, phase: phase, sources: sources));
+
+  @override
+  Future<void> remove(String id) async => removed.add(id);
+}
+
+/// 1×1 회색 PNG.
+final _grayPixel = Uint8List.fromList(const [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, //
+  0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x00, 0x00, 0x00, 0x00, 0x3A, 0x7E, 0x9B, 0x55, 0x00, 0x00, 0x00,
+  0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x68, 0x00, 0x00, 0x00,
+  0x82, 0x00, 0x81, 0x77, 0xCD, 0x72, 0xB6, 0x00, 0x00, 0x00, 0x00, 0x49,
+  0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+]);
+
+/// 사진 로더 대역 — 네트워크 없이 회색 한 점([image])을 보이고, 물어본 URL 을 적어 둔다.
+/// 골든은 [image]를 먼저 읽어 두어(precache) 디코딩 시점에 따라 달라지지 않게 한다.
+class FakeMediaImages implements MediaImages {
+  final urls = <String>[];
+  final image = MemoryImage(_grayPixel);
+
+  @override
+  ImageProvider of(String url) {
+    urls.add(url);
+    return image;
+  }
+}

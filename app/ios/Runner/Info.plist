@@ -44,6 +44,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>미용 전후 사진을 찍어 기록에 붙입니다.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>앨범의 사진을 골라 미용 기록에 붙입니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

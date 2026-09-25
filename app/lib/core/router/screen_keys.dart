@@ -23,5 +23,6 @@ class ScreenKeys {
   static const visitDraft = Key('screen_visit_draft');
   static const visitEdit = Key('screen_visit_edit');
   static const visitDetail = Key('screen_visit_detail');
+  static const visitRecord = Key('screen_visit_record');
   static const day = Key('screen_day');
 }

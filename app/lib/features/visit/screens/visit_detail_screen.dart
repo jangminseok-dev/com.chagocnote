@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/media_images.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
@@ -19,15 +20,18 @@ import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
+import '../api/record_models.dart';
 import '../api/visit_models.dart';
+import '../state/record_rules.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
+import 'record_photos.dart';
 import 'visit_actions.dart';
 import 'visit_labels.dart';
 
-/// 방문 하나 — 사진 자리와 상태, 이름·품종·몸무게·보호자, 날짜·메뉴·메모·
-/// 지난 방문·노쇼 횟수, 상태에 맞는 버튼(설계 9.1). `···`에 수정·되돌리기·
-/// 바로 완료·다음 예약 잡기가 있다.
+/// 방문 하나 — 대표 사진과 상태, 이름·품종·몸무게·보호자, 사진 줄과 [사진 추가](미용 중·완료),
+/// "오늘의 케어"(기록)와 [기록 수정], 날짜·메뉴·메모·지난 방문·노쇼 횟수, 상태에 맞는 버튼
+/// (설계 9.1, ④ 설계 10.1 ③). `···`에 수정·되돌리기·바로 완료·다음 예약 잡기·기록 삭제(사장)가 있다.
 ///
 /// 버튼은 같은 묶음에서 이 방문과 상태가 같은 방문들을 한 번에 바꾼다 —
 /// 두 마리가 함께 왔으면 함께 시작하고 함께 끝낸다.
@@ -42,9 +46,9 @@ class VisitDetailScreen extends ConsumerStatefulWidget {
 
 class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
   bool _busy = false;
-  // 완료 시트를 띄우기 전 다음 예약 초안을 읽는 동안(또는 다른 시트가 뜨는
-  // 동안)의 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지
-  // 않는다 — `_busy`와는 다른 신호다.
+  // 완료 흐름(기록 화면 → 다음 예약 시트)이나 다른 시트가 떠 있는 동안의
+  // 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지 않는다 —
+  // `_busy`와는 다른 신호다.
   bool _asking = false;
   String? _errorText;
 
@@ -81,12 +85,10 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
     });
     try {
       await sendVisitAction(
-        context,
         ref,
         shopId: shopId,
         choice: choice,
         ids: _sameStatusIds(detail),
-        anchorVisitId: detail.visit.visitId,
       );
       if (mounted) setState(() => _busy = false);
     } catch (e) {
@@ -125,6 +127,12 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
               label: AppStrings.actionNextReservation,
               onTap: () => Navigator.of(context).pop(_More.next),
             ),
+          // 기록 삭제는 record:delete — 사장만(설계 9절).
+          if (detail.record != null && ref.read(isOwnerProvider))
+            AppSheetAction(
+              label: AppStrings.deleteRecord,
+              onTap: () => Navigator.of(context).pop(_More.deleteRecord),
+            ),
         ],
       ),
     );
@@ -138,6 +146,54 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
         await _act(detail, VisitAction.complete);
       case _More.revert:
         await _act(detail, VisitAction.revert);
+      case _More.deleteRecord:
+        await _deleteRecord(detail);
+    }
+  }
+
+  Future<void> _deleteRecord(VisitDetail detail) async {
+    final shopId = _shopId;
+    if (shopId == null || _busy) return;
+    final confirmed = await AppSheet.show<bool>(
+      context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            AppStrings.deleteRecordConfirm,
+            style: AppTypography.body,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppButton(
+            label: AppStrings.deleteRecord,
+            filled: true,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            label: AppStrings.cancel,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _errorText = null;
+    });
+    try {
+      await ref
+          .read(visitCommandsProvider)
+          .deleteRecord(shopId, detail.visit.visitId);
+      if (mounted) setState(() => _busy = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _errorText = messageFor(e);
+      });
     }
   }
 
@@ -224,7 +280,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({
     required this.detail,
     required this.busy,
@@ -238,17 +294,33 @@ class _Body extends StatelessWidget {
   final ValueChanged<VisitAction> onAction;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visit = detail.visit;
     final pet = visit.pet;
+    final record = detail.record;
+    final media = record?.media ?? const <RecordMedia>[];
+    // 기록은 미용 중·완료 방문에만 쓴다(설계 8절). 사진은 시작부터 넣는다 — 미용 중이면 전, 완료면 후.
+    final recordable =
+        visit.status == VisitStatus.inProgress ||
+        visit.status == VisitStatus.completed;
+    final cover = coverOf(media);
     // 서버의 group 은 이미 자기를 뺀 형제만 준다.
     final others = detail.group;
     final previous = detail.previousVisit;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        // 사진은 ④에서 붙인다 — 지금은 회색 자리.
-        const Center(child: AppPhotoTile(image: null, size: 160)),
+        // 대표 사진(후 → 전). 기울어진 넘기기·크게 보기는 ④-2b.
+        Center(
+          child: AppPhotoTile(
+            image: cover == null
+                ? null
+                : ref
+                      .watch(mediaImagesProvider)
+                      .of(cover.displayUrl ?? cover.thumbUrl),
+            size: 160,
+          ),
+        ),
         const SizedBox(height: AppSpacing.lg),
         Wrap(
           spacing: AppSpacing.sm,
@@ -266,7 +338,41 @@ class _Body extends StatelessWidget {
           ].join(' · '),
           style: AppTypography.caption,
         ),
+        if (recordable || media.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.md),
+          RecordPhotoStrip(
+            visitId: visit.visitId,
+            media: [for (final m in media) FormMedia(m, m.phase)],
+            onAdd: !recordable || busy
+                ? null
+                : () => addPhotos(
+                    context,
+                    ref,
+                    shopId: ref.read(selectedShopIdProvider)!,
+                    visitId: visit.visitId,
+                    phase: visit.status == VisitStatus.inProgress
+                        ? MediaPhase.before
+                        : MediaPhase.after,
+                    attached: media.length,
+                  ),
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
+        // 사진만 붙은 기록(대기열이 만든 것)은 적은 것이 없어 케어 카드를 숨기고 [기록 쓰기]로 보인다.
+        if (!isBlankRecord(record))
+          _CareCard(record: record!, startsAt: visit.startsAt),
+        if (recordable)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: AppButton(
+              label: isBlankRecord(record)
+                  ? AppStrings.writeRecord
+                  : AppStrings.editRecord,
+              onPressed: busy
+                  ? null
+                  : () => context.push('/visits/${visit.visitId}/record'),
+            ),
+          ),
         _InfoCard(
           label: AppStrings.visitDateLabel,
           value:
@@ -351,6 +457,63 @@ class _StatusButtons extends StatelessWidget {
   }
 }
 
+/// "오늘의 케어" — 실제 메뉴와 금액, 몸무게, 케어 메모, 총액·결제 수단, 내부 메모(설계 10.1 ③).
+/// 적은 칸만 보인다.
+class _CareCard extends StatelessWidget {
+  const _CareCard({required this.record, required this.startsAt});
+
+  final VisitRecord record;
+  final ShopTime startsAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final weight = record.weightKg;
+    final total = record.totalAmount;
+    final payment = record.paymentMethod;
+    final lines = [
+      for (final i in record.items)
+        '${i.name} · ${AppStrings.wonText(i.amount)}',
+      if (weight != null) '${AppStrings.weightLabel} ${formatWeight(weight)}',
+      if (total != null || payment != null)
+        [
+          if (total != null)
+            '${AppStrings.totalLabel} ${AppStrings.wonText(total)}',
+          if (payment != null) paymentLabel(payment),
+        ].join(' · '),
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: SizedBox(
+        width: double.infinity,
+        child: AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${AppStrings.todayCareLabel} · ${dayLabel(startsAt.wall)}',
+                style: AppTypography.caption,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              for (final line in lines) Text(line, style: AppTypography.body),
+              if (record.careNote != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(record.careNote!, style: AppTypography.body),
+              ],
+              if (record.internalNote != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  '${AppStrings.internalNoteLabel} · ${record.internalNote}',
+                  style: AppTypography.caption,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.label, required this.value});
 
@@ -418,4 +581,4 @@ class _GroupCard extends StatelessWidget {
 }
 
 /// `···` 시트의 항목. 문자열 대신 닫힌 enum 이라 처리 `switch`가 완전 열거된다.
-enum _More { edit, completeNow, revert, next }
+enum _More { edit, completeNow, revert, next, deleteRecord }

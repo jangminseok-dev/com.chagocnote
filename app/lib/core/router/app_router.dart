@@ -21,6 +21,7 @@ import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
 import '../../features/visit/screens/day_screen.dart';
 import '../../features/visit/screens/draft_screen.dart';
+import '../../features/visit/screens/record_screen.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
 import '../../features/visit/screens/settings/menu_settings_screen.dart';
 import '../../features/visit/screens/settings/schedule_settings_screen.dart';
@@ -183,6 +184,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/visits/:visitId/edit',
         builder: (context, state) => VisitEditScreen(
           visitId: int.parse(state.pathParameters['visitId']!),
+        ),
+      ),
+      // `?complete=1`이면 완료 흐름 — 저장 버튼이 "완료하기"이고 완료하면 true 로 닫힌다.
+      GoRoute(
+        path: '/visits/:visitId/record',
+        builder: (context, state) => RecordScreen(
+          visitId: int.parse(state.pathParameters['visitId']!),
+          completing: state.uri.queryParameters['complete'] == '1',
         ),
       ),
     ],

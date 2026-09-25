@@ -511,7 +511,7 @@ void main() {
     });
 
     // ── 3 ──
-    await step('3', '시작 → 완료 시트 → 완료하고 다음 예약', () async {
+    await step('3', '시작 → 기록 화면에서 완료 → 다음 예약 시트 → 다음 예약', () async {
       await reserve(
         date: today,
         query: '8513',
@@ -530,6 +530,9 @@ void main() {
       await tap(
         find.descendant(of: card, matching: btn(AppStrings.actionCompleteShort)),
       );
+      // ④-2: 완료는 기록 화면(완료 모드)을 거친 뒤 다음 예약 시트가 뜬다.
+      await waitFor(find.byKey(ScreenKeys.visitRecord));
+      await tap(btn(AppStrings.completeWithoutRecord));
       await waitFor(find.text(AppStrings.completeTitle));
       await pumpFor(const Duration(milliseconds: 800));
       final arrow = find.textContaining('→ ').evaluate().map((e) => (e.widget as Text).data!).toList();
@@ -538,7 +541,7 @@ void main() {
       await shot(run >= 3 ? '03b-rerun$run' : '03b-complete-sheet');
       soft(arrow.isNotEmpty, '완료 시트에 다음 예약 미리보기("→ …")가 없다');
       soft(weeks.isNotEmpty, '완료 시트에 "N주 뒤 …" 안내가 없다');
-      await tap(btn(AppStrings.completeAndNext));
+      await tap(btn(AppStrings.actionNextReservation));
       await waitFor(find.byKey(ScreenKeys.registerVisit));
       final save = saveReservationBtn();
       await waitEnabled(save);

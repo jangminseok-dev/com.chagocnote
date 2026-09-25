@@ -18,11 +18,13 @@ import '../../../../design/widgets/pressable.dart';
 import '../../../../l10n/app_strings.dart';
 import '../../../auth/state/shop_selection.dart';
 import '../../api/visit_models.dart';
+import '../../state/record_rules.dart';
 import '../../state/visit_commands.dart';
 import '../../state/visit_form_rules.dart';
 import '../../state/visit_providers.dart';
 
-/// 설정 → 메뉴(사장만) — 메뉴표 추가·이름·기본 소요·순서·보관(설계 9.1).
+/// 설정 → 메뉴(사장만) — 메뉴표 추가·이름·기본 소요·정가·순서·보관(설계 9.1, ④ 설계 10.1).
+/// 정가는 기록 화면이 메뉴 금액을 미리 채우는 값이다.
 /// 메뉴는 지우지 않고 보관한다(지난 방문이 가리킨다).
 class MenuSettingsScreen extends ConsumerStatefulWidget {
   const MenuSettingsScreen({super.key});
@@ -71,6 +73,7 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
             shopId,
             name: value.name,
             defaultDurationMinutes: value.durationMinutes,
+            price: value.price,
           ),
     );
   }
@@ -92,6 +95,7 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
             name: value.name,
             defaultDurationMinutes: value.durationMinutes,
             sortOrder: menu.sortOrder,
+            price: value.price,
           ),
     );
   }
@@ -122,6 +126,7 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
         name: a.name,
         defaultDurationMinutes: a.defaultDurationMinutes,
         sortOrder: aOrder,
+        price: a.price,
       );
       await commands.updateMenu(
         shopId,
@@ -129,6 +134,7 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
         name: b.name,
         defaultDurationMinutes: b.defaultDurationMinutes,
         sortOrder: bOrder,
+        price: b.price,
       );
     });
   }
@@ -300,6 +306,7 @@ class _MenuRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final duration = menu.defaultDurationMinutes;
+    final price = menu.price;
     return AppCard(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
@@ -313,9 +320,8 @@ class _MenuRow extends StatelessWidget {
               children: [
                 Text(menu.name, style: AppTypography.bodyStrong),
                 Text(
-                  duration == null
-                      ? AppStrings.useShopDefault
-                      : AppStrings.durationText(duration),
+                  '${duration == null ? AppStrings.useShopDefault : AppStrings.durationText(duration)}'
+                  ' · ${price == null ? AppStrings.priceUnset : AppStrings.wonText(price)}',
                   style: AppTypography.caption,
                 ),
               ],
@@ -356,15 +362,18 @@ class _MenuRow extends StatelessWidget {
 }
 
 class _MenuValue {
-  const _MenuValue(this.name, this.durationMinutes);
+  const _MenuValue(this.name, this.durationMinutes, this.price);
 
   final String name;
 
   /// null 이면 매장 기본 소요.
   final int? durationMinutes;
+
+  /// null 이면 가격 미정.
+  final int? price;
 }
 
-/// 이름과 기본 소요를 적는 시트(추가·수정).
+/// 이름·기본 소요·정가를 적는 시트(추가·수정).
 class _MenuSheet extends StatefulWidget {
   const _MenuSheet({required this.initial});
 
@@ -376,22 +385,32 @@ class _MenuSheet extends StatefulWidget {
 
 class _MenuSheetState extends State<_MenuSheet> {
   late final _name = TextEditingController(text: widget.initial?.name ?? '');
+  late final _price = TextEditingController(
+    text: widget.initial?.price?.toString() ?? '',
+  );
   late int? _duration = widget.initial?.defaultDurationMinutes;
   String? _nameError;
+  String? _priceError;
 
   @override
   void dispose() {
     _name.dispose();
+    _price.dispose();
     super.dispose();
   }
 
   void _submit() {
     final name = _name.text.trim();
-    if (name.isEmpty) {
-      setState(() => _nameError = AppStrings.menuNameRequired);
-      return;
-    }
-    Navigator.of(context).pop(_MenuValue(name, _duration));
+    // 숫자만 받으니 비었거나 숫자다. 비우면 가격 미정.
+    final price = int.tryParse(_price.text);
+    setState(() {
+      _nameError = name.isEmpty ? AppStrings.menuNameRequired : null;
+      _priceError = price != null && price > maxAmount
+          ? AppStrings.amountTooLarge
+          : null;
+    });
+    if (_nameError != null || _priceError != null) return;
+    Navigator.of(context).pop(_MenuValue(name, _duration, price));
   }
 
   @override
@@ -465,6 +484,21 @@ class _MenuSheetState extends State<_MenuSheet> {
               ),
             ],
           ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        TextField(
+          controller: _price,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(9),
+          ],
+          decoration: InputDecoration(
+            labelText: AppStrings.menuPriceLabel,
+            hintText: AppStrings.priceUnset,
+            suffixText: AppStrings.wonUnit,
+            errorText: _priceError,
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
         AppButton(label: AppStrings.save, filled: true, onPressed: _submit),

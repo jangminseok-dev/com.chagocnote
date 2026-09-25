@@ -283,7 +283,7 @@ class AppStrings {
   static const actionRevert = '되돌리기';
   static const actionNextReservation = '다음 예약 잡기';
   static const completeTitle = '미용을 마쳤어요';
-  static const completeAndNext = '완료하고 다음 예약 잡기';
+  static const close = '닫기';
   static const markClosedDate = '이 날 휴무로 표시';
   static const unmarkClosedDate = '휴무 해제';
 
@@ -362,6 +362,58 @@ class AppStrings {
   static const moveUp = '위로';
   static const moveDown = '아래로';
   static const menusEmpty = '메뉴가 없어요. 메뉴 없이도 예약할 수 있어요.';
+  static const menuPriceLabel = '정가';
+  static const priceUnset = '가격 미정';
+  static const wonUnit = '원';
+  static const amountTooLarge = '1억 원까지 적을 수 있어요.';
+
+  // 미용 기록(④)
+  static const recordTitle = '미용 기록';
+  static const completeRecordTitle = '완료 기록';
+  static const recordPhotosLabel = '사진';
+  static const addPhoto = '사진 추가';
+  static const takePhoto = '카메라';
+  static const pickFromAlbum = '앨범';
+  static const phaseBefore = '전';
+  static const phaseAfter = '후';
+  static const addPhotoPhaseLabel = '어느 사진인가요?';
+  static const uploading = '올리는 중';
+  static const uploadWaiting = '대기 중';
+  static const removeUpload = '빼기';
+  static const removePhoto = '사진 빼기';
+  static const recordMenusLabel = '메뉴 · 금액';
+  static const totalLabel = '총액';
+  static const paymentLabel = '결제 수단';
+  static const paymentCard = '카드';
+  static const paymentCash = '현금';
+  static const paymentTransfer = '계좌';
+  static const careNoteLabel = '케어 메모';
+  static const careNoteHint = '보호자에게 보내는 알림장에 실려요';
+  static const internalNoteLabel = '내부 메모';
+  static const internalNoteHint = '매장만 봐요';
+  static const completeWithRecord = '완료하기';
+  static const completeWithoutRecord = '나중에 적고 완료';
+  static const amountHint = '금액';
+
+  static const todayCareLabel = '오늘의 케어';
+  static const editRecord = '기록 수정';
+  static const writeRecord = '기록 쓰기';
+  static const deleteRecord = '기록 삭제';
+  static const deleteRecordConfirm = '이 방문의 미용 기록을 삭제할까요? 사진·메모·금액이 함께 지워지고 되돌릴 수 없습니다.';
+
+  /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
+  static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
+
+  /// 35000 → '35,000원'.
+  static String wonText(int amount) {
+    final digits = amount.toString();
+    final out = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+      out.write(digits[i]);
+    }
+    return '$out원';
+  }
   static String stepOf(int step, int total) => '$step / $total';
   static String businessHours(String opens, String closes) => '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';
