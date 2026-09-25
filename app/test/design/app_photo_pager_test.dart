@@ -22,11 +22,12 @@ Future<void> _pump(
   WidgetTester tester,
   List<AppPagerPhoto> photos, {
   ValueChanged<int>? onTap,
+  Widget? overlay,
 }) => tester.pumpWidget(
   MaterialApp(
     home: Scaffold(
       body: Center(
-        child: AppPhotoPager(photos: photos, onTap: onTap),
+        child: AppPhotoPager(photos: photos, onTap: onTap, overlay: overlay),
       ),
     ),
   ),
@@ -67,6 +68,24 @@ void main() {
 
     expect(find.text('01 / 04'), findsNothing);
     expect(find.textContaining(' / 04'), findsOneWidget);
+  });
+
+  testWidgets('이름 카드 위에서 누르거나 밀어도 넘기기에 닿는다', (tester) async {
+    final taps = <int>[];
+    await _pump(
+      tester,
+      _photos(3),
+      onTap: taps.add,
+      overlay: const AppGlassCard(child: Text('두부 · 골든두들')),
+    );
+
+    await tester.tap(find.text('두부 · 골든두들'));
+    await tester.pumpAndSettle();
+    expect(taps, [0]);
+
+    await tester.drag(find.text('두부 · 골든두들'), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('01 / 03'), findsNothing);
   });
 
   testWidgets('전/후 알약을 얹고, 영상이면 재생 표시를 얹는다', (tester) async {

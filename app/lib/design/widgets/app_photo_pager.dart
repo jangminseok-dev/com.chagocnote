@@ -143,7 +143,8 @@ class _AppPhotoPagerState extends State<AppPhotoPager> {
                   left: 0,
                   right: 0,
                   top: 130,
-                  child: Center(child: widget.overlay),
+                  // 이름 카드 위에서 시작한 탭·밀기도 넘기기에 닿게 한다.
+                  child: IgnorePointer(child: Center(child: widget.overlay)),
                 ),
             ],
           ),
