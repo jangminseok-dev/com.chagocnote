@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:go_router/go_router.dart';
 
 import 'core/plugs/pet_records_plug.dart';
@@ -86,7 +87,8 @@ const _waitRoutes = {
 /// 이 함수가 돌려준 `ProviderScope`의 `retry`가 실제로 재시도를 끄는지
 /// 테스트로 확인할 수 있다(S2) — `main()` 안에 직접 적어 두면 그 줄을
 /// 지워도 어떤 테스트도 실패하지 않는다.
-Widget buildRoot() {
+/// [overrides]는 시뮬레이터 흐름이 사진 선택기 같은 플러그인을 바꿔 끼울 때만 준다.
+Widget buildRoot({List<Override> overrides = const []}) {
   return ProviderScope(
     // Riverpod 3의 기본 재시도를 끈다. 세션 복원 실패는 스플래시 화면이
     // "다시 시도" 버튼으로 사용자가 직접 재시도하게 해야지, 프레임워크가
@@ -97,6 +99,7 @@ Widget buildRoot() {
       petRecordsPlugProvider.overrideWithValue(
         (petId) => PetRecordsView(petId: petId),
       ),
+      ...overrides,
     ],
     child: wrapWithGlass(const App()),
   );

@@ -1,5 +1,5 @@
 // ④-2a 완료 기준 — 실제 백엔드(MinIO 포함)에 붙은 앱을 시뮬레이터에서 조작해 사진 올리기·기록·완료
-// 흐름을 확인한다. 확인마다 스크린샷을 찍고, 단언이 실패해도 다음 확인으로 넘어가며, 마지막에 모아 찍는다.
+// 흐름을 확인한다. 확인·스크린샷 도구는 `flow_kit.dart`.
 //
 // 사진 선택기만 바꿔 끼운다 — 4000×3000 PNG 두 장을 만들어 준다. 렌디션(압축 플러그인)·발급·올리기·확인·
 // 덧붙이기는 실제로 한다.
@@ -12,24 +12,19 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:chagocnote/app.dart';
 import 'package:chagocnote/core/proxy/media_picker.dart';
-import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/bridge/glass_setup.dart';
-import 'package:chagocnote/design/widgets/app_button.dart';
-import 'package:chagocnote/design/widgets/pressable.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/visit_providers.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 
+import 'flow_kit.dart';
 import 'gps_photo.dart';
 
 const shopId = int.fromEnvironment('SHOP');
@@ -38,35 +33,12 @@ const visitB = int.fromEnvironment('VISIT_B');
 const ownerName = String.fromEnvironment('OWNER');
 const staffName = String.fromEnvironment('STAFF');
 
-late IntegrationTestWidgetsFlutterBinding binding;
-late WidgetTester t;
-final results = <String>[];
-final softFails = <String>[];
-String current = '-';
-
 /// 앨범 대신 — 4000×3000 PNG 한 장(렌디션이 3000 으로 줄이는지)과 GPS·기기명·방향 6 이 든 JPEG 한 장
 /// (EXIF 를 지우고 방향을 픽셀에 적용하는지)을 준다.
 class GeneratedPicker implements MediaPicker {
   var made = 0;
 
-  Future<String> _make() async {
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder);
-    canvas.drawRect(
-      const ui.Rect.fromLTWH(0, 0, 4000, 3000),
-      ui.Paint()..color = ui.Color(0xFF000000 + 0x303030 * (made % 4 + 1)),
-    );
-    canvas.drawCircle(
-      const ui.Offset(2000, 1500),
-      900,
-      ui.Paint()..color = const ui.Color(0xFFF0F0F0),
-    );
-    final image = await recorder.endRecording().toImage(4000, 3000);
-    final png = await image.toByteData(format: ui.ImageByteFormat.png);
-    final file = File('${Directory.systemTemp.path}/rflow-${made++}.png');
-    await file.writeAsBytes(png!.buffer.asUint8List());
-    return file.path;
-  }
+  Future<String> _make() => makePhoto('rflow-$made', made++);
 
   @override
   Future<List<String>> pickPhotos({required int limit}) async {
@@ -77,193 +49,6 @@ class GeneratedPicker implements MediaPicker {
 
   @override
   Future<String?> takePhoto() => _make();
-}
-
-ProviderContainer get container =>
-    ProviderScope.containerOf(t.element(find.byType(App)));
-GoRouter get router => container.read(routerProvider);
-
-void note(String text) {
-  results.add('NOTE $current :: $text');
-  debugPrint('NOTE $current :: $text');
-}
-
-void soft(bool ok, String what) {
-  if (!ok) {
-    softFails.add(what);
-    note('어긋남: $what');
-  }
-}
-
-void drain() {
-  Object? ex;
-  while ((ex = t.takeException()) != null) {
-    final line = ex.toString().split('\n').take(6).join(' / ');
-    results.add('EXC $current :: $line');
-    debugPrint('EXC $current :: $line');
-  }
-}
-
-Future<void> pumpFor(Duration d) async {
-  final end = DateTime.now().add(d);
-  while (DateTime.now().isBefore(end)) {
-    await t.pump(const Duration(milliseconds: 50));
-    drain();
-  }
-}
-
-Future<void> shot(String name) async {
-  await pumpFor(const Duration(milliseconds: 400));
-  try {
-    await binding.takeScreenshot(name);
-  } catch (e) {
-    debugPrint('스크린샷 실패 $name: $e');
-  }
-}
-
-Finder btn(String label) =>
-    find.byWidgetPredicate((w) => w is AppButton && w.label == label);
-Finder p(String label) =>
-    find.byWidgetPredicate((w) => w is Pressable && w.semanticLabel == label);
-
-Future<void> waitFor(
-  Finder f, {
-  Duration timeout = const Duration(seconds: 20),
-}) async {
-  final end = DateTime.now().add(timeout);
-  while (true) {
-    await t.pump(const Duration(milliseconds: 50));
-    drain();
-    if (f.evaluate().isNotEmpty) return;
-    if (DateTime.now().isAfter(end)) {
-      throw TestFailure('보이지 않는다: ${f.describeMatch(Plurality.zero)}');
-    }
-  }
-}
-
-/// 찾을 때까지 기다리고(목록이 게을러 아래는 안 그려지므로 없으면 조금씩 내려 본다), 보이게 옮긴다.
-Future<void> reveal(Finder f) async {
-  final end = DateTime.now().add(const Duration(seconds: 20));
-  var waited = 0;
-  while (f.evaluate().isEmpty) {
-    if (DateTime.now().isAfter(end)) {
-      throw TestFailure('보이지 않는다: ${f.describeMatch(Plurality.zero)}');
-    }
-    await t.pump(const Duration(milliseconds: 50));
-    drain();
-    if (++waited % 20 == 0) {
-      // 여러 줄 메모 칸도 세로 Scrollable 이라 화면의 세로 목록(ListView)을 끈다.
-      final down = find.byWidgetPredicate(
-        (w) => w is ListView && w.scrollDirection == Axis.vertical,
-      );
-      if (down.evaluate().isNotEmpty) {
-        await t.drag(down.last, const Offset(0, -300), warnIfMissed: false);
-        await t.pump(const Duration(milliseconds: 300));
-      }
-    }
-  }
-}
-
-/// 찾아서 보이게 옮긴 뒤 누른다.
-Future<void> tap(Finder f) async {
-  await reveal(f);
-  await t.ensureVisible(f.first);
-  await t.pump(const Duration(milliseconds: 150));
-  await t.tap(f.first);
-  await pumpFor(const Duration(milliseconds: 500));
-}
-
-Future<void> enter(String key, String text) async {
-  final f = find.byKey(ValueKey(key));
-  await reveal(f);
-  await t.ensureVisible(f);
-  await t.enterText(f, text);
-  await pumpFor(const Duration(milliseconds: 300));
-}
-
-String fieldText(String key) =>
-    t.widget<TextField>(find.byKey(ValueKey(key))).controller!.text;
-
-Future<void> step(String id, String title, Future<void> Function() body) async {
-  current = id;
-  debugPrint('STEP $id 시작 — $title');
-  try {
-    softFails.clear();
-    await body();
-    if (softFails.isNotEmpty) {
-      throw TestFailure('어긋남 ${softFails.length}건: ${softFails.join(' | ')}');
-    }
-    results.add('PASS $id $title');
-  } catch (e, st) {
-    results.add(
-      'FAIL $id $title :: ${e.toString().split('\n').take(8).join(' / ')}',
-    );
-    debugPrint('STEP $id 실패: $e\n$st');
-    await shot('$id-FAIL');
-  }
-  drain();
-}
-
-Future<void> logout() async {
-  router.go('/home');
-  await pumpFor(const Duration(milliseconds: 500));
-  router.push('/settings/account');
-  await tap(btn(AppStrings.logout));
-  await waitFor(
-    find.byKey(ScreenKeys.login),
-    timeout: const Duration(seconds: 30),
-  );
-}
-
-Future<void> login(String name) async {
-  await waitFor(
-    find.byKey(ScreenKeys.login),
-    timeout: const Duration(seconds: 30),
-  );
-  // 로그아웃 뒤 화면이 바뀌는 중이면 앞 화면의 칸에 들어간다 — 자리 잡은 뒤 로그인 화면의 칸에 넣는다.
-  await pumpFor(const Duration(seconds: 1));
-  await t.enterText(
-    find.descendant(
-      of: find.byKey(ScreenKeys.login),
-      matching: find.byType(TextField),
-    ),
-    name,
-  );
-  await pumpFor(const Duration(milliseconds: 300));
-  await tap(btn(AppStrings.devSignIn));
-  try {
-    await waitFor(
-      find.byKey(ScreenKeys.home),
-      timeout: const Duration(seconds: 30),
-    );
-  } on TestFailure {
-    await shot('00-login-FAIL');
-    rethrow;
-  }
-  await pumpFor(const Duration(seconds: 1));
-}
-
-Future<void> openVisit(int visitId) async {
-  router.go('/home');
-  await pumpFor(const Duration(milliseconds: 300));
-  router.push('/visits/$visitId');
-  await waitFor(find.byKey(ScreenKeys.visitDetail));
-  await pumpFor(const Duration(seconds: 1));
-}
-
-/// 서명 URL 로 저장소에서 바로 내려받는다.
-Future<List<int>> download(String url) async {
-  final client = HttpClient();
-  try {
-    final response = await (await client.getUrl(Uri.parse(url))).close();
-    final bytes = <int>[];
-    await for (final chunk in response) {
-      bytes.addAll(chunk);
-    }
-    return bytes;
-  } finally {
-    client.close();
-  }
 }
 
 /// JPEG 의 EXIF(APP1) IFD0 태그 번호들. EXIF 가 없으면 빈 집합.
@@ -314,10 +99,8 @@ void main() {
     t = tester;
     await initializeGlass();
     await t.pumpWidget(
-      ProviderScope(
-        retry: (retryCount, error) => null,
+      buildRoot(
         overrides: [mediaPickerProvider.overrideWithValue(GeneratedPicker())],
-        child: wrapWithGlass(const App()),
       ),
     );
     final end = DateTime.now().add(const Duration(seconds: 40));

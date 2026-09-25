@@ -233,10 +233,13 @@ class FeedCard extends ConsumerWidget {
                           name,
                           style: AppTypography.titleKo.copyWith(fontSize: 17),
                         ),
+                        // 실제 글래스는 비쳐 보여 사진 위의 옅은 글자가 묻힌다 — 잉크색으로.
                         if (pet != null)
                           Text(
                             '${pet.breed} · ${formatWeight(pet.weightKg)}',
-                            style: AppTypography.caption,
+                            style: AppTypography.caption.copyWith(
+                              color: AppColors.ink,
+                            ),
                           ),
                       ],
                     ),
