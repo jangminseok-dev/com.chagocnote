@@ -9,12 +9,15 @@ import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/features/auth/api/social_sign_in.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
+import 'package:chagocnote/features/customer/state/customer_providers.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
+import 'package:chagocnote/features/visit/state/feed_controller.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/customer_fixtures.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/upload_fakes.dart';
@@ -85,6 +88,14 @@ class _Env {
       'POST /v1/shops/3/visits/101/record/media' => FakeResponse(
         statusCode: 200,
         data: recordJson(media: [recordMediaJson()]),
+      ),
+      'GET /v1/shops/3/visits/feed' => FakeResponse(
+        statusCode: 200,
+        data: feedJson(),
+      ),
+      'GET /v1/shops/3/pets/7' => FakeResponse(
+        statusCode: 200,
+        data: petDetailJson(),
       ),
       _ => throw StateError('예상하지 못한 요청: $call'),
     };
@@ -217,6 +228,41 @@ void main() {
     );
     expect(env.folders, isEmpty);
     expect(env.savedJson, isEmpty);
+  });
+
+  test('붙은 뒤 피드와 반려동물 상세(프로필 사진)를 다시 읽는다', () async {
+    final env = env0();
+    await env.open();
+    final c = env.setup.container;
+    final feed = c.listen(
+      feedControllerProvider((shopId: 3, petId: null)),
+      (_, _) {},
+    );
+    final pet = c.listen(petDetailProvider((shopId: 3, petId: 7)), (_, _) {});
+    addTearDown(feed.close);
+    addTearDown(pet.close);
+    List<String> reads() => [
+      for (final call in env.calls)
+        if (call.startsWith('GET')) call,
+    ]..sort();
+    await _until(() => reads().length == 2);
+
+    await env.queue.addPhotos(
+      shopId: 3,
+      visitId: 101,
+      phase: MediaPhase.after,
+      sources: ['/picked/a.heic'],
+    );
+    await _until(() => env.drained);
+    // 다시 읽기는 무효화 뒤 한 틈에 나간다.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(reads(), [
+      'GET /v1/shops/3/pets/7',
+      'GET /v1/shops/3/pets/7',
+      'GET /v1/shops/3/visits/feed',
+      'GET /v1/shops/3/visits/feed',
+    ]);
   });
 
   test('올리는 동안 타일은 진행률을 보이고, 발급 전 렌디션이 앱 폴더에 남는다', () async {
