@@ -1,9 +1,10 @@
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/api_exception.dart';
+import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
 import '../../../core/proxy/media_picker.dart';
 import '../../../design/tokens/app_colors.dart';
@@ -15,6 +16,7 @@ import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_progress_ring.dart';
 import '../../../design/widgets/app_segment.dart';
 import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../api/record_models.dart';
@@ -240,8 +242,8 @@ class _UploadTile extends StatelessWidget {
 
 enum _Source { camera, album }
 
-/// [사진 추가] — 전/후를 고르고 카메라·앨범에서 가져와 대기열에 넣는다. [attached]는 이미 붙었거나
-/// 올리는 중인 사진 수(한도 30장).
+/// [사진 추가] — 전/후를 고르고 카메라·앨범에서 가져와 대기열에 넣는다. [attached]는 서버 기록에 붙은
+/// 사진 수다. 한도 30장은 여기에 대기열의 사진을 더해 센다 — 차면 시트 없이 한도 문구만 보인다.
 Future<void> addPhotos(
   BuildContext context,
   WidgetRef ref, {
@@ -250,6 +252,23 @@ Future<void> addPhotos(
   required MediaPhase phase,
   required int attached,
 }) async {
+  final remaining =
+      maxPhotosPerVisit -
+      attached -
+      ref.read(visitUploadsProvider(visitId)).length;
+  if (remaining <= 0) {
+    AppSnackBar.show(
+      context,
+      messageFor(
+        ApiException(
+          statusCode: 422,
+          code: 'MEDIA_LIMIT_EXCEEDED',
+          message: '',
+        ),
+      ),
+    );
+    return;
+  }
   final choice = await AppSheet.show<(_Source, MediaPhase)>(
     context,
     builder: (context) => _AddPhotoSheet(initialPhase: phase),
@@ -259,9 +278,7 @@ Future<void> addPhotos(
   final picker = ref.read(mediaPickerProvider);
   final paths = switch (source) {
     _Source.camera => [?await picker.takePhoto()],
-    _Source.album => await picker.pickPhotos(
-      limit: max(1, maxPhotosPerVisit - attached),
-    ),
+    _Source.album => await picker.pickPhotos(limit: remaining),
   };
   if (paths.isEmpty) return;
   await ref
@@ -270,7 +287,7 @@ Future<void> addPhotos(
         shopId: shopId,
         visitId: visitId,
         phase: chosen,
-        sources: paths,
+        sources: paths.take(remaining).toList(),
       );
 }
 

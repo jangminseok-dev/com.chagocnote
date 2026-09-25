@@ -377,20 +377,73 @@ void main() {
     expect(app.queue.removed, ['j2']);
   });
 
-  testWidgets('사진 추가는 전/후를 고르고 앨범에서 고른 사진을 대기열에 넣는다 — 한도는 30장에서 붙은 사진을 뺀 것', (
-    tester,
-  ) async {
-    final server = _Server(record: _savedRecord());
-    final (app, _) = await _open(tester, server);
-    app.picker.picked = ['/picked/a.jpg', '/picked/b.jpg'];
+  testWidgets(
+    '사진 추가는 전/후를 고르고 앨범에서 고른 사진을 대기열에 넣는다 — 한도는 30장에서 서버에 붙은 사진(폼에서 뺀 것 포함)과 대기열을 뺀 것',
+    (tester) async {
+      final server = _Server(record: _savedRecord());
+      final (app, _) = await _open(
+        tester,
+        server,
+        uploads: [_job('j1', failures: 1)],
+      );
+      app.picker.picked = ['/picked/a.jpg', '/picked/b.jpg'];
+
+      // _tap 의 ensureVisible 은 사진 줄을 옆으로 밀어 [사진 추가]를 가린다 — 보이는 채로 누른다.
+      await tester.tap(
+        find.bySemanticsLabel('${AppStrings.removePhoto} 전 사진 1'),
+      );
+      await settle(tester);
+      await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+      await _tap(tester, find.text(AppStrings.phaseBefore).last);
+      await _tap(tester, _button(AppStrings.pickFromAlbum));
+
+      expect(app.picker.limits, [26]);
+      expect(app.queue.added.single.visitId, 101);
+      expect(app.queue.added.single.phase, MediaPhase.before);
+      expect(app.queue.added.single.sources, [
+        '/picked/a.jpg',
+        '/picked/b.jpg',
+      ]);
+    },
+  );
+
+  testWidgets('붙은 사진과 대기열이 30장이면 시트도 선택기도 없이 한도 문구를 보인다', (tester) async {
+    final server = _Server(
+      record: recordJson(
+        media: [
+          for (var i = 0; i < 29; i++)
+            recordMediaJson(mediaId: 100 + i, sortOrder: i),
+        ],
+        version: 3,
+      ),
+    );
+    final (app, _) = await _open(tester, server, uploads: [_job('j1')]);
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
-    await _tap(tester, find.text(AppStrings.phaseBefore).last);
+
+    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있습니다.'), findsOneWidget);
+    expect(_button(AppStrings.takePhoto), findsNothing);
+    expect(app.picker.limits, isEmpty);
+    expect(app.queue.added, isEmpty);
+  });
+
+  testWidgets('선택기가 남은 자리보다 많이 돌려주면 남은 만큼만 대기열에 넣는다', (tester) async {
+    final server = _Server(
+      record: recordJson(
+        media: [
+          for (var i = 0; i < 28; i++)
+            recordMediaJson(mediaId: 100 + i, sortOrder: i),
+        ],
+        version: 3,
+      ),
+    );
+    final (app, _) = await _open(tester, server);
+    app.picker.picked = ['/picked/a.jpg', '/picked/b.jpg', '/picked/c.jpg'];
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
     await _tap(tester, _button(AppStrings.pickFromAlbum));
 
-    expect(app.picker.limits, [27]);
-    expect(app.queue.added.single.visitId, 101);
-    expect(app.queue.added.single.phase, MediaPhase.before);
+    expect(app.picker.limits, [2]);
     expect(app.queue.added.single.sources, ['/picked/a.jpg', '/picked/b.jpg']);
   });
 

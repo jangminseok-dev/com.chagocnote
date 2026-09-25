@@ -4,6 +4,7 @@ import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
+import 'package:chagocnote/features/visit/state/upload_job.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_card.dart';
@@ -561,9 +562,13 @@ void main() {
       FakeMediaImages images,
       FakeUploadQueue queue,
     })
-    build(_Server server, {String role = 'owner'}) {
+    build(
+      _Server server, {
+      String role = 'owner',
+      List<UploadJob> uploads = const [],
+    }) {
       final images = FakeMediaImages();
-      final queue = FakeUploadQueue();
+      final queue = FakeUploadQueue(uploads);
       final setup = CustomerTestSetup(
         server.backend.call,
         role: role,
@@ -621,6 +626,38 @@ void main() {
 
       expect(app.queue.added.single.phase, MediaPhase.before);
       expect(app.queue.added.single.sources, ['/camera/c.jpg']);
+    });
+
+    testWidgets('붙은 사진과 대기열이 30장이면 사진 추가는 시트 없이 한도 문구만 보인다(카메라도 막힌다)', (
+      tester,
+    ) async {
+      final server = _Server(status: 'in_progress')
+        ..record = recordJson(
+          media: [
+            for (var i = 0; i < 29; i++)
+              recordMediaJson(mediaId: 100 + i, sortOrder: i),
+          ],
+        );
+      final app = build(
+        server,
+        uploads: [
+          const UploadJob(
+            id: 'j1',
+            userId: 1,
+            shopId: 3,
+            visitId: 101,
+            phase: MediaPhase.before,
+            stage: UploadStage.prepared,
+          ),
+        ],
+      );
+      await _open(tester, app.setup);
+
+      await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+
+      expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있습니다.'), findsOneWidget);
+      expect(_button(AppStrings.takePhoto), findsNothing);
+      expect(app.queue.added, isEmpty);
     });
 
     testWidgets('사진만 붙은 기록(대기열이 만든 것)은 케어 카드 없이 [기록 쓰기]다', (tester) async {
