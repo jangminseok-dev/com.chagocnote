@@ -360,6 +360,19 @@ void main() {
     expect(server.puts, isEmpty);
   });
 
+  testWidgets('예약됨에서 바로 완료할 때 몸무게가 틀리면 완료 전이도 보내지 않는다', (tester) async {
+    final server = _Server()..status = 'reserved';
+    final (_, closed) = await _open(tester, server, completing: true);
+
+    await tester.enterText(find.widgetWithText(TextField, '4.2'), '0');
+    await _tap(tester, _button(AppStrings.completeWithRecord));
+
+    expect(find.text(AppStrings.weightInvalid), findsOneWidget);
+    expect(server.transitions, isEmpty);
+    expect(server.puts, isEmpty);
+    expect(closed.closed, isFalse);
+  });
+
   testWidgets('올리는 중인 사진은 진행 링, 실패해 기다리는 사진은 "대기 중"이고 빼기를 누르면 대기열에서 뺀다', (
     tester,
   ) async {

@@ -238,6 +238,8 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     }
 
     try {
+      // 칸이 틀렸으면 완료 전이도 보내지 않는다 — 먼저 완료한 뒤 멈추면 기록 없는 완료로 남는다.
+      if (withRecord && _input(detail) == null) throw const _Invalid();
       // 예약됨에서 바로 완료하면 먼저 완료한다 — 기록은 미용 중·완료 방문에만 쓴다(설계 8절).
       if (detail.visit.status == VisitStatus.reserved) await complete();
       if (withRecord) await _put(shopId, detail);
