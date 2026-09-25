@@ -11,6 +11,7 @@ Map<String, dynamic> petSummaryJson({
   String ageLabel = '5살',
   bool hasConditions = false,
   bool passedAway = false,
+  String? photo,
 }) => {
   'pet_id': petId,
   'name': name,
@@ -19,6 +20,7 @@ Map<String, dynamic> petSummaryJson({
   'age_label': ageLabel,
   'has_conditions': hasConditions,
   'passed_away': passedAway,
+  'photo': photo,
 };
 
 Map<String, dynamic> familyJson({
@@ -76,6 +78,7 @@ Map<String, dynamic> petJson({
   List<Map<String, dynamic>>? conditions,
   String? memo = '귀 만지면 싫어함',
   String? passedAwayAt,
+  String? photo,
 }) {
   final list = conditions ?? (noKnownConditions ? const [] : [conditionJson()]);
   return {
@@ -95,6 +98,7 @@ Map<String, dynamic> petJson({
     'conditions': list,
     'memo': memo,
     'passed_away_at': passedAwayAt,
+    'photo': photo,
   };
 }
 

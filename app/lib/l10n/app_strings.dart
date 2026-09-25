@@ -107,6 +107,9 @@ class AppStrings {
   static const petTabBasic = '기본';
   static const petTabConditions = '질병';
   static const petTabOwner = '보호자';
+  static const petTabRecords = '기록';
+  static const petRecordsEmpty = '아직 끝난 미용 기록이 없어요';
+  static const loadMore = '더 보기';
   static const passedAwayBadge = '무지개다리';
   static const markPassedAway = '무지개다리 표시';
   static const unmarkPassedAway = '무지개다리 되돌리기';
@@ -403,6 +406,31 @@ class AppStrings {
 
   /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
   static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
+
+  /// '보호자 이수진' — 상세 넘기기 아래 줄.
+  static String ownerLine(String name) => '보호자 $name';
+
+  /// '전 사진 1 크게 보기' — 상세 넘기기의 사진(접근성 이름). 사진 줄의 이름과 겹치지 않게 한다.
+  static String openPhotoLabel(String phase, int index) =>
+      '$phase 사진 $index 크게 보기';
+
+  // 피드(④-2b).
+  static const viewAsCalendar = '달력으로 보기';
+  static const viewAsFeed = '피드로 보기';
+  static const feedTitleEn = 'Feed';
+  static const feedEmpty = '아직 끝난 미용이 없어요';
+  static const feedEmptyCaption = '미용을 완료하면 사진과 함께 여기에 쌓여요.';
+  static String mediaCount(int n) => '사진 $n장';
+
+  // 크게 보기(④-2b).
+  static const saveOriginal = '원본 저장';
+  static const toAfter = '후로 바꾸기';
+  static const toBefore = '전으로 바꾸기';
+  static const makeCover = '대표로';
+  static const deletePhoto = '사진 삭제';
+  static const deletePhotoConfirm = '이 사진을 기록에서 지울까요? 되돌릴 수 없습니다.';
+  static const savedToAlbum = '앨범에 저장했어요.';
+  static const albumDenied = '사진 보관함 권한이 없어요. 설정에서 켜 주세요.';
 
   /// 35000 → '35,000원'.
   static String wonText(int amount) {

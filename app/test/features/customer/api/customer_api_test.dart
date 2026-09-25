@@ -77,7 +77,18 @@ void main() {
         final s = _build((options, body) {
           return FakeResponse(
             statusCode: 200,
-            data: pageJson(nextCursor: 'c1'),
+            data: pageJson(
+              items: [
+                familyJson(
+                  pets: [
+                    petSummaryJson(
+                      photo: 'http://media.test/b/thumb/shops/3/51.jpg?sig=a',
+                    ),
+                  ],
+                ),
+              ],
+              nextCursor: 'c1',
+            ),
           );
         });
 
@@ -97,6 +108,10 @@ void main() {
         expect(card.phoneMasked, '010-12··-5678');
         expect(card.pets.single.name, '콩이');
         expect(card.pets.single.ageLabel, '5살');
+        expect(
+          card.pets.single.photo,
+          'http://media.test/b/thumb/shops/3/51.jpg?sig=a',
+        );
       },
     );
 
@@ -267,6 +282,7 @@ void main() {
               ),
             ],
             passedAwayAt: '2026-09-21T03:00:00Z',
+            photo: 'http://media.test/b/thumb/shops/3/51.jpg?sig=a',
           ),
           siblings: [siblingJson()],
         ),
@@ -282,6 +298,7 @@ void main() {
     expect(detail.pet.passedAway, isTrue);
     expect(detail.owner.phoneMasked, '010-12··-5678');
     expect(detail.siblings.single.name, '두부');
+    expect(detail.pet.photo, 'http://media.test/b/thumb/shops/3/51.jpg?sig=a');
   });
 
   test('나머지 경로와 메서드', () async {

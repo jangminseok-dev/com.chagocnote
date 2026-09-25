@@ -6,6 +6,7 @@ import '../../auth/state/shop_scoped.dart';
 import '../api/record_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
+import 'feed_controller.dart';
 import 'visit_providers.dart';
 
 /// 방문·일정·메뉴 쓰기. 모든 호출은 매장 범위 공통 처리(`NOT_A_MEMBER` →
@@ -121,8 +122,11 @@ class VisitCommands {
       _ref.invalidate(calendarMonthProvider);
       _ref.invalidate(visitDetailProvider);
       _ref.invalidate(visitSlotsProvider);
+      _ref.invalidate(feedControllerProvider);
       _ref.invalidate(customerListControllerProvider);
       _ref.invalidate(customerDetailProvider);
+      // 프로필 사진은 가장 최근 완료 기록의 대표 사진이다.
+      _ref.invalidate(petDetailProvider);
     }
   }
 

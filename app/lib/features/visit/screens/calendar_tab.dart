@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/media_images.dart';
 import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_radius.dart';
 import '../../../design/tokens/app_spacing.dart';
@@ -12,6 +13,8 @@ import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_dashed_tile.dart';
 import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_glass_card.dart';
+import '../../../design/widgets/app_icon_toggle.dart';
+import '../../../design/widgets/app_photo_fan.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
@@ -19,15 +22,18 @@ import '../../auth/state/shop_selection.dart';
 import '../../../core/time/today_provider.dart';
 import '../api/visit_models.dart';
 import '../state/calendar_selection.dart';
+import '../state/calendar_view_mode.dart';
 import '../state/day_layout.dart';
 import '../state/visit_providers.dart';
+import 'feed_view.dart';
 import 'visit_labels.dart';
 
-/// 홈의 "캘린더" 탭 — 큰 세리프 월·연도와 이동 화살표, 월 달력, 위쪽 "정리 안 된
-/// 예약 N건" 줄, 고른 날의 미리보기 글래스 카드(설계 9.1).
+/// 홈의 "캘린더" 탭 — 머리의 [달력 / 피드] 토글(기기에 기억)과 설정. 달력은 큰 세리프 월·연도와 이동
+/// 화살표, 월 달력, 위쪽 "정리 안 된 예약 N건" 줄, 고른 날의 미리보기 글래스 카드(설계 9.1), 피드는
+/// 완료 방문을 최신순으로(④ 설계 10.1 ②).
 ///
-/// 사진이 생기기 전(④ 전)에는 지난날 칸을 회색 사진 자리 + 마릿수로, 앞날의
-/// 예약은 점선 칸 + 예약 수로, 휴무일은 옅은 "휴무"로 보인다.
+/// 지난날 칸은 그날 완료 방문의 대표 사진(없으면 회색 자리) + 마릿수로, 앞날의 예약은 점선 칸 +
+/// 예약 수로, 휴무일은 옅은 "휴무"로 보인다. 미리보기 카드는 그날 사진 넷을 부채꼴로 겹친다(④ 설계 10.1 ①).
 class CalendarTab extends ConsumerStatefulWidget {
   const CalendarTab({super.key});
 
@@ -62,8 +68,29 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
   @override
   Widget build(BuildContext context) {
     final shopId = ref.watch(selectedShopIdProvider);
-    final selected = ref.watch(selectedDateProvider);
     if (shopId == null) return const SizedBox.shrink();
+    final mode =
+        ref.watch(calendarViewModeProvider).value ?? CalendarViewMode.calendar;
+    return Column(
+      children: [
+        _TabHeader(
+          mode: mode,
+          onMode: (m) => ref.read(calendarViewModeProvider.notifier).select(m),
+        ),
+        Expanded(
+          child: switch (mode) {
+            CalendarViewMode.calendar => _calendar(shopId),
+            CalendarViewMode.feed => FeedList(
+              query: (shopId: shopId, petId: null),
+            ),
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _calendar(int shopId) {
+    final selected = ref.watch(selectedDateProvider);
     final monthKey = monthKeyOf(shopId, _month);
     final summary = ref.watch(calendarMonthProvider(monthKey));
     final data = summary.value;
@@ -74,7 +101,7 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
           // 아래 여백은 미리보기 카드와 떠 있는 탭바 몫이다.
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.lg,
-            AppSpacing.md,
+            0,
             AppSpacing.lg,
             280,
           ),
@@ -124,6 +151,7 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
               _MonthGrid(
                 month: _month,
                 summary: data,
+                images: ref.watch(mediaImagesProvider),
                 today: ref.watch(todayProvider),
                 selected: selected,
                 onSelect: (date) =>
@@ -139,6 +167,7 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
           child: _DayPreview(
             shopId: shopId,
             date: selected,
+            covers: data?.dayOf(selected)?.covers ?? const [],
             onOpen: () => _openDay(selected),
           ),
         ),
@@ -147,7 +176,45 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
   }
 }
 
-/// "09 September 2026 ‹ ›" 와 설정 버튼.
+/// 탭 머리 — [달력 / 피드] 토글과 설정 버튼.
+class _TabHeader extends StatelessWidget {
+  const _TabHeader({required this.mode, required this.onMode});
+
+  final CalendarViewMode mode;
+  final ValueChanged<CalendarViewMode> onMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        0,
+      ),
+      child: Row(
+        children: [
+          if (mode == CalendarViewMode.feed)
+            const Text(AppStrings.feedTitleEn, style: AppTypography.titleEn),
+          const Spacer(),
+          AppIconToggle(
+            icons: const [Icons.calendar_month, Icons.view_agenda_outlined],
+            labels: const [AppStrings.viewAsCalendar, AppStrings.viewAsFeed],
+            currentIndex: mode.index,
+            onChanged: (i) => onMode(CalendarViewMode.values[i]),
+          ),
+          Pressable(
+            semanticLabel: AppStrings.settingsLabel,
+            onTap: () => context.push('/settings'),
+            child: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "09 September 2026 ‹ ›".
 class _MonthHeader extends StatelessWidget {
   const _MonthHeader({
     required this.month,
@@ -196,11 +263,6 @@ class _MonthHeader extends StatelessWidget {
           onTap: onNext,
           child: const Icon(Icons.chevron_right),
         ),
-        Pressable(
-          semanticLabel: AppStrings.settingsLabel,
-          onTap: () => context.push('/settings'),
-          child: const Icon(Icons.settings_outlined),
-        ),
       ],
     );
   }
@@ -231,6 +293,7 @@ class _MonthGrid extends StatelessWidget {
   const _MonthGrid({
     required this.month,
     required this.summary,
+    required this.images,
     required this.today,
     required this.selected,
     required this.onSelect,
@@ -238,6 +301,7 @@ class _MonthGrid extends StatelessWidget {
 
   final DateTime month;
   final CalendarMonth? summary;
+  final MediaImages images;
   final DateTime today;
   final DateTime selected;
   final ValueChanged<DateTime> onSelect;
@@ -262,9 +326,12 @@ class _MonthGrid extends StatelessWidget {
                       return const SizedBox(height: 56);
                     }
                     final date = DateTime(month.year, month.month, day);
+                    final daySummary = summary?.dayOf(date);
+                    final cover = daySummary?.cover;
                     return _DayCell(
                       date: date,
-                      summary: summary?.dayOf(date),
+                      summary: daySummary,
+                      cover: cover == null ? null : images.of(cover),
                       isToday: date == todayDate,
                       isPast: date.isBefore(todayDate),
                       isSelected: date == selected,
@@ -283,6 +350,7 @@ class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.date,
     required this.summary,
+    required this.cover,
     required this.isToday,
     required this.isPast,
     required this.isSelected,
@@ -291,6 +359,9 @@ class _DayCell extends StatelessWidget {
 
   final DateTime date;
   final CalendarDay? summary;
+
+  /// 그날 완료 방문의 대표 사진. 없으면 회색 자리.
+  final ImageProvider? cover;
   final bool isToday;
   final bool isPast;
   final bool isSelected;
@@ -302,7 +373,7 @@ class _DayCell extends StatelessWidget {
     final count = s?.visitCount ?? 0;
     final Widget body;
     if (count > 0 && (isPast || isToday)) {
-      body = AppPhotoTile(image: null, count: count, size: 34);
+      body = AppPhotoTile(image: cover, count: count, size: 34);
     } else if (count > 0) {
       body = AppDashedTile(count: count, size: 34);
     } else if (s?.closedDay ?? false) {
@@ -405,11 +476,15 @@ class _DayPreview extends ConsumerWidget {
   const _DayPreview({
     required this.shopId,
     required this.date,
+    required this.covers,
     required this.onOpen,
   });
 
   final int shopId;
   final DateTime date;
+
+  /// 그날 완료 방문의 대표 사진(썸네일 URL) — 최대 넷.
+  final List<String> covers;
   final VoidCallback onOpen;
 
   static const _maxRows = 4;
@@ -418,6 +493,7 @@ class _DayPreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final day = ref.watch(dayVisitsProvider((shopId: shopId, date: date)));
     final data = day.value;
+    final images = ref.watch(mediaImagesProvider);
     final groups = data == null ? const <DayGroup>[] : groupDay(data.items);
     return Pressable(
       semanticLabel: AppStrings.dayHeading(date.day, date.weekday),
@@ -452,6 +528,13 @@ class _DayPreview extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
+              if (covers.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: AppPhotoFan(
+                    images: [for (final c in covers) images.of(c)],
+                  ),
+                ),
               if (day.hasError)
                 Text(messageFor(day.error!), style: AppTypography.caption)
               else if (data != null && groups.isEmpty)

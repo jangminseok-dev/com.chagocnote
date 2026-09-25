@@ -13,7 +13,7 @@ import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
 import '../../../design/widgets/app_error_retry.dart';
-import '../../../design/widgets/app_photo_tile.dart';
+import '../../../design/widgets/app_photo_pager.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/app_sheet_action.dart';
 import '../../../design/widgets/pressable.dart';
@@ -22,6 +22,7 @@ import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/record_models.dart';
 import '../api/visit_models.dart';
+import '../state/photo_edits.dart';
 import '../state/record_rules.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
@@ -29,7 +30,7 @@ import 'record_photos.dart';
 import 'visit_actions.dart';
 import 'visit_labels.dart';
 
-/// 방문 하나 — 대표 사진과 상태, 이름·품종·몸무게·보호자, 사진 줄과 [사진 추가](미용 중·완료),
+/// 방문 하나 — 기울어진 사진 넘기기(누르면 크게 보기)와 그 위 이름 카드(이름·품종·몸무게·상태), 보호자, 사진 줄과 [사진 추가](미용 중·완료),
 /// "오늘의 케어"(기록)와 [기록 수정], 날짜·메뉴·메모·지난 방문·노쇼 횟수, 상태에 맞는 버튼
 /// (설계 9.1, ④ 설계 10.1 ③). `···`에 수정·되돌리기·바로 완료·다음 예약 잡기·기록 삭제(사장)가 있다.
 ///
@@ -296,112 +297,169 @@ class _Body extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final visit = detail.visit;
-    final pet = visit.pet;
     final record = detail.record;
     final media = record?.media ?? const <RecordMedia>[];
     // 기록은 미용 중·완료 방문에만 쓴다(설계 8절). 사진은 시작부터 넣는다 — 미용 중이면 전, 완료면 후.
     final recordable =
         visit.status == VisitStatus.inProgress ||
         visit.status == VisitStatus.completed;
-    final cover = coverOf(media);
+    // 넘기기는 대표 사진부터(후 → 전 → 영상). 상세는 표시용, 영상은 포스터(설계 7.3).
+    final gallery = galleryOrder(media);
+    final images = ref.watch(mediaImagesProvider);
+    final counts = {for (final p in MediaPhase.values) p: 0};
     // 서버의 group 은 이미 자기를 뺀 형제만 준다.
     final others = detail.group;
     final previous = detail.previousVisit;
     return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       children: [
-        // 대표 사진(후 → 전). 기울어진 넘기기·크게 보기는 ④-2b.
-        Center(
-          child: AppPhotoTile(
-            image: cover == null
-                ? null
-                : ref
-                      .watch(mediaImagesProvider)
-                      .of(cover.displayUrl ?? cover.thumbUrl),
-            size: 160,
+        AppPhotoPager(
+          photos: [
+            for (final m in gallery)
+              AppPagerPhoto(
+                image: images.of(m.displayUrl ?? m.thumbUrl),
+                label: phaseLabel(m.phase),
+                semanticLabel: AppStrings.openPhotoLabel(
+                  phaseLabel(m.phase),
+                  counts.update(m.phase, (n) => n + 1),
+                ),
+                video: m.kind == MediaKind.video,
+              ),
+          ],
+          onTap: (i) => context.push(
+            '/visits/${visit.visitId}/photos/${gallery[i].mediaId}',
+          ),
+          overlay: _WhoCard(visit: visit),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                AppStrings.ownerLine(ownerLabel(visit.customer)),
+                style: AppTypography.caption,
+              ),
+              if (recordable || media.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                RecordPhotoStrip(
+                  visitId: visit.visitId,
+                  media: [for (final m in media) FormMedia(m, m.phase)],
+                  onAdd: !recordable || busy
+                      ? null
+                      : () => addPhotos(
+                          context,
+                          ref,
+                          shopId: ref.read(selectedShopIdProvider)!,
+                          visitId: visit.visitId,
+                          phase: visit.status == VisitStatus.inProgress
+                              ? MediaPhase.before
+                              : MediaPhase.after,
+                          attached: media.length,
+                        ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.lg),
+              // 사진만 붙은 기록(대기열이 만든 것)은 적은 것이 없어 케어 카드를 숨기고 [기록 쓰기]로 보인다.
+              if (!isBlankRecord(record))
+                _CareCard(record: record!, startsAt: visit.startsAt),
+              if (recordable)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: AppButton(
+                    label: isBlankRecord(record)
+                        ? AppStrings.writeRecord
+                        : AppStrings.editRecord,
+                    onPressed: busy
+                        ? null
+                        : () => context.push('/visits/${visit.visitId}/record'),
+                  ),
+                ),
+              _InfoCard(
+                label: AppStrings.visitDateLabel,
+                value:
+                    '${dayLabel(visit.startsAt.wall)} · ${hhmm(visit.startsAt.wall)} — ${hhmm(visit.endsAt.wall)}',
+              ),
+              _InfoCard(
+                label: AppStrings.menuLabel,
+                value: menusLabel(visit.menus),
+              ),
+              if (visit.memo != null)
+                _InfoCard(label: AppStrings.visitMemoLabel, value: visit.memo!),
+              if (visit.cancelReason != null)
+                _InfoCard(
+                  label: AppStrings.cancelReasonLabel,
+                  value: visit.cancelReason == 'shop_reason'
+                      ? AppStrings.reasonShopReason
+                      : AppStrings.reasonCustomerRequest,
+                ),
+              _InfoCard(
+                label: AppStrings.previousVisitLabel,
+                value:
+                    '${previous == null ? AppStrings.none : dayLabel(previous.startsAt.wall)} · ${AppStrings.noShowCount(detail.noShowCount)}',
+              ),
+              if (others.isNotEmpty) _GroupCard(others: others),
+              if (errorText != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Text(errorText!, style: AppTypography.caption),
+                ),
+              const SizedBox(height: AppSpacing.md),
+              _StatusButtons(
+                status: visit.status,
+                busy: busy,
+                onAction: onAction,
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Wrap(
-          spacing: AppSpacing.sm,
-          crossAxisAlignment: WrapCrossAlignment.center,
+      ],
+    );
+  }
+}
+
+/// 넘기기 위의 이름 카드(기준 목업) — 이름, 품종·몸무게, 상태. 목업은 글래스지만 스크롤 화면이라 불투명
+/// 카드다(기반 설계 6.2, `glass_boundary_test`).
+class _WhoCard extends StatelessWidget {
+  const _WhoCard({required this.visit});
+
+  final Visit visit;
+
+  @override
+  Widget build(BuildContext context) {
+    final pet = visit.pet;
+    return SizedBox(
+      width: 220,
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
           children: [
-            Text(visitsTitle([visit]), style: AppTypography.titleKo),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    visitsTitle([visit]),
+                    style: AppTypography.titleKo.copyWith(fontSize: 17),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (pet != null)
+                    Text(
+                      '${pet.breed} · ${formatWeight(pet.weightKg)}',
+                      style: AppTypography.caption,
+                    ),
+                ],
+              ),
+            ),
             AppChip(label: statusLabel(visit.status)),
           ],
         ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          [
-            if (pet != null) ...[pet.breed, formatWeight(pet.weightKg)],
-            ownerLabel(visit.customer),
-          ].join(' · '),
-          style: AppTypography.caption,
-        ),
-        if (recordable || media.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.md),
-          RecordPhotoStrip(
-            visitId: visit.visitId,
-            media: [for (final m in media) FormMedia(m, m.phase)],
-            onAdd: !recordable || busy
-                ? null
-                : () => addPhotos(
-                    context,
-                    ref,
-                    shopId: ref.read(selectedShopIdProvider)!,
-                    visitId: visit.visitId,
-                    phase: visit.status == VisitStatus.inProgress
-                        ? MediaPhase.before
-                        : MediaPhase.after,
-                    attached: media.length,
-                  ),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.lg),
-        // 사진만 붙은 기록(대기열이 만든 것)은 적은 것이 없어 케어 카드를 숨기고 [기록 쓰기]로 보인다.
-        if (!isBlankRecord(record))
-          _CareCard(record: record!, startsAt: visit.startsAt),
-        if (recordable)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: AppButton(
-              label: isBlankRecord(record)
-                  ? AppStrings.writeRecord
-                  : AppStrings.editRecord,
-              onPressed: busy
-                  ? null
-                  : () => context.push('/visits/${visit.visitId}/record'),
-            ),
-          ),
-        _InfoCard(
-          label: AppStrings.visitDateLabel,
-          value:
-              '${dayLabel(visit.startsAt.wall)} · ${hhmm(visit.startsAt.wall)} — ${hhmm(visit.endsAt.wall)}',
-        ),
-        _InfoCard(label: AppStrings.menuLabel, value: menusLabel(visit.menus)),
-        if (visit.memo != null)
-          _InfoCard(label: AppStrings.visitMemoLabel, value: visit.memo!),
-        if (visit.cancelReason != null)
-          _InfoCard(
-            label: AppStrings.cancelReasonLabel,
-            value: visit.cancelReason == 'shop_reason'
-                ? AppStrings.reasonShopReason
-                : AppStrings.reasonCustomerRequest,
-          ),
-        _InfoCard(
-          label: AppStrings.previousVisitLabel,
-          value:
-              '${previous == null ? AppStrings.none : dayLabel(previous.startsAt.wall)} · ${AppStrings.noShowCount(detail.noShowCount)}',
-        ),
-        if (others.isNotEmpty) _GroupCard(others: others),
-        if (errorText != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: Text(errorText!, style: AppTypography.caption),
-          ),
-        const SizedBox(height: AppSpacing.md),
-        _StatusButtons(status: visit.status, busy: busy, onAction: onAction),
-      ],
+      ),
     );
   }
 }

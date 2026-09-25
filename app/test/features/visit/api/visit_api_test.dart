@@ -55,6 +55,8 @@ void main() {
             dayItemJson(
               visitJson(visitId: 102, pet: visitPetJson(petId: 12, name: '보리')),
               groupKey: 'g1',
+              hasRecord: true,
+              cover: thumbUrl(51),
             ),
             dayItemJson(
               visitJson(visitId: 103, ownerOnly: true),
@@ -77,6 +79,10 @@ void main() {
     expect(day.items.first.visit.endsAt.wall, DateTime(2026, 10, 2, 15, 30));
     expect(day.items.first.visit.menus.single.name, '목욕');
     expect(day.items.last.visit.pet, isNull);
+    expect(day.items[1].hasRecord, isTrue);
+    expect(day.items[1].cover, thumbUrl(51));
+    expect(day.items.first.hasRecord, isFalse);
+    expect(day.items.first.cover, isNull);
   });
 
   test('월 요약은 month=YYYY-MM 으로 부르고 날짜로 찾는다', () async {
@@ -85,7 +91,13 @@ void main() {
         statusCode: 200,
         data: calendarJson(
           days: {
-            23: {'visit_count': 5, 'completed_count': 1, 'open_count': 4},
+            23: {
+              'visit_count': 5,
+              'completed_count': 1,
+              'open_count': 4,
+              'cover': thumbUrl(51),
+              'covers': [thumbUrl(51), thumbUrl(52)],
+            },
           },
           closedDays: {21},
           unresolvedTotal: 2,
@@ -102,6 +114,55 @@ void main() {
     expect(month.dayOf(DateTime(2026, 9, 21))!.closedDay, isTrue);
     expect(month.unresolvedTotal, 2);
     expect(month.oldestUnresolvedDate, DateTime(2026, 8, 30));
+    expect(month.dayOf(DateTime(2026, 9, 23))!.cover, thumbUrl(51));
+    expect(month.dayOf(DateTime(2026, 9, 23))!.covers, [
+      thumbUrl(51),
+      thumbUrl(52),
+    ]);
+    expect(month.dayOf(DateTime(2026, 9, 21))!.cover, isNull);
+    expect(month.dayOf(DateTime(2026, 9, 21))!.covers, isEmpty);
+  });
+
+  test('피드는 커서·아이를 싣고, 완료 시각·사진·메뉴·케어 메모·사진 수를 읽는다', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: feedJson(
+          items: [
+            feedItemJson(cover: thumbUrl(51), mediaCount: 3),
+            feedItemJson(
+              visitId: 102,
+              ownerOnly: true,
+              menus: const [],
+              careNote: null,
+            ),
+          ],
+          nextCursor: 'c2',
+        ),
+      ),
+    );
+
+    final first = await s.api.feed(3);
+    final next = await s.api.feed(3, cursor: 'c2', petId: 11);
+
+    expect(s.adapter.requests.first.path, '/v1/shops/3/visits/feed');
+    expect(s.adapter.requests.first.queryParameters, <String, dynamic>{});
+    expect(s.adapter.requests.last.queryParameters, {
+      'cursor': 'c2',
+      'pet_id': 11,
+    });
+    final item = first.items.first;
+    expect(item.visitId, 101);
+    expect(item.pet!.name, '두부');
+    expect(item.completedAt.wall, DateTime(2026, 10, 2, 15, 30));
+    expect(item.cover, thumbUrl(51));
+    expect(item.menus, ['목욕']);
+    expect(item.careNote, '귀 청소했어요');
+    expect(item.mediaCount, 3);
+    expect(first.items.last.pet, isNull);
+    expect(first.items.last.careNote, isNull);
+    expect(first.nextCursor, 'c2');
+    expect(next.items, hasLength(2));
   });
 
   test('시간 칸은 소요를 싣고, 옮길 방문은 exclude 를 여러 번 붙인다', () async {

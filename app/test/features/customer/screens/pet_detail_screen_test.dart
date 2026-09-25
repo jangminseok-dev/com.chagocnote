@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:chagocnote/core/plugs/pet_records_plug.dart';
+import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../support/customer_fixtures.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
+import '../../../support/upload_fakes.dart';
 import '../../../support/visit_fixtures.dart';
 
 /// 홈에서 반려동물 상세를 쌓아 연다(뒤로 가면 홈).
@@ -37,7 +41,7 @@ Future<void> _chooseAction(WidgetTester tester, String label) async {
 }
 
 void main() {
-  testWidgets('이름·질병 수·요약과 탭 세 개를 보이고, 보호자 탭은 전체 번호를 고객 상세에서 받는다', (
+  testWidgets('이름·질병 수·요약과 탭 넷을 보이고, 보호자 탭은 전체 번호를 고객 상세에서 받는다', (
     tester,
   ) async {
     final setup = CustomerTestSetup((options, body) {
@@ -457,5 +461,36 @@ void main() {
       find.byKey(ScreenKeys.petDetail),
       matchesGoldenFile('goldens/pet_detail.png'),
     );
+  });
+
+  testWidgets('프로필 사진을 크게 보이고, [기록] 탭은 visit 가 꽂은 그 아이의 기록을 보인다', (
+    tester,
+  ) async {
+    const photo = 'http://media.test/b/thumb/shops/3/51.jpg?sig=a';
+    final images = FakeMediaImages();
+    final setup = CustomerTestSetup(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: petDetailJson(pet: petJson(photo: photo)),
+      ),
+      overrides: [
+        mediaImagesProvider.overrideWithValue(images),
+        petRecordsPlugProvider.overrideWithValue(
+          (petId) => Text('기록 자리 $petId'),
+        ),
+      ],
+    );
+    addTearDown(setup.container.dispose);
+    await _openPet(tester, setup, 11);
+
+    expect(
+      tester.widget<AppPhotoTile>(find.byType(AppPhotoTile)).image,
+      same(images.image),
+    );
+    expect(images.urls.toSet(), {photo});
+
+    await tester.tap(find.text(AppStrings.petTabRecords));
+    await tester.pumpAndSettle();
+    expect(find.text('기록 자리 11'), findsOneWidget);
   });
 }

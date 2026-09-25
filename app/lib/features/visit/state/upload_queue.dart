@@ -14,7 +14,10 @@ import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../../auth/state/shop_selection.dart';
+import '../../customer/state/customer_list_controller.dart';
+import '../../customer/state/customer_providers.dart';
 import '../api/record_models.dart';
+import 'feed_controller.dart';
 import 'upload_job.dart';
 import 'upload_store.dart';
 import 'visit_providers.dart';
@@ -290,6 +293,11 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
     ref.invalidate(visitDetailProvider);
     ref.invalidate(dayVisitsProvider);
     ref.invalidate(calendarMonthProvider);
+    ref.invalidate(feedControllerProvider);
+    ref.invalidate(customerListControllerProvider);
+    ref.invalidate(customerDetailProvider);
+    // 프로필 사진은 가장 최근 완료 기록의 대표 사진이다.
+    ref.invalidate(petDetailProvider);
   }
 
   void _fail(String id) {

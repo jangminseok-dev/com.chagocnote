@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/media_images.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_colors.dart';
@@ -429,7 +430,7 @@ class _GroupCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _PhotoStack(count: group.items.length),
+              _PhotoStack(covers: [for (final i in group.items) i.cover]),
               const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
@@ -457,17 +458,19 @@ class _GroupCard extends StatelessWidget {
   }
 }
 
-/// 사진 자리. 가족이면 두 장을 겹쳐 보인다(사진은 ④에서).
-class _PhotoStack extends StatelessWidget {
-  const _PhotoStack({required this.count});
+/// 사진 자리 — 대표 사진(없으면 회색). 가족이면 두 장을 겹쳐 보인다.
+class _PhotoStack extends ConsumerWidget {
+  const _PhotoStack({required this.covers});
 
   static const size = 38.0;
 
-  final int count;
+  /// 묶음 구성원의 대표 사진 썸네일 URL(없으면 null).
+  final List<String?> covers;
 
   @override
-  Widget build(BuildContext context) {
-    final shown = count > 1 ? 2 : 1;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final images = ref.watch(mediaImagesProvider);
+    final shown = covers.length > 1 ? 2 : 1;
     final offset = size * 0.3;
     return SizedBox(
       width: size + offset * (shown - 1),
@@ -477,7 +480,10 @@ class _PhotoStack extends StatelessWidget {
           for (var i = 0; i < shown; i++)
             Positioned(
               left: offset * i,
-              child: AppPhotoTile(image: null, size: size),
+              child: AppPhotoTile(
+                image: covers[i] == null ? null : images.of(covers[i]!),
+                size: size,
+              ),
             ),
         ],
       ),

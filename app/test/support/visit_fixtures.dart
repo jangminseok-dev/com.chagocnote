@@ -73,6 +73,8 @@ Map<String, dynamic> dayItemJson(
   String? groupKey,
   bool overlapping = false,
   bool unresolved = false,
+  bool hasRecord = false,
+  String? cover,
 }) => {
   'visit': visit,
   'group_key':
@@ -80,6 +82,8 @@ Map<String, dynamic> dayItemJson(
       '${(visit['customer'] as Map)['customer_id']}@${visit['starts_at']}',
   'overlapping': overlapping,
   'unresolved': unresolved,
+  'has_record': hasRecord,
+  'cover': cover,
 };
 
 Map<String, dynamic> dayJson({
@@ -106,7 +110,7 @@ Map<String, dynamic> dayJson({
   };
 }
 
-/// 그달의 모든 날. [days]에 준 날만 수를 채운다(`{day: {...}}`).
+/// 그달의 모든 날. [days]에 준 날만 수·사진을 채운다(`{day: {...}}` — `cover`·`covers`도 여기서 준다).
 Map<String, dynamic> calendarJson({
   int year = 2026,
   int month = 9,
@@ -128,6 +132,8 @@ Map<String, dynamic> calendarJson({
           'open_count': days[d]?['open_count'] ?? 0,
           'unresolved_count': days[d]?['unresolved_count'] ?? 0,
           'closed_day': closedDays.contains(d),
+          'cover': days[d]?['cover'],
+          'covers': days[d]?['covers'] ?? const <String>[],
         },
     ],
     'unresolved_total': unresolvedTotal,
@@ -247,6 +253,38 @@ Map<String, dynamic> recordJson({
   'media': media,
   'version': version,
 };
+
+/// 썸네일 서명 URL 모양 — 사진 로더는 서명을 뺀 주소로 캐시한다.
+String thumbUrl(int mediaId) =>
+    'http://media.test/b/thumb/shops/3/$mediaId.jpg?sig=a';
+
+/// 피드 한 장(설계 9절). 시각은 `HH:MM`만 받아 [date]에 붙인다.
+Map<String, dynamic> feedItemJson({
+  int visitId = 101,
+  String date = '2026-10-02',
+  String completedAt = '15:30',
+  Map<String, dynamic>? customer,
+  Map<String, dynamic>? pet,
+  bool ownerOnly = false,
+  String? cover,
+  List<String> menus = const ['목욕'],
+  String? careNote = '귀 청소했어요',
+  int mediaCount = 0,
+}) => {
+  'visit_id': visitId,
+  'customer': customer ?? visitCustomerJson(),
+  'pet': ownerOnly ? null : (pet ?? visitPetJson()),
+  'completed_at': '${date}T$completedAt:00+09:00',
+  'cover': cover,
+  'menus': menus,
+  'care_note': careNote,
+  'media_count': mediaCount,
+};
+
+Map<String, dynamic> feedJson({
+  List<Map<String, dynamic>> items = const [],
+  String? nextCursor,
+}) => {'items': items, 'next_cursor': nextCursor};
 
 /// 사진 발급 응답(설계 7.1).
 Map<String, dynamic> issuedUploadJson({int mediaId = 51}) => {

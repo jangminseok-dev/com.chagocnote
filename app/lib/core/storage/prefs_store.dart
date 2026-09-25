@@ -21,6 +21,9 @@ abstract final class PrefsKeys {
 
   /// 하루 화면 보기 방식('list' | 'timeline').
   static const dayViewMode = 'day_view_mode';
+
+  /// 캘린더 탭 보기 방식('calendar' | 'feed').
+  static const calendarViewMode = 'calendar_view_mode';
 }
 
 /// 마지막으로 고른 매장 — 정수로 읽고 쓴다.

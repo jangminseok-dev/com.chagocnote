@@ -204,6 +204,8 @@ class DayVisitItem {
     required this.groupKey,
     required this.overlapping,
     required this.unresolved,
+    required this.hasRecord,
+    required this.cover,
   });
 
   factory DayVisitItem.fromJson(Map<String, dynamic> json) => DayVisitItem(
@@ -211,6 +213,8 @@ class DayVisitItem {
     groupKey: json['group_key'] as String,
     overlapping: json['overlapping'] as bool,
     unresolved: json['unresolved'] as bool,
+    hasRecord: json['has_record'] as bool,
+    cover: json['cover'] as String?,
   );
 
   final Visit visit;
@@ -219,6 +223,10 @@ class DayVisitItem {
   final String groupKey;
   final bool overlapping;
   final bool unresolved;
+  final bool hasRecord;
+
+  /// 대표 사진 썸네일 서명 URL. 없으면 회색 자리.
+  final String? cover;
 }
 
 /// 하루 목록 — 취소·노쇼까지 모두, 시작 순.
@@ -253,6 +261,8 @@ class CalendarDay {
     required this.openCount,
     required this.unresolvedCount,
     required this.closedDay,
+    required this.cover,
+    required this.covers,
   });
 
   factory CalendarDay.fromJson(Map<String, dynamic> json) => CalendarDay(
@@ -262,6 +272,8 @@ class CalendarDay {
     openCount: json['open_count'] as int,
     unresolvedCount: json['unresolved_count'] as int,
     closedDay: json['closed_day'] as bool,
+    cover: json['cover'] as String?,
+    covers: [for (final c in json['covers'] as List) c as String],
   );
 
   final DateTime date;
@@ -272,6 +284,12 @@ class CalendarDay {
   final int openCount;
   final int unresolvedCount;
   final bool closedDay;
+
+  /// 그날 완료 방문 가운데 시작 순 첫 대표 사진(썸네일 URL). 없으면 회색 자리.
+  final String? cover;
+
+  /// 미리보기 카드에 겹쳐 보일 사진 — 최대 4장.
+  final List<String> covers;
 }
 
 /// 월 요약. [days]는 그달의 모든 날이다.
