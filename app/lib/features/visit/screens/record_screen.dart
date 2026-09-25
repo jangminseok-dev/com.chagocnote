@@ -67,6 +67,9 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
 
   bool _busy = false;
   String? _errorText;
+
+  /// 완료 전이를 이미 보냈다 — 기록 저장이 뒤에 실패해 다시 누르면 저장만 한다.
+  bool _completed = false;
   Map<String, String> _fieldErrors = const {};
 
   int? get _shopId => ref.read(selectedShopIdProvider);
@@ -222,17 +225,23 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       _busy = true;
       _errorText = null;
     });
+    Future<void> complete() async {
+      if (!widget.completing || _completed) return;
+      await ref
+          .read(visitCommandsProvider)
+          .transition(
+            shopId,
+            visitIds: _sameStatusIds(detail),
+            action: VisitAction.complete,
+          );
+      _completed = true;
+    }
+
     try {
+      // 예약됨에서 바로 완료하면 먼저 완료한다 — 기록은 미용 중·완료 방문에만 쓴다(설계 8절).
+      if (detail.visit.status == VisitStatus.reserved) await complete();
       if (withRecord) await _put(shopId, detail);
-      if (widget.completing) {
-        await ref
-            .read(visitCommandsProvider)
-            .transition(
-              shopId,
-              visitIds: _sameStatusIds(detail),
-              action: VisitAction.complete,
-            );
-      }
+      await complete();
       if (mounted) context.pop(widget.completing);
     } on _Invalid {
       if (mounted) setState(() => _busy = false);

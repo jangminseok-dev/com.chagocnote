@@ -46,9 +46,9 @@ class DayScreen extends ConsumerStatefulWidget {
 class _DayScreenState extends ConsumerState<DayScreen> {
   /// 보내는 중인 묶음의 첫 방문 ID(휴무 표시 중이면 -1). 그동안 다른 버튼을 막는다.
   int? _busyVisitId;
-  // 완료 시트를 띄우기 전 다음 예약 초안을 읽는 동안(또는 다른 시트가 뜨는
-  // 동안)의 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지
-  // 않는다 — `_busyVisitId`와는 다른 신호다.
+  // 완료 흐름(기록 화면 → 다음 예약 시트)이나 다른 시트가 떠 있는 동안의
+  // 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지 않는다 —
+  // `_busyVisitId`와는 다른 신호다.
   bool _asking = false;
   String? _errorText;
 
@@ -57,7 +57,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
   Future<void> _act(DayGroup group, VisitAction action) async {
     final shopId = _shopId;
     if (shopId == null || _busyVisitId != null || _asking) return;
-    // 상태가 섞인 묶음이면 아직 진행 가능한 아이들만(다음 예약 초안도 그 아이 기준).
+    // 상태가 섞인 묶음이면 아직 진행 가능한 아이들만(완료 흐름의 기록 화면도 그 아이 기준).
     final ids = group.actionableIds;
     final anchorVisitId = ids.isEmpty ? group.first.visitId : ids.first;
     setState(() => _asking = true);
@@ -79,14 +79,7 @@ class _DayScreenState extends ConsumerState<DayScreen> {
       _errorText = null;
     });
     try {
-      await sendVisitAction(
-        context,
-        ref,
-        shopId: shopId,
-        choice: choice,
-        ids: ids,
-        anchorVisitId: anchorVisitId,
-      );
+      await sendVisitAction(ref, shopId: shopId, choice: choice, ids: ids);
     } catch (e) {
       if (mounted) setState(() => _errorText = messageFor(e));
     }

@@ -23,10 +23,7 @@ class _Server {
     backend = VisitTestBackend({
       'GET /v1/shops/3/visits/101': (o, b) => FakeResponse(
         statusCode: 200,
-        data: visitDetailJson(
-          visit: _dubu(),
-          group: [if (withBori) _bori()],
-        ),
+        data: visitDetailJson(visit: _dubu(), group: [if (withBori) _bori()]),
       ),
       'GET /v1/shops/3/visits/102': (o, b) => FakeResponse(
         statusCode: 200,
@@ -52,6 +49,10 @@ class _Server {
       },
       'GET /v1/shops/3/visits/101/next-draft': (o, b) =>
           FakeResponse(statusCode: 200, data: nextDraftJson()),
+      'PUT /v1/shops/3/visits/101/record': (o, body) {
+        recordPuts.add(bodyOf(body));
+        return FakeResponse(statusCode: 200, data: recordJson());
+      },
     });
   }
 
@@ -59,6 +60,7 @@ class _Server {
   String? cancelReason;
   final bool withBori;
   final transitions = <Map<String, dynamic>>[];
+  final recordPuts = <Map<String, dynamic>>[];
   late final VisitTestBackend backend;
 
   Map<String, dynamic> _dubu() =>
@@ -190,45 +192,60 @@ void main() {
     expect(find.text(AppStrings.statusNoShow), findsOneWidget);
   });
 
-  testWidgets('미용 중이면 [완료]만 있고, 완료 시트에서 완료를 고르면 완료한다', (tester) async {
-    final server = _Server(status: 'in_progress');
+  testWidgets('미용 중이면 [완료]만 있고, 완료는 기록 화면(완료 모드)을 열어 완료한 뒤 다음 예약 시트를 띄운다', (
+    tester,
+  ) async {
+    final server = _Server(status: 'in_progress', withBori: true);
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
     expect(_button(AppStrings.actionStart), findsNothing);
 
     await _tap(tester, _button(AppStrings.actionComplete));
+    expect(find.byKey(ScreenKeys.visitRecord), findsOneWidget);
+    expect(setup.calls.where((c) => c.endsWith('/next-draft')), isEmpty);
+    await _tap(tester, _button(AppStrings.completeWithRecord));
+
+    expect(server.recordPuts, hasLength(1));
+    expect(server.transitions.single, {
+      'visit_ids': [101, 102],
+      'action': 'complete',
+    });
+    // 시트는 다음 예약이 언제로 잡히는지 미리 보인다(완료한 뒤 초안을 읽는다).
     expect(find.text(AppStrings.completeTitle), findsOneWidget);
-    // 시트는 다음 예약이 언제로 잡히는지 미리 보인다(초안을 먼저 읽는다).
     expect(
       find.text(AppStrings.nextPreview('10월 30일 금 14:00')),
       findsOneWidget,
     );
     expect(find.text(AppStrings.completeAndNextCaption(4)), findsOneWidget);
-    await _tap(tester, _button(AppStrings.actionComplete).last);
+    await _tap(tester, _button(AppStrings.close));
 
-    expect(server.transitions.single['action'], 'complete');
     expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
     expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+    // 두부와 함께 온 보리 둘 다 완료다.
+    expect(find.text(AppStrings.statusCompleted), findsNWidgets(2));
   });
 
-  testWidgets('완료하고 다음 예약 잡기는 완료한 뒤 초안으로 예약 ②를 채워 연다', (tester) async {
+  testWidgets('다음 예약 잡기를 고르면 완료 뒤 한 번 읽은 초안으로 예약 ②를 채워 연다', (tester) async {
     final server = _Server(status: 'in_progress');
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
 
     await _tap(tester, _button(AppStrings.actionComplete));
-    await _tap(tester, find.text(AppStrings.completeAndNext));
+    await _tap(tester, _button(AppStrings.completeWithoutRecord));
+    await _tap(tester, _button(AppStrings.actionNextReservation));
 
     final writes = [
       for (final c in setup.calls)
-        if (c.contains('transitions') || c.contains('next-draft')) c,
+        if (c.contains('transitions') ||
+            c.contains('next-draft') ||
+            c.contains('/record'))
+          c,
     ];
-    // 초안은 시트를 띄우기 전에 한 번만 읽고, 완료한 뒤 그 초안으로 연다.
     expect(writes, [
-      'GET /v1/shops/3/visits/101/next-draft',
       'POST /v1/shops/3/visits/transitions',
+      'GET /v1/shops/3/visits/101/next-draft',
     ]);
     expect(find.byKey(ScreenKeys.registerVisit), findsOneWidget);
     expect(
@@ -237,7 +254,7 @@ void main() {
     );
   });
 
-  testWidgets('초안을 못 읽어도 완료 시트는 뜨고 완료할 수 있다', (tester) async {
+  testWidgets('초안을 못 읽어도 다음 예약 시트는 미리보기 없이 뜬다', (tester) async {
     final server = _Server(status: 'in_progress');
     server.backend.routes['GET /v1/shops/3/visits/101/next-draft'] = (o, b) =>
         const FakeResponse(statusCode: 503, data: 'x');
@@ -246,23 +263,47 @@ void main() {
     await _open(tester, setup);
 
     await _tap(tester, _button(AppStrings.actionComplete));
-    expect(find.text(AppStrings.completeTitle), findsOneWidget);
-    expect(find.textContaining('→'), findsNothing);
-    await _tap(tester, _button(AppStrings.actionComplete).last);
+    await _tap(tester, _button(AppStrings.completeWithoutRecord));
 
     expect(server.transitions.single['action'], 'complete');
+    expect(find.text(AppStrings.completeTitle), findsOneWidget);
+    expect(find.textContaining('→'), findsNothing);
   });
 
-  testWidgets('··· 에서 바로 완료는 예약됨에서 완료 시트를 거쳐 보낸다', (tester) async {
+  testWidgets('기록 화면에서 뒤로 가면 완료하지 않고 시트도 없다', (tester) async {
+    final server = _Server(status: 'in_progress');
+    final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    await _tap(tester, _button(AppStrings.actionComplete));
+    await _tap(tester, find.bySemanticsLabel(AppStrings.back));
+
+    expect(server.transitions, isEmpty);
+    expect(find.text(AppStrings.completeTitle), findsNothing);
+    expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+  });
+
+  testWidgets('··· 에서 바로 완료는 예약됨이라 먼저 완료한 뒤 기록을 저장한다', (tester) async {
     final server = _Server();
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
 
     await _more(tester, AppStrings.actionCompleteNow);
-    await _tap(tester, _button(AppStrings.actionComplete).last);
+    await _tap(tester, _button(AppStrings.completeWithRecord));
 
-    expect(server.transitions.single['action'], 'complete');
+    expect(
+      [
+        for (final c in setup.calls)
+          if (c.contains('transitions') || c.contains('/record')) c,
+      ],
+      [
+        'POST /v1/shops/3/visits/transitions',
+        'PUT /v1/shops/3/visits/101/record',
+      ],
+    );
+    expect(find.text(AppStrings.completeTitle), findsOneWidget);
   });
 
   testWidgets('완료한 방문은 버튼이 없고 ··· 에 되돌리기·다음 예약 잡기가 있다', (tester) async {
@@ -354,32 +395,20 @@ void main() {
     expect(setup.calls.where((c) => c.endsWith('/transitions')), hasLength(1));
   });
 
-  testWidgets('초안을 읽는 동안 [완료]를 다시 눌러도 초안을 한 번만 읽고 시트는 한 장이다', (
-    tester,
-  ) async {
+  testWidgets('[완료]를 빠르게 두 번 눌러도 기록 화면은 한 장이다', (tester) async {
     final server = _Server(status: 'in_progress');
-    final gate = Completer<FakeResponse>();
-    server.backend.routes['GET /v1/shops/3/visits/101/next-draft'] = (o, b) =>
-        gate.future;
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
 
     await tester.tap(_button(AppStrings.actionComplete));
-    await settle(tester);
     await tester.tap(_button(AppStrings.actionComplete));
     await settle(tester);
 
-    expect(
-      setup.calls.where((c) => c.endsWith('/next-draft')),
-      hasLength(1),
-    );
-    expect(find.text(AppStrings.completeTitle), findsNothing);
-
-    gate.complete(FakeResponse(statusCode: 200, data: nextDraftJson()));
-    await settle(tester);
-
-    expect(find.text(AppStrings.completeTitle), findsOneWidget);
+    expect(find.byKey(ScreenKeys.visitRecord), findsOneWidget);
+    await _tap(tester, find.bySemanticsLabel(AppStrings.back));
+    expect(find.byKey(ScreenKeys.visitRecord), findsNothing);
+    expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
   });
 
   testWidgets('함께 온 아이를 누르면 그 방문으로 바꿔 끼운다', (tester) async {
@@ -459,13 +488,15 @@ void main() {
     );
   });
 
-  testWidgets('완료 시트 골든', (tester) async {
+  testWidgets('다음 예약 시트 골든', (tester) async {
     final server = _Server(status: 'in_progress');
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
-    tester.view.physicalSize = const Size(390, 844);
     await _tap(tester, _button(AppStrings.actionComplete));
+    await _tap(tester, _button(AppStrings.completeWithoutRecord));
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
 
     await expectLater(
       find
@@ -474,7 +505,7 @@ void main() {
             matching: find.byType(AppCard),
           )
           .first,
-      matchesGoldenFile('goldens/complete_sheet.png'),
+      matchesGoldenFile('goldens/next_reservation_sheet.png'),
     );
   });
 }

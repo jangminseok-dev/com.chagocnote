@@ -283,7 +283,7 @@ class AppStrings {
   static const actionRevert = '되돌리기';
   static const actionNextReservation = '다음 예약 잡기';
   static const completeTitle = '미용을 마쳤어요';
-  static const completeAndNext = '완료하고 다음 예약 잡기';
+  static const close = '닫기';
   static const markClosedDate = '이 날 휴무로 표시';
   static const unmarkClosedDate = '휴무 해제';
 

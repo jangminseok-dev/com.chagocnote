@@ -42,9 +42,9 @@ class VisitDetailScreen extends ConsumerStatefulWidget {
 
 class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
   bool _busy = false;
-  // 완료 시트를 띄우기 전 다음 예약 초안을 읽는 동안(또는 다른 시트가 뜨는
-  // 동안)의 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지
-  // 않는다 — `_busy`와는 다른 신호다.
+  // 완료 흐름(기록 화면 → 다음 예약 시트)이나 다른 시트가 떠 있는 동안의
+  // 재진입을 막는다. "보내는 중"이 아니므로 버튼에 스피너를 켜지 않는다 —
+  // `_busy`와는 다른 신호다.
   bool _asking = false;
   String? _errorText;
 
@@ -81,12 +81,10 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
     });
     try {
       await sendVisitAction(
-        context,
         ref,
         shopId: shopId,
         choice: choice,
         ids: _sameStatusIds(detail),
-        anchorVisitId: detail.visit.visitId,
       );
       if (mounted) setState(() => _busy = false);
     } catch (e) {
