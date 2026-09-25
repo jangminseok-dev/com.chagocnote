@@ -52,6 +52,9 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
   late int _mediaId = widget.mediaId;
   bool _busy = false;
 
+  /// 닫기를 예약했다 — 다시 그려져도 두 번 닫지 않는다.
+  bool _closing = false;
+
   int? get _shopId => ref.read(selectedShopIdProvider);
 
   VisitKey get _key => (shopId: _shopId ?? 0, visitId: widget.visitId);
@@ -83,13 +86,14 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
     final shopId = _shopId;
     if (shopId == null) return;
     final target = _mediaId;
+    int? next;
     if (edit == PhotoEdit.remove) {
       final confirmed = await _confirmDelete();
       if (confirmed != true || !mounted) return;
-      // 지운 뒤에는 옆 사진을 본다(마지막이면 앞 사진).
+      // 지운 뒤에는 옆 사진을 본다(마지막이면 앞 사진). 저장이 실패하면 보던 사진에 남는다.
       final at = gallery.indexWhere((m) => m.mediaId == target);
-      final next = at + 1 < gallery.length ? at + 1 : at - 1;
-      if (next >= 0) _mediaId = gallery[next].mediaId;
+      final i = at + 1 < gallery.length ? at + 1 : at - 1;
+      if (i >= 0) next = gallery[i].mediaId;
     }
     setState(() => _busy = true);
     final commands = ref.read(visitCommandsProvider);
@@ -114,6 +118,7 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
           detail = await ref.read(visitDetailProvider(_key).future);
         }
       }
+      if (next != null) _mediaId = next;
     } catch (e) {
       if (mounted) AppSnackBar.show(context, messageFor(e));
     } finally {
@@ -157,8 +162,9 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
     // 찾는 사진이 그사이 빠졌으면 첫 장부터.
     final index = found < 0 && gallery.isNotEmpty ? 0 : found;
     if (found < 0 && gallery.isNotEmpty) _mediaId = gallery.first.mediaId;
-    // 사진이 모두 빠졌으면(마지막 사진을 지움) 닫는다.
-    if (data != null && gallery.isEmpty) {
+    // 사진이 모두 빠졌으면(마지막 사진을 지움) 한 번만 닫는다.
+    if (data != null && gallery.isEmpty && !_closing) {
+      _closing = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && context.canPop()) context.pop();
       });

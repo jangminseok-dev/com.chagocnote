@@ -14,9 +14,10 @@ import '../../../support/visit_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
 
 /// 방문 101 의 기록을 쥔 서버. 전체 교체를 받으면 보낸 자리대로 기록을 바꾸고 버전을 올린다.
-/// [conflictOnce]면 첫 교체에 409 를 주며 그사이 대기열이 사진 53(전)을 붙인 것처럼 한다.
+/// [conflicts]번까지는 교체에 409 를 주며 그사이 대기열이 사진 53·54…(전)을 붙인 것처럼 한다.
+/// [failure]가 있으면 교체를 그 응답으로 거절한다.
 class _Server {
-  _Server({this.status = 'completed', this.conflictOnce = false}) {
+  _Server({this.status = 'completed', this.conflicts = 0, this.failure}) {
     backend = VisitTestBackend({
       'GET /v1/shops/3/visits/101': (o, b) => FakeResponse(
         statusCode: 200,
@@ -38,9 +39,13 @@ class _Server {
       'PUT /v1/shops/3/visits/101/record': (o, body) {
         final sent = bodyOf(body);
         puts.add(sent);
-        if (conflictOnce) {
-          conflictOnce = false;
-          media = [...media, recordMediaJson(mediaId: 53, sortOrder: 2)];
+        if (failure != null) return failure!;
+        if (conflicts > 0) {
+          conflicts--;
+          media = [
+            ...media,
+            recordMediaJson(mediaId: 50 + version, sortOrder: version - 1),
+          ];
           version++;
           return const FakeResponse(
             statusCode: 409,
@@ -62,7 +67,8 @@ class _Server {
   }
 
   String status;
-  bool conflictOnce;
+  int conflicts;
+  FakeResponse? failure;
   int version = 3;
 
   /// 전 51·52, 후 61·62.
@@ -227,6 +233,29 @@ void main() {
     expect(find.text('후 · 1 / 3'), findsOneWidget);
   });
 
+  testWidgets('삭제가 실패하면 보던 사진에 그대로 남고 오류를 알린다', (tester) async {
+    final server = _Server(
+      failure: const FakeResponse(
+        statusCode: 422,
+        data: {'code': 'VALIDATION_ERROR', 'message': '검증'},
+      ),
+    );
+    final app = _build(tester, server);
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/61');
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.deletePhoto));
+    await _tap(
+      tester,
+      find.byWidgetPredicate(
+        (w) => w is AppButton && w.label == AppStrings.delete,
+      ),
+    );
+
+    expect(server.puts, hasLength(1));
+    expect(find.text('후 · 1 / 4'), findsOneWidget);
+    expect(find.text('입력한 내용을 확인해 주세요.'), findsOneWidget);
+  });
+
   testWidgets('마지막 사진을 지우면 크게 보기를 닫는다', (tester) async {
     final server = _Server()
       ..media = [recordMediaJson(mediaId: 51, phase: 'before')];
@@ -252,7 +281,7 @@ void main() {
   testWidgets('그사이 대기열이 사진을 붙여 버전이 어긋나면(409) 다시 읽어 같은 바꾸기를 한 번 더 보낸다', (
     tester,
   ) async {
-    final server = _Server(conflictOnce: true);
+    final server = _Server(conflicts: 1);
     final app = _build(tester, server);
     await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/51');
 
@@ -267,7 +296,19 @@ void main() {
       (62, 'after', 1),
       (51, 'after', 2),
     ], reason: '붙은 사진 53 을 지우지 않는다');
-    expect(find.text(AppStrings.albumDenied), findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('후 · 3 / 5'), findsOneWidget);
+  });
+
+  testWidgets('다시 보낸 교체도 409 면 더 보내지 않고 새로 불러왔다고 알린다', (tester) async {
+    final server = _Server(conflicts: 2);
+    final app = _build(tester, server);
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/51');
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.toAfter));
+
+    expect(server.puts, hasLength(2));
+    expect(find.text('다른 기기에서 기록이 먼저 바뀌었습니다. 화면을 새로 불러왔어요.'), findsOneWidget);
   });
 
   testWidgets('예약됨으로 되돌린 방문은 기록을 바꿀 수 없어 원본 저장만 있다', (tester) async {
