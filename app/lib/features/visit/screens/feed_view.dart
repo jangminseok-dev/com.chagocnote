@@ -9,11 +9,13 @@ import '../../../design/tokens/app_radius.dart';
 import '../../../design/tokens/app_shadows.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
+import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_glass_card.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
+import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/feed_models.dart';
 import '../state/feed_controller.dart';
@@ -95,6 +97,64 @@ class _FeedListState extends ConsumerState<FeedList> {
         }
         return const SizedBox.shrink();
       },
+    );
+  }
+}
+
+/// 반려동물 상세의 [기록] 탭 — 그 아이의 피드. 상세 화면의 목록 안에 들어가므로 스스로 스크롤하지 않고,
+/// 다음 쪽은 [더 보기]로 부른다. `app.dart`가 `petRecordsPlugProvider`에 꽂는다.
+class PetRecordsView extends ConsumerWidget {
+  const PetRecordsView({super.key, required this.petId});
+
+  final int petId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shopId = ref.watch(selectedShopIdProvider);
+    if (shopId == null) return const SizedBox.shrink();
+    final provider = feedControllerProvider((shopId: shopId, petId: petId));
+    final async = ref.watch(provider);
+    final state = async.value;
+    if (state == null) {
+      return async.hasError
+          ? AppErrorRetry.inline(
+              message: messageFor(async.error!),
+              onRetry: () => ref.invalidate(provider),
+            )
+          : const Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: Center(child: CircularProgressIndicator()),
+            );
+    }
+    if (state.items.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: Center(
+          child: Text(AppStrings.petRecordsEmpty, style: AppTypography.body),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final item in state.items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+            child: FeedCard(item: item),
+          ),
+        if (state.loadingMore)
+          const Center(child: CircularProgressIndicator())
+        else if (state.loadMoreError != null)
+          AppErrorRetry.row(
+            message: messageFor(state.loadMoreError!),
+            onRetry: () => ref.read(provider.notifier).loadMore(),
+          )
+        else if (state.hasMore)
+          AppButton(
+            label: AppStrings.loadMore,
+            onPressed: () => ref.read(provider.notifier).loadMore(),
+          ),
+      ],
     );
   }
 }

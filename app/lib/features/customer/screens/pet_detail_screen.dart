@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/error_messages.dart';
+import '../../../core/plugs/pet_records_plug.dart';
+import '../../../core/proxy/media_images.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../core/time/shop_time.dart';
 import '../../../core/time/time_labels.dart';
@@ -27,7 +29,8 @@ import '../state/customer_input.dart';
 import '../state/customer_providers.dart';
 import 'customer_labels.dart';
 
-/// 반려동물 한 마리 화면 — 큰 사진 자리, 이름·요약, 탭 [기본 / 질병 / 보호자],
+/// 반려동물 한 마리 화면 — 큰 프로필 사진(최근 완료 기록의 대표 사진), 이름·요약, 탭 [기본 / 질병 / 보호자 /
+/// 기록](기록은 visit 가 그린다 — `petRecordsPlugProvider`),
 /// 같은 보호자의 다른 아이, 수정·무지개다리·삭제(설계 8.1).
 class PetDetailScreen extends ConsumerStatefulWidget {
   const PetDetailScreen({super.key, required this.petId});
@@ -235,7 +238,7 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
   }
 }
 
-class _DetailBody extends StatelessWidget {
+class _DetailBody extends ConsumerWidget {
   const _DetailBody({
     required this.detail,
     required this.tab,
@@ -247,13 +250,20 @@ class _DetailBody extends StatelessWidget {
   final ValueChanged<int> onTab;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final pet = detail.pet;
+    final photo = pet.photo;
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        // 사진은 ④에서 붙인다 — 지금은 회색 자리.
-        const Center(child: AppPhotoTile(image: null, size: 160)),
+        Center(
+          child: AppPhotoTile(
+            image: photo == null
+                ? null
+                : ref.watch(mediaImagesProvider).of(photo),
+            size: 160,
+          ),
+        ),
         const SizedBox(height: AppSpacing.lg),
         Wrap(
           spacing: AppSpacing.sm,
@@ -275,6 +285,7 @@ class _DetailBody extends StatelessWidget {
             AppStrings.petTabBasic,
             AppStrings.petTabConditions,
             AppStrings.petTabOwner,
+            AppStrings.petTabRecords,
           ],
           currentIndex: tab,
           onChanged: onTab,
@@ -283,7 +294,8 @@ class _DetailBody extends StatelessWidget {
         switch (tab) {
           0 => _BasicTab(pet: pet),
           1 => _ConditionsTab(pet: pet),
-          _ => _OwnerTab(customerId: detail.owner.customerId),
+          2 => _OwnerTab(customerId: detail.owner.customerId),
+          _ => ref.watch(petRecordsPlugProvider)(pet.petId),
         },
         if (detail.siblings.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),

@@ -125,6 +125,8 @@ class VisitCommands {
       _ref.invalidate(feedControllerProvider);
       _ref.invalidate(customerListControllerProvider);
       _ref.invalidate(customerDetailProvider);
+      // 프로필 사진은 가장 최근 완료 기록의 대표 사진이다.
+      _ref.invalidate(petDetailProvider);
     }
   }
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/proxy/media_images.dart';
 import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_radius.dart';
 import '../../../design/tokens/app_spacing.dart';
@@ -69,13 +71,19 @@ class _Badges extends StatelessWidget {
   }
 }
 
-class _PetRow extends StatelessWidget {
+/// 프로필 사진(가장 최근 완료 기록의 대표 사진). 없으면 null — 회색 자리.
+ImageProvider? _photoOf(WidgetRef ref, PetSummary pet) {
+  final photo = pet.photo;
+  return photo == null ? null : ref.watch(mediaImagesProvider).of(photo);
+}
+
+class _PetRow extends ConsumerWidget {
   const _PetRow({required this.pet});
 
   final PetSummary pet;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Pressable(
       key: Key('pet_row_${pet.petId}'),
       semanticLabel: pet.name,
@@ -84,8 +92,7 @@ class _PetRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
         child: Row(
           children: [
-            // 사진은 ④에서 붙인다 — 지금은 회색 자리.
-            const AppPhotoTile(image: null, size: 40),
+            AppPhotoTile(image: _photoOf(ref, pet), size: 40),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -148,13 +155,14 @@ class _PetGrid extends StatelessWidget {
   }
 }
 
-class _PetTile extends StatelessWidget {
+class _PetTile extends ConsumerWidget {
   const _PetTile({required this.pet});
 
   final PetSummary pet;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final photo = _photoOf(ref, pet);
     return Pressable(
       key: Key('pet_tile_${pet.petId}'),
       semanticLabel: pet.name,
@@ -162,12 +170,14 @@ class _PetTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 사진은 ④에서 붙인다 — 지금은 회색 자리.
           AspectRatio(
             aspectRatio: 1.3,
             child: Container(
               decoration: BoxDecoration(
                 color: AppColors.line,
+                image: photo == null
+                    ? null
+                    : DecorationImage(image: photo, fit: BoxFit.cover),
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),

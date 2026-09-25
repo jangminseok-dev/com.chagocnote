@@ -107,6 +107,9 @@ class AppStrings {
   static const petTabBasic = '기본';
   static const petTabConditions = '질병';
   static const petTabOwner = '보호자';
+  static const petTabRecords = '기록';
+  static const petRecordsEmpty = '아직 끝난 미용 기록이 없어요';
+  static const loadMore = '더 보기';
   static const passedAwayBadge = '무지개다리';
   static const markPassedAway = '무지개다리 표시';
   static const unmarkPassedAway = '무지개다리 되돌리기';

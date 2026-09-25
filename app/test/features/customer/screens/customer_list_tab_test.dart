@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../support/customer_fixtures.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
+import '../../../support/upload_fakes.dart';
 
 /// 홈을 띄우고 고객 탭으로 옮긴다.
 Future<void> _openTab(WidgetTester tester, CustomerTestSetup setup) async {
@@ -352,4 +355,46 @@ void main() {
       );
     });
   }
+
+  testWidgets('프로필 사진이 있는 아이는 목록·격자에 그 사진을, 없는 아이는 회색 자리를 보인다', (tester) async {
+    const photo = 'http://media.test/b/thumb/shops/3/51.jpg?sig=a';
+    final images = FakeMediaImages();
+    final setup = CustomerTestSetup(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: pageJson(
+          items: [
+            familyJson(
+              pets: [
+                petSummaryJson(petId: 11, name: '콩이', photo: photo),
+                petSummaryJson(petId: 12, name: '두부'),
+              ],
+            ),
+          ],
+        ),
+      ),
+      overrides: [mediaImagesProvider.overrideWithValue(images)],
+    );
+    addTearDown(setup.container.dispose);
+    await _openTab(tester, setup);
+
+    final tiles = tester
+        .widgetList<AppPhotoTile>(find.byType(AppPhotoTile))
+        .toList();
+    expect(tiles.map((t) => t.image), [same(images.image), isNull]);
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.viewAsGrid));
+    await tester.pumpAndSettle();
+    final boxes = tester
+        .widgetList<Container>(
+          find.descendant(
+            of: find.byKey(const Key('pet_tile_11')),
+            matching: find.byType(Container),
+          ),
+        )
+        .map((c) => c.decoration)
+        .whereType<BoxDecoration>();
+    expect(boxes.any((d) => d.image?.image == images.image), isTrue);
+    expect(images.urls.toSet(), {photo});
+  });
 }

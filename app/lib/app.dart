@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/plugs/pet_records_plug.dart';
 import 'core/proxy/shared_text_channel.dart';
 import 'core/router/app_router.dart';
 import 'design/app_theme.dart';
 import 'design/bridge/glass_setup.dart';
 import 'features/auth/state/session.dart';
 import 'features/auth/state/session_controller.dart';
+import 'features/visit/screens/feed_view.dart';
 
 /// 공유로 받은 글 가운데 지금 열 수 있는 것 — 로그인했고 매장을 골랐을 때만.
 /// 콜드 스타트에서 로그인 뒤에, 또는 앱이 떠 있을 때 바로 열린다(③-A3).
@@ -90,6 +92,12 @@ Widget buildRoot() {
     // "다시 시도" 버튼으로 사용자가 직접 재시도하게 해야지, 프레임워크가
     // 지수 백오프로 조용히 반복 시도하면 안 된다.
     retry: (retryCount, error) => null,
+    // 기능 폴더 사이의 반대 방향 자리를 여기서 채운다(customer 의 [기록] 탭 ← visit 의 피드).
+    overrides: [
+      petRecordsPlugProvider.overrideWithValue(
+        (petId) => PetRecordsView(petId: petId),
+      ),
+    ],
     child: wrapWithGlass(const App()),
   );
 }

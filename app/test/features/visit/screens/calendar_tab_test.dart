@@ -382,7 +382,11 @@ void main() {
       final app = build(feedBackend());
       await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
       await _pumpHome(tester, app.setup);
-      expect(find.text(AppStrings.feedTitleEn), findsOneWidget, reason: '기억한 것');
+      expect(
+        find.text(AppStrings.feedTitleEn),
+        findsOneWidget,
+        reason: '기억한 것',
+      );
 
       await tester.tap(find.text('두부'));
       await settle(tester);
