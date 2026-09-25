@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 ///
 /// 서버 오류 바디는 `{"code": "...", "message": "..."}` 형태를 따른다.
 /// 이 형태로 파싱되지 않으면 `HTTP_ERROR`로, 연결/타임아웃류 오류는
-/// `NETWORK`로 코드를 매긴다.
+/// `NETWORK`로, 호출자가 취소한 요청은 `CANCELLED`로 코드를 매긴다.
 class ApiException implements Exception {
   ApiException({
     required this.statusCode,
@@ -22,6 +22,10 @@ class ApiException implements Exception {
 
   /// [DioException]으로부터 [ApiException]을 만든다.
   factory ApiException.fromDioException(DioException error) {
+    // 취소는 오류가 아니다(사용자가 업로드를 뺐다). 화면은 [isCancelled]면 아무 문구도 띄우지 않는다.
+    if (error.type == DioExceptionType.cancel) {
+      return ApiException(statusCode: null, code: 'CANCELLED', message: '취소했습니다.');
+    }
     if (_isNetworkType(error.type)) {
       return ApiException.network(error.message ?? '네트워크 오류가 발생했습니다.');
     }
@@ -86,6 +90,8 @@ class ApiException implements Exception {
   final bool sessionEnded;
 
   bool get isNetwork => code == 'NETWORK';
+
+  bool get isCancelled => code == 'CANCELLED';
 
   @override
   String toString() => 'ApiException(statusCode: $statusCode, code: $code, message: $message)';
