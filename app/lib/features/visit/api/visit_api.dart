@@ -1,4 +1,5 @@
 import '../../../core/proxy/api_client.dart';
+import 'feed_models.dart';
 import 'record_models.dart';
 import 'visit_models.dart';
 
@@ -24,6 +25,15 @@ class VisitApi {
       CalendarMonth.fromJson(
         await _get('/v1/shops/$shopId/visits/calendar', {
           'month': isoMonth(month),
+        }),
+      );
+
+  /// 완료 방문을 최신순으로 한 쪽씩(설계 9절). [petId]를 주면 그 아이만.
+  Future<VisitFeed> feed(int shopId, {String? cursor, int? petId}) async =>
+      VisitFeed.fromJson(
+        await _get('/v1/shops/$shopId/visits/feed', {
+          'cursor': ?cursor,
+          'pet_id': ?petId,
         }),
       );
 

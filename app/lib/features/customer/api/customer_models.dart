@@ -14,6 +14,7 @@ class PetSummary {
     required this.ageLabel,
     required this.hasConditions,
     required this.passedAway,
+    required this.photo,
   });
 
   factory PetSummary.fromJson(Map<String, dynamic> json) => PetSummary(
@@ -24,6 +25,7 @@ class PetSummary {
     ageLabel: json['age_label'] as String,
     hasConditions: json['has_conditions'] as bool,
     passedAway: json['passed_away'] as bool,
+    photo: json['photo'] as String?,
   );
 
   final int petId;
@@ -35,6 +37,9 @@ class PetSummary {
   final String ageLabel;
   final bool hasConditions;
   final bool passedAway;
+
+  /// 프로필 사진 — 가장 최근 완료 기록의 대표 사진 썸네일 서명 URL. 없으면 회색 자리.
+  final String? photo;
 }
 
 /// 목록의 가족 카드 하나(보호자 한 명과 그 아이들). 번호는 가린 값만 있다.
@@ -157,6 +162,7 @@ class Pet {
     required this.conditions,
     required this.memo,
     required this.passedAwayAt,
+    required this.photo,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) => Pet(
@@ -182,6 +188,7 @@ class Pet {
     passedAwayAt: json['passed_away_at'] == null
         ? null
         : DateTime.parse(json['passed_away_at'] as String),
+    photo: json['photo'] as String?,
   );
 
   final int petId;
@@ -206,6 +213,9 @@ class Pet {
   final List<PetCondition> conditions;
   final String? memo;
   final DateTime? passedAwayAt;
+
+  /// 프로필 사진 썸네일 서명 URL — 상세 조회에만 온다(등록·수정 응답에는 없어 null).
+  final String? photo;
 
   bool get passedAway => passedAwayAt != null;
 }
