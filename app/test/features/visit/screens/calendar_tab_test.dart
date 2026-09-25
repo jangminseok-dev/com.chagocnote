@@ -1,6 +1,8 @@
+import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_dashed_tile.dart';
+import 'package:chagocnote/design/widgets/app_photo_fan.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/features/visit/state/calendar_selection.dart';
@@ -10,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
+import '../../../support/upload_fakes.dart';
 import '../../../support/visit_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
 
@@ -116,6 +119,59 @@ void main() {
     expect(find.text(AppStrings.unresolvedBanner(2)), findsOneWidget);
     // '1'은 셋 — 1일 날짜 숫자, 30일 점선 타일의 예약 수, 30일 칸의 정리 안 된 예약 수.
     expect(find.text('1'), findsNWidgets(3));
+  });
+
+  testWidgets('완료 방문의 대표 사진이 있으면 칸에 보이고, 미리보기는 그날 사진을 부채꼴로 겹친다', (
+    tester,
+  ) async {
+    final backend = _backend();
+    backend.routes['GET /v1/shops/3/visits/calendar'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: calendarJson(
+        days: {
+          15: {
+            'visit_count': 3,
+            'completed_count': 3,
+            'cover': thumbUrl(51),
+            'covers': [thumbUrl(51), thumbUrl(52), thumbUrl(53)],
+          },
+          22: {
+            'visit_count': 5,
+            'completed_count': 1,
+            'open_count': 4,
+            'cover': thumbUrl(61),
+            'covers': [thumbUrl(61)],
+          },
+          25: {'visit_count': 4, 'open_count': 4},
+        },
+      ),
+    );
+    final images = FakeMediaImages();
+    final setup = CustomerTestSetup(
+      backend.call,
+      overrides: [..._today, mediaImagesProvider.overrideWithValue(images)],
+    );
+    addTearDown(setup.container.dispose);
+    await _pumpHome(tester, setup);
+
+    final tiles = tester.widgetList<AppPhotoTile>(find.byType(AppPhotoTile));
+    expect(tiles.map((t) => t.image), everyElement(same(images.image)));
+    expect(images.urls, containsAll([thumbUrl(51), thumbUrl(61)]));
+    expect(
+      tester.widget<AppPhotoFan>(find.byType(AppPhotoFan)).images,
+      hasLength(1),
+    );
+
+    await tester.tap(find.bySemanticsLabel('9월 15일 화'));
+    await settle(tester);
+    expect(
+      tester.widget<AppPhotoFan>(find.byType(AppPhotoFan)).images,
+      hasLength(3),
+    );
+
+    await tester.tap(find.bySemanticsLabel('9월 25일 금'));
+    await settle(tester);
+    expect(find.byType(AppPhotoFan), findsNothing, reason: '사진 없는 날');
   });
 
   testWidgets('오늘이 골라져 있고 미리보기에 그날 줄이 보이며, 다른 날을 누르면 그날을 읽는다', (tester) async {

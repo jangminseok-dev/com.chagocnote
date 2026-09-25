@@ -1,15 +1,18 @@
 import 'dart:async';
 
+import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
+import '../../../support/upload_fakes.dart';
 import '../../../support/visit_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
 
@@ -365,6 +368,37 @@ void main() {
     await settle(tester);
 
     expect(find.textContaining('다른 기기에서 먼저'), findsOneWidget);
+  });
+
+  testWidgets('카드의 사진 자리는 대표 사진이다 — 가족은 두 장을 겹치고, 사진 없는 아이는 회색', (
+    tester,
+  ) async {
+    final images = FakeMediaImages();
+    final setup = CustomerTestSetup(
+      _backend([
+        dayItemJson(
+          _v(1, '10:00', status: 'completed'),
+          groupKey: 'g1',
+          hasRecord: true,
+          cover: thumbUrl(51),
+        ),
+        dayItemJson(
+          _v(2, '10:00', status: 'completed', pet: '보리', petId: 12),
+          groupKey: 'g1',
+        ),
+      ]).call,
+      overrides: [..._today, mediaImagesProvider.overrideWithValue(images)],
+    );
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    final tiles = tester
+        .widgetList<AppPhotoTile>(find.byType(AppPhotoTile))
+        .toList();
+    expect(tiles, hasLength(2));
+    expect(tiles.first.image, same(images.image));
+    expect(tiles.last.image, isNull);
+    expect(images.urls.toSet(), {thumbUrl(51)});
   });
 
   testWidgets('카드를 누르면 묶음의 첫 방문 상세로 간다', (tester) async {

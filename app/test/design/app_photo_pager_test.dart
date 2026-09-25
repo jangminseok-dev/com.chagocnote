@@ -108,7 +108,9 @@ void main() {
         ),
       ),
     );
-    await precacheImage(_image, tester.element(target));
+    await tester.runAsync(
+      () => precacheImage(_image, tester.element(target)),
+    );
     await tester.pumpAndSettle();
 
     await expectLater(target, matchesGoldenFile('goldens/app_photo_pager.png'));
