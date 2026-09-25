@@ -117,7 +117,9 @@ void main() {
     expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
     expect(find.text('두부'), findsOneWidget);
     expect(find.text(AppStrings.statusReserved), findsOneWidget);
-    expect(find.text('말티푸 · 4.2kg · 이수진'), findsOneWidget);
+    // 이름 카드에 품종·몸무게, 넘기기 아래에 보호자.
+    expect(find.text('말티푸 · 4.2kg'), findsOneWidget);
+    expect(find.text(AppStrings.ownerLine('이수진')), findsOneWidget);
     expect(find.text('10월 2일 금 · 14:00 — 15:30'), findsOneWidget);
     expect(find.text('목욕'), findsOneWidget);
     expect(find.text('발톱 짧게'), findsOneWidget);
@@ -475,8 +477,9 @@ void main() {
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
 
+    expect(find.text('말티푸 · 4.2kg'), findsOneWidget);
     expect(
-      find.text('말티푸 · 4.2kg · ${AppStrings.deletedCustomer}'),
+      find.text(AppStrings.ownerLine(AppStrings.deletedCustomer)),
       findsOneWidget,
     );
     expect(
@@ -612,6 +615,34 @@ void main() {
       await _tap(tester, _button(AppStrings.editRecord));
       expect(find.byKey(ScreenKeys.visitRecord), findsOneWidget);
       expect(_button(AppStrings.completeWithRecord), findsNothing);
+    });
+
+    testWidgets('넘기기는 대표 사진(후)부터 표시용으로 보이고, 가운데 사진을 누르면 그 사진의 크게 보기를 연다', (
+      tester,
+    ) async {
+      final server = _Server(status: 'completed')..record = filled();
+      final app = build(server);
+      await _open(tester, app.setup);
+
+      expect(find.text('01 / 02'), findsOneWidget);
+      expect(app.images.urls, contains(contains('display/shops/3/52.jpg')));
+      expect(app.images.urls, contains(contains('display/shops/3/51.jpg')));
+
+      await _tap(
+        tester,
+        find.bySemanticsLabel(AppStrings.openPhotoLabel('후', 1)),
+      );
+
+      expect(find.byKey(ScreenKeys.photoViewer), findsOneWidget);
+      expect(find.text('후 · 1 / 2'), findsOneWidget);
+
+      // 옆 사진(전)은 한 번 누르면 넘어가고, 다시 누르면 그 사진부터 연다.
+      await _tap(tester, find.bySemanticsLabel(AppStrings.back));
+      final before = find.bySemanticsLabel(AppStrings.openPhotoLabel('전', 1));
+      await _tap(tester, before);
+      expect(find.text('02 / 02'), findsOneWidget);
+      await _tap(tester, before);
+      expect(find.text('전 · 2 / 2'), findsOneWidget);
     });
 
     testWidgets('미용 중이면 기록이 없어도 사진 줄과 [기록 쓰기]가 있고, 사진 추가는 전 사진으로 대기열에 넣는다', (

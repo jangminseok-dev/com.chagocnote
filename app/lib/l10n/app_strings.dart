@@ -404,6 +404,13 @@ class AppStrings {
   /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
   static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
 
+  /// '보호자 이수진' — 상세 넘기기 아래 줄.
+  static String ownerLine(String name) => '보호자 $name';
+
+  /// '전 사진 1 크게 보기' — 상세 넘기기의 사진(접근성 이름). 사진 줄의 이름과 겹치지 않게 한다.
+  static String openPhotoLabel(String phase, int index) =>
+      '$phase 사진 $index 크게 보기';
+
   // 크게 보기(④-2b).
   static const saveOriginal = '원본 저장';
   static const toAfter = '후로 바꾸기';
