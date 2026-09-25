@@ -122,4 +122,16 @@ void main() {
     expect(noteOrNull('  각질  '), '각질');
     expect(noteOrNull('   '), isNull);
   });
+
+  test('대표 사진은 후 사진 첫 장, 없으면 전 사진 첫 장, 사진이 없으면 영상 포스터', () {
+    RecordMedia m(int id, String phase, {String kind = 'photo'}) =>
+        RecordMedia.fromJson(
+          recordMediaJson(mediaId: id, phase: phase, kind: kind),
+        );
+
+    expect(coverOf([m(1, 'before'), m(2, 'after'), m(3, 'after')])?.mediaId, 2);
+    expect(coverOf([m(1, 'before'), m(9, 'after', kind: 'video')])?.mediaId, 1);
+    expect(coverOf([m(9, 'after', kind: 'video')])?.mediaId, 9);
+    expect(coverOf(const []), isNull);
+  });
 }

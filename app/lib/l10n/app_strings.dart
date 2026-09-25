@@ -395,6 +395,12 @@ class AppStrings {
   static const completeWithoutRecord = '나중에 적고 완료';
   static const amountHint = '금액';
 
+  static const todayCareLabel = '오늘의 케어';
+  static const editRecord = '기록 수정';
+  static const writeRecord = '기록 쓰기';
+  static const deleteRecord = '기록 삭제';
+  static const deleteRecordConfirm = '이 방문의 미용 기록을 삭제할까요? 사진·메모·금액이 함께 지워지고 되돌릴 수 없습니다.';
+
   /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
   static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
 

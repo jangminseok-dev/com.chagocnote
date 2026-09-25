@@ -1,6 +1,10 @@
 import 'dart:async';
 
+import 'package:chagocnote/core/proxy/media_images.dart';
+import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/features/visit/api/record_models.dart';
+import 'package:chagocnote/features/visit/state/upload_queue.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_card.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
@@ -9,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_test_app.dart';
+import '../../../support/upload_fakes.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/visit_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
@@ -23,7 +28,11 @@ class _Server {
     backend = VisitTestBackend({
       'GET /v1/shops/3/visits/101': (o, b) => FakeResponse(
         statusCode: 200,
-        data: visitDetailJson(visit: _dubu(), group: [if (withBori) _bori()]),
+        data: visitDetailJson(
+          visit: _dubu(),
+          group: [if (withBori) _bori()],
+          record: record,
+        ),
       ),
       'GET /v1/shops/3/visits/102': (o, b) => FakeResponse(
         statusCode: 200,
@@ -49,6 +58,10 @@ class _Server {
       },
       'GET /v1/shops/3/visits/101/next-draft': (o, b) =>
           FakeResponse(statusCode: 200, data: nextDraftJson()),
+      'DELETE /v1/shops/3/visits/101/record': (o, b) {
+        record = null;
+        return const FakeResponse(statusCode: 204);
+      },
       'PUT /v1/shops/3/visits/101/record': (o, body) {
         recordPuts.add(bodyOf(body));
         return FakeResponse(statusCode: 200, data: recordJson());
@@ -58,6 +71,7 @@ class _Server {
 
   String status;
   String? cancelReason;
+  Map<String, dynamic>? record;
   final bool withBori;
   final transitions = <Map<String, dynamic>>[];
   final recordPuts = <Map<String, dynamic>>[];
@@ -525,5 +539,135 @@ void main() {
           .first,
       matchesGoldenFile('goldens/next_reservation_sheet.png'),
     );
+  });
+  group('미용 기록(④)', () {
+    Map<String, dynamic> filled() => recordJson(
+      weightKg: 4.2,
+      careNote: '발바닥 각질',
+      internalNote: '예민함',
+      paymentMethod: 'transfer',
+      totalAmount: 50000,
+      items: [
+        {'menu_id': 4, 'name': '전체 미용', 'amount': 55000},
+      ],
+      media: [
+        recordMediaJson(mediaId: 51, phase: 'before'),
+        recordMediaJson(mediaId: 52, phase: 'after'),
+      ],
+    );
+
+    ({
+      CustomerTestSetup setup,
+      FakeMediaImages images,
+      FakeUploadQueue queue,
+    })
+    build(_Server server, {String role = 'owner'}) {
+      final images = FakeMediaImages();
+      final queue = FakeUploadQueue();
+      final setup = CustomerTestSetup(
+        server.backend.call,
+        role: role,
+        overrides: [
+          ..._today,
+          mediaImagesProvider.overrideWithValue(images),
+          uploadQueueProvider.overrideWith(() => queue),
+          mediaPickerProvider.overrideWithValue(
+            FakeMediaPicker(taken: '/camera/c.jpg'),
+          ),
+        ],
+      );
+      addTearDown(setup.container.dispose);
+      return (setup: setup, images: images, queue: queue);
+    }
+
+    testWidgets('기록이 있으면 대표 사진(후)·사진 줄·오늘의 케어를 보이고, [기록 수정]은 기록 화면을 연다', (
+      tester,
+    ) async {
+      final server = _Server(status: 'completed')..record = filled();
+      final app = build(server);
+      await _open(tester, app.setup);
+
+      expect(app.images.urls, contains(contains('display/shops/3/52.jpg')));
+      expect(find.bySemanticsLabel('전 사진 1'), findsOneWidget);
+      expect(find.bySemanticsLabel('후 사진 1'), findsOneWidget);
+      expect(find.text('전체 미용 · 55,000원'), findsOneWidget);
+      expect(find.text('${AppStrings.weightLabel} 4.2kg'), findsOneWidget);
+      expect(
+        find.text(
+          '${AppStrings.totalLabel} 50,000원 · ${AppStrings.paymentTransfer}',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('발바닥 각질'), findsOneWidget);
+      expect(
+        find.text('${AppStrings.internalNoteLabel} · 예민함'),
+        findsOneWidget,
+      );
+
+      await _tap(tester, _button(AppStrings.editRecord));
+      expect(find.byKey(ScreenKeys.visitRecord), findsOneWidget);
+      expect(_button(AppStrings.completeWithRecord), findsNothing);
+    });
+
+    testWidgets('미용 중이면 기록이 없어도 사진 줄과 [기록 쓰기]가 있고, 사진 추가는 전 사진으로 대기열에 넣는다', (
+      tester,
+    ) async {
+      final app = build(_Server(status: 'in_progress'));
+      await _open(tester, app.setup);
+      expect(_button(AppStrings.writeRecord), findsOneWidget);
+
+      await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+      await _tap(tester, _button(AppStrings.takePhoto));
+
+      expect(app.queue.added.single.phase, MediaPhase.before);
+      expect(app.queue.added.single.sources, ['/camera/c.jpg']);
+    });
+
+    testWidgets('사진만 붙은 기록(대기열이 만든 것)은 케어 카드 없이 [기록 쓰기]다', (tester) async {
+      final server = _Server(status: 'in_progress')
+        ..record = recordJson(media: [recordMediaJson()]);
+      final app = build(server);
+      await _open(tester, app.setup);
+
+      expect(find.bySemanticsLabel('전 사진 1'), findsOneWidget);
+      expect(find.textContaining(AppStrings.todayCareLabel), findsNothing);
+      expect(_button(AppStrings.writeRecord), findsOneWidget);
+    });
+
+    testWidgets('예약됨이면 사진 줄도 기록 버튼도 없다', (tester) async {
+      final app = build(_Server());
+      await _open(tester, app.setup);
+
+      expect(find.bySemanticsLabel(AppStrings.addPhoto), findsNothing);
+      expect(_button(AppStrings.writeRecord), findsNothing);
+      expect(find.textContaining(AppStrings.todayCareLabel), findsNothing);
+    });
+
+    testWidgets('사장은 ··· 로 확인을 거쳐 기록을 삭제한다', (tester) async {
+      final server = _Server(status: 'completed')..record = filled();
+      final app = build(server);
+      await _open(tester, app.setup);
+
+      await _more(tester, AppStrings.deleteRecord);
+      expect(find.text(AppStrings.deleteRecordConfirm), findsOneWidget);
+      await _tap(tester, _button(AppStrings.deleteRecord));
+
+      expect(
+        app.setup.calls,
+        contains('DELETE /v1/shops/3/visits/101/record'),
+      );
+      expect(find.text('발바닥 각질'), findsNothing);
+      expect(_button(AppStrings.writeRecord), findsOneWidget);
+    });
+
+    testWidgets('직원의 ··· 에는 기록 삭제가 없다(record:delete 는 사장만)', (tester) async {
+      final server = _Server(status: 'completed')..record = filled();
+      final app = build(server, role: 'staff');
+      await _open(tester, app.setup);
+
+      await _tap(tester, find.bySemanticsLabel(AppStrings.more));
+      expect(find.text(AppStrings.deleteRecord), findsNothing);
+      expect(find.text(AppStrings.actionRevert), findsOneWidget);
+    });
   });
 }

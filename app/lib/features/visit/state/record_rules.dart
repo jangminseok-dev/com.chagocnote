@@ -56,7 +56,7 @@ class RecordFormStart {
 }
 
 /// 사진만 있거나 아무것도 없는 기록 — 대기열이 사진을 붙이며 만든 기록도 여기 든다.
-bool _isBlank(VisitRecord? r) =>
+bool isBlankRecord(VisitRecord? r) =>
     r == null ||
     (r.weightKg == null &&
         r.items.isEmpty &&
@@ -73,7 +73,7 @@ RecordFormStart recordFormStart(VisitDetail detail, List<Menu> menus) {
     for (final m in record?.media ?? const <RecordMedia>[])
       FormMedia(m, m.phase),
   ];
-  if (!_isBlank(record)) {
+  if (!isBlankRecord(record)) {
     return RecordFormStart(
       weightKg: record!.weightKg,
       lines: [
@@ -138,6 +138,14 @@ List<FormMedia> withNewMedia(
     for (final m in fresh?.media ?? const <RecordMedia>[])
       if (!known.contains(m.mediaId)) FormMedia(m, m.phase),
   ];
+}
+
+/// 대표 사진 — 후 사진의 첫 장, 없으면 전 사진의 첫 장, 사진이 없으면 영상 포스터(서버의 대표 규칙과 같다).
+RecordMedia? coverOf(List<RecordMedia> media) {
+  final photos = media.where((m) => m.kind == MediaKind.photo);
+  return photos.where((m) => m.phase == MediaPhase.after).firstOrNull ??
+      photos.where((m) => m.phase == MediaPhase.before).firstOrNull ??
+      media.firstOrNull;
 }
 
 /// 메모 칸 — 앞뒤 공백을 떼고 비었으면 null(지운다).
