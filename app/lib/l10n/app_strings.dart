@@ -404,6 +404,16 @@ class AppStrings {
   /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
   static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
 
+  // 크게 보기(④-2b).
+  static const saveOriginal = '원본 저장';
+  static const toAfter = '후로 바꾸기';
+  static const toBefore = '전으로 바꾸기';
+  static const makeCover = '대표로';
+  static const deletePhoto = '사진 삭제';
+  static const deletePhotoConfirm = '이 사진을 기록에서 지울까요? 되돌릴 수 없습니다.';
+  static const savedToAlbum = '앨범에 저장했어요.';
+  static const albumDenied = '사진 보관함 권한이 없어요. 설정에서 켜 주세요.';
+
   /// 35000 → '35,000원'.
   static String wonText(int amount) {
     final digits = amount.toString();

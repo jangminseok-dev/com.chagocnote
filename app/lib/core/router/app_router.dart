@@ -21,6 +21,7 @@ import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
 import '../../features/visit/screens/day_screen.dart';
 import '../../features/visit/screens/draft_screen.dart';
+import '../../features/visit/screens/photo_viewer_screen.dart';
 import '../../features/visit/screens/record_screen.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
 import '../../features/visit/screens/settings/menu_settings_screen.dart';
@@ -192,6 +193,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => RecordScreen(
           visitId: int.parse(state.pathParameters['visitId']!),
           completing: state.uri.queryParameters['complete'] == '1',
+        ),
+      ),
+      // 크게 보기 — [mediaId]의 사진부터 연다.
+      GoRoute(
+        path: '/visits/:visitId/photos/:mediaId',
+        builder: (context, state) => PhotoViewerScreen(
+          visitId: int.parse(state.pathParameters['visitId']!),
+          mediaId: int.parse(state.pathParameters['mediaId']!),
         ),
       ),
     ],
