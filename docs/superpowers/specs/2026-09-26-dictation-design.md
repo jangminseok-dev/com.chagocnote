@@ -1,7 +1,7 @@
 # 차곡노트 — ④-3b 말로 기록하기 설계
 
 - 작성일: 2026-09-26
-- 상태: 사용자 검토 대기
+- 상태: 승인(2026-09-26), 계획서 `docs/superpowers/plans/2026-09-27-dictation.md`
 - 범위: Flutter 앱만. 기록 화면의 케어 메모·내부 메모에 마이크 버튼을 두고 기기 안(온디바이스) 음성 인식으로 커서 자리에 받아쓴다. 서버·API 는 바꾸지 않는다.
 - 앞선 문서: `docs/superpowers/specs/2026-09-24-record-media-design.md` 11절(말로 기록하기), `docs/superpowers/specs/2026-09-26-video-design.md`(자체 네이티브 채널의 틀), `_docs/decisions/007-record-media.md`
 - 다음 단계: 이 문서가 승인되면 구현 계획 하나를 쓴다(참조 트리에서 먼저 검증).
@@ -23,7 +23,7 @@
 ## 2. 사용자 흐름
 
 - 케어 메모·내부 메모 칸의 제목 줄 오른쪽에 마이크 버튼(`AppMicButton`)이 하나씩 있다. 다른 화면(초안·예약 폼)은 손대지 않는다.
-- 누르면 듣기 시작. 버튼은 "듣는 중"(붉은 점 깜빡임)으로 바뀌고, 인식 중인 글이 **그 칸의 커서 자리**에 회색으로 실시간으로 나타난다. 한 구절이 확정되면 검게 굳고 커서가 그 뒤로 간다. 다음 구절은 이어 붙는다.
+- 누르면 듣기 시작. 버튼은 "듣는 중"(잉크색 점 깜빡임 — 팔레트에 붉은 토큰이 없다, 2026-09-27 계획에서 정정)으로 바뀌고, 인식 중인 글이 **그 칸의 커서 자리**에 회색으로 실시간으로 나타난다. 한 구절이 확정되면 검게 굳고 커서가 그 뒤로 간다. 다음 구절은 이어 붙는다.
 - 끝나는 조건: 버튼을 다시 누름 / 마지막 인식 뒤 무음 10초 / 그 칸에 손으로 타이핑하거나 다른 칸을 누름. 어느 경우든 확정된 글은 남고 회색 글은 마지막 결과로 굳는다.
 - 한 번에 한 칸만 듣는다. 다른 칸의 마이크를 누르면 앞 것이 끝나고 뒤 것이 시작한다.
 - 메모 길이 상한(`maxNoteLength`)을 넘으면 넘는 부분은 넣지 않고 끝낸다.
@@ -66,11 +66,11 @@ abstract class SpeechRecognizer {
 - 사용자가 손으로 고치면(우리가 넣은 변경이 아닌 텍스트 변화) 끝낸다.
 - 길이 상한: 넣을 글이 `maxNoteLength` 를 넘으면 상한까지 잘라 넣고 끝낸다.
 - `DictationTextEditingController extends TextEditingController` 가 `buildTextSpan` 을 덮어써 진행 중 구간만 회색(`AppColors` 토큰)으로 그린다. `TextField` 은 그대로다.
-- 기록 화면은 칸마다 `Dictation` 을 하나씩 들고, 한 번에 하나만 `listening` 이게 한다(둘째를 시작하면 첫째를 `stop`).
+- 기록 화면은 칸마다 `Dictation` 을 하나씩 들고, 한 번에 하나만 `listening` 이게 한다(둘째를 시작하면 첫째를 **`cancel`** — `stop` 뒤 곧바로 시작하면 첫째의 늦은 `final`·`ended` 가 둘째에 섞인다, 2026-09-27 계획에서 정정).
 
 ### 3.3 모양 위젯 — `design/widgets/app_mic_button.dart`
 
-`AppMicButton({required bool listening, required VoidCallback onTap})`. 듣는 중이면 붉은 점이 깜빡인다(`AnimationController`, 골든은 정지 프레임). Riverpod 모름.
+`AppMicButton({required bool listening, required VoidCallback onTap})`. 듣는 중이면 잉크색 점이 깜빡인다(붉은 토큰이 없어 계획에서 정정)(`AnimationController`, 골든은 정지 프레임). Riverpod 모름.
 
 ### 3.4 iOS — `ios/Runner/SpeechRecognizer.swift`
 
@@ -118,7 +118,7 @@ abstract class SpeechRecognizer {
 - **채널** — `ChannelSpeechRecognizer` 의 메서드·이벤트·오류 매핑(영상 채널 테스트와 같은 방식).
 - **위젯** — 기록 화면에 마이크 둘, 누르면 듣는 중·partial 회색, 미지원·권한 거부·`noSpeech` 스낵바, [설정 열기] 호출. 골든 `app_mic_button.png` 하나(두 상태).
 - **구조** — `plugin_imports_test`(새 채널 파일 포함), `copy_tone_test`.
-- **시뮬레이터 흐름** — 실제 채널로 `availability()` 가 "지원 안 함"을 돌려주고 스낵바가 뜨는 것만(iOS). 안드로이드 에뮬레이터는 온디바이스 모델이 있으면 실제 인식을 한 번 시도, 없으면 같은 경로.
+- **시뮬레이터 흐름** — Xcode 27 시뮬레이터는 `availability()` 가 지원이라 답하지만 `start` 하면 곧바로 미지원으로 끝난다(2026-09-27 계획에서 확인). 실제 채널로는 권한(simctl + TCC 데이터베이스로 미리 줌)·시작·미지원 안내까지, 받아쓰기·저장은 대역 인식기로 본다. 안드로이드 에뮬레이터는 온디바이스 모델이 있으면 실제 인식을 한 번 시도, 없으면 같은 경로.
 - **실기기 미확인(알고 미룬다)** — 실제 인식률, iOS 1분 세션 이어 듣기, 인터럽션, 권한 창 순서, 안드로이드 모델 내려받기 안내.
 
 ## 6. 문서
