@@ -374,7 +374,7 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                   visitId: widget.visitId,
                   phase: MediaPhase.after,
                   // 폼에서 뺀 사진도 저장 전까지는 서버 자리를 차지한다.
-                  attached: detail.record?.media.length ?? 0,
+                  attached: detail.record?.media ?? const [],
                 ),
         ),
         const SizedBox(height: AppSpacing.lg),

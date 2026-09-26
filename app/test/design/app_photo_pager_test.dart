@@ -1,5 +1,6 @@
 import 'package:chagocnote/design/widgets/app_glass_card.dart';
 import 'package:chagocnote/design/widgets/app_photo_pager.dart';
+import 'package:chagocnote/design/widgets/app_video_badge.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,6 +16,7 @@ List<AppPagerPhoto> _photos(int n, {bool video = false}) => [
       label: i == 0 ? '전' : '후',
       semanticLabel: '사진 ${i + 1}',
       video: video && i == n - 1,
+      durationSeconds: video && i == n - 1 ? 42 : null,
     ),
 ];
 
@@ -93,7 +95,14 @@ void main() {
 
     expect(find.text('전'), findsOneWidget);
     expect(find.text('후'), findsOneWidget);
-    expect(find.byIcon(Icons.play_circle_fill), findsOneWidget);
+    expect(find.byType(AppVideoBadge), findsOneWidget);
+  });
+
+  testWidgets('영상 페이지에 길이가 보인다', (tester) async {
+    await _pump(tester, _photos(2, video: true));
+
+    expect(find.byType(AppVideoBadge), findsOneWidget);
+    expect(find.text('0:42'), findsOneWidget);
   });
 
   testWidgets('사진이 줄어 지금 자리가 없어지면 마지막 사진으로 간다', (tester) async {

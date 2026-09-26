@@ -1,5 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:chagocnote/core/proxy/media_files.dart';
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/photo_album.dart';
+import 'package:chagocnote/core/proxy/video_playback.dart';
+import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
@@ -9,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
+import '../../../support/fake_video_playback.dart';
 import '../../../support/upload_fakes.dart';
 import '../../../support/visit_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
@@ -19,23 +27,26 @@ import '../../../support/visit_test_backend.dart';
 class _Server {
   _Server({this.status = 'completed', this.conflicts = 0, this.failure}) {
     backend = VisitTestBackend({
-      'GET /v1/shops/3/visits/101': (o, b) => FakeResponse(
-        statusCode: 200,
-        data: visitDetailJson(
-          visit: visitJson(status: status),
-          record: recordJson(
-            weightKg: 4.2,
-            careNote: '귀 청소',
-            paymentMethod: 'card',
-            totalAmount: 30000,
-            items: [
-              {'menu_id': 1, 'name': '목욕', 'amount': 30000},
-            ],
-            media: media,
-            version: version,
+      'GET /v1/shops/3/visits/101': (o, b) {
+        reads++;
+        return FakeResponse(
+          statusCode: 200,
+          data: visitDetailJson(
+            visit: visitJson(status: status),
+            record: recordJson(
+              weightKg: 4.2,
+              careNote: '귀 청소',
+              paymentMethod: 'card',
+              totalAmount: 30000,
+              items: [
+                {'menu_id': 1, 'name': '목욕', 'amount': 30000},
+              ],
+              media: media,
+              version: version,
+            ),
           ),
-        ),
-      ),
+        );
+      },
       'PUT /v1/shops/3/visits/101/record': (o, body) {
         final sent = bodyOf(body);
         puts.add(sent);
@@ -68,6 +79,9 @@ class _Server {
 
   String status;
   int conflicts;
+
+  /// 상세를 읽은 횟수.
+  int reads = 0;
   FakeResponse? failure;
   int version = 3;
 
@@ -82,21 +96,37 @@ class _Server {
   late final VisitTestBackend backend;
 }
 
-({CustomerTestSetup setup, FakeMediaImages images, FakePhotoAlbum album})
+({
+  CustomerTestSetup setup,
+  FakeMediaImages images,
+  FakePhotoAlbum album,
+  FakeVideoPlaybackFactory videos,
+  FakeMediaFiles files,
+})
 _build(WidgetTester tester, _Server server) {
   final images = FakeMediaImages();
   final album = FakePhotoAlbum();
+  final videos = FakeVideoPlaybackFactory();
+  final files = FakeMediaFiles();
   final setup = CustomerTestSetup(
     server.backend.call,
     overrides: [
       todayProvider.overrideWithValue(DateTime(2026, 10, 2)),
       mediaImagesProvider.overrideWithValue(images),
       photoAlbumProvider.overrideWithValue(album),
+      videoPlaybackFactoryProvider.overrideWithValue(videos),
+      mediaFilesProvider.overrideWithValue(files),
     ],
   );
   addTearDown(setup.container.dispose);
   useTallView(tester, height: 900);
-  return (setup: setup, images: images, album: album);
+  return (
+    setup: setup,
+    images: images,
+    album: album,
+    videos: videos,
+    files: files,
+  );
 }
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
@@ -112,6 +142,23 @@ List<(int, String, int)> _placed(Map<String, dynamic> put) => [
       p['sort_order'] as int,
     ),
 ];
+
+/// 영상 71(후, 31초).
+final _video71 = recordMediaJson(
+  mediaId: 71,
+  phase: 'after',
+  kind: 'video',
+  durationSeconds: 31,
+);
+
+/// 대역이 실제 파일을 쓰고 지우는 동안(진짜 비동기) 기다린 뒤 화면을 마저 그린다.
+Future<void> _drain(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump();
+  }
+  await settle(tester);
+}
 
 void main() {
   testWidgets('연 사진부터 원본으로 보이고, 넘기면 머리의 전/후·자리가 따라간다', (tester) async {
@@ -145,6 +192,45 @@ void main() {
     app.album.denied = true;
     await _tap(tester, find.bySemanticsLabel(AppStrings.saveOriginal));
     expect(find.text(AppStrings.albumDenied), findsOneWidget);
+  });
+
+  testWidgets('영상의 [원본 저장]은 mp4 를 받아 앨범에 저장하고 임시 파일을 지운다', (tester) async {
+    final server = _Server()..media = [_video71];
+    final app = _build(tester, server);
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/71');
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.saveOriginal));
+    await _drain(tester);
+
+    expect(app.files.urls, [
+      'http://media.test/b/original/shops/3/71.jpg?sig=a',
+    ]);
+    expect(app.images.files, isEmpty, reason: '영상은 이미지 캐시를 거치지 않는다');
+    expect(app.album.saved.single, endsWith('.mp4'));
+    expect(app.album.saved.single, app.files.paths.single);
+    expect(File(app.files.paths.single).existsSync(), isFalse);
+    expect(find.text(AppStrings.savedToAlbum), findsOneWidget);
+  });
+
+  testWidgets('받는 중에 화면을 나가면 스낵바 없이 조용히 끝난다', (tester) async {
+    final server = _Server()..media = [_video71];
+    final app = _build(tester, server);
+    final gate = app.files.gate = Completer<void>();
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/71');
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.saveOriginal));
+    expect(app.files.urls, hasLength(1));
+
+    app.setup.container.read(routerProvider).pop();
+    await settle(tester);
+    expect(find.byKey(ScreenKeys.photoViewer), findsNothing);
+
+    gate.complete();
+    await _drain(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text(AppStrings.savedToAlbum), findsNothing);
+    expect(File(app.files.paths.single).existsSync(), isFalse);
   });
 
   testWidgets('전/후 바꾸기는 사진 자리만 바꾼 전체 교체 한 번 — 나머지 칸·버전은 읽은 그대로', (
@@ -318,5 +404,66 @@ void main() {
     expect(find.bySemanticsLabel(AppStrings.saveOriginal), findsOneWidget);
     expect(find.bySemanticsLabel(AppStrings.toAfter), findsNothing);
     expect(find.bySemanticsLabel(AppStrings.deletePhoto), findsNothing);
+  });
+
+  testWidgets('영상 페이지에서 [다시 시도]를 누르면 상세를 다시 읽는다', (tester) async {
+    final server = _Server()
+      ..media = [
+        recordMediaJson(
+          mediaId: 71,
+          phase: 'after',
+          kind: 'video',
+          durationSeconds: 31,
+        ),
+      ];
+    final app = _build(tester, server);
+    app.videos.failWith = ApiException(
+      statusCode: 403,
+      code: 'MEDIA_URL_EXPIRED',
+      message: 'Failed to load video: 403',
+    );
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/71');
+    expect(server.reads, 1);
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.playVideo));
+    expect(find.text('보기 링크가 만료됐어요. 다시 시도해 주세요.'), findsOneWidget);
+
+    app.videos.created.single.failWith = null;
+    await _tap(tester, find.text(AppStrings.retry));
+
+    expect(server.reads, 2, reason: '새 서명 URL 을 받으러 상세를 다시 읽는다');
+    expect(app.videos.created.single.calls, [
+      'open http://media.test/b/original/shops/3/71.jpg?sig=a',
+      'open http://media.test/b/original/shops/3/71.jpg?sig=a',
+      'play',
+    ]);
+  });
+
+  testWidgets('페이지를 넘기면 앞 영상은 멈춘다', (tester) async {
+    final server = _Server()
+      ..media = [
+        recordMediaJson(
+          mediaId: 71,
+          phase: 'after',
+          kind: 'video',
+          durationSeconds: 31,
+        ),
+        recordMediaJson(mediaId: 61, phase: 'after', sortOrder: 1),
+      ];
+    final app = _build(tester, server);
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/71');
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.playVideo));
+    final video = app.videos.created.single;
+    expect(video.state.playing, isTrue);
+
+    // 영상은 사진 뒤 — 앞(오른쪽으로 밀기)의 사진으로 넘긴다.
+    expect(find.text('후 · 2 / 2'), findsOneWidget);
+    await tester.drag(find.byType(PageView), const Offset(400, 0));
+    await settle(tester);
+
+    expect(find.text('후 · 1 / 2'), findsOneWidget);
+    expect(video.calls, contains('pause'));
+    expect(video.calls.last, 'dispose', reason: '보이지 않는 페이지는 해제한다');
   });
 }

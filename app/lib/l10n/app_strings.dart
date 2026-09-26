@@ -376,8 +376,13 @@ class AppStrings {
   static const completeRecordTitle = '완료 기록';
   static const recordPhotosLabel = '사진';
   static const addPhoto = '사진 추가';
-  static const takePhoto = '카메라';
-  static const pickFromAlbum = '앨범';
+  static const takePhoto = '사진 찍기';
+  static const pickFromAlbum = '앨범에서 사진';
+  static const pickVideo = '앨범에서 영상';
+  static const takeVideo = '영상 찍기';
+  static const videoTrimmed = '60초까지만 올릴 수 있어 앞부분 60초를 올렸어요.';
+  static const videoUnsupported = '이 영상은 올릴 수 없어요.';
+  static const videoTooShort = '너무 짧은 영상이에요.';
   static const phaseBefore = '전';
   static const phaseAfter = '후';
   static const addPhotoPhaseLabel = '어느 사진인가요?';
@@ -433,6 +438,8 @@ class AppStrings {
   static const deletePhotoConfirm = '이 사진을 기록에서 지울까요? 되돌릴 수 없어요.';
   static const savedToAlbum = '앨범에 저장했어요.';
   static const albumDenied = '사진 보관함 권한이 없어요. 설정에서 켜 주세요.';
+  static const playVideo = '영상 재생';
+  static const pauseVideo = '일시정지';
 
   /// 35000 → '35,000원'.
   static String wonText(int amount) {

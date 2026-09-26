@@ -6,6 +6,7 @@ import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/core/proxy/app_dirs.dart';
 import 'package:chagocnote/core/proxy/photo_renditions.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
+import 'package:chagocnote/core/proxy/video_transcoder.dart';
 import 'package:chagocnote/features/auth/api/social_sign_in.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
@@ -32,8 +33,11 @@ class _Env {
       ).writeAsStringSync(jsonEncode([for (final j in saved) j.toJson()]));
       for (final j in saved) {
         final dir = Directory('${root.path}/${j.id}')..createSync();
-        for (final name in ['original', 'display', 'thumb']) {
-          File('${dir.path}/$name.jpg').writeAsBytesSync([1, 2, 3]);
+        final names = j.kind == MediaKind.video
+            ? ['video.mp4', 'thumb.jpg']
+            : ['original.jpg', 'display.jpg', 'thumb.jpg'];
+        for (final name in names) {
+          File('${dir.path}/$name').writeAsBytesSync([1, 2, 3]);
         }
       }
     }
@@ -42,6 +46,7 @@ class _Env {
       overrides: [
         uploadsDirProvider.overrideWith((ref) async => root),
         photoRenditionMakerProvider.overrideWithValue(maker),
+        videoTranscoderProvider.overrideWithValue(transcoder),
         uploadRetrySchedulerProvider.overrideWithValue(retries.call),
         uploadDioProvider.overrideWithValue(
           Dio(BaseOptions())..httpClientAdapter = storage,
@@ -53,6 +58,7 @@ class _Env {
   final Directory root;
   late final CustomerTestSetup setup;
   final maker = FakeRenditionMaker();
+  final transcoder = FakeVideoTranscoder();
   FakeNetworkWatcher get network => setup.network;
   final retries = FakeRetryScheduler();
 
@@ -74,6 +80,13 @@ class _Env {
     calls.add(call);
     final failure = apiFailure?.call(call);
     if (failure != null) return await failure;
+    if (call == 'POST /v1/shops/3/media/uploads' &&
+        jsonDecode(utf8.decode(body!))['kind'] == 'video') {
+      return FakeResponse(
+        statusCode: 201,
+        data: _issuedVideoJson(nextMediaId++),
+      );
+    }
     return switch (call) {
       'POST /v1/shops/3/media/uploads' => FakeResponse(
         statusCode: 201,
@@ -149,6 +162,24 @@ List<String> _ordered(List<String> calls) {
   return out;
 }
 
+/// 영상 발급 응답 — 올릴 곳은 mp4·포스터 둘이다(display 없음).
+Map<String, dynamic> _issuedVideoJson(int mediaId) => {
+  'media_id': mediaId,
+  'puts': {
+    'original': 'http://media.test/b/original/shops/3/$mediaId.mp4?put=1',
+    'display': null,
+    'thumb': 'http://media.test/b/thumb/shops/3/$mediaId.jpg?put=1',
+  },
+  'expires_at': '2026-09-25T10:15:00+09:00',
+};
+
+const _videoUploadCalls = [
+  'POST /v1/shops/3/media/uploads',
+  'PUT /b/original/shops/3/51.mp4 video/mp4',
+  'PUT /b/thumb/shops/3/51.jpg image/jpeg',
+  'POST /v1/shops/3/media/51/confirm',
+];
+
 const _uploadCalls = [
   'POST /v1/shops/3/media/uploads',
   'PUT /b/display/shops/3/51.jpg image/jpeg',
@@ -163,6 +194,8 @@ UploadJob _saved(
   int? mediaId,
   int userId = 1,
   String? stoppedCode,
+  MediaKind kind = MediaKind.photo,
+  int? durationSeconds,
 }) => UploadJob(
   id: id,
   userId: userId,
@@ -174,6 +207,8 @@ UploadJob _saved(
   height: 2000,
   mediaId: mediaId,
   stoppedCode: stoppedCode,
+  kind: kind,
+  durationSeconds: durationSeconds,
 );
 
 void main() {
@@ -186,6 +221,32 @@ void main() {
     addTearDown(env.setup.container.dispose);
     return env;
   }
+
+  /// 고른 영상 파일(가짜 압축기가 이것을 video.mp4 로 복사한다).
+  const videoBytes = 4096;
+  String videoSource() {
+    final picked = Directory.systemTemp.createTempSync('picked');
+    addTearDown(() => picked.delete(recursive: true));
+    final file = File('${picked.path}/clip.mov')
+      ..writeAsBytesSync(List<int>.filled(videoBytes, 9));
+    return file.path;
+  }
+
+  Future<VideoAddOutcome> addVideo(_Env env, String source) =>
+      env.queue.addVideo(
+        shopId: 3,
+        visitId: 101,
+        phase: MediaPhase.after,
+        source: source,
+      );
+
+  Map<String, dynamic> issueBody(_Env env) =>
+      jsonDecode(
+            utf8.decode(
+              env.setup.adapter.lastBodyByPath['/v1/shops/3/media/uploads']!,
+            ),
+          )
+          as Map<String, dynamic>;
 
   test('다시 시도 간격은 1·2·4… 초, 최대 5분이다', () {
     expect(
@@ -693,5 +754,233 @@ void main() {
     expect(env.retries.delays, isEmpty);
     expect(env.savedJson.single['stage'], 'prepared');
     expect(env.folders, hasLength(1));
+  });
+
+  test('영상을 넣으면 압축 진행률이 타일에 흐르고, 끝나면 mp4·포스터 둘을 올리고 확인·덧붙이기까지 간다', () async {
+    final env = env0();
+    final gate = env.transcoder.gate = Completer<void>();
+    env.transcoder.progressSteps = const [0.25, 0.5];
+    await env.open();
+    final seen = <double>[];
+    final sub = env.setup.container.listen(uploadQueueProvider, (_, next) {
+      for (final j in next.value ?? const <UploadJob>[]) {
+        if (j.stage == UploadStage.preparing) seen.add(j.progress);
+      }
+    });
+    addTearDown(sub.close);
+
+    final added = addVideo(env, videoSource());
+    await _until(() => env.transcoder.calls.length == 1);
+
+    final job = env.jobs.single;
+    expect(job.kind, MediaKind.video);
+    expect(job.stage, UploadStage.preparing);
+    expect(job.progress, 0);
+    expect(env.transcoder.calls.single.$2, 60);
+
+    gate.complete();
+    expect(await added, VideoAddOutcome.added);
+    await _until(() => env.drained);
+
+    expect(seen, containsAllInOrder([0.25, 0.5]));
+    expect(_ordered(env.calls), [
+      ..._videoUploadCalls,
+      'POST /v1/shops/3/visits/101/record/media',
+    ]);
+    expect(issueBody(env), {
+      'kind': 'video',
+      'content_type': 'video/mp4',
+      'byte_size': videoBytes,
+      'width': 1080,
+      'height': 1920,
+      'duration_seconds': 5,
+    });
+    expect(env.folders, isEmpty);
+  });
+
+  test('60초를 넘는 영상은 앞부분만 올렸다고 알린다', () async {
+    final env = env0();
+    env.transcoder
+      ..trimmed = true
+      ..durationSeconds = 60;
+    await env.open();
+
+    expect(await addVideo(env, videoSource()), VideoAddOutcome.trimmed);
+    await _until(() => env.drained);
+
+    expect(issueBody(env)['duration_seconds'], 60);
+  });
+
+  test('압축할 수 없는 영상은 대기열에서 빼고 이유를 돌려준다', () async {
+    final env = env0();
+    await env.open();
+
+    env.transcoder.failWith = 'UNSUPPORTED';
+    expect(await addVideo(env, videoSource()), VideoAddOutcome.unsupported);
+    expect(env.jobs, isEmpty);
+    expect(env.folders, isEmpty);
+
+    env.transcoder.failWith = 'TOO_SHORT';
+    expect(await addVideo(env, videoSource()), VideoAddOutcome.tooShort);
+    expect(env.jobs, isEmpty);
+    expect(env.folders, isEmpty);
+    expect(env.calls, isEmpty);
+  });
+
+  test('압축 중 [올리기 취소]하면 네이티브를 취소하고 조용히 뺀다', () async {
+    final env = env0();
+    env.transcoder.gate = Completer<void>();
+    await env.open();
+
+    final added = addVideo(env, videoSource());
+    await _until(() => env.transcoder.calls.length == 1);
+    final outcome = expectLater(added, completion(VideoAddOutcome.cancelled));
+
+    await env.queue.remove(env.jobs.single.id);
+    expect(env.transcoder.cancelled, 1);
+    await outcome;
+
+    expect(env.jobs, isEmpty);
+    expect(env.folders, isEmpty);
+    expect(env.calls, isEmpty);
+  });
+
+  test('영상 둘을 연달아 넣으면 압축은 순서대로 돈다', () async {
+    final env = env0();
+    final gate = env.transcoder.gate = Completer<void>();
+    await env.open();
+
+    final first = addVideo(env, videoSource());
+    final second = addVideo(env, videoSource());
+    await _until(() => env.jobs.length == 2);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(env.transcoder.calls, hasLength(1));
+    expect(env.jobs.last.stage, UploadStage.preparing);
+    expect(env.jobs.last.progress, 0);
+
+    gate.complete();
+    expect(await first, VideoAddOutcome.added);
+    expect(await second, VideoAddOutcome.added);
+    expect(env.transcoder.calls, hasLength(2));
+    await _until(() => env.drained);
+  });
+
+  test('압축 중인 첫째를 [올리기 취소]해도 기다리던 둘째는 이어서 압축한다', () async {
+    final env = env0();
+    env.transcoder.gate = Completer<void>();
+    await env.open();
+
+    final first = addVideo(env, videoSource());
+    final second = addVideo(env, videoSource());
+    await _until(
+      () => env.jobs.length == 2 && env.transcoder.calls.length == 1,
+    );
+    final firstOutcome = expectLater(
+      first,
+      completion(VideoAddOutcome.cancelled),
+    );
+
+    // 취소가 붙든 압축을 끝낸 뒤 둘째는 붙들지 않는다.
+    final removing = env.queue.remove(env.jobs.first.id);
+    env.transcoder.gate = null;
+    await removing;
+    await firstOutcome;
+
+    expect(await second, VideoAddOutcome.added);
+    expect(env.transcoder.calls, hasLength(2));
+    await _until(() => env.drained);
+    expect(
+      env.calls.where((c) => c == 'POST /v1/shops/3/media/uploads'),
+      hasLength(1),
+    );
+  });
+
+  test('압축을 기다리던 둘째를 빼면 네이티브를 건드리지 않고, 첫째는 그대로 압축한다', () async {
+    final env = env0();
+    final gate = env.transcoder.gate = Completer<void>();
+    await env.open();
+
+    final first = addVideo(env, videoSource());
+    final second = addVideo(env, videoSource());
+    await _until(
+      () => env.jobs.length == 2 && env.transcoder.calls.length == 1,
+    );
+
+    await env.queue.remove(env.jobs.last.id);
+    expect(env.transcoder.cancelled, 0);
+
+    gate.complete();
+    expect(await first, VideoAddOutcome.added);
+    expect(await second, VideoAddOutcome.cancelled);
+    expect(env.transcoder.calls, hasLength(1));
+    await _until(() => env.drained);
+  });
+
+  test('200MB 를 넘어 서버가 거절한 영상은 멈춘다', () async {
+    final env = env0();
+    env.apiFailure = (call) => call == 'POST /v1/shops/3/media/uploads'
+        ? const FakeResponse(
+            statusCode: 422,
+            data: {'code': 'MEDIA_TOO_LARGE', 'message': 'x'},
+          )
+        : null;
+    await env.open();
+
+    expect(await addVideo(env, videoSource()), VideoAddOutcome.added);
+    await _until(
+      () => env.jobs.single.stopped && env.savedJson.single['stopped_code'] != null,
+    );
+
+    expect(env.jobs.single.stoppedCode, 'MEDIA_TOO_LARGE');
+    expect(env.savedJson.single['kind'], 'video');
+    expect(env.retries.delays, isEmpty);
+    expect(env.folders, [env.jobs.single.id]);
+  });
+
+  test('앱을 다시 켜면 prepared 영상 항목은 mp4·포스터를 이어 올린다', () async {
+    final env = env0(
+      saved: [_saved('v1', kind: MediaKind.video, durationSeconds: 12)],
+    );
+    expect(env.savedJson.single['kind'], 'video');
+    expect(env.savedJson.single['duration_seconds'], 12);
+
+    await env.open();
+    await _until(() => env.drained);
+
+    expect(_ordered(env.calls), [
+      ..._videoUploadCalls,
+      'POST /v1/shops/3/visits/101/record/media',
+    ]);
+    expect(issueBody(env), {
+      'kind': 'video',
+      'content_type': 'video/mp4',
+      'byte_size': 3,
+      'width': 3000,
+      'height': 2000,
+      'duration_seconds': 12,
+    });
+  });
+
+  test('멈춤 칸처럼 kind 가 없던 옛 queue.json 항목은 사진으로 읽는다', () async {
+    final env = env0(saved: [_saved('j1')]);
+    final old = {...env.savedJson.single}
+      ..remove('kind')
+      ..remove('duration_seconds');
+    File('${root.path}/queue.json').writeAsStringSync(jsonEncode([old]));
+    expect(
+      UploadJob.fromJson(old, root.path).kind,
+      MediaKind.photo,
+    );
+    expect(UploadJob.fromJson(old, root.path).durationSeconds, isNull);
+
+    await env.open();
+    await _until(() => env.drained);
+
+    expect(_ordered(env.calls), [
+      ..._uploadCalls,
+      'POST /v1/shops/3/visits/101/record/media',
+    ]);
+    expect(issueBody(env)['kind'], 'photo');
   });
 }

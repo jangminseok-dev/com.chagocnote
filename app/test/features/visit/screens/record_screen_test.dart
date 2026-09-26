@@ -6,6 +6,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/pressable.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
@@ -157,18 +158,35 @@ UploadJob _job(
   bool running = false,
   int failures = 0,
   String? stoppedCode,
+  MediaKind kind = MediaKind.photo,
+  UploadStage stage = UploadStage.prepared,
 }) => UploadJob(
       id: id,
       userId: 1,
       shopId: 3,
       visitId: 101,
       phase: MediaPhase.after,
-      stage: UploadStage.prepared,
+      stage: stage,
       progress: 0.5,
       running: running,
       failures: failures,
       stoppedCode: stoppedCode,
+      kind: kind,
     );
+
+/// 붙은 영상 [n]편이 든 기록.
+Map<String, dynamic> _videoRecord(int n, {int? durationSeconds}) => recordJson(
+  media: [
+    for (var i = 0; i < n; i++)
+      recordMediaJson(
+        mediaId: 200 + i,
+        sortOrder: i,
+        kind: 'video',
+        durationSeconds: durationSeconds,
+      ),
+  ],
+  version: 3,
+);
 
 void main() {
   testWidgets(
@@ -463,7 +481,7 @@ void main() {
     expect(find.text(AppStrings.uploadWaiting), findsNothing);
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.uploadStopped).first);
-    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
+    expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
     await _tap(tester, find.text(AppStrings.retry));
     expect(app.queue.retried, ['j1']);
 
@@ -504,12 +522,14 @@ void main() {
     },
   );
 
-  testWidgets('붙은 사진과 대기열이 30장이면 시트도 선택기도 없이 한도 문구를 보인다', (tester) async {
+  testWidgets('사진 30장과 영상 3편이 다 차면 시트도 선택기도 없이 한도 문구를 보인다', (tester) async {
     final server = _Server(
       record: recordJson(
         media: [
           for (var i = 0; i < 29; i++)
             recordMediaJson(mediaId: 100 + i, sortOrder: i),
+          for (var i = 0; i < 3; i++)
+            recordMediaJson(mediaId: 200 + i, sortOrder: 29 + i, kind: 'video'),
         ],
         version: 3,
       ),
@@ -518,7 +538,7 @@ void main() {
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
 
-    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
+    expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
     expect(_button(AppStrings.takePhoto), findsNothing);
     expect(app.picker.limits, isEmpty);
     expect(app.queue.added, isEmpty);
@@ -542,6 +562,119 @@ void main() {
 
     expect(app.picker.limits, [2]);
     expect(app.queue.added.single.sources, ['/picked/a.jpg', '/picked/b.jpg']);
+  });
+
+  testWidgets('추가 시트에 영상 고르기·찍기가 있고, 앨범 영상을 고르면 대기열에 넣는다', (tester) async {
+    final server = _Server();
+    final (app, _) = await _open(tester, server);
+    app.picker
+      ..pickedVideo = '/picked/v.mov'
+      ..takenVideo = '/taken/v.mov';
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+    expect(_button(AppStrings.pickFromAlbum), findsOneWidget);
+    expect(_button(AppStrings.takePhoto), findsOneWidget);
+    expect(_button(AppStrings.takeVideo), findsOneWidget);
+    await _tap(tester, _button(AppStrings.pickVideo));
+
+    expect(app.queue.addedVideos.single.visitId, 101);
+    expect(app.queue.addedVideos.single.phase, MediaPhase.after);
+    expect(app.queue.addedVideos.single.source, '/picked/v.mov');
+    expect(app.queue.added, isEmpty);
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+    await _tap(tester, _button(AppStrings.takeVideo));
+
+    expect(app.picker.videoMaxSeconds, [60]);
+    expect(app.queue.addedVideos.last.source, '/taken/v.mov');
+  });
+
+  testWidgets('60초를 넘긴 영상은 앞부분만 올렸다고 스낵바로 알린다', (tester) async {
+    final server = _Server();
+    final (app, _) = await _open(tester, server);
+    app.picker.pickedVideo = '/picked/long.mov';
+    app.queue.videoOutcome = VideoAddOutcome.trimmed;
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+    await _tap(tester, _button(AppStrings.pickVideo));
+
+    expect(find.text('60초까지만 올릴 수 있어 앞부분 60초를 올렸어요.'), findsOneWidget);
+  });
+
+  testWidgets('올릴 수 없는 영상은 문구만 보이고 타일은 없다', (tester) async {
+    final server = _Server();
+    final (app, _) = await _open(tester, server);
+    app.picker.pickedVideo = '/picked/broken.mov';
+    app.queue.videoOutcome = VideoAddOutcome.unsupported;
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+    await _tap(tester, _button(AppStrings.pickVideo));
+
+    expect(find.text('이 영상은 올릴 수 없어요.'), findsOneWidget);
+    expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
+  });
+
+  testWidgets('영상이 3편이면 영상 항목은 비활성이고 누르면 한도 문구다', (tester) async {
+    final server = _Server(record: _videoRecord(2));
+    final (app, _) = await _open(
+      tester,
+      server,
+      uploads: [_job('v1', kind: MediaKind.video, failures: 1)],
+    );
+    app.picker.pickedVideo = '/picked/v.mov';
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.addPhoto));
+    await settle(tester);
+
+    // 사진은 남아 누를 수 있고, 영상 둘은 회색이다.
+    expect(tester.widget<AppButton>(_button(AppStrings.pickFromAlbum)).onPressed, isNotNull);
+    expect(tester.widget<AppButton>(_button(AppStrings.pickVideo)).onPressed, isNull);
+    expect(tester.widget<AppButton>(_button(AppStrings.takeVideo)).onPressed, isNull);
+    await _tap(
+      tester,
+      find
+          .ancestor(
+            of: _button(AppStrings.pickVideo),
+            matching: find.byType(Pressable),
+          )
+          .first,
+    );
+
+    expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
+    expect(app.queue.addedVideos, isEmpty);
+  });
+
+  testWidgets('영상 타일에는 재생 표시와 길이가 보인다', (tester) async {
+    final server = _Server(record: _videoRecord(1, durationSeconds: 42));
+    await _open(
+      tester,
+      server,
+      // 압축 중이라 길이를 아직 모른다 — 재생 표시만.
+      uploads: [
+        _job('v1', kind: MediaKind.video, stage: UploadStage.preparing),
+      ],
+    );
+
+    expect(find.byIcon(Icons.play_arrow_rounded), findsNWidgets(2));
+    expect(find.text('0:42'), findsOneWidget);
+  });
+
+  testWidgets('200MB 를 넘어 멈춘 항목의 시트에는 [다시 시도]가 없다', (tester) async {
+    final server = _Server();
+    final (app, _) = await _open(
+      tester,
+      server,
+      uploads: [
+        _job('v1', kind: MediaKind.video, stoppedCode: 'MEDIA_TOO_LARGE'),
+      ],
+    );
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.uploadStopped));
+
+    expect(find.text('사진은 20MB, 영상은 200MB까지 올릴 수 있어요.'), findsOneWidget);
+    expect(find.text(AppStrings.retry), findsNothing);
+    await _tap(tester, find.text(AppStrings.removeUpload).last);
+    expect(app.queue.removed, ['v1']);
   });
 
   testWidgets('대기열이 사진을 붙여 상세를 다시 읽으면 새 사진이 폼에 들어오고, 저장에 함께 간다', (

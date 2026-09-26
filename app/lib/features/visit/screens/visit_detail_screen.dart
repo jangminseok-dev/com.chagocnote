@@ -322,6 +322,7 @@ class _Body extends ConsumerWidget {
                   counts.update(m.phase, (n) => n + 1),
                 ),
                 video: m.kind == MediaKind.video,
+                durationSeconds: m.durationSeconds,
               ),
           ],
           onTap: (i) => context.push(
@@ -354,7 +355,7 @@ class _Body extends ConsumerWidget {
                           phase: visit.status == VisitStatus.inProgress
                               ? MediaPhase.before
                               : MediaPhase.after,
-                          attached: media.length,
+                          attached: media,
                         ),
                 ),
               ],

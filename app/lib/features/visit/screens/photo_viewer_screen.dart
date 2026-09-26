@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,8 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/error/api_exception.dart';
 import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/media_files.dart';
 import '../../../core/proxy/media_images.dart';
 import '../../../core/proxy/photo_album.dart';
+import '../../../core/proxy/video_playback.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_colors.dart';
@@ -16,6 +20,8 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/app_snack_bar.dart';
+import '../../../design/widgets/app_video_player.dart';
+import '../../../design/widgets/video_playback.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
@@ -65,19 +71,29 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
     super.dispose();
   }
 
+  /// 원본을 받아 앨범에 넣는다. 사진은 원본 캐시(`fileOf`)에서, 영상은 mp4 를 임시 파일로 받아 넣고 지운다
+  /// (④-3a 설계 5.4). 받는 중에 화면을 나가도 저장·삭제는 끝까지 하고, 문구만 띄우지 않는다.
   Future<void> _save(RecordMedia media) async {
+    final images = ref.read(mediaImagesProvider);
+    final files = ref.read(mediaFilesProvider);
+    final album = ref.read(photoAlbumProvider);
     setState(() => _busy = true);
+    String? temp;
     try {
-      final path = await ref
-          .read(mediaImagesProvider)
-          .fileOf(media.originalUrl);
-      await ref.read(photoAlbumProvider).save(path);
+      final String path;
+      if (media.kind == MediaKind.video) {
+        path = temp = await files.download(media.originalUrl, suffix: '.mp4');
+      } else {
+        path = await images.fileOf(media.originalUrl);
+      }
+      await album.save(path);
       if (mounted) AppSnackBar.show(context, AppStrings.savedToAlbum);
     } on PhotoAlbumDenied {
       if (mounted) AppSnackBar.show(context, AppStrings.albumDenied);
     } catch (e) {
       if (mounted) AppSnackBar.show(context, messageFor(e));
     } finally {
+      if (temp != null) await File(temp).delete();
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -124,6 +140,19 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// 영상 [다시 시도] — 상세를 다시 읽어 새 서명 URL 을 받는다(만료 403, 설계 5.4). 다시 읽기가 실패하면
+  /// 화면의 `AsyncBody` 가 알리고, 영상은 그대로 둔다(null).
+  Future<String?> _freshOriginalUrl(int mediaId) async {
+    ref.invalidate(visitDetailProvider(_key));
+    try {
+      final detail = await ref.read(visitDetailProvider(_key).future);
+      for (final m in detail.record?.media ?? const <RecordMedia>[]) {
+        if (m.mediaId == mediaId) return m.originalUrl;
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<bool?> _confirmDelete() => AppSheet.show<bool>(
@@ -221,7 +250,12 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
                           itemCount: gallery.length,
                           onPageChanged: (i) =>
                               setState(() => _mediaId = gallery[i].mediaId),
-                          itemBuilder: (context, i) => _Page(media: gallery[i]),
+                          itemBuilder: (context, i) => _Page(
+                            key: ValueKey(gallery[i].mediaId),
+                            media: gallery[i],
+                            active: gallery[i].mediaId == _mediaId,
+                            onRetry: () => _freshOriginalUrl(gallery[i].mediaId),
+                          ),
                         ),
                 ),
               ),
@@ -242,22 +276,58 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
   }
 }
 
-/// 한 장 — 원본을 화면에 맞춰 보이고 두 손가락으로 키운다. 영상은 포스터만(재생은 ④-3).
-class _Page extends ConsumerWidget {
-  const _Page({required this.media});
+/// 한 장 — 원본을 화면에 맞춰 보이고 두 손가락으로 키운다. 영상은 포스터 위 재생 버튼을 누르면 그 자리에서
+/// 재생한다(④-3a 설계 5.4). 재생은 페이지마다 하나 — 넘기면([active]가 꺼지면) 멈추고, 페이지가 사라지면 해제한다.
+class _Page extends ConsumerStatefulWidget {
+  const _Page({
+    super.key,
+    required this.media,
+    required this.active,
+    required this.onRetry,
+  });
 
   final RecordMedia media;
 
+  /// 지금 보고 있는 페이지인가.
+  final bool active;
+
+  /// 영상 [다시 시도] — 새 원본 URL.
+  final Future<String?> Function() onRetry;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Page> createState() => _PageState();
+}
+
+class _PageState extends ConsumerState<_Page> {
+  /// 영상 페이지만 만든다.
+  late final VideoPlayback? _playback = widget.media.kind == MediaKind.video
+      ? ref.read(videoPlaybackFactoryProvider).create()
+      : null;
+
+  @override
+  void didUpdateWidget(_Page old) {
+    super.didUpdateWidget(old);
+    if (old.active && !widget.active) _playback?.pause();
+  }
+
+  @override
+  void dispose() {
+    _playback?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final images = ref.watch(mediaImagesProvider);
-    if (media.kind == MediaKind.video) {
-      return Stack(
-        alignment: Alignment.center,
-        children: [
-          Image(image: images.of(media.thumbUrl), fit: BoxFit.contain),
-          const Icon(Icons.play_circle_fill, size: 56, color: AppColors.white),
-        ],
+    final media = widget.media;
+    final playback = _playback;
+    if (playback != null) {
+      return AppVideoPlayer(
+        playback: playback,
+        url: media.originalUrl,
+        poster: images.of(media.thumbUrl),
+        errorMessage: loadMessageFor,
+        onRetry: widget.onRetry,
       );
     }
     return InteractiveViewer(
@@ -294,18 +364,17 @@ class _Actions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final photo = media.kind == MediaKind.photo;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          if (photo)
-            _Action(
-              icon: Icons.download_outlined,
-              label: AppStrings.saveOriginal,
-              onTap: busy ? null : onSave,
-            ),
+          // 영상도 원본(mp4)을 저장한다(④-3a 설계 5.4).
+          _Action(
+            icon: Icons.download_outlined,
+            label: AppStrings.saveOriginal,
+            onTap: busy ? null : onSave,
+          ),
           if (editable) ...[
             _Action(
               icon: Icons.swap_horiz,

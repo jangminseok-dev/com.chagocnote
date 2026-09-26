@@ -7,6 +7,7 @@ import '../tokens/app_radius.dart';
 import '../tokens/app_shadows.dart';
 import '../tokens/app_spacing.dart';
 import '../tokens/app_typography.dart';
+import 'app_video_badge.dart';
 import 'pressable.dart';
 
 /// 넘기기의 사진 한 장.
@@ -16,6 +17,7 @@ class AppPagerPhoto {
     required this.label,
     required this.semanticLabel,
     this.video = false,
+    this.durationSeconds,
   });
 
   final ImageProvider image;
@@ -26,8 +28,11 @@ class AppPagerPhoto {
   /// 스크린리더가 읽는 이름 — 전/후와 몇째 사진인지 담는다(알약은 따로 읽지 않는다).
   final String semanticLabel;
 
-  /// 영상이면 가운데에 재생 표시를 얹는다.
+  /// 영상이면 오른쪽 위에 재생 배지와 길이를 얹는다.
   final bool video;
+
+  /// 영상 길이(초). 모르면 배지에 재생 표시만.
+  final int? durationSeconds;
 }
 
 /// 기울어진 사진 넘기기(기준 목업) — 가운데 사진이 크고, 양옆 사진은 작게 기울어 살짝 보인다.
@@ -208,13 +213,12 @@ class _Card extends StatelessWidget {
               child: Stack(
                 children: [
                   Positioned(left: 8, top: 8, child: _Pill(p.label)),
+                  // 타일과 같은 배지(④-3a 설계 5.3). 아래쪽은 이름 카드가 덮으므로 알약 맞은편 위에 둔다.
                   if (p.video)
-                    const Center(
-                      child: Icon(
-                        Icons.play_circle_fill,
-                        size: 40,
-                        color: AppColors.white,
-                      ),
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: AppVideoBadge(durationSeconds: p.durationSeconds),
                     ),
                 ],
               ),
