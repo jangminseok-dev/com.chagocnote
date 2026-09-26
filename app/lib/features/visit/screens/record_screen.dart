@@ -151,10 +151,12 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   /// 마이크 — 듣는 중이면 끝내고, 아니면 다른 칸을 끝낸 뒤 지원·권한을 확인하고 이 칸에서 듣는다.
   Future<void> _toggleDictation(Dictation dictation, FocusNode focus) async {
     if (dictation.listening) return dictation.stop();
+    // 앞 칸의 cancel 을 기다리는 사이 화면이 닫힐 수 있다 — ref 는 기다리기 전에 읽는다.
+    final recognizer = ref.read(speechRecognizerProvider);
     for (final other in _dictations) {
       if (other != dictation) await other.cancel();
     }
-    final recognizer = ref.read(speechRecognizerProvider);
+    if (!mounted) return;
     final availability = await recognizer.availability();
     if (!mounted) return;
     if (!availability.supported) {
@@ -167,16 +169,19 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     await dictation.start();
   }
 
-  void _showDenied() => AppSnackBar.show(
-    context,
-    AppStrings.dictationDenied,
-    action: SnackBarAction(
-      label: AppStrings.openSettings,
-      textColor: AppColors.white,
-      onPressed: () =>
-          unawaited(ref.read(speechRecognizerProvider).openSettings()),
-    ),
-  );
+  /// 스낵바는 화면이 닫혀도 남는다 — 인식기를 지금 잡아 두고 [설정 열기]는 그것으로 연다.
+  void _showDenied() {
+    final recognizer = ref.read(speechRecognizerProvider);
+    AppSnackBar.show(
+      context,
+      AppStrings.dictationDenied,
+      action: SnackBarAction(
+        label: AppStrings.openSettings,
+        textColor: AppColors.white,
+        onPressed: () => unawaited(recognizer.openSettings()),
+      ),
+    );
+  }
 
   /// 세션을 끝낸 오류를 알린다. 새로 시작하면 오류가 비워져 다음 오류는 다시 띄운다.
   void _showError(Dictation dictation) {

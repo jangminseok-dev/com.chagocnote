@@ -809,6 +809,39 @@ void main() {
       expect(app.setup.speech.settingsOpened, 1);
     });
 
+    testWidgets('권한 거부 안내가 뜬 채 화면을 나간 뒤 [설정 열기]를 눌러도 설정을 연다', (tester) async {
+      final (app, closed) = await _open(tester, _Server());
+      app.setup.speech.permissionResult = SpeechPermission.denied;
+
+      await _tap(tester, _mic(AppStrings.careNoteLabel));
+      await tester.binding.handlePopRoute();
+      await settle(tester);
+      expect(closed.closed, isTrue);
+
+      // 스낵바는 루트에 떠 있어 화면이 닫혀도 남는다.
+      await _tap(tester, find.text(AppStrings.openSettings));
+      expect(tester.takeException(), isNull);
+      expect(app.setup.speech.settingsOpened, 1);
+    });
+
+    testWidgets('앞 칸의 cancel 을 기다리는 사이 화면을 나가면 뒤 칸을 시작하지 않는다', (tester) async {
+      final (app, closed) = await _open(tester, _Server());
+      final speech = app.setup.speech;
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      final gate = speech.cancelGate = Completer<void>();
+      await _tapMic(tester, AppStrings.internalNoteLabel);
+      await tester.binding.handlePopRoute();
+      await settle(tester);
+      expect(closed.closed, isTrue);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(speech.starts, ['ko-KR']);
+    });
+
     testWidgets('아무 말도 못 알아들으면 문구가 뜬다', (tester) async {
       final (app, _) = await _open(tester, _Server());
 

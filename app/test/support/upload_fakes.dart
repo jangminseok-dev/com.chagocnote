@@ -326,6 +326,9 @@ class FakeSpeechRecognizer implements SpeechRecognizer {
   /// start·stop·cancel 을 부른 차례.
   final calls = <String>[];
 
+  /// 정해 두면 cancel 이 이것이 끝날 때까지 기다린다(네이티브 cancel 이 늦는 경우).
+  Completer<void>? cancelGate;
+
   @override
   Future<SpeechAvailability> availability() async => availabilityResult;
 
@@ -354,6 +357,7 @@ class FakeSpeechRecognizer implements SpeechRecognizer {
   Future<void> cancel() async {
     cancels++;
     calls.add('cancel');
+    await cancelGate?.future;
   }
 
   @override
