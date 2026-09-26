@@ -438,6 +438,8 @@ class AppStrings {
   static const deletePhotoConfirm = '이 사진을 기록에서 지울까요? 되돌릴 수 없어요.';
   static const savedToAlbum = '앨범에 저장했어요.';
   static const albumDenied = '사진 보관함 권한이 없어요. 설정에서 켜 주세요.';
+  static const playVideo = '영상 재생';
+  static const pauseVideo = '일시정지';
 
   /// 35000 → '35,000원'.
   static String wonText(int amount) {
