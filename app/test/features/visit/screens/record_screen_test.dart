@@ -6,6 +6,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/pressable.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
@@ -629,7 +630,15 @@ void main() {
     expect(tester.widget<AppButton>(_button(AppStrings.pickFromAlbum)).onPressed, isNotNull);
     expect(tester.widget<AppButton>(_button(AppStrings.pickVideo)).onPressed, isNull);
     expect(tester.widget<AppButton>(_button(AppStrings.takeVideo)).onPressed, isNull);
-    await _tap(tester, _button(AppStrings.pickVideo));
+    await _tap(
+      tester,
+      find
+          .ancestor(
+            of: _button(AppStrings.pickVideo),
+            matching: find.byType(Pressable),
+          )
+          .first,
+    );
 
     expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
     expect(app.queue.addedVideos, isEmpty);
