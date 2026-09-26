@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognitionSupport
@@ -107,17 +109,31 @@ class SpeechRecognizerChannel(
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun checkLocale(locale: String, result: MethodChannel.Result) {
         val checker = SpeechRecognizer.createOnDeviceSpeechRecognizer(activity)
+        // 한 번만 답한다 — 타임아웃 뒤에 온 콜백은 checker 만 치운다.
+        var answered = false
+        fun answer(value: Map<String, Any>) {
+            checker.destroy()
+            if (answered) return
+            answered = true
+            result.success(value)
+        }
+        // 일부 Android 13 기기는 콜백이 오지 않는다 — 3초 뒤 지원으로 보고 31~32 처럼 `start` 의 언어 오류로 가른다.
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (answered) return@postDelayed
+            answered = true
+            result.success(mapOf("supported" to true))
+        }, CHECK_TIMEOUT_MS)
         checker.checkRecognitionSupport(
             recognizeIntent(locale),
             activity.mainExecutor,
             object : RecognitionSupportCallback {
                 override fun onSupportResult(support: RecognitionSupport) {
-                    checker.destroy()
                     val language = locale.substringBefore('-')
                     val installed = support.installedOnDeviceLanguages.any {
-                        it.equals(locale, ignoreCase = true) || it.equals(language, ignoreCase = true)
+                        val tag = it.replace('_', '-')
+                        tag.equals(locale, ignoreCase = true) || tag.equals(language, ignoreCase = true)
                     }
-                    result.success(
+                    answer(
                         if (installed) mapOf("supported" to true)
                         else mapOf("supported" to false, "reason" to "locale"),
                     )
@@ -125,8 +141,7 @@ class SpeechRecognizerChannel(
 
                 override fun onError(error: Int) {
                     // 인식 서비스가 지원 여부조차 답하지 못한다 — 기기 쪽 문제로 본다.
-                    checker.destroy()
-                    result.success(mapOf("supported" to false, "reason" to "device"))
+                    answer(mapOf("supported" to false, "reason" to "device"))
                 }
             },
         )
@@ -223,7 +238,12 @@ class SpeechRecognizerChannel(
         override fun onError(error: Int) {
             if (!current) return
             // 멈추라고 한 뒤의 오류(말이 없었음 등)는 알리지 않는다 — 끝났다는 것만.
-            finish(if (stopping) null else code(error))
+            // 침묵 타임아웃도 오류가 아니다 — 몇 초 침묵마다 오므로 `ended` 만 보내 Dart 가 무음 10초 안이면 이어 듣는다.
+            if (stopping || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                finish(null)
+                return
+            }
+            finish(code(error))
         }
 
         override fun onReadyForSpeech(params: Bundle?) {}
@@ -242,7 +262,7 @@ class SpeechRecognizerChannel(
         // 듣는 도중 설정에서 권한을 거둔 경우 — 코드보다 현재 상태가 정확하다(iOS 와 같은 규칙).
         if (!permitted()) return "denied"
         return when (error) {
-            SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "noSpeech"
+            SpeechRecognizer.ERROR_NO_MATCH -> "noSpeech"
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "denied"
             SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE -> "unsupported"
             else -> "failed"
@@ -282,5 +302,6 @@ class SpeechRecognizerChannel(
         const val EVENTS_CHANNEL = "chagocnote/speech/events"
         const val DEFAULT_LOCALE = "ko-KR"
         const val PERMISSION_REQUEST_CODE = 4301
+        const val CHECK_TIMEOUT_MS = 3000L
     }
 }

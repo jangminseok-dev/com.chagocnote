@@ -771,8 +771,16 @@ void main() {
 
       expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
       expect(_listening(tester, AppStrings.internalNoteLabel), isTrue);
-      // 앞 칸의 cancel 이 뒤 칸의 start 보다 먼저다 — 늦으면 뒤 칸의 네이티브 세션을 끊는다.
-      expect(speech.calls, ['start', 'cancel', 'start']);
+      // 시작 전에 두 칸을 다 cancel 한다 — 늦으면 뒤 칸의 네이티브 세션을 끊고, 끝난 칸의 늦은 final 이
+      // 섞인다. 포커스가 옮겨 가도 앞 칸은 이미 끝나 다시 cancel 하지 않는다.
+      expect(speech.calls, [
+        'cancel',
+        'cancel',
+        'start',
+        'cancel',
+        'cancel',
+        'start',
+      ]);
       expect(_text(tester, 'careNote'), '발바닥');
       expect(_controller(tester, 'careNote').pending, isNull);
 
@@ -861,7 +869,8 @@ void main() {
       await tester.tap(_field('internalNote'));
       await settle(tester);
 
-      expect(app.setup.speech.cancels, 1);
+      // 시작 전 두 칸의 cancel 에 더해 포커스가 옮겨 가며 한 번.
+      expect(app.setup.speech.cancels, 3);
       expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
     });
 
@@ -873,7 +882,8 @@ void main() {
       await settle(tester);
 
       expect(closed.closed, isTrue);
-      expect(app.setup.speech.cancels, 1);
+      // 시작 전 두 칸, 포커스를 잃으며 한 번, dispose 가 두 칸.
+      expect(app.setup.speech.cancels, 5);
     });
 
     testWidgets('포커스를 잃었다는 알림 없이 화면이 사라져도 cancel 한다', (tester) async {
@@ -883,7 +893,24 @@ void main() {
       // 뒤로 가기는 포커스가 먼저 떠나 칸의 리스너가 끝낸다 — 앱째 내려 dispose 만 남긴다.
       await tester.pumpWidget(const SizedBox());
 
-      expect(app.setup.speech.cancels, 1);
+      // 시작 전 두 칸, dispose 가 두 칸.
+      expect(app.setup.speech.cancels, 4);
+    });
+
+    testWidgets('앱이 뒤로 가면 듣던 세션을 cancel 한다', (tester) async {
+      final (app, _) = await _open(tester, _Server());
+      final speech = app.setup.speech;
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      final before = speech.cancels;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+
+      expect(speech.cancels, greaterThan(before));
+      expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     });
   });
 

@@ -31,6 +31,8 @@ final class SpeechRecognizerPlugin: NSObject, FlutterPlugin, FlutterStreamHandle
   private var generation = 0
   /// `stop` 을 받았다 — 이제 오는 오류는 알리지 않고 `ended` 만 보낸다.
   private var stopping = false
+  /// 시작 전 오디오 세션 설정 — 끝날 때 되돌린다. 없으면 바꾼 적이 없다.
+  private var previousAudio: (AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions)?
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let plugin = SpeechRecognizerPlugin()
@@ -149,10 +151,12 @@ final class SpeechRecognizerPlugin: NSObject, FlutterPlugin, FlutterStreamHandle
     }
 
     let audio = AVAudioSession.sharedInstance()
+    previousAudio = (audio.category, audio.mode, audio.categoryOptions)
     do {
       try audio.setCategory(.record, mode: .measurement, options: .duckOthers)
       try audio.setActive(true, options: .notifyOthersOnDeactivation)
     } catch {
+      restoreAudio()
       fail("failed")
       return
     }
@@ -167,7 +171,7 @@ final class SpeechRecognizerPlugin: NSObject, FlutterPlugin, FlutterStreamHandle
     let format = input.outputFormat(forBus: 0)
     // 입력 장치가 없으면 형식이 비어 있고, 탭을 걸면 예외로 앱이 죽는다.
     guard format.sampleRate > 0, format.channelCount > 0 else {
-      try? audio.setActive(false, options: .notifyOthersOnDeactivation)
+      restoreAudio()
       fail("failed")
       return
     }
@@ -179,7 +183,7 @@ final class SpeechRecognizerPlugin: NSObject, FlutterPlugin, FlutterStreamHandle
       try engine.start()
     } catch {
       input.removeTap(onBus: 0)
-      try? audio.setActive(false, options: .notifyOthersOnDeactivation)
+      restoreAudio()
       fail("failed")
       return
     }
@@ -279,8 +283,16 @@ final class SpeechRecognizerPlugin: NSObject, FlutterPlugin, FlutterStreamHandle
     request = nil
     recognizer = nil
     stopping = false
-    // 줄였던 다른 앱 소리를 되돌린다.
-    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    restoreAudio()
+  }
+
+  /// 줄였던 다른 앱 소리를 되돌리고 카테고리도 시작 전으로 — `.record` 로 두면 이후 영상 재생이 무음이 된다.
+  private func restoreAudio() {
+    guard let previous = previousAudio else { return }
+    previousAudio = nil
+    let audio = AVAudioSession.sharedInstance()
+    try? audio.setActive(false, options: .notifyOthersOnDeactivation)
+    try? audio.setCategory(previous.0, mode: previous.1, options: previous.2)
   }
 
   private func send(_ event: [String: Any]) {

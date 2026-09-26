@@ -15,7 +15,7 @@ import '../../../design/widgets/dictation_text_editing_controller.dart';
 ///   1분) 타이머가 살아 있는 동안은 다시 시작해 이어 듣는다 — 두 플랫폼의 체감을 같게 한다.
 /// - 손으로 고치거나 길이 상한에 닿으면 끝낸다. 어느 끝이든 회색 글은 마지막 결과로 굳혀 남긴다.
 /// - 끝난 뒤 네이티브가 보내는 `final`·`ended` 는 무시한다(`stop` 이 이미 회색 글을 굳혔다).
-/// - 한 번에 한 칸만 듣게 하는 것은 화면 몫이다(다른 세션을 시작하기 전에 앞 것을 [stop]).
+/// - 한 번에 한 칸만 듣게 하는 것은 화면 몫이다(다른 세션을 시작하기 전에 앞 것을 [cancel]).
 class Dictation extends ChangeNotifier {
   Dictation({
     required this.recognizer,
@@ -76,7 +76,8 @@ class Dictation extends ChangeNotifier {
 
   /// 화면을 나가거나 앱이 뒤로 갈 때 — 회색 글은 굳혀 두고(잃지 않는다) 인식은 결과 없이 끝낸다.
   Future<void> cancel() async {
-    if (!_end()) return;
+    _end();
+    // 끝난 세션이어도 보낸다 — stop 뒤 늦은 final 이 다음 세션에 섞이지 않게, 콜백이 안 와도 오디오 세션이 풀리게.
     await recognizer.cancel();
   }
 

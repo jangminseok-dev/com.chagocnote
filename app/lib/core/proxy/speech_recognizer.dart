@@ -16,9 +16,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///   - `availability()` → `{supported: bool, reason: 'device'|'locale'|null}`.
 ///   - `requestPermission()` → `'granted'|'denied'` — 마이크와 음성 인식이 둘 다 허용일 때만 granted.
 ///   - `start({locale})` — 듣기 시작. 결과는 이벤트 채널로 온다.
-///   - `stop()` — 마지막 결과를 `final` 로 확정하고 `ended`. `cancel()` — 결과 없이 끝.
+///   - `stop()` — 탭을 떼고 마지막 결과(있으면 `final`)와 `ended`, 또는 `ended` 만 보낸다. Dart 는 stop
+///     뒤의 `final` 을 버린다. `cancel()` — 결과 없이 끝.
 ///   - `openSettings()` — 이 앱의 설정 화면을 연다.
-///   - 실패는 `PlatformException` 코드 `denied`·`unsupported`·`noSpeech`·`failed`.
+///   - 시작 전 실패도 네이티브가 `error`+`ended` 이벤트로 보낸다. `PlatformException` 코드
+///     `denied`·`unsupported`·`noSpeech`·`failed` 매핑은 안전망이다.
 /// - 이벤트 채널 [ChannelSpeechRecognizer.eventsChannelName] — `{type: 'partial'|'final'|'ended'|
 ///   'error', text?, code?}`. `code` 는 위 넷 중 하나이고, 모르는 코드는 `failed` 로 읽는다.
 enum SpeechUnsupported { device, locale }

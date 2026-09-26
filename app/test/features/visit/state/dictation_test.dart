@@ -159,6 +159,19 @@ void main() {
     expect(recognizer.stops, 0);
   });
 
+  testWidgets('stop() 으로 끝난 뒤 다시 start() 하면 네이티브 cancel 이 start 앞에 간다', (
+    tester,
+  ) async {
+    setUp('');
+    await dictation.start();
+    await dictation.stop();
+    // 네이티브는 final 을 기다리는 중일 수 있다 — 끝난 세션의 cancel 도 네이티브에 보낸다.
+    await dictation.cancel();
+    await dictation.start();
+    expect(recognizer.calls, ['start', 'stop', 'cancel', 'start']);
+    await dictation.cancel();
+  });
+
   testWidgets('오류는 lastError 에 남고 세션이 끝난다', (tester) async {
     setUp('');
     var notified = 0;

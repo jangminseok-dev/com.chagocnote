@@ -113,9 +113,10 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     ]) {
       d.addListener(() => _showError(d));
       // 다른 칸을 눌러 포커스가 옮겨 가면 끝낸다. stop 이 아니라 cancel 인 까닭: stop 뒤 네이티브의 늦은
-      // 결과가 곧 시작할 다른 칸에 섞일 수 있다.
+      // 결과가 곧 시작할 다른 칸에 섞일 수 있다. 듣는 중일 때만 — 끝난 칸의 cancel 도 네이티브에 가므로,
+      // 마이크가 옮긴 포커스로 부르면 방금 시작한 다른 칸의 세션을 끊는다.
       focus.addListener(() {
-        if (!focus.hasFocus) unawaited(d.cancel());
+        if (!focus.hasFocus && d.listening) unawaited(d.cancel());
       });
     }
     _lifecycle = AppLifecycleListener(onHide: _cancelDictations);
@@ -148,13 +149,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     super.dispose();
   }
 
-  /// 마이크 — 듣는 중이면 끝내고, 아니면 다른 칸을 끝낸 뒤 지원·권한을 확인하고 이 칸에서 듣는다.
+  /// 마이크 — 듣는 중이면 끝내고, 아니면 모든 칸을 cancel 한 뒤 지원·권한을 확인하고 이 칸에서 듣는다.
   Future<void> _toggleDictation(Dictation dictation, FocusNode focus) async {
     if (dictation.listening) return dictation.stop();
     // 앞 칸의 cancel 을 기다리는 사이 화면이 닫힐 수 있다 — ref 는 기다리기 전에 읽는다.
     final recognizer = ref.read(speechRecognizerProvider);
-    for (final other in _dictations) {
-      if (other != dictation) await other.cancel();
+    // 이 칸 자신까지 cancel 한다 — stop 뒤 네이티브가 보낼 늦은 final 이 새 세션에 섞이지 않는다
+    // (메서드 결과는 앞서 보낸 이벤트보다 늦게 오므로 기다린 뒤에는 늦은 이벤트가 없다).
+    for (final d in _dictations) {
+      await d.cancel();
     }
     if (!mounted) return;
     final availability = await recognizer.availability();
