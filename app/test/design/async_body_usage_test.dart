@@ -8,16 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// 휴무일 목록)은 좁은 자리라 화면이 직접 쓴다.
 void main() {
   test('기능 화면은 AppErrorRetry 의 가운데·inline 모양을 직접 만들지 않는다', () {
-    const allowed = <String>{
-      // 세션 복원은 AsyncBody 가 아니라 스플래시가 다룬다(작업 8 에서 옮긴다).
-      'lib/features/auth/screens/splash_screen.dart',
-    };
     final direct = RegExp(r'AppErrorRetry(\.inline)?\(');
     final violations = [
       for (final entity in Directory('lib/features').listSync(recursive: true))
         if (entity is File &&
             entity.path.endsWith('.dart') &&
-            !allowed.contains(entity.path.replaceAll(r'\', '/')) &&
             direct.hasMatch(entity.readAsStringSync()))
           entity.path,
     ];
