@@ -1,4 +1,5 @@
 import 'package:chagocnote/core/proxy/api_client.dart';
+import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 
 import 'fake_http_client_adapter.dart';
 import 'fake_session_gateway.dart';
+import 'upload_fakes.dart';
 
 /// 고객 기능 테스트의 매장(3번, 첫 입점 매장 이름).
 const customerTestShopId = 3;
@@ -52,6 +54,8 @@ class CustomerTestSetup {
       overrides: [
         sessionGatewayProvider.overrideWithValue(gateway),
         prefsStoreProvider.overrideWithValue(prefs),
+        // 테스트에는 연결 상태 플러그인이 없다 — 인터넷 복귀 신호는 [network]로 보낸다.
+        networkWatcherProvider.overrideWithValue(network),
         apiClientProvider.overrideWith(
           (ref) => ApiClient(
             tokenStore: MemoryTokenStore(),
@@ -67,6 +71,7 @@ class CustomerTestSetup {
 
   final FakeHttpClientAdapter adapter;
   final FakeSessionGateway gateway;
+  final network = FakeNetworkWatcher();
   final MemoryPrefsStore prefs;
   late final ProviderContainer container;
 

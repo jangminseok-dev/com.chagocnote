@@ -67,6 +67,9 @@ const String offlineActionMessage = '인터넷에 연결되지 않았어요. 연
 /// 인터넷 없음 — 화면을 불러오지 못했을 때. 인터넷이 돌아오면 화면이 스스로 다시 불러온다.
 const String offlineLoadMessage = '인터넷에 연결되지 않았어요. 연결되면 다시 불러올게요.';
 
+/// 인터넷 없음 — 받은 데이터 위의 띠.
+const String offlineBannerMessage = '인터넷에 연결되지 않았어요 · 이전 내용이에요';
+
 const String _server = '서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.';
 
 const String _fallback = '문제가 생겼어요. 잠시 뒤에 다시 시도해 주세요.';

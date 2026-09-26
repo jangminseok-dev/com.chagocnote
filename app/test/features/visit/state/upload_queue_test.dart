@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:chagocnote/core/proxy/app_dirs.dart';
-import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/core/proxy/photo_renditions.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/features/auth/api/social_sign_in.dart';
@@ -42,7 +41,6 @@ class _Env {
       overrides: [
         uploadsDirProvider.overrideWith((ref) async => root),
         photoRenditionMakerProvider.overrideWithValue(maker),
-        networkWatcherProvider.overrideWithValue(network),
         uploadRetrySchedulerProvider.overrideWithValue(retries.call),
         uploadDioProvider.overrideWithValue(
           Dio(BaseOptions())..httpClientAdapter = storage,
@@ -54,7 +52,7 @@ class _Env {
   final Directory root;
   late final CustomerTestSetup setup;
   final maker = FakeRenditionMaker();
-  final network = FakeNetworkWatcher();
+  FakeNetworkWatcher get network => setup.network;
   final retries = FakeRetryScheduler();
 
   /// 발급할 때마다 51, 52… 를 준다.
