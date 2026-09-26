@@ -12,12 +12,14 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.Presentation
 import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
@@ -54,6 +56,9 @@ class VideoTranscoderChannel(
     private var lastProgress = 0.0
     private var eventSink: EventChannel.EventSink? = null
     private var poll: Runnable? = null
+
+    /** 압축마다 하나씩 올리는 세대 — 취소 뒤 늦게 도착한 앞 작업의 콜백을 가려낸다. */
+    private var generation = 0
 
     init {
         MethodChannel(messenger, CHANNEL).setMethodCallHandler(this)
@@ -121,20 +126,36 @@ class VideoTranscoderChannel(
                     .build()
             )
             .build()
+        val outHeight = targetHeight(info)
+        val outWidth = (info.width * outHeight.toDouble() / info.height).roundToInt()
         val edited = EditedMediaItem.Builder(mediaItem)
-            .setEffects(Effects(emptyList(), listOf(Presentation.createForHeight(targetHeight(info)))))
+            .setEffects(Effects(emptyList(), listOf(Presentation.createForHeight(outHeight))))
             .build()
 
+        // 비트레이트 ≈ 가로×세로×30fps×0.12bpp(1080×1920 이면 약 7.5Mbps — iOS 1080p 프리셋과 비슷한 급), 1~8Mbps.
+        // 요청 설정이 있으면 DefaultEncoderFactory.videoNeedsEncoding() 이 true 라 크기가 그대로인 H.264 원본도
+        // 트랜스먹싱(원본 비트레이트 그대로 복사)하지 않고 다시 인코딩한다.
+        val bitrate = (outWidth * outHeight * 30 * 0.12).toInt().coerceIn(1_000_000, 8_000_000)
+        val encoderFactory = DefaultEncoderFactory.Builder(context)
+            .setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build())
+            .build()
+
+        val gen = ++generation
         val transformer = Transformer.Builder(context)
             .setVideoMimeType(MimeTypes.VIDEO_H264)
             .setAudioMimeType(MimeTypes.AUDIO_AAC)
+            .setEncoderFactory(encoderFactory)
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                    if (!isCurrent(gen)) return discardStale(video, outDir)
                     lastProgress = 1.0
                     // 결과 읽기·포스터 만들기는 무거우므로 메인 밖에서.
                     thread(name = "chagocnote.video_transcoder") {
                         val outcome = finish(video, File(outDir, "thumb.jpg"), trimmed)
-                        main.post { complete(outcome) }
+                        main.post {
+                            // 포스터를 만드는 사이 취소되고 다음 압축이 시작됐을 수 있다 — 남의 결과로 답하지 않는다.
+                            if (isCurrent(gen)) complete(outcome) else discardStale(video, outDir)
+                        }
                     }
                 }
 
@@ -143,6 +164,7 @@ class VideoTranscoderChannel(
                     exportResult: ExportResult,
                     exportException: ExportException,
                 ) {
+                    if (!isCurrent(gen)) return discardStale(video, outDir)
                     video.delete()
                     complete(Outcome.Failure("UNSUPPORTED", exportException.toString()))
                 }
@@ -180,6 +202,16 @@ class VideoTranscoderChannel(
             is Outcome.Success -> result.success(outcome.value)
             is Outcome.Failure -> result.error(outcome.code, outcome.message, null)
         }
+    }
+
+    /** 이 세대의 압축이 아직 진행 중인가 — 취소되면 current 가 비고, 다음 압축이면 세대가 바뀐다. */
+    private fun isCurrent(gen: Int) = gen == generation && current != null
+
+    /** 끝난(취소된) 작업의 늦은 결과를 버린다 — 다음 압축이 같은 폴더를 쓰면 그 파일이므로 지우지 않는다. */
+    private fun discardStale(video: File, outDir: File) {
+        if (pendingVideo?.path == video.path) return
+        video.delete()
+        File(outDir, "thumb.jpg").delete()
     }
 
     /** 압축본을 다시 읽어 크기·길이·포스터를 만든다. 원본이 아니라 압축본 기준이어야 서버에 올리는 값과 실제 파일이 맞는다. */
