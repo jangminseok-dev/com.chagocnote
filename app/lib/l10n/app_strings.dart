@@ -35,7 +35,7 @@ class AppStrings {
   static const tabCalendar = '캘린더';
   static const tabCustomers = '고객';
   static const tabSales = '매출';
-  static const comingSoonEmptyTitle = '준비 중입니다';
+  static const comingSoonEmptyTitle = '준비 중이에요';
   static const comingSoonSheetText = '매출은 다음 업데이트에서 만나요';
 
   // 설정 허브
@@ -63,7 +63,7 @@ class AppStrings {
   static const shopPhone = '전화번호';
   static const shopAddress = '주소';
   static const save = '저장';
-  static const saved = '저장했습니다';
+  static const saved = '저장했어요';
   static const shopNameRequired = '매장 이름을 입력해 주세요.';
 
   // 계정
@@ -74,22 +74,22 @@ class AppStrings {
   static const accountLinkedMethods = '로그인 수단';
   static const accountAddMethod = '로그인 수단 추가';
   static const unlink = '해제';
-  static const unlinkOnlyOneCaption = '마지막 로그인 수단은 해제할 수 없습니다.';
-  static const unlinkConfirmMessage = '해제하면 다른 모든 기기에서 로그아웃됩니다.';
+  static const unlinkOnlyOneCaption = '마지막 로그인 수단은 해제할 수 없어요.';
+  static const unlinkConfirmMessage = '해제하면 다른 모든 기기에서 로그아웃돼요.';
   static const withdraw = '회원 탈퇴';
 
   // 재인증
   static const reauthPromptTitle = '보안을 위해 다시 로그인해 주세요';
-  static const reauthMismatch = '다른 계정입니다. 이 계정에 연결된 로그인 수단으로 다시 로그인해 주세요.';
+  static const reauthMismatch = '다른 계정이에요. 이 계정에 연결된 로그인 수단으로 다시 로그인해 주세요.';
 
   // 회원 탈퇴
-  static const withdrawNoticeIrreversible = '되돌릴 수 없습니다.';
-  static const withdrawNoticeShopRecordsStay = '매장의 기록은 매장에 남습니다.';
-  static const withdrawNoticeMembershipGone = '소속과 초대 코드는 사라집니다.';
-  static const withdrawNoticeNewAccount = '같은 소셜 계정으로 다시 가입하면 새 계정이 됩니다.';
-  static const withdrawConfirmCheckbox = '안내를 확인했습니다';
+  static const withdrawNoticeIrreversible = '되돌릴 수 없어요.';
+  static const withdrawNoticeShopRecordsStay = '매장의 기록은 매장에 남아요.';
+  static const withdrawNoticeMembershipGone = '소속과 초대 코드는 사라져요.';
+  static const withdrawNoticeNewAccount = '같은 소셜 계정으로 다시 가입하면 새 계정이 돼요.';
+  static const withdrawConfirmCheckbox = '안내를 확인했어요';
   static const withdrawSubmit = '탈퇴하기';
-  static const withdrawShopCloseTitle = '혼자 운영하는 매장도 함께 닫힙니다';
+  static const withdrawShopCloseTitle = '혼자 운영하는 매장도 함께 닫혀요';
   static const withdrawShopCloseConfirm = '매장을 닫고 탈퇴';
   static const goToMembers = '멤버 관리로 이동';
 
@@ -113,9 +113,9 @@ class AppStrings {
   static const passedAwayBadge = '무지개다리';
   static const markPassedAway = '무지개다리 표시';
   static const unmarkPassedAway = '무지개다리 되돌리기';
-  static const markPassedAwayConfirm = '무지개다리를 건넜다고 표시할까요? 목록에서 숨겨지고 기록은 남습니다.';
+  static const markPassedAwayConfirm = '무지개다리를 건넜다고 표시할까요? 목록에서 숨겨지고 기록은 남아요.';
   static const deletePet = '반려동물 삭제';
-  static const deletePetConfirm = '잘못 등록한 반려동물을 삭제할까요? 질병 기록도 함께 지워지고 되돌릴 수 없습니다.';
+  static const deletePetConfirm = '잘못 등록한 반려동물을 삭제할까요? 질병 기록도 함께 지워지고 되돌릴 수 없어요.';
   static const birthDateLabel = '생일';
   static const birthYearLabel = '태어난 해';
   static const ageUnknown = '모름';
@@ -201,7 +201,7 @@ class AppStrings {
   static const consentRequired = '마케팅 수신 동의 여부를 골라 주세요.';
   static const editOwnerTitle = '보호자 수정';
   static const deleteCustomer = '고객 삭제';
-  static const deleteCustomerConfirm = '고객을 삭제할까요? 보호자의 이름·전화번호·메모와 반려동물의 이름·질병 기록이 지워지고 되돌릴 수 없습니다.';
+  static const deleteCustomerConfirm = '고객을 삭제할까요? 보호자의 이름·전화번호·메모와 반려동물의 이름·질병 기록이 지워지고 되돌릴 수 없어요.';
 
   static const registerCustomer = '고객 등록';
   static const registerStepPhone = '전화번호';
@@ -294,7 +294,7 @@ class AppStrings {
   static String completeAndNextCaption(int weeks) =>
       '$weeks주 뒤 같은 요일·시간·메뉴로 채워진 예약 화면이 열려요.';
   static const cancelReasonTitle = '취소 사유를 골라 주세요';
-  static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해집니다.';
+  static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해져요.';
 
   static String noShowCount(int count) => '노쇼 $count회';
   static const noShowCountLabel = '노쇼 횟수';
@@ -382,7 +382,7 @@ class AppStrings {
   static const addPhotoPhaseLabel = '어느 사진인가요?';
   static const uploading = '올리는 중';
   static const uploadWaiting = '대기 중';
-  static const removeUpload = '빼기';
+  static const removeUpload = '올리기 취소';
   static const removePhoto = '사진 빼기';
   static const recordMenusLabel = '메뉴 · 금액';
   static const totalLabel = '총액';
@@ -402,7 +402,7 @@ class AppStrings {
   static const editRecord = '기록 수정';
   static const writeRecord = '기록 쓰기';
   static const deleteRecord = '기록 삭제';
-  static const deleteRecordConfirm = '이 방문의 미용 기록을 삭제할까요? 사진·메모·금액이 함께 지워지고 되돌릴 수 없습니다.';
+  static const deleteRecordConfirm = '이 방문의 미용 기록을 삭제할까요? 사진·메모·금액이 함께 지워지고 되돌릴 수 없어요.';
 
   /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
   static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
@@ -428,7 +428,7 @@ class AppStrings {
   static const toBefore = '전으로 바꾸기';
   static const makeCover = '대표로';
   static const deletePhoto = '사진 삭제';
-  static const deletePhotoConfirm = '이 사진을 기록에서 지울까요? 되돌릴 수 없습니다.';
+  static const deletePhotoConfirm = '이 사진을 기록에서 지울까요? 되돌릴 수 없어요.';
   static const savedToAlbum = '앨범에 저장했어요.';
   static const albumDenied = '사진 보관함 권한이 없어요. 설정에서 켜 주세요.';
 
