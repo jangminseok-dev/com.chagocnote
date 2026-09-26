@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:chagocnote/core/proxy/media_files.dart';
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/proxy/network_watcher.dart';
@@ -283,5 +284,24 @@ class FakePhotoAlbum implements PhotoAlbum {
   Future<void> save(String path) async {
     if (denied) throw const PhotoAlbumDenied();
     saved.add(path);
+  }
+}
+
+/// 큰 파일 받기 대역 — 임시 폴더에 작은 파일을 실제로 써서 그 경로를 준다(화면이 지우는지 본다).
+/// [gate]가 있으면 완료될 때까지 붙든다(받는 중에 화면을 나가는 테스트).
+class FakeMediaFiles implements MediaFiles {
+  final urls = <String>[];
+  final paths = <String>[];
+  Completer<void>? gate;
+
+  @override
+  Future<String> download(String url, {required String suffix}) async {
+    urls.add(url);
+    await gate?.future;
+    final dir = await Directory.systemTemp.createTemp('fake-media-files');
+    final file = File('${dir.path}/${urls.length}$suffix');
+    await file.writeAsBytes(const [1, 2, 3]);
+    paths.add(file.path);
+    return file.path;
   }
 }

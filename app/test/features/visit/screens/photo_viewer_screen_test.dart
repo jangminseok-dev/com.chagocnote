@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:chagocnote/core/proxy/media_files.dart';
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/photo_album.dart';
 import 'package:chagocnote/core/proxy/video_playback.dart';
+import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
@@ -96,11 +101,13 @@ class _Server {
   FakeMediaImages images,
   FakePhotoAlbum album,
   FakeVideoPlaybackFactory videos,
+  FakeMediaFiles files,
 })
 _build(WidgetTester tester, _Server server) {
   final images = FakeMediaImages();
   final album = FakePhotoAlbum();
   final videos = FakeVideoPlaybackFactory();
+  final files = FakeMediaFiles();
   final setup = CustomerTestSetup(
     server.backend.call,
     overrides: [
@@ -108,11 +115,18 @@ _build(WidgetTester tester, _Server server) {
       mediaImagesProvider.overrideWithValue(images),
       photoAlbumProvider.overrideWithValue(album),
       videoPlaybackFactoryProvider.overrideWithValue(videos),
+      mediaFilesProvider.overrideWithValue(files),
     ],
   );
   addTearDown(setup.container.dispose);
   useTallView(tester, height: 900);
-  return (setup: setup, images: images, album: album, videos: videos);
+  return (
+    setup: setup,
+    images: images,
+    album: album,
+    videos: videos,
+    files: files,
+  );
 }
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
@@ -128,6 +142,23 @@ List<(int, String, int)> _placed(Map<String, dynamic> put) => [
       p['sort_order'] as int,
     ),
 ];
+
+/// 영상 71(후, 31초).
+final _video71 = recordMediaJson(
+  mediaId: 71,
+  phase: 'after',
+  kind: 'video',
+  durationSeconds: 31,
+);
+
+/// 대역이 실제 파일을 쓰고 지우는 동안(진짜 비동기) 기다린 뒤 화면을 마저 그린다.
+Future<void> _drain(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+    await tester.pump();
+  }
+  await settle(tester);
+}
 
 void main() {
   testWidgets('연 사진부터 원본으로 보이고, 넘기면 머리의 전/후·자리가 따라간다', (tester) async {
@@ -161,6 +192,45 @@ void main() {
     app.album.denied = true;
     await _tap(tester, find.bySemanticsLabel(AppStrings.saveOriginal));
     expect(find.text(AppStrings.albumDenied), findsOneWidget);
+  });
+
+  testWidgets('영상의 [원본 저장]은 mp4 를 받아 앨범에 저장하고 임시 파일을 지운다', (tester) async {
+    final server = _Server()..media = [_video71];
+    final app = _build(tester, server);
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/71');
+
+    await tester.tap(find.bySemanticsLabel(AppStrings.saveOriginal));
+    await _drain(tester);
+
+    expect(app.files.urls, [
+      'http://media.test/b/original/shops/3/71.jpg?sig=a',
+    ]);
+    expect(app.images.files, isEmpty, reason: '영상은 이미지 캐시를 거치지 않는다');
+    expect(app.album.saved.single, endsWith('.mp4'));
+    expect(app.album.saved.single, app.files.paths.single);
+    expect(File(app.files.paths.single).existsSync(), isFalse);
+    expect(find.text(AppStrings.savedToAlbum), findsOneWidget);
+  });
+
+  testWidgets('받는 중에 화면을 나가면 스낵바 없이 조용히 끝난다', (tester) async {
+    final server = _Server()..media = [_video71];
+    final app = _build(tester, server);
+    final gate = app.files.gate = Completer<void>();
+    await pushOnHome<Object?>(tester, app.setup, '/visits/101/photos/71');
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.saveOriginal));
+    expect(app.files.urls, hasLength(1));
+
+    app.setup.container.read(routerProvider).pop();
+    await settle(tester);
+    expect(find.byKey(ScreenKeys.photoViewer), findsNothing);
+
+    gate.complete();
+    await _drain(tester);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text(AppStrings.savedToAlbum), findsNothing);
+    expect(File(app.files.paths.single).existsSync(), isFalse);
   });
 
   testWidgets('전/후 바꾸기는 사진 자리만 바꾼 전체 교체 한 번 — 나머지 칸·버전은 읽은 그대로', (

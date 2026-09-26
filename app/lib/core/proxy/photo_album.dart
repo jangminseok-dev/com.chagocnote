@@ -3,7 +3,8 @@ import 'package:gal/gal.dart';
 
 /// 사진 보관함(앨범)에 저장하기 — 화면이 `gal`을 직접 부르지 않게 감싼 자리. 원본 저장(설계 10.1 ⑤)에 쓴다.
 abstract class PhotoAlbum {
-  /// 기기의 사진 파일 하나를 앨범에 넣는다. 사용자가 권한을 주지 않으면 [PhotoAlbumDenied].
+  /// 기기의 사진·영상 파일 하나를 앨범에 넣는다. 확장자가 `.mp4` 면 영상으로 넣는다.
+  /// 사용자가 권한을 주지 않으면 [PhotoAlbumDenied].
   Future<void> save(String path);
 }
 
@@ -20,7 +21,12 @@ class GalPhotoAlbum implements PhotoAlbum {
       throw const PhotoAlbumDenied();
     }
     try {
-      await Gal.putImage(path);
+      // 영상 원본은 mp4 다(④-3a 설계 5.4) — 확장자로 사진·영상을 가른다. 권한 흐름은 같다.
+      if (path.toLowerCase().endsWith('.mp4')) {
+        await Gal.putVideo(path);
+      } else {
+        await Gal.putImage(path);
+      }
     } on GalException catch (e) {
       if (e.type == GalExceptionType.accessDenied) {
         throw const PhotoAlbumDenied();
