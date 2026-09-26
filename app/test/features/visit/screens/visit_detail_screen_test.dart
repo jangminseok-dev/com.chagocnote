@@ -699,7 +699,7 @@ void main() {
       expect(app.queue.added.single.sources, ['/camera/c.jpg']);
     });
 
-    testWidgets('붙은 사진과 대기열이 30장이면 사진 추가는 시트 없이 한도 문구만 보인다(카메라도 막힌다)', (
+    testWidgets('사진 30장(붙은 것과 대기열)과 영상 3편이 다 차면 사진 추가는 시트 없이 한도 문구만 보인다(카메라도 막힌다)', (
       tester,
     ) async {
       final server = _Server(status: 'in_progress')
@@ -707,6 +707,8 @@ void main() {
           media: [
             for (var i = 0; i < 29; i++)
               recordMediaJson(mediaId: 100 + i, sortOrder: i),
+            for (var i = 0; i < 3; i++)
+              recordMediaJson(mediaId: 200 + i, sortOrder: 29 + i, kind: 'video'),
           ],
         );
       final app = build(

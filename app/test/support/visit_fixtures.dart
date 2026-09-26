@@ -218,6 +218,7 @@ Map<String, dynamic> recordMediaJson({
   String phase = 'before',
   int sortOrder = 0,
   String kind = 'photo',
+  int? durationSeconds,
 }) => {
   'media_id': mediaId,
   'kind': kind,
@@ -228,7 +229,7 @@ Map<String, dynamic> recordMediaJson({
   'thumb_url': 'http://media.test/b/thumb/shops/3/$mediaId.jpg?sig=a',
   'width': 3000,
   'height': 2000,
-  'duration_seconds': null,
+  'duration_seconds': durationSeconds,
 };
 
 /// 미용 기록(설계 9절 응답).

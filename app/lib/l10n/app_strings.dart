@@ -376,8 +376,13 @@ class AppStrings {
   static const completeRecordTitle = '완료 기록';
   static const recordPhotosLabel = '사진';
   static const addPhoto = '사진 추가';
-  static const takePhoto = '카메라';
-  static const pickFromAlbum = '앨범';
+  static const takePhoto = '사진 찍기';
+  static const pickFromAlbum = '앨범에서 사진';
+  static const pickVideo = '앨범에서 영상';
+  static const takeVideo = '영상 찍기';
+  static const videoTrimmed = '60초까지만 올릴 수 있어 앞부분 60초를 올렸어요.';
+  static const videoUnsupported = '이 영상은 올릴 수 없어요.';
+  static const videoTooShort = '너무 짧은 영상이에요.';
   static const phaseBefore = '전';
   static const phaseAfter = '후';
   static const addPhotoPhaseLabel = '어느 사진인가요?';

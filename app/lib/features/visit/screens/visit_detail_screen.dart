@@ -354,7 +354,7 @@ class _Body extends ConsumerWidget {
                           phase: visit.status == VisitStatus.inProgress
                               ? MediaPhase.before
                               : MediaPhase.after,
-                          attached: media.length,
+                          attached: media,
                         ),
                 ),
               ],

@@ -199,6 +199,10 @@ class FakeUploadQueue extends UploadQueue {
   final added = <({int visitId, MediaPhase phase, List<String> sources})>[];
   final removed = <String>[];
   final retried = <String>[];
+  final addedVideos = <({int visitId, MediaPhase phase, String source})>[];
+
+  /// [addVideo]가 돌려줄 결과.
+  VideoAddOutcome videoOutcome = VideoAddOutcome.added;
 
   @override
   Future<List<UploadJob>> build() async => initial;
@@ -213,6 +217,17 @@ class FakeUploadQueue extends UploadQueue {
     required MediaPhase phase,
     required List<String> sources,
   }) async => added.add((visitId: visitId, phase: phase, sources: sources));
+
+  @override
+  Future<VideoAddOutcome> addVideo({
+    required int shopId,
+    required int visitId,
+    required MediaPhase phase,
+    required String source,
+  }) async {
+    addedVideos.add((visitId: visitId, phase: phase, source: source));
+    return videoOutcome;
+  }
 
   @override
   Future<void> remove(String id) async => removed.add(id);
