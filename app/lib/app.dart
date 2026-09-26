@@ -11,6 +11,7 @@ import 'design/bridge/glass_setup.dart';
 import 'features/auth/state/session.dart';
 import 'features/auth/state/session_controller.dart';
 import 'features/visit/screens/feed_view.dart';
+import 'features/visit/state/feed_controller.dart';
 
 /// 공유로 받은 글 가운데 지금 열 수 있는 것 — 로그인했고 매장을 골랐을 때만.
 /// 콜드 스타트에서 로그인 뒤에, 또는 앱이 떠 있을 때 바로 열린다(③-A3).
@@ -99,6 +100,7 @@ Widget buildRoot({List<Override> overrides = const []}) {
       petRecordsPlugProvider.overrideWithValue(
         (petId) => PetRecordsView(petId: petId),
       ),
+      petRecordsRefreshPlugProvider.overrideWith(petRecordsRefresher),
       ...overrides,
     ],
     child: wrapWithGlass(const App()),

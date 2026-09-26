@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/error_kind.dart';
+import '../../../core/plugs/pet_records_plug.dart';
 import '../../../core/proxy/network_watcher.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/feed_models.dart';
@@ -115,3 +116,8 @@ class FeedController extends AsyncNotifier<FeedState> {
 
 final feedControllerProvider = AsyncNotifierProvider.autoDispose
     .family<FeedController, FeedState, FeedQuery>(FeedController.new);
+
+/// 반려동물 상세를 당겨서 새로고침하면 [기록] 탭(그 아이의 피드)도 다시 읽는다 — `app.dart`가
+/// `petRecordsRefreshPlugProvider`에 꽂는다.
+PetRecordsRefresher petRecordsRefresher(Ref ref) =>
+    (_) => ref.invalidate(feedControllerProvider);
