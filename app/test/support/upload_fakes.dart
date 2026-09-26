@@ -7,6 +7,7 @@ import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/core/proxy/photo_album.dart';
 import 'package:chagocnote/core/proxy/photo_renditions.dart';
+import 'package:chagocnote/core/proxy/video_transcoder.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
@@ -96,13 +97,23 @@ class _FakeTimer implements Timer {
   int get tick => 0;
 }
 
-/// 사진 고르기 대역 — 고를 경로와 찍을 경로를 미리 정해 둔다.
+/// 사진·영상 고르기 대역 — 고를 경로와 찍을 경로를 미리 정해 둔다.
 class FakeMediaPicker implements MediaPicker {
-  FakeMediaPicker({this.picked = const [], this.taken});
+  FakeMediaPicker({
+    this.picked = const [],
+    this.taken,
+    this.pickedVideo,
+    this.takenVideo,
+  });
 
   List<String> picked;
   String? taken;
+  String? pickedVideo;
+  String? takenVideo;
   final limits = <int>[];
+
+  /// [takeVideo]에 넘어온 최대 길이(초).
+  final videoMaxSeconds = <int>[];
 
   @override
   Future<List<String>> pickPhotos({required int limit}) async {
@@ -112,6 +123,72 @@ class FakeMediaPicker implements MediaPicker {
 
   @override
   Future<String?> takePhoto() async => taken;
+
+  @override
+  Future<String?> pickVideo() async => pickedVideo;
+
+  @override
+  Future<String?> takeVideo({required int maxSeconds}) async {
+    videoMaxSeconds.add(maxSeconds);
+    return takenVideo;
+  }
+}
+
+/// 영상 압축 대역 — 원본을 `video.mp4` 로 복사하고 작은 `thumb.jpg` 를 쓰며, 정해 둔
+/// 크기·길이·[trimmed]를 돌려준다. [progressSteps]를 진행률로 순서대로 흘린다.
+class FakeVideoTranscoder implements VideoTranscoder {
+  int width = 1080;
+  int height = 1920;
+  int durationSeconds = 5;
+  bool trimmed = false;
+
+  /// 있으면 transcode 가 이 코드(`UNSUPPORTED` 등)로 던진다.
+  String? failWith;
+  List<double> progressSteps = const [0.5, 1];
+
+  /// 있으면 완료될 때까지 기다린다(압축 중 상태를 보는 테스트).
+  Completer<void>? gate;
+
+  final calls = <(String source, int maxSeconds)>[];
+  var cancelled = 0;
+
+  @override
+  Future<VideoTranscodeResult> transcode(
+    String source,
+    Directory outDir, {
+    int maxSeconds = 60,
+    void Function(double progress)? onProgress,
+  }) async {
+    calls.add((source, maxSeconds));
+    await gate?.future;
+    if (failWith case final code?) throw VideoTranscodeException(code);
+    for (final p in progressSteps) {
+      onProgress?.call(p);
+    }
+    await outDir.create(recursive: true);
+    final video = await File(source).copy('${outDir.path}/video.mp4');
+    final thumb = '${outDir.path}/thumb.jpg';
+    await File(thumb).writeAsBytes(
+      List<int>.filled(FakeRenditionMaker.sizes.thumb, 7),
+    );
+    return VideoTranscodeResult(
+      video: video.path,
+      thumb: thumb,
+      width: width,
+      height: height,
+      durationSeconds: durationSeconds,
+      trimmed: trimmed,
+    );
+  }
+
+  @override
+  Future<void> cancel() async {
+    cancelled++;
+    final waiting = gate;
+    if (waiting != null && !waiting.isCompleted) {
+      waiting.completeError(const VideoTranscodeException('CANCELLED'));
+    }
+  }
 }
 
 /// 대기열 대역 — 정해 둔 항목을 보이고, 넣기·빼기를 적어 둔다(파일·네트워크 없음).

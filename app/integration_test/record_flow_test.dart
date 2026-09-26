@@ -48,6 +48,12 @@ class GeneratedPicker implements MediaPicker {
   }
 
   @override
+  Future<String?> pickVideo() async => null;
+
+  @override
+  Future<String?> takeVideo({required int maxSeconds}) async => null;
+
+  @override
   Future<String?> takePhoto() => _make();
 }
 
