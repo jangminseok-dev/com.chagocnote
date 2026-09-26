@@ -1,7 +1,7 @@
 # 차곡노트 — ④-3a 영상 설계
 
 - 작성일: 2026-09-26
-- 상태: 사용자 검토 대기
+- 상태: 승인(2026-09-26), 계획서 `docs/superpowers/plans/2026-09-26-video.md`
 - 범위: Flutter 앱만. 영상 고르기·찍기, 앱 안 압축(1080p H.264·앞 60초)과 포스터, 업로드 대기열의 영상 항목, 타일·넘기기의 재생 표시, 크게 보기 재생과 원본 저장, 시뮬레이터 흐름. 서버는 바꾸지 않는다. 말로 기록하기(음성)는 ④-3b 로 뗀다.
 - 앞선 문서: `docs/superpowers/specs/2026-09-24-record-media-design.md` 11절(영상)·7절(업로드)·10.2(대기열), `docs/superpowers/specs/2026-09-26-error-polish-design.md`(오류 원인·대기열 멈춤), `_docs/decisions/007-record-media.md`
 - 다음 단계: 이 문서가 승인되면 구현 계획 하나를 쓴다(참조 트리에서 먼저 검증).
@@ -73,7 +73,7 @@ abstract class VideoTranscoder {
 
 ### 3.3 Android — `android/app/src/main/kotlin/.../VideoTranscoder.kt`
 
-- Gradle 의존성 `androidx.media3:media3-transformer`·`media3-effect`·`media3-common`(앱의 첫 미디어 라이브러리 추가). `Transformer.Builder(context).setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)`, `EditedMediaItem` 에 `ClippingConfiguration(0…maxSeconds)` 와 `Presentation.createForHeight(1080)`(세로 영상은 짧은 변 기준으로 맞춰지도록 긴 변 1080 으로 계산해 넘긴다).
+- Gradle 의존성 `androidx.media3:media3-transformer`·`media3-effect`·`media3-common`(앱의 첫 미디어 라이브러리 추가). `Transformer.Builder(context).setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)`, `EditedMediaItem` 에 `ClippingConfiguration(0…maxSeconds)` 와 `Presentation.createForHeight(h)` — 회전을 반영한 표시 크기에서 **짧은 변 ≤1080·긴 변 ≤1920 안으로 줄이고 키우지 않는다**(iOS 의 1920×1080 프리셋과 같은 규칙. 2026-09-26 계획에서 정정 — "긴 변 1080" 은 세로 영상을 608×1080 으로 만든다).
 - `MediaMetadataRetriever` 로 1초 프레임(`getFrameAtTime`, `OPTION_CLOSEST_SYNC`)과 회전을 반영한 가로·세로·길이.
 - 진행률은 `Transformer.getProgress` 를 200ms 폴링해 이벤트로. `cancel` 은 `Transformer.cancel()`.
 - 에뮬레이터는 소프트웨어 인코더(`c2.android.avc.encoder`)로 돈다.
@@ -146,7 +146,7 @@ POST /v1/shops/{shop}/media/uploads
 
 ### 5.5 피드·달력·[기록] 탭
 
-서버 썸네일을 그대로 쓴다. 카드에 영상이면 작은 재생 배지 하나만 더한다.
+서버 썸네일을 그대로 쓴다. 카드에 영상이면 작은 재생 배지 하나만 더한다 — 단, 피드 API 의 `FeedItemView` 가 대표의 `kind` 를 주지 않아 **이번에는 하지 않는다**(2026-09-26 계획에서 확인, 결정 기록 007 "남는 것").
 
 ## 6. 오류와 경계
 
