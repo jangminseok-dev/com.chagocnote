@@ -424,7 +424,7 @@ void main() {
     await settle(tester);
 
     expect(find.byKey(ScreenKeys.registerVisit), findsOneWidget);
-    expect(find.textContaining('자정을 넘습니다'), findsOneWidget);
+    expect(find.textContaining('자정을 넘어요'), findsOneWidget);
   });
 
   testWidgets('저장 중에는 버튼을 막아 요청을 한 번만 보낸다', (tester) async {

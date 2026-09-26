@@ -331,7 +331,7 @@ void main() {
     await _tap(tester, _button(AppStrings.save));
 
     expect(server.puts, hasLength(2));
-    expect(find.textContaining('기록이 먼저 바뀌었습니다'), findsOneWidget);
+    expect(find.textContaining('기록이 먼저 바뀌었어요'), findsOneWidget);
     expect(closed.closed, isFalse);
   });
 
@@ -465,7 +465,7 @@ void main() {
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
 
-    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있습니다.'), findsOneWidget);
+    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
     expect(_button(AppStrings.takePhoto), findsNothing);
     expect(app.picker.limits, isEmpty);
     expect(app.queue.added, isEmpty);

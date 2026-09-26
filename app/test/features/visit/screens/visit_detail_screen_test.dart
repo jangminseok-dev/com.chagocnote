@@ -286,7 +286,7 @@ void main() {
     await _tap(tester, _button(AppStrings.actionNextReservation));
 
     expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
-    expect(find.textContaining('문제가 생겼습니다'), findsOneWidget);
+    expect(find.textContaining('서버에 잠시 문제가 있어요'), findsOneWidget);
   });
 
   testWidgets('초안을 못 읽어도 다음 예약 시트는 미리보기 없이 뜬다', (tester) async {
@@ -395,7 +395,7 @@ void main() {
 
     await _tap(tester, _button(AppStrings.actionStart));
 
-    expect(find.textContaining('아직 할 수 없습니다'), findsOneWidget);
+    expect(find.textContaining('아직 할 수 없어요'), findsOneWidget);
     expect(setup.calls, contains('GET /v1/shops/3/visits/101'));
   });
 
@@ -501,7 +501,7 @@ void main() {
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
-    expect(find.textContaining('방문을 찾을 수 없습니다'), findsOneWidget);
+    expect(find.textContaining('방문을 찾을 수 없어요'), findsOneWidget);
     expect(find.bySemanticsLabel(AppStrings.back), findsOneWidget);
 
     fail = false;
@@ -686,7 +686,7 @@ void main() {
 
       await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
 
-      expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있습니다.'), findsOneWidget);
+      expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
       expect(_button(AppStrings.takePhoto), findsNothing);
       expect(app.queue.added, isEmpty);
     });

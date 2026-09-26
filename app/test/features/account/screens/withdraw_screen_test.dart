@@ -341,7 +341,7 @@ void main() {
     await tester.tap(_submitButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('혼자 사장인 매장에 다른 멤버가 있습니다. 먼저 다른 사장을 지정해 주세요.'), findsOneWidget);
+    expect(find.text('혼자 사장인 매장에 다른 멤버가 있어요. 먼저 다른 사장을 지정해 주세요.'), findsOneWidget);
     expect(find.text(AppStrings.goToMembers), findsOneWidget);
     expect(setup.adapter.requests, hasLength(1));
   });

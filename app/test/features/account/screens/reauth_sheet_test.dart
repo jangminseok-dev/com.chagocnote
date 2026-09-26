@@ -54,6 +54,6 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(apple.signInCallCount, 1);
     expect(find.text(AppStrings.reauthPromptTitle), findsOneWidget);
-    expect(find.text('문제가 생겼습니다. 잠시 뒤에 다시 시도해 주세요.'), findsOneWidget);
+    expect(find.text('문제가 생겼어요. 잠시 뒤에 다시 시도해 주세요.'), findsOneWidget);
   });
 }

@@ -643,8 +643,8 @@ void main() {
       await tap(btn(AppStrings.actionNoShow));
       await waitFor(find.text(AppStrings.noShowConfirm));
       await tap(btn(AppStrings.actionNoShow), last: true);
-      await waitFor(find.textContaining('아직 할 수 없습니다'));
-      note('시각 전 노쇼 문구 = ${find.textContaining('아직 할 수 없습니다').evaluate().map((e) => (e.widget as Text).data).first}');
+      await waitFor(find.textContaining('아직 할 수 없어요'));
+      note('시각 전 노쇼 문구 = ${find.textContaining('아직 할 수 없어요').evaluate().map((e) => (e.widget as Text).data).first}');
       await shot('05c-noshow-not-yet');
       expect(chip(AppStrings.statusReserved), findsWidgets);
     });

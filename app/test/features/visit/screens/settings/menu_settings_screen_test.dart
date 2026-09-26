@@ -206,7 +206,7 @@ void main() {
     expect(server.writes, ['PUT 1 2', 'PUT 2 1']);
     expect(server.menus[0]['sort_order'], 2);
     expect(server.menus[1]['sort_order'], 2);
-    expect(find.textContaining('문제가 생겼습니다'), findsOneWidget);
+    expect(find.textContaining('서버에 잠시 문제가 있어요'), findsOneWidget);
     expect(_names(tester), ['목욕', '위생', '부분 미용', '전체 미용', '스포팅']);
 
     // 같은 ▼를 다시 누르면 순서값이 같아도(v / v+1) 풀린다.

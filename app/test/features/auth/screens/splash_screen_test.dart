@@ -33,7 +33,7 @@ void main() {
     await tester.pumpWidget(_appWith(container));
     await tester.pumpAndSettle();
 
-    expect(find.text('문제가 생겼습니다. 잠시 뒤에 다시 시도해 주세요.'), findsOneWidget);
+    expect(find.text('문제가 생겼어요. 잠시 뒤에 다시 시도해 주세요.'), findsOneWidget);
     expect(gateway.restoreCallCount, 1);
 
     gateway.restoreError = null;

@@ -360,7 +360,7 @@ void main() {
     await tester.tap(find.text(AppStrings.promoteToOwner));
     await tester.pumpAndSettle();
 
-    expect(find.text('매장에는 사장이 한 명 이상 있어야 합니다.'), findsOneWidget);
+    expect(find.text('매장에는 사장이 한 명 이상 있어야 해요.'), findsOneWidget);
   });
 
   testWidgets(

@@ -399,7 +399,7 @@ void main() {
     await tester.tap(_onStage(_button(AppStrings.save)));
     await tester.pumpAndSettle();
 
-    expect(find.text('이미 등록된 전화번호입니다.'), findsOneWidget);
+    expect(find.text('이미 등록된 전화번호예요.'), findsOneWidget);
     expect(find.byKey(ScreenKeys.registerCustomer), findsOneWidget);
   });
 

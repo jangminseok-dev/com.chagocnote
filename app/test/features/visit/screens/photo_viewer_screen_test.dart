@@ -308,7 +308,7 @@ void main() {
     await _tap(tester, find.bySemanticsLabel(AppStrings.toAfter));
 
     expect(server.puts, hasLength(2));
-    expect(find.text('다른 기기에서 기록이 먼저 바뀌었습니다. 화면을 새로 불러왔어요.'), findsOneWidget);
+    expect(find.text('다른 기기에서 기록이 먼저 바뀌었어요. 화면을 새로 불러왔어요.'), findsOneWidget);
   });
 
   testWidgets('예약됨으로 되돌린 방문은 기록을 바꿀 수 없어 원본 저장만 있다', (tester) async {

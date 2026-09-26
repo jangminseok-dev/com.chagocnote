@@ -167,7 +167,7 @@ void main() {
     await _tap(tester, _button(AppStrings.save));
 
     expect(find.byKey(ScreenKeys.settingsSchedule), findsOneWidget);
-    expect(find.textContaining('권한이 없습니다'), findsOneWidget);
+    expect(find.textContaining('권한이 없어요'), findsOneWidget);
   });
 
   testWidgets('설정을 불러오지 못하면 다시 시도한다', (tester) async {

@@ -302,7 +302,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('다른 계정에 연결된 로그인 수단입니다. 그 계정에서 탈퇴한 뒤 다시 연결해 주세요.'),
+      find.text('다른 계정에 연결된 로그인 수단이에요. 그 계정에서 탈퇴한 뒤 다시 연결해 주세요.'),
       findsOneWidget,
     );
   });
@@ -328,7 +328,7 @@ void main() {
     await tester.tap(_confirmUnlinkButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('마지막 로그인 수단은 해제할 수 없습니다.'), findsOneWidget);
+    expect(find.text('마지막 로그인 수단은 해제할 수 없어요.'), findsOneWidget);
     expect(gateway.refreshMeCallCount, 0);
   });
 

@@ -127,7 +127,7 @@ void main() {
     await tester.tap(_button(AppStrings.save));
     await tester.pumpAndSettle();
 
-    expect(find.text('이미 등록된 전화번호입니다.'), findsOneWidget);
+    expect(find.text('이미 등록된 전화번호예요.'), findsOneWidget);
     expect(find.byKey(ScreenKeys.customerEdit), findsOneWidget);
   });
 
@@ -189,7 +189,7 @@ void main() {
     await tester.tap(_button(AppStrings.deleteCustomer).last);
     await tester.pumpAndSettle();
 
-    expect(find.text('이 작업을 할 권한이 없습니다.'), findsOneWidget);
+    expect(find.text('이 작업을 할 권한이 없어요.'), findsOneWidget);
     expect(find.byKey(ScreenKeys.customerEdit), findsOneWidget);
   });
 }
