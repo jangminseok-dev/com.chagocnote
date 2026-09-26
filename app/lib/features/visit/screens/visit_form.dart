@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_radius.dart';
@@ -182,28 +183,30 @@ class _VisitFormState extends ConsumerState<VisitForm> {
       menusProvider((shopId: widget.shopId, includeArchived: false)),
     );
     final error = settings.error ?? customer.error ?? menus.error;
-    if (error != null) {
-      return AppErrorRetry(
-        message: messageFor(error),
-        onRetry: () {
-          ref.invalidate(visitSettingsProvider(widget.shopId));
-          ref.invalidate(customerDetailProvider);
-          ref.invalidate(menusProvider);
-        },
-      );
-    }
     final s = settings.value;
     final pets = customer.pets;
     final m = menus.value;
-    if (s == null || pets == null || m == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final living = [
-      for (final p in pets)
-        if (!p.passedAway || widget.initial.petIds.contains(p.petId)) p,
-    ];
-    _initPets(living);
-    return _buildForm(s, living, m);
+    // 셋을 하나로 묶어 불러오기 틀에 넘긴다 — 하나라도 실패면 오류, 셋 다 오면 폼.
+    return AsyncBody<void>(
+      value: error != null
+          ? AsyncError(error, StackTrace.empty)
+          : s == null || pets == null || m == null
+          ? const AsyncLoading()
+          : const AsyncData(null),
+      onRetry: () {
+        ref.invalidate(visitSettingsProvider(widget.shopId));
+        ref.invalidate(customerDetailProvider);
+        ref.invalidate(menusProvider);
+      },
+      builder: (_) {
+        final living = [
+          for (final p in pets!)
+            if (!p.passedAway || widget.initial.petIds.contains(p.petId)) p,
+        ];
+        _initPets(living);
+        return _buildForm(s!, living, m!);
+      },
+    );
   }
 
   Widget _buildForm(VisitSettings settings, List<Pet> pets, List<Menu> menus) {
@@ -563,7 +566,7 @@ class _SlotGrid extends ConsumerWidget {
         child: Center(child: CircularProgressIndicator()),
       ),
       error: (error, _) => AppErrorRetry.row(
-        message: messageFor(error),
+        message: loadMessageFor(error),
         onRetry: () => ref.invalidate(visitSlotsProvider(slotsKey)),
       ),
       data: (data) => Wrap(

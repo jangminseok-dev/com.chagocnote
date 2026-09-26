@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
 import '../../../core/router/screen_keys.dart';
@@ -12,7 +13,6 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_photo_pager.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/app_sheet_action.dart';
@@ -258,14 +258,11 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
                 ),
               ),
               Expanded(
-                child: detail.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () => ref.invalidate(visitDetailProvider(key)),
-                  ),
-                  data: (detail) => _Body(
+                child: AsyncBody<VisitDetail>(
+                  value: detail,
+                  onRetry: () => ref.invalidate(visitDetailProvider(key)),
+                  onRefresh: () => ref.refresh(visitDetailProvider(key).future),
+                  builder: (detail) => _Body(
                     detail: detail,
                     busy: _busy,
                     errorText: _errorText,
@@ -311,6 +308,7 @@ class _Body extends ConsumerWidget {
     final others = detail.group;
     final previous = detail.previousVisit;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
       children: [
         AppPhotoPager(

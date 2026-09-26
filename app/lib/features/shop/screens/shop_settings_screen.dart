@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
@@ -8,7 +9,6 @@ import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../api/shop_api.dart';
@@ -129,8 +129,11 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
                 ),
               ),
               Expanded(
-                child: settingsAsync.when(
-                  data: (settings) {
+                child: AsyncBody<ShopSettings>(
+                  value: settingsAsync,
+                  onRetry: () =>
+                      ref.invalidate(shopSettingsControllerProvider(shopId!)),
+                  builder: (settings) {
                     _initFields(settings);
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -183,13 +186,6 @@ class _ShopSettingsScreenState extends ConsumerState<ShopSettingsScreen> {
                       ),
                     );
                   },
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () =>
-                        ref.invalidate(shopSettingsControllerProvider(shopId!)),
-                  ),
                 ),
               ),
             ],

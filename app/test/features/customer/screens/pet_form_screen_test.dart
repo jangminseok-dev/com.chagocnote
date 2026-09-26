@@ -279,7 +279,7 @@ void main() {
     await tester.tap(_save());
     await tester.pumpAndSettle();
 
-    expect(find.text('질병과 "질병 없음"을 함께 고를 수 없습니다.'), findsOneWidget);
+    expect(find.text('질병과 "질병 없음"을 함께 고를 수 없어요.'), findsOneWidget);
     expect(find.byKey(ScreenKeys.petForm), findsOneWidget);
   });
 

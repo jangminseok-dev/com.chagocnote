@@ -13,9 +13,13 @@ class ConnectivityNetworkWatcher implements NetworkWatcher {
 
   final Connectivity _connectivity;
 
+  // EventChannel 은 첫 Dart 구독자에게만 네이티브의 현재 상태를 준다. 업로드 대기열이
+  // 앱에서 이미 그 첫 구독자라, 여기서 매번 새로 만들면 오류 뒤에야 구독하는 AsyncBody 는
+  // 현재 상태를 못 받아 끊김을 놓친다. 그래서 끊김 추적을 앱에서 하나만 만들어 공유한다.
   @override
-  Stream<void> get restored =>
-      restoredFrom(_connectivity.onConnectivityChanged);
+  late final Stream<void> restored = restoredFrom(
+    _connectivity.onConnectivityChanged,
+  ).asBroadcastStream();
 }
 
 /// 연결 상태 변화에서 "끊김 → 이어짐"만 고른다. 처음 받은 상태는 신호가 아니다.

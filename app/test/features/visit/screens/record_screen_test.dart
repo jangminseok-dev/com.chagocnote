@@ -152,8 +152,12 @@ Map<String, dynamic> _savedRecord() => recordJson(
   version: 3,
 );
 
-UploadJob _job(String id, {bool running = false, int failures = 0}) =>
-    UploadJob(
+UploadJob _job(
+  String id, {
+  bool running = false,
+  int failures = 0,
+  String? stoppedCode,
+}) => UploadJob(
       id: id,
       userId: 1,
       shopId: 3,
@@ -163,6 +167,7 @@ UploadJob _job(String id, {bool running = false, int failures = 0}) =>
       progress: 0.5,
       running: running,
       failures: failures,
+      stoppedCode: stoppedCode,
     );
 
 void main() {
@@ -331,7 +336,30 @@ void main() {
     await _tap(tester, _button(AppStrings.save));
 
     expect(server.puts, hasLength(2));
-    expect(find.textContaining('기록이 먼저 바뀌었습니다'), findsOneWidget);
+    expect(find.textContaining('기록이 먼저 바뀌었어요'), findsOneWidget);
+    expect(closed.closed, isFalse);
+  });
+
+  testWidgets('어긋나 다시 읽는데 그것마저 실패해도 쓰던 폼은 남고 문구만 보인다', (tester) async {
+    final server = _Server(record: recordJson(careNote: '메모', version: 3));
+    server.putResponses.add(
+      const FakeResponse(
+        statusCode: 409,
+        data: {'code': 'RECORD_VERSION_CONFLICT', 'message': 'x'},
+      ),
+    );
+    final ok = server.backend.routes['GET /v1/shops/3/visits/101']!;
+    server.backend.routes['GET /v1/shops/3/visits/101'] = (o, b) =>
+        server.detailReads > 0
+        ? const FakeResponse(statusCode: 503, data: 'x')
+        : ok(o, b);
+    final (_, closed) = await _open(tester, server);
+    await tester.enterText(find.widgetWithText(TextField, '메모'), '고쳐 쓴 메모');
+
+    await _tap(tester, _button(AppStrings.save));
+
+    expect(find.text('고쳐 쓴 메모'), findsOneWidget, reason: '쓰던 폼이 오류 화면으로 바뀌지 않는다');
+    expect(find.textContaining('서버에 잠시 문제가 있어요'), findsOneWidget);
     expect(closed.closed, isFalse);
   });
 
@@ -421,6 +449,31 @@ void main() {
     expect(app.queue.removed, ['j2']);
   });
 
+  testWidgets('멈춘 사진은 느낌표이고, 누르면 이유와 [다시 시도]·[올리기 취소]를 보인다', (tester) async {
+    final server = _Server();
+    final (app, _) = await _open(
+      tester,
+      server,
+      uploads: [
+        _job('j1', stoppedCode: 'MEDIA_LIMIT_EXCEEDED'),
+        _job('j2', stoppedCode: 'VISIT_NOT_FOUND'),
+      ],
+    );
+    expect(find.byIcon(Icons.priority_high), findsNWidgets(2));
+    expect(find.text(AppStrings.uploadWaiting), findsNothing);
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.uploadStopped).first);
+    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
+    await _tap(tester, find.text(AppStrings.retry));
+    expect(app.queue.retried, ['j1']);
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.uploadStopped).last);
+    expect(find.text('방문을 찾을 수 없어요. 이미 지워졌을 수 있어요.'), findsOneWidget);
+    await _tap(tester, find.text(AppStrings.removeUpload).last);
+    expect(app.queue.removed, ['j2']);
+    expect(app.queue.retried, ['j1']);
+  });
+
   testWidgets(
     '사진 추가는 전/후를 고르고 앨범에서 고른 사진을 대기열에 넣는다 — 한도는 30장에서 서버에 붙은 사진(폼에서 뺀 것 포함)과 대기열을 뺀 것',
     (tester) async {
@@ -465,7 +518,7 @@ void main() {
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
 
-    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있습니다.'), findsOneWidget);
+    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
     expect(_button(AppStrings.takePhoto), findsNothing);
     expect(app.picker.limits, isEmpty);
     expect(app.queue.added, isEmpty);

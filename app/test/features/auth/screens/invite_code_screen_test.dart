@@ -152,7 +152,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(ScreenKeys.invite), findsOneWidget);
-    expect(find.text('만료된 초대 코드입니다. 새 코드를 받아 주세요.'), findsOneWidget);
+    expect(find.text('만료된 초대 코드예요. 새 코드를 받아 주세요.'), findsOneWidget);
   });
 
   testWidgets('빈 코드로 제출하면 요청 없이 검증만 한다', (tester) async {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/api_exception.dart';
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
@@ -13,7 +14,6 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_choice_chip.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
@@ -311,20 +311,24 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
                 ),
               ),
               Expanded(
-                child: switch ((detail, menus)) {
-                  (AsyncError(:final error), _) ||
-                  (_, AsyncError(:final error)) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () {
-                      ref.invalidate(visitDetailProvider(key));
-                      ref.invalidate(menusProvider);
-                    },
-                  ),
-                  _ when !_started => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  _ => _form(d!, m!),
-                },
+                // 방문 상세와 메뉴를 하나로 묶어 불러오기 틀에 넘긴다. 폼은 한 번 채운 뒤(_started)
+                // 다시 읽기에 흔들리지 않는다.
+                child: AsyncBody<void>(
+                  value: switch ((detail, menus)) {
+                    (AsyncError(:final error), _) ||
+                    (_, AsyncError(:final error)) when !_started => AsyncError(
+                      error,
+                      StackTrace.empty,
+                    ),
+                    _ when !_started => const AsyncLoading(),
+                    _ => const AsyncData(null),
+                  },
+                  onRetry: () {
+                    ref.invalidate(visitDetailProvider(key));
+                    ref.invalidate(menusProvider);
+                  },
+                  builder: (_) => _form(d!, m!),
+                ),
               ),
             ],
           ),

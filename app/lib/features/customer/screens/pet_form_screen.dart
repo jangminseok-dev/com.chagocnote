@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../../core/time/today_provider.dart';
@@ -77,21 +77,21 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
         ? const AsyncValue<PetDetail?>.loading()
         : ref.watch(petDetailProvider((shopId: shopId, petId: petId)));
 
-    Widget body;
-    if (types.hasError || pet.hasError) {
-      body = AppErrorRetry(
-        message: messageFor(types.error ?? pet.error!),
-        onRetry: () {
-          ref.invalidate(conditionTypesProvider(shopId!));
-          if (petId != null) {
-            ref.invalidate(petDetailProvider((shopId: shopId, petId: petId)));
-          }
-        },
-      );
-    } else if (!types.hasValue || !pet.hasValue) {
-      body = const Center(child: CircularProgressIndicator());
-    } else {
-      body = SingleChildScrollView(
+    // 질병 종류와(수정이면) 반려동물 상세를 하나로 묶어 불러오기 틀에 넘긴다.
+    final error = types.error ?? pet.error;
+    final body = AsyncBody<void>(
+      value: error != null
+          ? AsyncError(error, StackTrace.empty)
+          : !types.hasValue || !pet.hasValue
+          ? const AsyncLoading()
+          : const AsyncData(null),
+      onRetry: () {
+        ref.invalidate(conditionTypesProvider(shopId!));
+        if (petId != null) {
+          ref.invalidate(petDetailProvider((shopId: shopId, petId: petId)));
+        }
+      },
+      builder: (_) => SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         child: PetForm(
           initial: pet.value?.pet,
@@ -102,8 +102,8 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
           errorText: _errorText,
           onSubmit: _submit,
         ),
-      );
-    }
+      ),
+    );
 
     return Scaffold(
       key: ScreenKeys.petForm,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
@@ -9,7 +10,6 @@ import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
@@ -140,8 +140,10 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
                 ),
               ),
               Expanded(
-                child: detail.when(
-                  data: (detail) => SingleChildScrollView(
+                child: AsyncBody<CustomerDetail>(
+                  value: detail,
+                  onRetry: () => ref.invalidate(customerDetailProvider(key!)),
+                  builder: (detail) => SingleChildScrollView(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Column(
                       children: [
@@ -161,12 +163,6 @@ class _CustomerEditScreenState extends ConsumerState<CustomerEditScreen> {
                         ],
                       ],
                     ),
-                  ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () => ref.invalidate(customerDetailProvider(key!)),
                   ),
                 ),
               ),

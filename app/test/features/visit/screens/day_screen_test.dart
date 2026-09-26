@@ -598,6 +598,36 @@ void main() {
     expect(find.text('두부 · 보리'), findsOneWidget);
   });
 
+  testWidgets('당겨서 새로고침하면 다시 읽고, 실패하면 목록은 두고 위에 띠를 보인다 — 띠의 [다시 시도]로 다시 읽는다', (
+    tester,
+  ) async {
+    var fail = false;
+    var calls = 0;
+    final backend = _backend();
+    final ok = backend.routes['GET /v1/shops/3/visits']!;
+    backend.routes['GET /v1/shops/3/visits'] = (o, b) {
+      calls++;
+      return fail ? const FakeResponse(statusCode: 503, data: 'x') : ok(o, b);
+    };
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+    expect(calls, 1);
+
+    fail = true;
+    await tester.fling(find.text('두부 · 보리'), const Offset(0, 400), 1000);
+    await settle(tester);
+    expect(calls, 2);
+    expect(find.text('두부 · 보리'), findsOneWidget, reason: '받은 목록은 그대로');
+    expect(find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'), findsOneWidget);
+
+    fail = false;
+    await tester.tap(find.text(AppStrings.retry));
+    await settle(tester);
+    expect(calls, 3);
+    expect(find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'), findsNothing);
+  });
+
   testWidgets('하루 목록 골든', (tester) async {
     final setup = CustomerTestSetup(_backend().call, overrides: _today);
     addTearDown(setup.container.dispose);

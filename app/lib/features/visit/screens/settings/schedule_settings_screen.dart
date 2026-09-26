@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/error/async_body.dart';
 import '../../../../core/error/error_messages.dart';
 import '../../../../core/router/screen_keys.dart';
 import '../../../../design/app_theme.dart';
@@ -212,15 +213,11 @@ class _ScheduleSettingsScreenState
                 ),
               ),
               Expanded(
-                child: settings.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () =>
-                        ref.invalidate(visitSettingsProvider(shopId!)),
-                  ),
-                  data: (data) {
+                child: AsyncBody<VisitSettings>(
+                  value: settings,
+                  onRetry: () =>
+                      ref.invalidate(visitSettingsProvider(shopId!)),
+                  builder: (data) {
                     _init(data);
                     return _body(shopId!);
                   },
@@ -343,7 +340,7 @@ class _ScheduleSettingsScreenState
               closedDates.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => AppErrorRetry.row(
-                  message: messageFor(error),
+                  message: loadMessageFor(error),
                   onRetry: () => ref.invalidate(closedDatesProvider),
                 ),
                 data: (items) => items.isEmpty

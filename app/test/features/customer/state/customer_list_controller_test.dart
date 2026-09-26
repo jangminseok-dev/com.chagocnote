@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/customer/state/customer_list_controller.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -127,6 +128,101 @@ void main() {
     expect(state.items, hasLength(1));
     expect(state.hasMore, isTrue);
     expect(state.loadMoreError, isA<ApiException>());
+  });
+
+  test('다음 페이지가 인터넷 없음으로 실패했으면 인터넷이 돌아올 때 한 번 다시 부른다', () async {
+    var online = false;
+    final setup = CustomerTestSetup((options, body) {
+      if (options.queryParameters['cursor'] == null) {
+        return FakeResponse(
+          statusCode: 200,
+          data: pageJson(items: [familyJson(customerId: 1)], nextCursor: 'c1'),
+        );
+      }
+      if (!online) {
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'offline',
+        );
+      }
+      return FakeResponse(
+        statusCode: 200,
+        data: pageJson(items: [familyJson(customerId: 2)]),
+      );
+    });
+    addTearDown(setup.container.dispose);
+    _listen(setup.container, _query);
+    await setup.container.read(customerListControllerProvider(_query).future);
+
+    await setup.container
+        .read(customerListControllerProvider(_query).notifier)
+        .loadMore();
+    expect(
+      setup.container.read(customerListControllerProvider(_query)).value!.loadMoreError,
+      isA<ApiException>().having((e) => e.isNetwork, 'isNetwork', isTrue),
+    );
+
+    online = true;
+    setup.network.restore();
+    await pumpEventQueue();
+    final state = setup.container.read(customerListControllerProvider(_query)).value!;
+    expect(state.items.map((c) => c.customerId), [1, 2]);
+    expect(state.loadMoreError, isNull);
+  });
+
+  test('다음 페이지가 인터넷 없음으로 실패한 뒤 [다시 시도]로 성공하면 다음 복귀 신호에 저절로 부르지 않는다', () async {
+    var failure = 'offline';
+    var nextPage = 1;
+    final setup = CustomerTestSetup((options, body) {
+      if (options.queryParameters['cursor'] == null) {
+        return FakeResponse(
+          statusCode: 200,
+          data: pageJson(items: [familyJson(customerId: 1)], nextCursor: 'c1'),
+        );
+      }
+      if (failure == 'offline') {
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'offline',
+        );
+      }
+      nextPage++;
+      return FakeResponse(
+        statusCode: 200,
+        data: pageJson(
+          items: [familyJson(customerId: nextPage)],
+          nextCursor: nextPage == 2 ? 'c2' : null,
+        ),
+      );
+    });
+    addTearDown(setup.container.dispose);
+    _listen(setup.container, _query);
+    await setup.container.read(customerListControllerProvider(_query).future);
+    final notifier = setup.container.read(
+      customerListControllerProvider(_query).notifier,
+    );
+
+    await notifier.loadMore();
+    failure = 'none';
+    await notifier.loadMore();
+
+    int nextPages() => setup.adapter.requests
+        .where((r) => r.queryParameters['cursor'] != null)
+        .length;
+    expect(
+      setup.container.read(customerListControllerProvider(_query)).value!.hasMore,
+      isTrue,
+      reason: '[다시 시도]가 성공하며 받은 nextCursor(c2)로 다음 페이지가 남는다',
+    );
+    expect(nextPages(), 2);
+
+    setup.network.restore();
+    await pumpEventQueue();
+    expect(
+      nextPages(),
+      2,
+      reason: '성공한 뒤에는 앞선 인터넷 없음 구독을 거둬 다음 복귀 신호로 저절로 다시 부르지 않는다',
+    );
   });
 
   test('다음 페이지를 기다리는 사이 다시 불러오면 옛 목록에 이어 붙이지 않는다', () async {

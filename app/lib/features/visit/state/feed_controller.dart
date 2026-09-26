@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/error_kind.dart';
+import '../../../core/plugs/pet_records_plug.dart';
+import '../../../core/proxy/network_watcher.dart';
 import '../../auth/state/shop_scoped.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/feed_models.dart';
 import 'visit_providers.dart';
 
@@ -38,6 +44,15 @@ class FeedController extends AsyncNotifier<FeedState> {
   /// 붙이지 않게 비교한다(고객 목록과 같은 이유).
   int _generation = 0;
 
+  /// 다음 쪽이 인터넷 없음으로 실패한 동안만 복귀 신호를 듣는다 — 돌아오면 한 번 다시 부른다
+  /// (오류 화면 다듬기 설계 3절).
+  StreamSubscription<void>? _restored;
+
+  void _stopWatchingNetwork() {
+    _restored?.cancel();
+    _restored = null;
+  }
+
   Future<VisitFeed> _fetch(String? cursor) => runShopScoped(
     ref,
     () => ref
@@ -48,6 +63,7 @@ class FeedController extends AsyncNotifier<FeedState> {
   @override
   Future<FeedState> build() async {
     _generation++;
+    ref.onDispose(_stopWatchingNetwork);
     final page = await _fetch(null);
     return FeedState(items: page.items, nextCursor: page.nextCursor);
   }
@@ -72,6 +88,8 @@ class FeedController extends AsyncNotifier<FeedState> {
       ),
     );
     try {
+      // 다시 부르는 순간 앞선 복귀 구독을 거둔다 — 성공하거나 인터넷 없음이 아닌 실패 뒤에는 듣지 않는다.
+      _stopWatchingNetwork();
       final page = await _fetch(current.nextCursor);
       if (stale()) return;
       state = AsyncData(
@@ -82,6 +100,12 @@ class FeedController extends AsyncNotifier<FeedState> {
       );
     } catch (e) {
       if (stale()) return;
+      if (kindOf(e) == ErrorKind.offline) {
+        _restored ??= ref.read(networkWatcherProvider).restored.listen((_) {
+          _stopWatchingNetwork();
+          loadMore();
+        });
+      }
       state = AsyncData(
         FeedState(
           items: current.items,
@@ -95,3 +119,12 @@ class FeedController extends AsyncNotifier<FeedState> {
 
 final feedControllerProvider = AsyncNotifierProvider.autoDispose
     .family<FeedController, FeedState, FeedQuery>(FeedController.new);
+
+/// 반려동물 상세를 당겨서 새로고침하면 [기록] 탭(그 아이의 피드)도 다시 읽는다 — `app.dart`가
+/// `petRecordsRefreshPlugProvider`에 꽂는다.
+PetRecordsRefresher petRecordsRefresher(Ref ref) => (petId) {
+  final shopId = ref.read(selectedShopIdProvider);
+  if (shopId != null) {
+    ref.invalidate(feedControllerProvider((shopId: shopId, petId: petId)));
+  }
+};

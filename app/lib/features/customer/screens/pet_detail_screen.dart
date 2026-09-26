@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/plugs/pet_records_plug.dart';
 import '../../../core/proxy/media_images.dart';
@@ -15,7 +16,6 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_segment.dart';
 import '../../../design/widgets/app_sheet.dart';
@@ -214,19 +214,26 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
                   child: Text(_errorText!, style: AppTypography.caption),
                 ),
               Expanded(
-                child: detail.when(
-                  data: (detail) => _DetailBody(
+                child: AsyncBody<PetDetail>(
+                  value: detail,
+                  onRetry: () => ref.invalidate(
+                    petDetailProvider((shopId: shopId!, petId: widget.petId)),
+                  ),
+                  // 탭 안의 보호자·기록도 함께 다시 읽는다.
+                  onRefresh: () {
+                    ref.invalidate(customerDetailProvider);
+                    ref.read(petRecordsRefreshPlugProvider)(widget.petId);
+                    return ref.refresh(
+                      petDetailProvider((
+                        shopId: shopId!,
+                        petId: widget.petId,
+                      )).future,
+                    );
+                  },
+                  builder: (detail) => _DetailBody(
                     detail: detail,
                     tab: _tab,
                     onTab: (i) => setState(() => _tab = i),
-                  ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () => ref.invalidate(
-                      petDetailProvider((shopId: shopId!, petId: widget.petId)),
-                    ),
                   ),
                 ),
               ),
@@ -254,6 +261,7 @@ class _DetailBody extends ConsumerWidget {
     final pet = detail.pet;
     final photo = pet.photo;
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
         Center(
@@ -395,10 +403,10 @@ class _OwnerTab extends ConsumerWidget {
     final shopId = ref.watch(selectedShopIdProvider);
     if (shopId == null) return const SizedBox.shrink();
     final key = (shopId: shopId, customerId: customerId);
-    return ref
-        .watch(customerDetailProvider(key))
-        .when(
-          data: (detail) {
+    return AsyncBody<CustomerDetail>.inline(
+      value: ref.watch(customerDetailProvider(key)),
+      onRetry: () => ref.invalidate(customerDetailProvider(key)),
+      builder: (detail) {
             final c = detail.customer;
             final consent = c.marketingConsent
                 ? AppStrings.marketingAgreed
@@ -449,16 +457,8 @@ class _OwnerTab extends ConsumerWidget {
                 ),
               ],
             );
-          },
-          loading: () => const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          error: (error, _) => AppErrorRetry.inline(
-            message: messageFor(error),
-            onRetry: () => ref.invalidate(customerDetailProvider(key)),
-          ),
-        );
+      },
+    );
   }
 }
 

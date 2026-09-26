@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/api_exception.dart';
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
@@ -12,7 +13,6 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../../core/time/today_provider.dart';
@@ -306,10 +306,10 @@ class _RegisterCustomerScreenState
   Widget _petStep() {
     final shopId = _shopId;
     if (shopId == null) return const SizedBox.shrink();
-    return ref
-        .watch(conditionTypesProvider(shopId))
-        .when(
-          data: (types) => SingleChildScrollView(
+    return AsyncBody<List<ConditionType>>(
+      value: ref.watch(conditionTypesProvider(shopId)),
+      onRetry: () => ref.invalidate(conditionTypesProvider(shopId)),
+      builder: (types) => SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: PetForm(
               conditionTypes: types,
@@ -319,12 +319,7 @@ class _RegisterCustomerScreenState
               errorText: _step == 2 ? _errorText : null,
               onSubmit: _register,
             ),
-          ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => AppErrorRetry(
-            message: messageFor(error),
-            onRetry: () => ref.invalidate(conditionTypesProvider(shopId)),
-          ),
-        );
+      ),
+    );
   }
 }

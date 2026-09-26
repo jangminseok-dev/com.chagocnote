@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
 import '../../../design/tokens/app_colors.dart';
@@ -11,7 +12,6 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_big_date.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_dashed_tile.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_glass_card.dart';
 import '../../../design/widgets/app_icon_toggle.dart';
 import '../../../design/widgets/app_photo_fan.dart';
@@ -94,6 +94,14 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
     final monthKey = monthKeyOf(shopId, _month);
     final summary = ref.watch(calendarMonthProvider(monthKey));
     final data = summary.value;
+    Widget grid(CalendarMonth? month) => _MonthGrid(
+      month: _month,
+      summary: month,
+      images: ref.watch(mediaImagesProvider),
+      today: ref.watch(todayProvider),
+      selected: selected,
+      onSelect: (date) => ref.read(selectedDateProvider.notifier).select(date),
+    );
 
     return Stack(
       children: [
@@ -142,21 +150,12 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
             const SizedBox(height: AppSpacing.md),
             const _WeekHeader(),
             const SizedBox(height: AppSpacing.xs),
-            if (summary.hasError && data == null)
-              AppErrorRetry.inline(
-                message: messageFor(summary.error!),
-                onRetry: () => ref.invalidate(calendarMonthProvider(monthKey)),
-              )
-            else
-              _MonthGrid(
-                month: _month,
-                summary: data,
-                images: ref.watch(mediaImagesProvider),
-                today: ref.watch(todayProvider),
-                selected: selected,
-                onSelect: (date) =>
-                    ref.read(selectedDateProvider.notifier).select(date),
-              ),
+            AsyncBody<CalendarMonth>.inline(
+              value: summary,
+              onRetry: () => ref.invalidate(calendarMonthProvider(monthKey)),
+              placeholder: grid(null),
+              builder: grid,
+            ),
           ],
         ),
         // 오른쪽은 떠 있는 + 버튼 자리다.
@@ -536,7 +535,7 @@ class _DayPreview extends ConsumerWidget {
                   ),
                 ),
               if (day.hasError)
-                Text(messageFor(day.error!), style: AppTypography.caption)
+                Text(loadMessageFor(day.error!), style: AppTypography.caption)
               else if (data != null && groups.isEmpty)
                 Text(
                   data.closedDay

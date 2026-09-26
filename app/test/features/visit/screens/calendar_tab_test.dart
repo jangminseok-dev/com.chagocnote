@@ -426,6 +426,63 @@ void main() {
       );
     });
 
+    testWidgets('다음 쪽이 실패하면 목록 끝에 원인 문구와 [다시 시도], 누르면 이어 붙인다', (tester) async {
+      final backend = feedBackend(first: 6);
+      final ok = backend.routes['GET /v1/shops/3/visits/feed']!;
+      var failNext = true;
+      backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) {
+        if (o.queryParameters['cursor'] != null && failNext) {
+          failNext = false;
+          return const FakeResponse(statusCode: 503, data: 'x');
+        }
+        return ok(o, b);
+      };
+      final app = build(backend);
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+
+      final retry = find.byWidgetPredicate(
+        (w) => w is AppButton && w.label == AppStrings.retry,
+      );
+      await tester.dragUntilVisible(
+        retry,
+        find.byType(ListView),
+        const Offset(0, -300),
+      );
+      await settle(tester);
+      expect(
+        find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(retry);
+      await settle(tester);
+      await tester.dragUntilVisible(
+        find.text('보리'),
+        find.byType(ListView),
+        const Offset(0, -300),
+      );
+      expect(find.text('보리'), findsOneWidget);
+    });
+
+    testWidgets('당겨서 새로고침하면 첫 쪽부터 다시 읽는다', (tester) async {
+      final app = build(feedBackend());
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+
+      await tester.fling(find.text('두부'), const Offset(0, 400), 1000);
+      await settle(tester);
+
+      expect(
+        [
+          for (final r in app.setup.adapter.requests)
+            if (r.path == '/v1/shops/3/visits/feed')
+              r.queryParameters['cursor'],
+        ],
+        [null, null],
+      );
+    });
+
     testWidgets('이름·품종이 길면 이름 카드는 사진 안에서 한 줄로 줄인다', (tester) async {
       const name = '초코송이바닐라라떼크림치즈케이크마카롱';
       const breed = '미니어처오스트레일리안셰퍼드골든리트리버래브라도푸들믹스';

@@ -3,6 +3,7 @@ import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/visit/screens/feed_view.dart';
+import 'package:chagocnote/features/visit/state/feed_controller.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -58,6 +59,7 @@ Future<CustomerTestSetup> _open(
       petRecordsPlugProvider.overrideWithValue(
         (petId) => PetRecordsView(petId: petId),
       ),
+      petRecordsRefreshPlugProvider.overrideWith(petRecordsRefresher),
     ],
   );
   addTearDown(setup.container.dispose);
@@ -103,5 +105,25 @@ void main() {
     await _open(tester, _backend(empty: true));
 
     expect(find.text(AppStrings.petRecordsEmpty), findsOneWidget);
+  });
+
+  testWidgets('반려동물 상세를 당겨서 새로고침하면 [기록] 탭도 첫 쪽부터 다시 읽는다', (tester) async {
+    final setup = await _open(tester, _backend());
+
+    // 화면이 길어(2400) 새로고침이 걸리려면 화면 높이의 4분의 1보다 더 당겨야 한다.
+    await tester.fling(
+      find.text('10월 2일 금 · 전체 미용'),
+      const Offset(0, 800),
+      1000,
+    );
+    await settle(tester);
+
+    expect(
+      [
+        for (final r in setup.adapter.requests)
+          if (r.path == '/v1/shops/3/visits/feed') r.queryParameters['cursor'],
+      ],
+      [null, null],
+    );
   });
 }

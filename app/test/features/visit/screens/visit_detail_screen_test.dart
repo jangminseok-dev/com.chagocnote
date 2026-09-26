@@ -286,7 +286,7 @@ void main() {
     await _tap(tester, _button(AppStrings.actionNextReservation));
 
     expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
-    expect(find.textContaining('문제가 생겼습니다'), findsOneWidget);
+    expect(find.textContaining('서버에 잠시 문제가 있어요'), findsOneWidget);
   });
 
   testWidgets('초안을 못 읽어도 다음 예약 시트는 미리보기 없이 뜬다', (tester) async {
@@ -395,7 +395,7 @@ void main() {
 
     await _tap(tester, _button(AppStrings.actionStart));
 
-    expect(find.textContaining('아직 할 수 없습니다'), findsOneWidget);
+    expect(find.textContaining('아직 할 수 없어요'), findsOneWidget);
     expect(setup.calls, contains('GET /v1/shops/3/visits/101'));
   });
 
@@ -488,26 +488,66 @@ void main() {
     );
   });
 
-  testWidgets('불러오지 못하면 다시 시도할 수 있고 뒤로 갈 수 있다', (tester) async {
+  testWidgets('서버 오류로 불러오지 못하면 다시 시도할 수 있고 뒤로 갈 수 있다', (tester) async {
     var fail = true;
     final server = _Server();
     final ok = server.backend.routes['GET /v1/shops/3/visits/101']!;
-    server.backend.routes['GET /v1/shops/3/visits/101'] = (o, b) => fail
-        ? const FakeResponse(
-            statusCode: 404,
-            data: {'code': 'VISIT_NOT_FOUND', 'message': 'x'},
-          )
-        : ok(o, b);
+    server.backend.routes['GET /v1/shops/3/visits/101'] = (o, b) =>
+        fail ? const FakeResponse(statusCode: 503, data: 'x') : ok(o, b);
     final setup = CustomerTestSetup(server.backend.call, overrides: _today);
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
-    expect(find.textContaining('방문을 찾을 수 없습니다'), findsOneWidget);
+    expect(find.textContaining('서버에 잠시 문제가 있어요'), findsOneWidget);
     expect(find.bySemanticsLabel(AppStrings.back), findsOneWidget);
 
     fail = false;
     await _tap(tester, _button(AppStrings.retry));
 
     expect(find.text('두부'), findsOneWidget);
+  });
+
+  testWidgets('지워진 방문(404)이면 [다시 시도] 대신 [돌아가기]로 앞 화면에 돌아간다', (tester) async {
+    final server = _Server();
+    server.backend.routes['GET /v1/shops/3/visits/101'] = (o, b) =>
+        const FakeResponse(
+          statusCode: 404,
+          data: {'code': 'VISIT_NOT_FOUND', 'message': 'x'},
+        );
+    final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+    expect(find.text('방문을 찾을 수 없어요. 이미 지워졌을 수 있어요.'), findsOneWidget);
+    expect(_button(AppStrings.retry), findsNothing);
+
+    await _tap(tester, _button(AppStrings.goBack));
+
+    expect(find.byKey(ScreenKeys.visitDetail), findsNothing);
+  });
+
+  testWidgets('당겨서 새로고침하면 다시 읽고, 실패하면 내용은 두고 위에 띠를 보인다', (tester) async {
+    var fail = false;
+    var reads = 0;
+    final server = _Server();
+    final ok = server.backend.routes['GET /v1/shops/3/visits/101']!;
+    server.backend.routes['GET /v1/shops/3/visits/101'] = (o, b) {
+      reads++;
+      return fail ? const FakeResponse(statusCode: 503, data: 'x') : ok(o, b);
+    };
+    final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    fail = true;
+    // '두부'는 오버레이 이름 카드(IgnorePointer) 안이라 히트테스트 경고가 난다 — 카드 밖 글자를 당긴다.
+    await tester.fling(find.text(AppStrings.menuLabel), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(reads, 2);
+    expect(find.text('두부'), findsOneWidget);
+    expect(
+      find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('방문 상세 골든', (tester) async {
@@ -686,7 +726,7 @@ void main() {
 
       await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
 
-      expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있습니다.'), findsOneWidget);
+      expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
       expect(_button(AppStrings.takePhoto), findsNothing);
       expect(app.queue.added, isEmpty);
     });

@@ -1,3 +1,6 @@
+import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:chagocnote/core/error/error_messages.dart';
+import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/design/app_theme.dart';
 import 'package:chagocnote/design/bridge/glass_surface.dart';
 import 'package:chagocnote/features/auth/screens/splash_screen.dart';
@@ -7,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/fake_session_gateway.dart';
+import '../../../support/upload_fakes.dart';
 
 Widget _appWith(ProviderContainer container) {
   return UncontrolledProviderScope(
@@ -33,13 +37,39 @@ void main() {
     await tester.pumpWidget(_appWith(container));
     await tester.pumpAndSettle();
 
-    expect(find.text('문제가 생겼습니다. 잠시 뒤에 다시 시도해 주세요.'), findsOneWidget);
+    expect(find.text('문제가 생겼어요. 잠시 뒤에 다시 시도해 주세요.'), findsOneWidget);
     expect(gateway.restoreCallCount, 1);
 
     gateway.restoreError = null;
     await tester.tap(find.text('다시 시도'));
     // 재시도 뒤 상태는 로딩(스피너)으로 끝없이 애니메이션되므로
     // pumpAndSettle 대신 고정 프레임만 진행한다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(gateway.restoreCallCount, 2);
+  });
+
+  testWidgets('인터넷 없이 켜면 인터넷 문구를 보이고, 인터넷이 돌아오면 스스로 다시 복원한다', (tester) async {
+    final gateway = FakeSessionGateway()
+      ..restoreError = ApiException.network('연결 실패');
+    final network = FakeNetworkWatcher();
+    final container = ProviderContainer.test(
+      retry: (retryCount, error) => null,
+      overrides: [
+        sessionGatewayProvider.overrideWithValue(gateway),
+        networkWatcherProvider.overrideWithValue(network),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    expect(find.text(offlineLoadMessage), findsOneWidget);
+    expect(find.text('다시 시도'), findsOneWidget);
+
+    gateway.restoreError = null;
+    network.restore();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 

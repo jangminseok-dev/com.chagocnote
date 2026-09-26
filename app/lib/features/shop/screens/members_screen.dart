@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/clipboard.dart';
 import '../../../core/router/screen_keys.dart';
@@ -11,7 +12,6 @@ import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
@@ -212,8 +212,11 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                   child: Text(_errorText!, style: AppTypography.caption),
                 ),
               Expanded(
-                child: members.when(
-                  data: (list) => ListView.builder(
+                child: AsyncBody<List<ShopMember>>(
+                  value: members,
+                  onRetry: () =>
+                      ref.invalidate(membersControllerProvider(shopId!)),
+                  builder: (list) => ListView.builder(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     itemCount: list.length,
                     itemBuilder: (context, index) {
@@ -264,13 +267,6 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                         ),
                       );
                     },
-                  ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () =>
-                        ref.invalidate(membersControllerProvider(shopId!)),
                   ),
                 ),
               ),

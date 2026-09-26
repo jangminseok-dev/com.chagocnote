@@ -493,4 +493,64 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('기록 자리 11'), findsOneWidget);
   });
+
+  testWidgets('당겨서 새로고침하면 상세와 보호자를 다시 읽고 [기록] 탭도 다시 읽게 한다', (tester) async {
+    final refreshed = <int>[];
+    final setup = CustomerTestSetup((options, body) {
+      switch ('${options.method} ${options.path}') {
+        case 'GET /v1/shops/3/pets/11':
+          return FakeResponse(statusCode: 200, data: petDetailJson());
+        case 'GET /v1/shops/3/customers/7':
+          return FakeResponse(statusCode: 200, data: customerDetailJson());
+      }
+      fail('예상하지 못한 요청: ${options.method} ${options.path}');
+    }, overrides: [
+      petRecordsRefreshPlugProvider.overrideWithValue(refreshed.add),
+    ]);
+    addTearDown(setup.container.dispose);
+    await _openPet(tester, setup, 11);
+    await tester.tap(find.text(AppStrings.petTabOwner));
+    await tester.pumpAndSettle();
+
+    await tester.fling(find.text('콩이'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(
+      setup.calls.where((c) => c == 'GET /v1/shops/3/pets/11'),
+      hasLength(2),
+    );
+    expect(
+      setup.calls.where((c) => c == 'GET /v1/shops/3/customers/7'),
+      hasLength(2),
+    );
+    expect(refreshed, [11]);
+  });
+
+  testWidgets('보호자 탭을 불러오지 못하면 탭 안에서 원인 문구와 [다시 시도]', (tester) async {
+    var failOwner = true;
+    final setup = CustomerTestSetup((options, body) {
+      switch ('${options.method} ${options.path}') {
+        case 'GET /v1/shops/3/pets/11':
+          return FakeResponse(statusCode: 200, data: petDetailJson());
+        case 'GET /v1/shops/3/customers/7':
+          return failOwner
+              ? const FakeResponse(statusCode: 503, data: 'x')
+              : FakeResponse(statusCode: 200, data: customerDetailJson());
+      }
+      fail('예상하지 못한 요청: ${options.method} ${options.path}');
+    });
+    addTearDown(setup.container.dispose);
+    await _openPet(tester, setup, 11);
+    await tester.tap(find.text(AppStrings.petTabOwner));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'),
+      findsOneWidget,
+    );
+
+    failOwner = false;
+    await tester.tap(_button(AppStrings.retry));
+    await tester.pumpAndSettle();
+    expect(find.text('010-1234-5678'), findsOneWidget);
+  });
 }

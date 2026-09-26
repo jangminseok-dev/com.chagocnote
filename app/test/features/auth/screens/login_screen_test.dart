@@ -145,7 +145,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.'), findsOneWidget);
+    expect(find.text('로그인 정보를 확인하지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
     expect(find.text(AppStrings.continueWithKakao), findsOneWidget);
   });
 

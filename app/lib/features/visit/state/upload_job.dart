@@ -28,6 +28,7 @@ class UploadJob {
     this.progress = 0,
     this.failures = 0,
     this.running = false,
+    this.stoppedCode,
   });
 
   /// 폴더는 업로드 폴더 [root] 아래 항목 ID 다 — iOS 는 앱 폴더의 절대 경로가 실행마다 바뀔 수 있어
@@ -44,6 +45,8 @@ class UploadJob {
         width: json['width'] as int,
         height: json['height'] as int,
         mediaId: json['media_id'] as int?,
+        // 이 칸이 생기기 전에 저장된 항목에는 없다 — 멈추지 않은 것으로 읽는다.
+        stoppedCode: json['stopped_code'] as String?,
       );
 
   final String id;
@@ -61,6 +64,13 @@ class UploadJob {
   final int height;
   final int? mediaId;
 
+  /// 다시 해도 안 되는 실패로 멈췄으면 그 오류 코드(예: `MEDIA_LIMIT_EXCEEDED`). 멈춘 항목은 스스로 다시
+  /// 하지 않고, 사용자가 [다시 시도]하거나 [올리기 취소]할 때까지 파일과 함께 남는다(오류 화면 다듬기
+  /// 설계 4절). 기기에 남긴다.
+  final String? stoppedCode;
+
+  bool get stopped => stoppedCode != null;
+
   // 아래 셋은 기기에 남기지 않는다(다시 켜면 처음부터 센다).
 
   /// 올리기 진행률 0~1.
@@ -72,8 +82,8 @@ class UploadJob {
   /// 지금 올리는 중.
   final bool running;
 
-  /// 실패한 뒤 다시 시도를 기다리는 중 — 타일은 "대기 중"과 [빼기]만 보인다.
-  bool get waiting => failures > 0 && !running;
+  /// 실패한 뒤 다시 시도를 기다리는 중 — 타일은 "대기 중"과 [올리기 취소]만 보인다.
+  bool get waiting => failures > 0 && !running && !stopped;
 
   String? get originalPath => dir == null ? null : '$dir/original.jpg';
   String? get displayPath => dir == null ? null : '$dir/display.jpg';
@@ -88,6 +98,7 @@ class UploadJob {
     double? progress,
     int? failures,
     bool? running,
+    String? Function()? stoppedCode,
   }) => UploadJob(
     id: id,
     userId: userId,
@@ -102,6 +113,7 @@ class UploadJob {
     progress: progress ?? this.progress,
     failures: failures ?? this.failures,
     running: running ?? this.running,
+    stoppedCode: stoppedCode == null ? this.stoppedCode : stoppedCode(),
   );
 
   Map<String, dynamic> toJson() => {
@@ -114,5 +126,6 @@ class UploadJob {
     'width': width,
     'height': height,
     'media_id': mediaId,
+    'stopped_code': stoppedCode,
   };
 }

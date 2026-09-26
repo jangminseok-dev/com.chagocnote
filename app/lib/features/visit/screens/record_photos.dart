@@ -16,6 +16,7 @@ import '../../../design/widgets/app_photo_tile.dart';
 import '../../../design/widgets/app_progress_ring.dart';
 import '../../../design/widgets/app_segment.dart';
 import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_sheet_action.dart';
 import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
@@ -98,6 +99,7 @@ class RecordPhotoStrip extends ConsumerWidget {
                 job: job,
                 onRemove: () =>
                     ref.read(uploadQueueProvider.notifier).remove(job.id),
+                onStopped: () => _openStopped(context, ref, job),
               ),
             ),
         ],
@@ -206,38 +208,106 @@ class _MediaTile extends StatelessWidget {
   }
 }
 
-/// 대기열의 사진 — 기기에 있는 썸네일 위에 진행 링. 실패해 기다리는 중이면 "대기 중"과 [빼기]만.
+/// 대기열의 사진 — 기기에 있는 썸네일 위에 진행 링. 실패해 기다리는 중이면 "대기 중"과 [올리기 취소]만.
+/// 다시 해도 안 되는 실패로 멈췄으면 느낌표 — 누르면 이유와 [다시 시도]·[올리기 취소](오류 화면 다듬기
+/// 설계 4절).
 class _UploadTile extends StatelessWidget {
-  const _UploadTile({required this.job, required this.onRemove});
+  const _UploadTile({
+    required this.job,
+    required this.onRemove,
+    required this.onStopped,
+  });
 
   final UploadJob job;
   final VoidCallback onRemove;
+  final VoidCallback onStopped;
 
   @override
   Widget build(BuildContext context) {
     final thumb = job.thumbPath;
+    final tile = Stack(
+      alignment: Alignment.center,
+      children: [
+        AppPhotoTile(
+          image: thumb == null ? null : FileImage(File(thumb)),
+          size: _tileSize,
+        ),
+        if (job.stopped)
+          const _StoppedBadge()
+        else if (job.waiting)
+          const _Pill(AppStrings.uploadWaiting)
+        else
+          AppProgressRing(
+            value: job.stage == UploadStage.preparing || !job.running
+                ? null
+                : job.progress,
+          ),
+        _RemoveButton(label: AppStrings.removeUpload, onTap: onRemove),
+      ],
+    );
+    if (job.stopped) {
+      return Pressable(
+        semanticLabel: AppStrings.uploadStopped,
+        onTap: onStopped,
+        child: tile,
+      );
+    }
     return Semantics(
       label: job.waiting ? AppStrings.uploadWaiting : AppStrings.uploading,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          AppPhotoTile(
-            image: thumb == null ? null : FileImage(File(thumb)),
-            size: _tileSize,
-          ),
-          if (job.waiting)
-            const _Pill(AppStrings.uploadWaiting)
-          else
-            AppProgressRing(
-              value: job.stage == UploadStage.preparing || !job.running
-                  ? null
-                  : job.progress,
-            ),
-          _RemoveButton(label: AppStrings.removeUpload, onTap: onRemove),
-        ],
-      ),
+      child: tile,
     );
   }
+}
+
+class _StoppedBadge extends StatelessWidget {
+  const _StoppedBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 28,
+    height: 28,
+    decoration: const BoxDecoration(
+      color: AppColors.white,
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(Icons.priority_high, size: 18, color: AppColors.ink),
+  );
+}
+
+/// 멈춘 사진의 시트 — 이유 한 줄과 [다시 시도]·[올리기 취소].
+Future<void> _openStopped(
+  BuildContext context,
+  WidgetRef ref,
+  UploadJob job,
+) async {
+  final retry = await AppSheet.show<bool>(
+    context,
+    builder: (context) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          messageFor(
+            ApiException(statusCode: null, code: job.stoppedCode!, message: ''),
+          ),
+          style: AppTypography.body,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        AppSheetAction(
+          label: AppStrings.retry,
+          onTap: () => Navigator.of(context).pop(true),
+        ),
+        AppSheetAction(
+          label: AppStrings.removeUpload,
+          onTap: () => Navigator.of(context).pop(false),
+        ),
+      ],
+    ),
+  );
+  if (retry == null) return;
+  if (!context.mounted) return;
+  final queue = ref.read(uploadQueueProvider.notifier);
+  await (retry ? queue.retry(job.id) : queue.remove(job.id));
 }
 
 enum _Source { camera, album }

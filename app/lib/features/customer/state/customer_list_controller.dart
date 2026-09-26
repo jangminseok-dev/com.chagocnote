@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/error_kind.dart';
+import '../../../core/proxy/network_watcher.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/customer_api.dart';
 import '../api/customer_models.dart';
@@ -50,6 +54,15 @@ class CustomerListController extends AsyncNotifier<CustomerListState> {
   /// 다시 불러와도 컨트롤러 인스턴스는 그대로라 `ref.mounted`만으로는 모른다.
   int _generation = 0;
 
+  /// 다음 페이지가 인터넷 없음으로 실패한 동안만 복귀 신호를 듣는다 — 돌아오면 한 번 다시 부른다
+  /// (오류 화면 다듬기 설계 3절).
+  StreamSubscription<void>? _restored;
+
+  void _stopWatchingNetwork() {
+    _restored?.cancel();
+    _restored = null;
+  }
+
   Future<CustomerPage> _fetch(String? cursor) => _api.list(
     query.shopId,
     q: query.q,
@@ -61,6 +74,7 @@ class CustomerListController extends AsyncNotifier<CustomerListState> {
   @override
   Future<CustomerListState> build() async {
     _generation++;
+    ref.onDispose(_stopWatchingNetwork);
     final page = await runShopScoped(ref, () => _fetch(null));
     return CustomerListState(
       items: page.items,
@@ -90,6 +104,8 @@ class CustomerListController extends AsyncNotifier<CustomerListState> {
       ),
     );
     try {
+      // 다시 부르는 순간 앞선 복귀 구독을 거둔다 — 성공하거나 인터넷 없음이 아닌 실패 뒤에는 듣지 않는다.
+      _stopWatchingNetwork();
       final page = await runShopScoped(ref, () => _fetch(current.nextCursor));
       // 그사이 다시 불러왔으면(쓰기 뒤 invalidate) 옛 목록에 이어 붙이지 않는다.
       if (stale()) return;
@@ -102,6 +118,12 @@ class CustomerListController extends AsyncNotifier<CustomerListState> {
       );
     } catch (e) {
       if (stale()) return;
+      if (kindOf(e) == ErrorKind.offline) {
+        _restored ??= ref.read(networkWatcherProvider).restored.listen((_) {
+          _stopWatchingNetwork();
+          loadMore();
+        });
+      }
       state = AsyncData(
         CustomerListState(
           items: current.items,
