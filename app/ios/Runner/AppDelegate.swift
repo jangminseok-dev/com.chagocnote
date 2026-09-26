@@ -13,6 +13,7 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     SharedTextPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "SharedTextPlugin")!)
+    VideoTranscoderPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "VideoTranscoderPlugin")!)
   }
 }
 
