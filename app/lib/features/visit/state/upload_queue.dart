@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/error/api_exception.dart';
+import '../../../core/error/error_kind.dart';
 import '../../../core/proxy/app_dirs.dart';
 import '../../../core/proxy/network_watcher.dart';
 import '../../../core/proxy/photo_renditions.dart';
@@ -28,6 +29,19 @@ typedef RetryScheduler = Timer Function(Duration delay, void Function() run);
 final uploadRetrySchedulerProvider = Provider<RetryScheduler>(
   (ref) => Timer.new,
 );
+
+/// 다시 해도 안 되는 실패인가 — 권한·없음·업무 규칙 4xx(한도 초과·형식·크기·방문 삭제 등). 인터넷·서버
+/// 오류와 세션 만료(401)·잦은 시도(429)는 다시 해 볼 만하다(오류 화면 다듬기 설계 4절).
+bool stopsUpload(Object error) {
+  if (error is! ApiException) return false;
+  final status = error.statusCode;
+  return switch (kindOf(error)) {
+    ErrorKind.denied || ErrorKind.gone => true,
+    ErrorKind.other =>
+      status != null && status >= 400 && status < 500 && status != 401 && status != 429,
+    ErrorKind.offline || ErrorKind.server => false,
+  };
+}
 
 /// [failures]번 연달아 실패한 뒤 다시 시도까지 — 1·2·4… 초, 최대 5분(설계 10.2).
 Duration retryDelay(int failures) =>
@@ -140,7 +154,7 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
     }
   }
 
-  /// [빼기] — 올리는 중이면 취소한다. 취소는 오류가 아니라 아무 문구도 없다.
+  /// [올리기 취소] — 올리는 중이면 취소한다. 취소는 오류가 아니라 아무 문구도 없다.
   Future<void> remove(String id) async {
     final job = _find(id);
     if (job == null) return;
@@ -154,7 +168,15 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
     await _store.deleteDir(_dirOf(id));
   }
 
-  /// 기다리는 항목을 지금 다시 해 본다(인터넷이 돌아왔을 때).
+  /// 멈춘 항목을 [다시 시도] — 멈춘 이유와 실패 횟수를 지우고 처음처럼 다시 태운다.
+  Future<void> retry(String id) async {
+    if (_find(id)?.stopped != true) return;
+    _update(id, (j) => j.copyWith(failures: 0, stoppedCode: () => null));
+    await _persist();
+    unawaited(_pump());
+  }
+
+  /// 기다리는 항목을 지금 다시 해 본다(인터넷이 돌아왔을 때). 멈춘 항목은 건드리지 않는다.
   void retryNow() {
     for (final t in _timers.values) {
       t.cancel();
@@ -174,6 +196,7 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
               (j) =>
                   j.stage != UploadStage.preparing &&
                   !j.running &&
+                  !j.stopped &&
                   !_timers.containsKey(j.id),
             )
             .firstOrNull;
@@ -219,15 +242,18 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
         await remove(job.id);
         return;
       }
-      if (e is ApiException &&
-          e.code == 'MEDIA_NOT_FOUND' &&
-          _find(job.id)?.mediaId != null) {
+      if (e is ApiException && e.code == 'MEDIA_NOT_FOUND') {
         // 서버가 붙지 않은 사진을 정리했다 — 간격을 두고 로컬 파일로 발급부터 다시 한다.
-        _update(
-          job.id,
-          (j) => j.copyWith(stage: UploadStage.prepared, mediaId: () => null),
-        );
-        await _persist();
+        if (_find(job.id)?.mediaId != null) {
+          _update(
+            job.id,
+            (j) => j.copyWith(stage: UploadStage.prepared, mediaId: () => null),
+          );
+          await _persist();
+        }
+      } else if (stopsUpload(e)) {
+        await _stop(job.id, (e as ApiException).code);
+        return;
       }
       _fail(job.id);
     }
@@ -298,6 +324,15 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
     ref.invalidate(customerDetailProvider);
     // 프로필 사진은 가장 최근 완료 기록의 대표 사진이다.
     ref.invalidate(petDetailProvider);
+  }
+
+  /// 다시 해도 안 되는 실패 — 스스로 다시 하지 않고 이유를 남긴다. 파일은 그대로 둔다.
+  Future<void> _stop(String id, String code) async {
+    _update(
+      id,
+      (j) => j.copyWith(running: false, progress: 0, stoppedCode: () => code),
+    );
+    await _persist();
   }
 
   void _fail(String id) {

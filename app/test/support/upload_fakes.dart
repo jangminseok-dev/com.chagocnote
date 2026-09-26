@@ -121,9 +121,13 @@ class FakeUploadQueue extends UploadQueue {
   final List<UploadJob> initial;
   final added = <({int visitId, MediaPhase phase, List<String> sources})>[];
   final removed = <String>[];
+  final retried = <String>[];
 
   @override
   Future<List<UploadJob>> build() async => initial;
+
+  @override
+  Future<void> retry(String id) async => retried.add(id);
 
   @override
   Future<void> addPhotos({

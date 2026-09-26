@@ -383,6 +383,7 @@ class AppStrings {
   static const addPhotoPhaseLabel = '어느 사진인가요?';
   static const uploading = '올리는 중';
   static const uploadWaiting = '대기 중';
+  static const uploadStopped = '올리지 못한 사진';
   static const removeUpload = '올리기 취소';
   static const removePhoto = '사진 빼기';
   static const recordMenusLabel = '메뉴 · 금액';

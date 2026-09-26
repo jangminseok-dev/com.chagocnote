@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/core/proxy/app_dirs.dart';
 import 'package:chagocnote/core/proxy/photo_renditions.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
@@ -161,6 +162,7 @@ UploadJob _saved(
   UploadStage stage = UploadStage.prepared,
   int? mediaId,
   int userId = 1,
+  String? stoppedCode,
 }) => UploadJob(
   id: id,
   userId: userId,
@@ -171,6 +173,7 @@ UploadJob _saved(
   width: 3000,
   height: 2000,
   mediaId: mediaId,
+  stoppedCode: stoppedCode,
 );
 
 void main() {
@@ -378,6 +381,84 @@ void main() {
       env.calls.where((c) => c == 'POST /v1/shops/3/media/uploads'),
       hasLength(4),
     );
+  });
+
+  test('다시 해도 안 되는 실패는 권한·없음·업무 4xx 다 — 인터넷·서버·세션 만료·잦은 시도는 다시 해 본다', () {
+    ApiException error(int status, String code) =>
+        ApiException(statusCode: status, code: code, message: 'x');
+    expect(stopsUpload(error(422, 'MEDIA_LIMIT_EXCEEDED')), isTrue);
+    expect(stopsUpload(error(409, 'MEDIA_ALREADY_ATTACHED')), isTrue);
+    expect(stopsUpload(error(403, 'PERMISSION_DENIED')), isTrue);
+    expect(stopsUpload(error(404, 'VISIT_NOT_FOUND')), isTrue);
+    expect(stopsUpload(ApiException.network('끊김')), isFalse);
+    expect(stopsUpload(error(503, 'HTTP_ERROR')), isFalse);
+    expect(stopsUpload(error(401, 'UNAUTHENTICATED')), isFalse);
+    expect(stopsUpload(error(429, 'TOO_MANY_ATTEMPTS')), isFalse);
+    expect(stopsUpload(StateError('x')), isFalse);
+  });
+
+  test('다시 해도 안 되는 실패면 멈추고 이유를 기기에 남긴다 — 스스로도, 인터넷이 돌아와도 다시 하지 않고 파일은 남는다', () async {
+    final env = env0();
+    var full = true;
+    env.apiFailure = (call) => full && call == 'POST /v1/shops/3/media/uploads'
+        ? const FakeResponse(
+            statusCode: 422,
+            data: {'code': 'MEDIA_LIMIT_EXCEEDED', 'message': 'x'},
+          )
+        : null;
+    await env.open();
+
+    await env.queue.addPhotos(
+      shopId: 3,
+      visitId: 101,
+      phase: MediaPhase.before,
+      sources: ['/picked/a.jpg'],
+    );
+    await _until(() => env.jobs.single.stopped);
+
+    final job = env.jobs.single;
+    expect(job.stoppedCode, 'MEDIA_LIMIT_EXCEEDED');
+    expect(job.waiting, isFalse);
+    expect(env.retries.delays, isEmpty, reason: '간격 재시도를 잡지 않는다');
+    expect(env.savedJson.single['stopped_code'], 'MEDIA_LIMIT_EXCEEDED');
+    expect(env.folders, [job.id]);
+
+    env.network.restore();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(
+      env.calls.where((c) => c == 'POST /v1/shops/3/media/uploads'),
+      hasLength(1),
+    );
+
+    // 사용자가 다른 사진을 지워 자리를 낸 뒤 [다시 시도].
+    full = false;
+    await env.queue.retry(job.id);
+    await _until(() => env.drained);
+  });
+
+  test('멈춘 항목은 앱을 다시 켜도 멈춰 있고, 멈춤 칸이 없던 옛 항목은 그대로 올린다', () async {
+    final env = env0(
+      saved: [
+        _saved('j1', stoppedCode: 'VISIT_NOT_FOUND'),
+        _saved('j2'),
+      ],
+    );
+    env.apiFailure = (call) => call == 'POST /v1/shops/3/visits/101/record/media'
+        ? FakeResponse(statusCode: 200, data: recordJson())
+        : null;
+    // 옛 항목 j2 는 stopped_code 없이 저장돼 있었다.
+    final saved = env.savedJson;
+    expect(saved.last.containsKey('stopped_code'), isTrue);
+    File('${root.path}/queue.json').writeAsStringSync(
+      jsonEncode([saved.first, {...saved.last}..remove('stopped_code')]),
+    );
+
+    await env.open();
+    await _until(() => env.jobs.length == 1);
+
+    expect(env.jobs.single.id, 'j1');
+    expect(env.jobs.single.stoppedCode, 'VISIT_NOT_FOUND');
+    expect(env.folders, ['j1']);
   });
 
   test('서명 URL 이 만료돼 저장소가 거절하면 다음 시도는 발급부터 다시 한다', () async {

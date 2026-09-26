@@ -152,8 +152,12 @@ Map<String, dynamic> _savedRecord() => recordJson(
   version: 3,
 );
 
-UploadJob _job(String id, {bool running = false, int failures = 0}) =>
-    UploadJob(
+UploadJob _job(
+  String id, {
+  bool running = false,
+  int failures = 0,
+  String? stoppedCode,
+}) => UploadJob(
       id: id,
       userId: 1,
       shopId: 3,
@@ -163,6 +167,7 @@ UploadJob _job(String id, {bool running = false, int failures = 0}) =>
       progress: 0.5,
       running: running,
       failures: failures,
+      stoppedCode: stoppedCode,
     );
 
 void main() {
@@ -442,6 +447,31 @@ void main() {
     await _tap(tester, find.bySemanticsLabel(AppStrings.removeUpload).last);
 
     expect(app.queue.removed, ['j2']);
+  });
+
+  testWidgets('멈춘 사진은 느낌표이고, 누르면 이유와 [다시 시도]·[올리기 취소]를 보인다', (tester) async {
+    final server = _Server();
+    final (app, _) = await _open(
+      tester,
+      server,
+      uploads: [
+        _job('j1', stoppedCode: 'MEDIA_LIMIT_EXCEEDED'),
+        _job('j2', stoppedCode: 'VISIT_NOT_FOUND'),
+      ],
+    );
+    expect(find.byIcon(Icons.priority_high), findsNWidgets(2));
+    expect(find.text(AppStrings.uploadWaiting), findsNothing);
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.uploadStopped).first);
+    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
+    await _tap(tester, find.text(AppStrings.retry));
+    expect(app.queue.retried, ['j1']);
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.uploadStopped).last);
+    expect(find.text('방문을 찾을 수 없어요. 이미 지워졌을 수 있어요.'), findsOneWidget);
+    await _tap(tester, find.text(AppStrings.removeUpload).last);
+    expect(app.queue.removed, ['j2']);
+    expect(app.queue.retried, ['j1']);
   });
 
   testWidgets(
