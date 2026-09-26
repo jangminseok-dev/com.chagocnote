@@ -86,7 +86,7 @@ abstract class SpeechRecognizer {
 
 - API 31+ 만 지원: `SpeechRecognizer.isOnDeviceRecognitionAvailable(context)` 가 참이어야 하고 `createOnDeviceSpeechRecognizer(context)` 로 만든다(온디바이스 보장). API 33+ 는 `checkRecognitionSupport(intent)` 로 `ko-KR` 이 `supportedOnDeviceLanguages` 에 있는지 본다(`installedOnDeviceLanguages` 에 없고 다운로드 가능이면 `locale` 미지원으로 안내 — 모델 내려받기 유도는 하지 않는다). 31~32 는 시작 뒤 `ERROR_LANGUAGE_NOT_SUPPORTED`/`ERROR_LANGUAGE_UNAVAILABLE` 로 `unsupported`. 30 이하는 `device`.
 - `requestPermission`: `RECORD_AUDIO` 런타임 권한(Activity 의 `requestPermissions` 결과를 채널로).
-- `start`: `RecognizerIntent.ACTION_RECOGNIZE_SPEECH`, `EXTRA_LANGUAGE ko-KR`, `EXTRA_PARTIAL_RESULTS true`, `EXTRA_LANGUAGE_MODEL LANGUAGE_MODEL_FREE_FORM`. `RecognitionListener`: `onPartialResults` → `partial`, `onResults` → `final` + `ended`, `onError` 매핑(`NO_MATCH`·`SPEECH_TIMEOUT` → `noSpeech`, `INSUFFICIENT_PERMISSIONS` → `denied`, 언어 오류 → `unsupported`, 그 밖 → `failed`) 뒤 `ended`.
+- `start`: `RecognizerIntent.ACTION_RECOGNIZE_SPEECH`, `EXTRA_LANGUAGE ko-KR`, `EXTRA_PARTIAL_RESULTS true`, `EXTRA_LANGUAGE_MODEL LANGUAGE_MODEL_FREE_FORM`. `RecognitionListener`: `onPartialResults` → `partial`, `onResults` → `final` + `ended`, `onError` 매핑(`NO_MATCH` → `noSpeech`, `INSUFFICIENT_PERMISSIONS` → `denied`, 언어 오류 → `unsupported`, 그 밖 → `failed`) 뒤 `ended`. `SPEECH_TIMEOUT` 은 오류가 아니라 `ended` 만 보낸다 — 몇 초 침묵마다 오고 무음 10초는 Dart 가 잰다(2026-09-27 최종 검토에서 정정).
 - `stop`: `stopListening()`. `cancel`: `cancel()`. `openSettings`: `ACTION_APPLICATION_DETAILS_SETTINGS`.
 - 메인 스레드에서 만들고 부른다. `RECORD_AUDIO` 는 이미 있다.
 
