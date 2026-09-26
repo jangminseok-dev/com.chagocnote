@@ -43,3 +43,10 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // 영상 압축(④-3a) — Media3 Transformer 로 H.264·AAC·1080p·앞 60초. 세 모듈은 같은 버전으로 맞춘다.
+    implementation("androidx.media3:media3-transformer:1.11.1")
+    implementation("androidx.media3:media3-effect:1.11.1")
+    implementation("androidx.media3:media3-common:1.11.1")
+}
