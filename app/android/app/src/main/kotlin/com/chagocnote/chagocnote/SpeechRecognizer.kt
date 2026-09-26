@@ -137,6 +137,11 @@ class SpeechRecognizerChannel(
             result.success("granted")
             return
         }
+        // 창이 이미 떠 있다 — 다시 띄우면 Android 가 빈 결과로 곧바로 답해 앞 요청의 답을 잃는다. 현재 상태로 답한다.
+        if (permissionResult != null) {
+            result.success("denied")
+            return
+        }
         permissionResult = result
         activity.requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), PERMISSION_REQUEST_CODE)
     }
@@ -146,8 +151,8 @@ class SpeechRecognizerChannel(
         if (requestCode != PERMISSION_REQUEST_CODE) return
         val result = permissionResult ?: return
         permissionResult = null
-        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
-        result.success(if (granted) "granted" else "denied")
+        // 창이 중단되면 결과 배열이 비어 온다 — 배열 대신 현재 권한 상태로 답한다.
+        result.success(if (permitted()) "granted" else "denied")
     }
 
     /** 지금 마이크 권한이 허용인가 — 시작 전과 오류를 읽을 때 쓴다. */
