@@ -11,13 +11,17 @@ class ApiException implements Exception {
     required this.code,
     required this.message,
     this.sessionEnded = false,
+    this.timedOut = false,
   });
 
   /// 네트워크 오류(연결 실패, 타임아웃)를 나타내는 [ApiException]을 만든다.
-  factory ApiException.network(String message) => ApiException(
+  /// 타임아웃이면 [timedOut]을 켠다 — 코드는 둘 다 `NETWORK`다(백엔드에 닿지 못한 것은 같다).
+  factory ApiException.network(String message, {bool timedOut = false}) =>
+      ApiException(
         statusCode: null,
         code: 'NETWORK',
         message: message,
+        timedOut: timedOut,
       );
 
   /// [DioException]으로부터 [ApiException]을 만든다.
@@ -27,7 +31,10 @@ class ApiException implements Exception {
       return ApiException(statusCode: null, code: 'CANCELLED', message: '취소했습니다.');
     }
     if (_isNetworkType(error.type)) {
-      return ApiException.network(error.message ?? '네트워크 오류가 발생했습니다.');
+      return ApiException.network(
+        error.message ?? '네트워크 오류가 발생했습니다.',
+        timedOut: _isTimeoutType(error.type),
+      );
     }
 
     final response = error.response;
@@ -64,6 +71,23 @@ class ApiException implements Exception {
     );
   }
 
+  /// 연결은 됐는데 정해진 시간 안에 답이 없었다(연결·송신·수신 타임아웃).
+  static bool _isTimeoutType(DioExceptionType type) {
+    switch (type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return true;
+      case DioExceptionType.connectionError:
+      case DioExceptionType.badCertificate:
+      case DioExceptionType.badResponse:
+      case DioExceptionType.cancel:
+      case DioExceptionType.unknown:
+      case DioExceptionType.transformTimeout:
+        return false;
+    }
+  }
+
   static bool _isNetworkType(DioExceptionType type) {
     switch (type) {
       case DioExceptionType.connectionTimeout:
@@ -88,6 +112,10 @@ class ApiException implements Exception {
   /// 세션을 끝냈으면 true. 그때의 401 은 "요청이 이미 처리됐다"가 아니라
   /// "세션이 만료됐다"는 뜻이다 — 예를 들어 탈퇴는 이 401 을 완료로 보지 않는다.
   final bool sessionEnded;
+
+  /// 네트워크 오류 가운데 시간 초과인 것. 연결은 있으니 화면은 서버 문구와 [다시 시도]를 주고
+  /// 인터넷 복귀를 기다리지 않는다(`kindOf`). 토큰 갱신·대기열은 [isNetwork]만 본다.
+  final bool timedOut;
 
   bool get isNetwork => code == 'NETWORK';
 

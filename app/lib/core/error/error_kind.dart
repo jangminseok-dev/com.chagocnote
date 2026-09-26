@@ -2,10 +2,11 @@ import 'api_exception.dart';
 
 /// 오류의 원인 — 문구와 화면이 보일 행동(다시 시도·돌아가기·스스로 잇기)을 정한다(오류 화면 다듬기 설계 2절).
 enum ErrorKind {
-  /// 인터넷이 없거나 서버에 닿지 못했다. 인터넷이 돌아오면 스스로 다시 한다.
+  /// 인터넷이 없거나 서버에 닿지 못했다(연결 실패). 인터넷이 돌아오면 스스로 다시 한다.
   offline,
 
-  /// 서버가 5xx 이거나 형식을 모르는 응답을 줬다(게이트웨이 502·503 등).
+  /// 서버가 5xx 이거나 형식을 모르는 응답을 줬다(게이트웨이 502·503 등), 또는 연결은 됐는데
+  /// 시간 안에 답이 없었다(시간 초과 — 연결이 바뀔 일이 없으니 [다시 시도]를 준다).
   server,
 
   /// 403 — 다시 해도 같다.
@@ -21,10 +22,12 @@ enum ErrorKind {
   bool get retryable => this != denied && this != gone;
 }
 
-/// [error]의 원인. 기준은 `ApiException`의 코드와 상태 번호뿐이다.
+/// [error]의 원인. 기준은 `ApiException`의 코드와 상태 번호, 그리고 시간 초과 표시뿐이다.
 ErrorKind kindOf(Object error) {
   if (error is! ApiException) return ErrorKind.other;
-  if (error.isNetwork) return ErrorKind.offline;
+  if (error.isNetwork) {
+    return error.timedOut ? ErrorKind.server : ErrorKind.offline;
+  }
   final status = error.statusCode;
   if ((status != null && status >= 500) || error.code == 'HTTP_ERROR') {
     return ErrorKind.server;

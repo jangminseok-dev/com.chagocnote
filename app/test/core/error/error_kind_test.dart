@@ -6,8 +6,15 @@ ApiException _error(String code, int? status) =>
     ApiException(statusCode: status, code: code, message: '서버 문구');
 
 void main() {
-  test('인터넷 없음·시간 초과는 offline 이다', () {
-    expect(kindOf(ApiException.network('timeout')), ErrorKind.offline);
+  test('연결 실패(인터넷 없음)는 offline 이다', () {
+    expect(kindOf(ApiException.network('연결 실패')), ErrorKind.offline);
+  });
+
+  test('시간 초과는 server 다 — 연결은 있는데 서버가 답하지 않은 것이라 [다시 시도]를 준다', () {
+    expect(
+      kindOf(ApiException.network('timeout', timedOut: true)),
+      ErrorKind.server,
+    );
   });
 
   test('5xx 와 형식을 모르는 응답은 server 다', () {
