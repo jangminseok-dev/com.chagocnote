@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/api_exception.dart';
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
 import '../../../core/proxy/photo_album.dart';
@@ -13,7 +14,6 @@ import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
@@ -211,21 +211,19 @@ class _PhotoViewerScreenState extends ConsumerState<PhotoViewerScreen> {
                 ),
               ),
               Expanded(
-                child: detail.hasError && data == null
-                    ? AppErrorRetry(
-                        message: messageFor(detail.error!),
-                        onRetry: () =>
-                            ref.invalidate(visitDetailProvider(_key)),
-                      )
-                    : pages == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : PageView.builder(
-                        controller: pages,
-                        itemCount: gallery.length,
-                        onPageChanged: (i) =>
-                            setState(() => _mediaId = gallery[i].mediaId),
-                        itemBuilder: (context, i) => _Page(media: gallery[i]),
-                      ),
+                child: AsyncBody<VisitDetail>(
+                  value: detail,
+                  onRetry: () => ref.invalidate(visitDetailProvider(_key)),
+                  builder: (_) => pages == null
+                      ? const Center(child: CircularProgressIndicator())
+                      : PageView.builder(
+                          controller: pages,
+                          itemCount: gallery.length,
+                          onPageChanged: (i) =>
+                              setState(() => _mediaId = gallery[i].mediaId),
+                          itemBuilder: (context, i) => _Page(media: gallery[i]),
+                        ),
+                ),
               ),
               if (current != null)
                 _Actions(

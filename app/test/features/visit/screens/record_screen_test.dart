@@ -335,6 +335,29 @@ void main() {
     expect(closed.closed, isFalse);
   });
 
+  testWidgets('어긋나 다시 읽는데 그것마저 실패해도 쓰던 폼은 남고 문구만 보인다', (tester) async {
+    final server = _Server(record: recordJson(careNote: '메모', version: 3));
+    server.putResponses.add(
+      const FakeResponse(
+        statusCode: 409,
+        data: {'code': 'RECORD_VERSION_CONFLICT', 'message': 'x'},
+      ),
+    );
+    final ok = server.backend.routes['GET /v1/shops/3/visits/101']!;
+    server.backend.routes['GET /v1/shops/3/visits/101'] = (o, b) =>
+        server.detailReads > 0
+        ? const FakeResponse(statusCode: 503, data: 'x')
+        : ok(o, b);
+    final (_, closed) = await _open(tester, server);
+    await tester.enterText(find.widgetWithText(TextField, '메모'), '고쳐 쓴 메모');
+
+    await _tap(tester, _button(AppStrings.save));
+
+    expect(find.text('고쳐 쓴 메모'), findsOneWidget, reason: '쓰던 폼이 오류 화면으로 바뀌지 않는다');
+    expect(find.textContaining('서버에 잠시 문제가 있어요'), findsOneWidget);
+    expect(closed.closed, isFalse);
+  });
+
   testWidgets('나중에 적고 완료는 기록을 보내지 않고 완료만 한다', (tester) async {
     final server = _Server();
     final (_, closed) = await _open(tester, server, completing: true);

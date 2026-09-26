@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/error/async_body.dart';
 import '../../../../core/error/error_messages.dart';
 import '../../../../core/router/screen_keys.dart';
 import '../../../../design/app_theme.dart';
@@ -12,7 +13,6 @@ import '../../../../design/widgets/app_back_button.dart';
 import '../../../../design/widgets/app_button.dart';
 import '../../../../design/widgets/app_card.dart';
 import '../../../../design/widgets/app_choice_chip.dart';
-import '../../../../design/widgets/app_error_retry.dart';
 import '../../../../design/widgets/app_sheet.dart';
 import '../../../../design/widgets/pressable.dart';
 import '../../../../l10n/app_strings.dart';
@@ -217,14 +217,10 @@ class _MenuSettingsScreenState extends ConsumerState<MenuSettingsScreen> {
                   child: Text(_errorText!, style: AppTypography.caption),
                 ),
               Expanded(
-                child: menus.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () => ref.invalidate(menusProvider(key)),
-                  ),
-                  data: (items) {
+                child: AsyncBody<List<Menu>>(
+                  value: menus,
+                  onRetry: () => ref.invalidate(menusProvider(key)),
+                  builder: (items) {
                     final sorted = [...items]
                       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
                     if (sorted.isEmpty) {

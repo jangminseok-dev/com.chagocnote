@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/error/api_exception.dart';
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/clipboard.dart';
 import '../../../core/router/screen_keys.dart';
@@ -12,7 +13,6 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_search_field.dart';
 import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
@@ -364,14 +364,11 @@ class _CustomerSearchState extends ConsumerState<_CustomerSearch> {
         ),
         const SizedBox(height: AppSpacing.sm),
         Expanded(
-          child: list.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => AppErrorRetry(
-              message: messageFor(error),
-              onRetry: () =>
-                  ref.invalidate(customerListControllerProvider(query)),
-            ),
-            data: (state) => ListView(
+          child: AsyncBody<CustomerListState>(
+            value: list,
+            onRetry: () =>
+                ref.invalidate(customerListControllerProvider(query)),
+            builder: (state) => ListView(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.lg,
                 0,
