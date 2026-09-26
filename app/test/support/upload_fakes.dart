@@ -323,6 +323,9 @@ class FakeSpeechRecognizer implements SpeechRecognizer {
   var settingsOpened = 0;
   var permissionRequests = 0;
 
+  /// start·stop·cancel 을 부른 차례.
+  final calls = <String>[];
+
   @override
   Future<SpeechAvailability> availability() async => availabilityResult;
 
@@ -336,13 +339,22 @@ class FakeSpeechRecognizer implements SpeechRecognizer {
   Stream<SpeechEvent> get events => _events.stream;
 
   @override
-  Future<void> start({String locale = 'ko-KR'}) async => starts.add(locale);
+  Future<void> start({String locale = 'ko-KR'}) async {
+    starts.add(locale);
+    calls.add('start');
+  }
 
   @override
-  Future<void> stop() async => stops++;
+  Future<void> stop() async {
+    stops++;
+    calls.add('stop');
+  }
 
   @override
-  Future<void> cancel() async => cancels++;
+  Future<void> cancel() async {
+    cancels++;
+    calls.add('cancel');
+  }
 
   @override
   Future<void> openSettings() async => settingsOpened++;

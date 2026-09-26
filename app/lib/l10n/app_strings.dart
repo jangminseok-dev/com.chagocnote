@@ -405,6 +405,14 @@ class AppStrings {
   static const completeWithoutRecord = '나중에 적고 완료';
   static const amountHint = '금액';
 
+  // 말로 기록하기(④-3b).
+  static const micLabel = '말해서 적기';
+  static const dictationUnsupported = '이 기기는 한국어 받아쓰기를 지원하지 않아요. 키보드의 🎤 를 써 보세요.';
+  static const dictationDenied = '마이크와 음성 인식 권한이 필요해요.';
+  static const dictationNoSpeech = '못 알아들었어요. 다시 말해 주세요.';
+  static const dictationFailed = '받아쓰기를 이어가지 못했어요.';
+  static const openSettings = '설정 열기';
+
   static const todayCareLabel = '오늘의 케어';
   static const editRecord = '기록 수정';
   static const writeRecord = '기록 쓰기';

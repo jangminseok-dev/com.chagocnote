@@ -11,7 +11,8 @@ import '../tokens/app_typography.dart';
 /// 그 아래 화면 위에 남는다. 확인이 필요한 일에는 시트를 쓴다 — 이것은
 /// 답을 받지 않는 알림이다.
 abstract final class AppSnackBar {
-  static void show(BuildContext context, String text) {
+  /// [action]은 알림에서 바로 할 일 하나("설정 열기").
+  static void show(BuildContext context, String text, {SnackBarAction? action}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -32,6 +33,7 @@ abstract final class AppSnackBar {
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           duration: const Duration(seconds: 3),
+          action: action,
         ),
       );
   }

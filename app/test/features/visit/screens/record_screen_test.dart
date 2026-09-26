@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/media_picker.dart';
+import 'package:chagocnote/core/proxy/speech_recognizer.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/app_mic_button.dart';
+import 'package:chagocnote/design/widgets/dictation_text_editing_controller.dart';
 import 'package:chagocnote/design/widgets/pressable.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
@@ -134,6 +137,25 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await settle(tester);
+}
+
+Finder _mic(String label) => find.byWidgetPredicate(
+  (w) => w is AppMicButton && w.semanticLabel == '$label ${AppStrings.micLabel}',
+);
+
+bool _listening(WidgetTester tester, String label) =>
+    tester.widget<AppMicButton>(_mic(label)).listening;
+
+DictationTextEditingController _controller(WidgetTester tester, String key) =>
+    tester.widget<TextField>(_field(key)).controller!
+        as DictationTextEditingController;
+
+/// 마이크를 누른다. 듣는 동안은 점이 깜빡여 settle 할 수 없다 — 몇 번만 그린다.
+Future<void> _tapMic(WidgetTester tester, String label) async {
+  await tester.ensureVisible(_mic(label));
+  await tester.tap(_mic(label));
+  await tester.pump();
+  await tester.pump();
 }
 
 Map<String, dynamic> _savedRecord() => recordJson(
@@ -704,6 +726,132 @@ void main() {
       (server.puts.single['media'] as List).map((m) => (m as Map)['media_id']),
       [51, 61],
     );
+  });
+
+  group('말로 기록하기', () {
+    testWidgets('케어 메모의 마이크를 누르면 듣기 시작하고, partial 이 커서 자리에 회색으로, final 이 굳어 들어간다', (
+      tester,
+    ) async {
+      final server = _Server(record: recordJson(careNote: '앞뒤', version: 3));
+      final (app, _) = await _open(tester, server);
+      final speech = app.setup.speech;
+      final care = _controller(tester, 'careNote');
+      care.selection = const TextSelection.collapsed(offset: 1);
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      expect(_listening(tester, AppStrings.careNoteLabel), isTrue);
+      expect(_listening(tester, AppStrings.internalNoteLabel), isFalse);
+      expect(speech.starts, ['ko-KR']);
+
+      speech.emitPartial('안녕');
+      await tester.pump();
+      expect(care.text, '앞안녕뒤');
+      expect(care.pending, const TextRange(start: 1, end: 3));
+
+      speech.emitFinal('안녕하세요');
+      await tester.pump();
+      expect(care.text, '앞안녕하세요뒤');
+      expect(care.pending, isNull);
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
+      expect(speech.stops, 1);
+      await _tap(tester, _button(AppStrings.save));
+      expect(server.puts.single['care_note'], '앞안녕하세요뒤');
+    });
+
+    testWidgets('듣는 중에 내부 메모의 마이크를 누르면 앞 것이 끝나고 뒤 것이 시작한다', (tester) async {
+      final (app, _) = await _open(tester, _Server());
+      final speech = app.setup.speech;
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      speech.emitPartial('발바닥');
+      await tester.pump();
+      await _tapMic(tester, AppStrings.internalNoteLabel);
+
+      expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
+      expect(_listening(tester, AppStrings.internalNoteLabel), isTrue);
+      // 앞 칸의 cancel 이 뒤 칸의 start 보다 먼저다 — 늦으면 뒤 칸의 네이티브 세션을 끊는다.
+      expect(speech.calls, ['start', 'cancel', 'start']);
+      expect(_text(tester, 'careNote'), '발바닥');
+      expect(_controller(tester, 'careNote').pending, isNull);
+
+      speech.emitFinal('예민함');
+      await tester.pump();
+      expect(_text(tester, 'careNote'), '발바닥');
+      expect(_text(tester, 'internalNote'), '예민함');
+      await _tapMic(tester, AppStrings.internalNoteLabel);
+    });
+
+    testWidgets('지원하지 않는 기기면 안내 스낵바가 뜨고 시작하지 않는다', (tester) async {
+      final (app, _) = await _open(tester, _Server());
+      app.setup.speech.availabilityResult = const SpeechAvailability(
+        supported: false,
+        reason: SpeechUnsupported.device,
+      );
+
+      await _tap(tester, _mic(AppStrings.careNoteLabel));
+
+      expect(find.text(AppStrings.dictationUnsupported), findsOneWidget);
+      expect(app.setup.speech.starts, isEmpty);
+      expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
+    });
+
+    testWidgets('권한을 거부하면 안내와 [설정 열기]가 뜨고 누르면 설정을 연다', (tester) async {
+      final (app, _) = await _open(tester, _Server());
+      app.setup.speech.permissionResult = SpeechPermission.denied;
+
+      await _tap(tester, _mic(AppStrings.careNoteLabel));
+
+      expect(find.text(AppStrings.dictationDenied), findsOneWidget);
+      expect(app.setup.speech.starts, isEmpty);
+      await _tap(tester, find.text(AppStrings.openSettings));
+      expect(app.setup.speech.settingsOpened, 1);
+    });
+
+    testWidgets('아무 말도 못 알아들으면 문구가 뜬다', (tester) async {
+      final (app, _) = await _open(tester, _Server());
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      app.setup.speech.emitError(SpeechErrorCode.noSpeech);
+      await settle(tester);
+
+      expect(find.text(AppStrings.dictationNoSpeech), findsOneWidget);
+      expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
+      expect(_text(tester, 'careNote'), '');
+    });
+
+    testWidgets('다른 칸을 누르면 듣기가 끝난다', (tester) async {
+      final (app, _) = await _open(tester, _Server());
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      await tester.tap(_field('internalNote'));
+      await settle(tester);
+
+      expect(app.setup.speech.cancels, 1);
+      expect(_listening(tester, AppStrings.careNoteLabel), isFalse);
+    });
+
+    testWidgets('화면을 나가면 cancel 한다', (tester) async {
+      final (app, closed) = await _open(tester, _Server());
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      await tester.binding.handlePopRoute();
+      await settle(tester);
+
+      expect(closed.closed, isTrue);
+      expect(app.setup.speech.cancels, 1);
+    });
+
+    testWidgets('포커스를 잃었다는 알림 없이 화면이 사라져도 cancel 한다', (tester) async {
+      final (app, _) = await _open(tester, _Server());
+
+      await _tapMic(tester, AppStrings.careNoteLabel);
+      // 뒤로 가기는 포커스가 먼저 떠나 칸의 리스너가 끝낸다 — 앱째 내려 dispose 만 남긴다.
+      await tester.pumpWidget(const SizedBox());
+
+      expect(app.setup.speech.cancels, 1);
+    });
   });
 
   testWidgets('기록 화면 골든', (tester) async {
