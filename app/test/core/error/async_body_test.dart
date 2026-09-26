@@ -31,7 +31,8 @@ final _listProvider = FutureProvider<List<String>>(
   (ref) => ref.read(_sourceProvider).load(),
 );
 
-final _offline = ApiException.network('timeout');
+final _offline = ApiException.network('연결 실패');
+final _timeout = ApiException.network('timeout', timedOut: true);
 final _server = ApiException(statusCode: 503, code: 'HTTP_ERROR', message: 'x');
 final _gone = ApiException(
   statusCode: 404,
@@ -182,6 +183,20 @@ void main() {
       find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'),
       findsOneWidget,
     );
+    network.restore();
+    await tester.pumpAndSettle();
+    expect(source.calls, 1);
+  });
+
+  testWidgets('시간 초과는 서버 문구와 [다시 시도] — 인터넷이 돌아와도 스스로 다시 부르지 않는다', (
+    tester,
+  ) async {
+    final (source, network) = await _pump(tester, [_timeout]);
+    expect(
+      find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'),
+      findsOneWidget,
+    );
+    expect(find.text(AppStrings.retry), findsOneWidget);
     network.restore();
     await tester.pumpAndSettle();
     expect(source.calls, 1);
