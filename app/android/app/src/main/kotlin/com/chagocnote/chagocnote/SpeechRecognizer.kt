@@ -118,10 +118,9 @@ class SpeechRecognizerChannel(
             result.success(value)
         }
         // 일부 Android 13 기기는 콜백이 오지 않는다 — 3초 뒤 지원으로 보고 31~32 처럼 `start` 의 언어 오류로 가른다.
+        // 콜백이 끝내 안 와도 checker 가 남지 않게 answer 로 치운다(두 번 destroy 는 무해).
         Handler(Looper.getMainLooper()).postDelayed({
-            if (answered) return@postDelayed
-            answered = true
-            result.success(mapOf("supported" to true))
+            if (!answered) answer(mapOf("supported" to true))
         }, CHECK_TIMEOUT_MS)
         checker.checkRecognitionSupport(
             recognizeIntent(locale),
