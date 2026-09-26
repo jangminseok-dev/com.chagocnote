@@ -22,6 +22,15 @@ class VideoPlayerPlayback extends ChangeNotifier implements VideoPlayback {
       return PlaybackState(error: _error);
     }
     final v = controller.value;
+    // 초기화가 끝난 뒤에도 오류가 올 수 있다(스트리밍 중 연결 끊김, 서명 URL 만료) — video_player 는 이때
+    // 예외를 던지지 않고 값의 errorDescription 에 둔다(pub-cache video_player.dart:686-688).
+    if (v.hasError) {
+      return PlaybackState(
+        error: playbackErrorOf(
+          PlatformException(code: 'VideoError', message: v.errorDescription),
+        ),
+      );
+    }
     return PlaybackState(
       initialized: v.isInitialized,
       playing: v.isPlaying,
@@ -50,6 +59,7 @@ class VideoPlayerPlayback extends ChangeNotifier implements VideoPlayback {
     if (old != null) {
       old.removeListener(notifyListeners);
       await old.dispose();
+      if (_disposed) return;
     }
     final controller = _controller = VideoPlayerController.networkUrl(
       Uri.parse(url),
@@ -78,6 +88,7 @@ class VideoPlayerPlayback extends ChangeNotifier implements VideoPlayback {
 
   @override
   Future<void> dispose() async {
+    if (_disposed) return; // 두 번 부를 수 있다(페이지 dispose 와 겹치는 정리) — 한 번만 실제로 정리한다.
     _disposed = true;
     final controller = _controller;
     _controller = null;

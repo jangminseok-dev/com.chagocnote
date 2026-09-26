@@ -17,6 +17,13 @@ class _FakePlatform extends VideoPlayerPlatform {
   final volumes = <double>[];
   final _events = <int, StreamController<VideoEvent>>{};
 
+  /// [dispose]가 끝나기를 늦추고 싶을 때(옛 컨트롤러를 닫는 도중을 흉내낸다).
+  Completer<void>? disposeGate;
+
+  /// 초기화가 끝난 뒤에도 흐를 수 있는 오류(스트리밍 중 연결 끊김 등)를 이미 연 플레이어에 흘린다.
+  void emitStreamError(PlatformException error) =>
+      _events[created.length]?.addError(error);
+
   @override
   Future<void> init() async {}
 
@@ -45,7 +52,11 @@ class _FakePlatform extends VideoPlayerPlatform {
   }
 
   @override
-  Future<void> dispose(int playerId) async => _events.remove(playerId)?.close();
+  Future<void> dispose(int playerId) async {
+    final gate = disposeGate;
+    if (gate != null) await gate.future;
+    await _events.remove(playerId)?.close();
+  }
 
   @override
   Future<void> setLooping(int playerId, bool looping) async {}
@@ -133,5 +144,47 @@ void main() {
     );
     await playback.open('http://media.test/v.mp4?sig=new');
     expect(playback.state.error, isA<PlatformException>());
+  });
+
+  test('초기화가 끝난 뒤 스트리밍 오류가 오면(연결 끊김 등) 원인이 상태에 실리고 initialized 는 꺼진다', () async {
+    await playback.open('http://media.test/v.mp4?sig=a');
+    expect(playback.state.initialized, isTrue);
+
+    platform.emitStreamError(
+      PlatformException(
+        code: 'VideoError',
+        message:
+            'Video player had error androidx.media3.exoplayer.ExoPlaybackException: '
+            'Source error java.net.SocketException: Network is unreachable',
+      ),
+    );
+    await pumpEventQueue();
+
+    final error = playback.state.error;
+    expect(error, isA<ApiException>());
+    expect((error! as ApiException).isNetwork, isTrue);
+    expect(playback.state.initialized, isFalse);
+  });
+
+  test('다시 여는 도중(옛 컨트롤러를 닫는 사이) dispose 되면 새 컨트롤러를 만들지 않는다', () async {
+    await playback.open('http://media.test/v.mp4?sig=a');
+    expect(platform.created, hasLength(1));
+
+    final gate = Completer<void>();
+    platform.disposeGate = gate;
+
+    final opening = playback.open('http://media.test/v.mp4?sig=b');
+    // 옛 컨트롤러의 dispose 가 platform.dispose 의 gate 에 다다를 때까지 미룬 일을 흘려보낸다.
+    await pumpEventQueue();
+
+    await playback.dispose();
+    gate.complete();
+    await opening;
+
+    expect(
+      platform.created,
+      hasLength(1),
+      reason: '옛 컨트롤러를 닫는 사이 dispose 되면 새 컨트롤러를 만들지 않는다',
+    );
   });
 }
