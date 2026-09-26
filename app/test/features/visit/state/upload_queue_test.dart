@@ -414,7 +414,9 @@ void main() {
       phase: MediaPhase.before,
       sources: ['/picked/a.jpg'],
     );
-    await _until(() => env.jobs.single.stopped);
+    await _until(
+      () => env.jobs.single.stopped && env.savedJson.single['stopped_code'] != null,
+    );
 
     final job = env.jobs.single;
     expect(job.stoppedCode, 'MEDIA_LIMIT_EXCEEDED');
@@ -454,7 +456,7 @@ void main() {
     );
 
     await env.open();
-    await _until(() => env.jobs.length == 1);
+    await _until(() => env.jobs.length == 1 && env.folders.length == 1);
 
     expect(env.jobs.single.id, 'j1');
     expect(env.jobs.single.stoppedCode, 'VISIT_NOT_FOUND');

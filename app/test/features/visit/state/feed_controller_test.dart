@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:chagocnote/core/plugs/pet_records_plug.dart';
+import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:dio/dio.dart';
 import 'package:chagocnote/features/visit/state/feed_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -144,6 +146,59 @@ void main() {
     );
   });
 
+  test('다음 쪽이 인터넷 없음으로 실패한 뒤 [다시 시도]로 성공하면 다음 복귀 신호에 저절로 부르지 않는다', () async {
+    var failure = 'offline';
+    var nextPage = 1;
+    final setup = CustomerTestSetup((options, body) {
+      if (options.queryParameters['cursor'] == null) {
+        return FakeResponse(
+          statusCode: 200,
+          data: feedJson(items: [feedItemJson(visitId: 1)], nextCursor: 'c1'),
+        );
+      }
+      if (failure == 'offline') {
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'offline',
+        );
+      }
+      nextPage++;
+      return FakeResponse(
+        statusCode: 200,
+        data: feedJson(
+          items: [feedItemJson(visitId: nextPage)],
+          nextCursor: nextPage == 2 ? 'c2' : null,
+        ),
+      );
+    });
+    addTearDown(setup.container.dispose);
+    _listen(setup.container, _all);
+    await setup.container.read(feedControllerProvider(_all).future);
+    final notifier = setup.container.read(feedControllerProvider(_all).notifier);
+
+    await notifier.loadMore();
+    failure = 'none';
+    await notifier.loadMore();
+
+    int nextPages() => setup.adapter.requests
+        .where((r) => r.queryParameters['cursor'] != null)
+        .length;
+    expect(
+      setup.container.read(feedControllerProvider(_all)).value!.hasMore,
+      isTrue,
+      reason: '[다시 시도]가 성공하며 받은 nextCursor(c2)로 다음 쪽이 남는다',
+    );
+    expect(nextPages(), 2);
+
+    setup.network.restore();
+    await pumpEventQueue();
+    expect(
+      nextPages(),
+      2,
+      reason: '성공한 뒤에는 앞선 인터넷 없음 구독을 거둬 다음 복귀 신호로 저절로 다시 부르지 않는다',
+    );
+  });
+
   test('다음 쪽을 기다리는 사이 다시 불러오면(기록 저장 뒤) 옛 목록에 이어 붙이지 않는다', () async {
     final gate = Completer<FakeResponse>();
     var firstPages = 0;
@@ -188,5 +243,37 @@ void main() {
           .map((i) => i.visitId),
       [2],
     );
+  });
+
+  test('petRecordsRefresher 는 그 아이의 피드 인스턴스만 다시 읽는다 — 홈 피드(petId 없음)가 함께 살아 있어도 그대로 둔다', () async {
+    var homeCalls = 0;
+    var petCalls = 0;
+    final setup = CustomerTestSetup((options, body) {
+      if (options.queryParameters['pet_id'] == null) {
+        homeCalls++;
+      } else {
+        petCalls++;
+      }
+      return FakeResponse(statusCode: 200, data: feedJson());
+    });
+    addTearDown(setup.container.dispose);
+    await setup.container.read(sessionControllerProvider.future);
+    const home = (shopId: customerTestShopId, petId: null);
+    const pet = (shopId: customerTestShopId, petId: 11);
+    _listen(setup.container, home);
+    _listen(setup.container, pet);
+    await setup.container.read(feedControllerProvider(home).future);
+    await setup.container.read(feedControllerProvider(pet).future);
+    expect(homeCalls, 1);
+    expect(petCalls, 1);
+
+    final refresher = setup.container.read(
+      Provider<PetRecordsRefresher>(petRecordsRefresher),
+    );
+    refresher(11);
+    await pumpEventQueue();
+
+    expect(petCalls, 2, reason: '그 아이의 피드 인스턴스는 다시 읽는다');
+    expect(homeCalls, 1, reason: '홈 피드는 살아 있어도 다시 읽지 않는다');
   });
 }

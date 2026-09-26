@@ -228,6 +228,32 @@ void main() {
     expect(find.text(AppStrings.retry), findsNothing);
   });
 
+  testWidgets('띠의 [다시 시도]를 누르면 결과가 올 때까지 버튼이 사라진다', (tester) async {
+    final gate = Completer<List<String>>();
+    final (source, _) = await _pump(tester, [
+      ['콩이'],
+    ], refresh: true);
+    source.next.addAll([_server, gate]);
+
+    await tester.fling(find.text('콩이'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.retry), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.retry));
+    await tester.pump();
+    expect(find.text('콩이'), findsOneWidget, reason: '데이터는 그대로 남는다');
+    expect(
+      find.text(AppStrings.retry),
+      findsNothing,
+      reason: '결과가 올 때까지 버튼을 감춘다',
+    );
+
+    gate.complete(['콩이', '보리']);
+    await tester.pumpAndSettle();
+    expect(find.text('보리'), findsOneWidget);
+    expect(find.text(AppStrings.retry), findsNothing);
+  });
+
   testWidgets('받은 데이터 위 인터넷 없음은 [다시 시도] 없는 띠, 인터넷이 돌아오면 스스로 다시 불러와 띠가 사라진다', (
     tester,
   ) async {

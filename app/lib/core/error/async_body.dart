@@ -71,11 +71,13 @@ class _AsyncBodyState<T> extends ConsumerState<AsyncBody<T>> {
     super.dispose();
   }
 
-  /// 오류가 인터넷 없음인 동안만 복귀 신호를 듣는다 — 멀쩡한 화면은 듣지 않는다.
+  /// 오류가 인터넷 없음인 동안만 복귀 신호를 듣는다 — 멀쩡한 화면·다시 시도 중엔 듣지 않는다.
   void _watchNetwork() {
     final value = widget.value;
     final offline =
-        value.hasError && kindOf(value.error!) == ErrorKind.offline;
+        value.hasError &&
+        !value.isLoading &&
+        kindOf(value.error!) == ErrorKind.offline;
     if (offline && _restored == null) {
       _restored = ref.read(networkWatcherProvider).restored.listen((_) {
         _restored?.cancel();
@@ -150,8 +152,10 @@ class _AsyncBodyState<T> extends ConsumerState<AsyncBody<T>> {
     return AppErrorBanner(
       message: offline ? offlineBannerMessage : loadMessageFor(error),
       offline: offline,
-      // 인터넷 없음은 스스로 잇고, 권한·없음은 다시 해도 같다.
-      onRetry: !offline && kind.retryable ? widget.onRetry : null,
+      // 인터넷 없음은 스스로 잇고, 권한·없음은 다시 해도 같다. 다시 시도 중엔 결과가 올 때까지 감춘다.
+      onRetry: !offline && kind.retryable && !widget.value.isLoading
+          ? widget.onRetry
+          : null,
     );
   }
 }

@@ -104,6 +104,8 @@ class CustomerListController extends AsyncNotifier<CustomerListState> {
       ),
     );
     try {
+      // 다시 부르는 순간 앞선 복귀 구독을 거둔다 — 성공하거나 인터넷 없음이 아닌 실패 뒤에는 듣지 않는다.
+      _stopWatchingNetwork();
       final page = await runShopScoped(ref, () => _fetch(current.nextCursor));
       // 그사이 다시 불러왔으면(쓰기 뒤 invalidate) 옛 목록에 이어 붙이지 않는다.
       if (stale()) return;

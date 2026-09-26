@@ -305,6 +305,7 @@ Future<void> _openStopped(
     ),
   );
   if (retry == null) return;
+  if (!context.mounted) return;
   final queue = ref.read(uploadQueueProvider.notifier);
   await (retry ? queue.retry(job.id) : queue.remove(job.id));
 }

@@ -6,6 +6,7 @@ import '../../../core/error/error_kind.dart';
 import '../../../core/plugs/pet_records_plug.dart';
 import '../../../core/proxy/network_watcher.dart';
 import '../../auth/state/shop_scoped.dart';
+import '../../auth/state/shop_selection.dart';
 import '../api/feed_models.dart';
 import 'visit_providers.dart';
 
@@ -87,6 +88,8 @@ class FeedController extends AsyncNotifier<FeedState> {
       ),
     );
     try {
+      // 다시 부르는 순간 앞선 복귀 구독을 거둔다 — 성공하거나 인터넷 없음이 아닌 실패 뒤에는 듣지 않는다.
+      _stopWatchingNetwork();
       final page = await _fetch(current.nextCursor);
       if (stale()) return;
       state = AsyncData(
@@ -119,5 +122,9 @@ final feedControllerProvider = AsyncNotifierProvider.autoDispose
 
 /// 반려동물 상세를 당겨서 새로고침하면 [기록] 탭(그 아이의 피드)도 다시 읽는다 — `app.dart`가
 /// `petRecordsRefreshPlugProvider`에 꽂는다.
-PetRecordsRefresher petRecordsRefresher(Ref ref) =>
-    (_) => ref.invalidate(feedControllerProvider);
+PetRecordsRefresher petRecordsRefresher(Ref ref) => (petId) {
+  final shopId = ref.read(selectedShopIdProvider);
+  if (shopId != null) {
+    ref.invalidate(feedControllerProvider((shopId: shopId, petId: petId)));
+  }
+};
