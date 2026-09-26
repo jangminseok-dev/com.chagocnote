@@ -182,6 +182,7 @@
 - 반려동물 상세를 당기면 보호자 탭과 [기록] 탭도 다시 읽는다 — [기록] 탭은 visit 것이라 `core/plugs`의 `petRecordsRefreshPlugProvider` 자리에 `buildRoot`가 `petRecordsRefresher`를 꽂는다(채우지 않으면 아무것도 하지 않는다).
 - 대기열이 멈추는 실패는 `stopsUpload`: 권한·없음·업무 4xx. 세션 만료(401)·잦은 시도(429)·인터넷·서버는 다시 해 본다. `MEDIA_NOT_FOUND`는 예전처럼 재발급 쪽이다. 멈춘 이유는 `queue.json`의 `stopped_code`에 남는다(옛 항목엔 없어 null).
 - 시뮬레이터 흐름 `error_flow_test.dart`는 기기 연결을 끊을 수 없어 앱의 API `Dio`에 스위치를 끼워 연결 실패·503 을 흉내 내고, 복귀 신호를 흐름이 보낸다(네이티브 `flutter drive`는 스크린샷을 끝에 한꺼번에 넘겨 흐름 도중 맥에서 게이트웨이를 끌 수 없다).
+- **인터넷 복귀 신호는 앱에서 하나를 공유한다.** `ConnectivityNetworkWatcher.restored`는 `restoredFrom(...)` 하나를 `asBroadcastStream()`으로 나눠 준다. Flutter `EventChannel`은 첫 Dart 구독자에게만 현재 상태를 보내는데 업로드 대기열이 늘 첫 구독자라, 구독자마다 새 스트림을 만들면 오류 뒤에야 구독하는 `AsyncBody`가 '끊김'을 못 보고 시작해 실기기에서 자동 다시 불러오기가 동작하지 않았다(참조 트리 `ref/error-polish`는 흐름의 `FlowNetwork` 대역으로만 확인해 놓쳤다). 끊김 추적은 마지막 구독자가 빠져도 이어진다. 두 목록 컨트롤러는 다음 쪽을 다시 부르는 순간 앞선 복귀 구독을 거둔다(`_stopWatchingNetwork`) — 성공하거나 인터넷 없음이 아닌 실패 뒤에도 구독이 남아 다음 복귀 때 `loadMore`가 저절로 불리던 것을 고쳤다. 반려동물 상세의 당김은 그 아이의 피드 인스턴스 하나만 다시 읽는다. 띠의 [다시 시도]는 결과가 올 때까지 감춘다. 대기열의 멈춤은 상태가 먼저 바뀌고 `queue.json`은 뒤에 쓰이므로, 테스트는 기기에 남은 파일까지 기다린다. 방문 상세 당김 테스트는 오버레이 이름 카드(`IgnorePointer`) 밖 글자를 당긴다.
 
 ### 남는 것 — 알고 미룬다
 
