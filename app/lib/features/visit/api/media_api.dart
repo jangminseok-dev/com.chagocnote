@@ -64,6 +64,28 @@ class MediaApi {
         as Map<String, dynamic>,
   );
 
+  /// 영상 하나를 올릴 자리를 받는다. 압축본(mp4)의 바이트 수·가로·세로·길이(초).
+  Future<IssuedUpload> issueVideo(
+    int shopId, {
+    required int byteSize,
+    required int width,
+    required int height,
+    required int durationSeconds,
+  }) async => IssuedUpload.fromJson(
+    await _client.post(
+          '/v1/shops/$shopId/media/uploads',
+          data: {
+            'kind': 'video',
+            'content_type': 'video/mp4',
+            'byte_size': byteSize,
+            'width': width,
+            'height': height,
+            'duration_seconds': durationSeconds,
+          },
+        )
+        as Map<String, dynamic>,
+  );
+
   /// 다 올렸다고 알린다. 서버가 객체를 확인하면 기록에 붙일 수 있다.
   Future<void> confirm(int shopId, int mediaId) async {
     await _client.post('/v1/shops/$shopId/media/$mediaId/confirm');

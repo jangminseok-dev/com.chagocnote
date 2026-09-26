@@ -463,7 +463,7 @@ void main() {
     expect(find.text(AppStrings.uploadWaiting), findsNothing);
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.uploadStopped).first);
-    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
+    expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
     await _tap(tester, find.text(AppStrings.retry));
     expect(app.queue.retried, ['j1']);
 
@@ -518,7 +518,7 @@ void main() {
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
 
-    expect(find.text('방문 하나에 사진은 30장까지 붙일 수 있어요.'), findsOneWidget);
+    expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
     expect(_button(AppStrings.takePhoto), findsNothing);
     expect(app.picker.limits, isEmpty);
     expect(app.queue.added, isEmpty);

@@ -56,9 +56,9 @@ const Map<String, String> _messages = {
   'MEDIA_NOT_UPLOADED': '사진이 아직 다 올라가지 않았어요.',
   'MEDIA_NOT_READY': '사진이 아직 다 올라가지 않았어요.',
   'MEDIA_ALREADY_ATTACHED': '이미 다른 기록에 붙은 사진이에요.',
-  'MEDIA_TOO_LARGE': '사진은 20MB까지 올릴 수 있어요.',
+  'MEDIA_TOO_LARGE': '사진은 20MB, 영상은 200MB까지 올릴 수 있어요.',
   'MEDIA_TYPE_UNSUPPORTED': '올릴 수 없는 형식의 파일이에요.',
-  'MEDIA_LIMIT_EXCEEDED': '방문 하나에 사진은 30장까지 붙일 수 있어요.',
+  'MEDIA_LIMIT_EXCEEDED': '방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.',
 };
 
 /// 인터넷 없음 — 누른 일(저장·삭제 등)이 실패했을 때.

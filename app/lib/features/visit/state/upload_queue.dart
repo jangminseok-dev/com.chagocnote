@@ -11,6 +11,7 @@ import '../../../core/proxy/app_dirs.dart';
 import '../../../core/proxy/network_watcher.dart';
 import '../../../core/proxy/photo_renditions.dart';
 import '../../../core/proxy/providers.dart';
+import '../../../core/proxy/video_transcoder.dart';
 import '../../auth/state/session.dart';
 import '../../auth/state/session_controller.dart';
 import '../../auth/state/shop_scoped.dart';
@@ -47,6 +48,9 @@ bool stopsUpload(Object error) {
 Duration retryDelay(int failures) =>
     Duration(seconds: min(300, 1 << min(failures - 1, 9)));
 
+/// 영상 하나를 넣은 결과 — 화면이 스낵바를 고른다.
+enum VideoAddOutcome { added, trimmed, unsupported, tooShort, cancelled }
+
 /// 사진 업로드 대기열(설계 10.2) — 사진이 사라지지 않는 것이 이 앱의 첫째 약속이다.
 ///
 /// 사진을 고르면 곧바로 렌디션 셋을 앱 폴더에 쓰고 항목을 기기에 남긴다. 그다음 발급 → 올리기 셋 →
@@ -54,6 +58,9 @@ Duration retryDelay(int failures) =>
 /// 스스로, 인터넷이 돌아오면 바로 다시 한다. 서명 URL 이 만료됐거나(15분) 서버가 붙지 않은 사진을
 /// 정리했으면(하루) 로컬 파일로 발급부터 다시 한다. 사용자가 빼면 취소하고(`CANCELLED`, 문구 없음)
 /// 파일을 지운다.
+///
+/// 영상(④-3a 설계 4절)은 렌디션 대신 압축본(mp4)·포스터를 만들어 같은 길로 올린다. 압축은 한 번에
+/// 하나만 돈다.
 ///
 /// 대기열은 로그인한 사용자의 것이다. 로그아웃·탈퇴하면 전부 지우고, 다른 사람이 로그인하면 그
 /// 사람 것이 아닌 항목을 지운다. 세션 만료로 로그아웃되면 남겨 둔다 — 같은 사람이 다시 로그인하면
@@ -65,6 +72,12 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
   bool _pumping = false;
   Future<void> _saving = Future.value();
   int _seq = 0;
+
+  /// 영상 압축 차례 — 앞 것이 끝나야(실패·취소여도) 다음이 시작한다.
+  Future<void> _transcodeLane = Future.value();
+
+  /// 지금 압축 중인 항목. [올리기 취소]가 네이티브를 멈출지 정한다.
+  String? _transcoding;
 
   List<UploadJob> get _jobs => state.value ?? const [];
 
@@ -154,10 +167,84 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
     }
   }
 
+  /// 고른 영상 하나를 대기열에 넣는다. 타일은 곧바로 나오고(압축 중, 진행률이 링에 흐른다), 압축이 끝나면 올린다.
+  /// 압축은 한 번에 하나만 돈다 — 앞 것이 끝나야 다음이 시작한다.
+  Future<VideoAddOutcome> addVideo({
+    required int shopId,
+    required int visitId,
+    required MediaPhase phase,
+    required String source,
+  }) async {
+    await future;
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return VideoAddOutcome.cancelled;
+    final id = '${DateTime.now().microsecondsSinceEpoch}-${_seq++}';
+    _set([
+      ..._jobs,
+      UploadJob(
+        id: id,
+        userId: userId,
+        shopId: shopId,
+        visitId: visitId,
+        phase: phase,
+        stage: UploadStage.preparing,
+        kind: MediaKind.video,
+      ),
+    ]);
+    final transcoder = ref.read(videoTranscoderProvider);
+    final dir = Directory(_dirOf(id));
+    final run = _transcodeLane.then((_) {
+      // 차례를 기다리는 동안 뺐다.
+      if (!_has(id)) throw const VideoTranscodeException('CANCELLED');
+      _transcoding = id;
+      return transcoder
+          .transcode(source, dir, onProgress: (p) => _progress(id, p))
+          .whenComplete(() => _transcoding = null);
+    });
+    // 앞 것이 실패하거나 취소돼도 다음 차례는 돈다.
+    _transcodeLane = run.then((_) {}, onError: (_) {});
+    try {
+      final result = await run;
+      if (!ref.mounted) return VideoAddOutcome.cancelled;
+      if (!_has(id)) {
+        await _store.deleteDir(dir.path);
+        return VideoAddOutcome.cancelled;
+      }
+      _update(
+        id,
+        (j) => j.copyWith(
+          stage: UploadStage.prepared,
+          dir: dir.path,
+          width: result.width,
+          height: result.height,
+          durationSeconds: () => result.durationSeconds,
+        ),
+      );
+      await _persist();
+      unawaited(_pump());
+      return result.trimmed ? VideoAddOutcome.trimmed : VideoAddOutcome.added;
+    } catch (e) {
+      if (!ref.mounted) return VideoAddOutcome.cancelled;
+      // 압축할 수 없거나 취소했다 — 대기열에서 뺀다. 취소는 문구가 없다.
+      _set([
+        for (final j in _jobs)
+          if (j.id != id) j,
+      ]);
+      await _store.deleteDir(dir.path);
+      return switch (e) {
+        VideoTranscodeException(code: 'CANCELLED') => VideoAddOutcome.cancelled,
+        VideoTranscodeException(code: 'TOO_SHORT') => VideoAddOutcome.tooShort,
+        _ => VideoAddOutcome.unsupported,
+      };
+    }
+  }
+
   /// [올리기 취소] — 올리는 중이면 취소한다. 취소는 오류가 아니라 아무 문구도 없다.
   Future<void> remove(String id) async {
     final job = _find(id);
     if (job == null) return;
+    // 압축 중인 영상은 네이티브를 멈춘다 — [addVideo]가 CANCELLED 를 받아 정리한다.
+    if (_transcoding == id) await ref.read(videoTranscoderProvider).cancel();
     _tokens.remove(id)?.cancel();
     _timers.remove(id)?.cancel();
     _set([
@@ -259,29 +346,41 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
     }
   }
 
-  /// 발급 → 올리기 셋(동시에) → 확인. 확인된 미디어 ID 를 돌려준다.
+  /// 발급 → 올리기 셋(영상은 둘, 동시에) → 확인. 확인된 미디어 ID 를 돌려준다.
   Future<int> _upload(UploadJob job) async {
-    final files = [
-      File(job.originalPath!),
-      File(job.displayPath!),
-      File(job.thumbPath!),
-    ];
+    final video = job.kind == MediaKind.video;
+    final files = video
+        ? [File(job.videoPath!), File(job.thumbPath!)]
+        : [
+            File(job.originalPath!),
+            File(job.displayPath!),
+            File(job.thumbPath!),
+          ];
     final lengths = [for (final f in files) await f.length()];
     final media = ref.read(mediaApiProvider);
     final issued = await runShopScoped(
       ref,
-      () => media.issuePhoto(
-        job.shopId,
-        byteSize: lengths[0],
-        width: job.width,
-        height: job.height,
-      ),
+      () => video
+          ? media.issueVideo(
+              job.shopId,
+              byteSize: lengths[0],
+              width: job.width,
+              height: job.height,
+              durationSeconds: job.durationSeconds!,
+            )
+          : media.issuePhoto(
+              job.shopId,
+              byteSize: lengths[0],
+              width: job.width,
+              height: job.height,
+            ),
     );
-    final urls = [
-      issued.puts.original,
-      issued.puts.display!,
-      issued.puts.thumb,
-    ];
+    final urls = video
+        ? [issued.puts.original, issued.puts.thumb]
+        : [issued.puts.original, issued.puts.display!, issued.puts.thumb];
+    final contentTypes = video
+        ? ['video/mp4', 'image/jpeg']
+        : ['image/jpeg', 'image/jpeg', 'image/jpeg'];
     final total = lengths.reduce((a, b) => a + b);
     final sent = List<int>.filled(files.length, 0);
     final token = _tokens[job.id] = CancelToken();
@@ -293,7 +392,7 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
             Uri.parse(urls[i]),
             body: files[i].openRead(),
             length: lengths[i],
-            contentType: 'image/jpeg',
+            contentType: contentTypes[i],
             cancelToken: token,
             onSendProgress: (s, _) {
               sent[i] = s;

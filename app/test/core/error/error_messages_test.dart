@@ -93,4 +93,12 @@ void main() {
       expect(messageFor(_error(code, message: '서버 문구')), isNot('서버 문구'), reason: code);
     }
   });
+
+  test('크기·한도 문구는 사진과 영상을 함께 안내한다 — 코드 하나를 둘이 같이 쓴다', () {
+    expect(messageFor(_error('MEDIA_TOO_LARGE', status: 422)), '사진은 20MB, 영상은 200MB까지 올릴 수 있어요.');
+    expect(
+      messageFor(_error('MEDIA_LIMIT_EXCEEDED', status: 422)),
+      '방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.',
+    );
+  });
 }

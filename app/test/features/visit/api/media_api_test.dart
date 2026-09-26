@@ -51,6 +51,50 @@ void main() {
     expect(issued.expiresAt, DateTime.utc(2026, 9, 25, 1, 15));
   });
 
+  test('영상 발급은 mp4·바이트 수·가로세로·길이를 보내고 올릴 곳 둘(display 없음)을 받는다', () async {
+    final s = _build(
+      (options, body) => const FakeResponse(
+        statusCode: 201,
+        data: {
+          'media_id': 52,
+          'puts': {
+            'original': 'http://media.test/b/original/shops/3/52.mp4?put=1',
+            'display': null,
+            'thumb': 'http://media.test/b/thumb/shops/3/52.jpg?put=1',
+          },
+          'expires_at': '2026-09-25T10:15:00+09:00',
+        },
+      ),
+    );
+
+    final issued = await s.api.issueVideo(
+      3,
+      byteSize: 48000000,
+      width: 1080,
+      height: 1920,
+      durationSeconds: 42,
+    );
+
+    expect(s.adapter.requests.last.path, '/v1/shops/3/media/uploads');
+    expect(
+      jsonDecode(
+        utf8.decode(s.adapter.lastBodyByPath['/v1/shops/3/media/uploads']!),
+      ),
+      {
+        'kind': 'video',
+        'content_type': 'video/mp4',
+        'byte_size': 48000000,
+        'width': 1080,
+        'height': 1920,
+        'duration_seconds': 42,
+      },
+    );
+    expect(issued.mediaId, 52);
+    expect(issued.puts.original, contains('original/shops/3/52.mp4'));
+    expect(issued.puts.display, isNull);
+    expect(issued.puts.thumb, contains('thumb/shops/3/52.jpg'));
+  });
+
   test('확인은 그 미디어의 confirm 을 부른다', () async {
     final s = _build(
       (options, body) =>
