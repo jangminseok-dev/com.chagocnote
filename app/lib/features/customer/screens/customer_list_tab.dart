@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
@@ -166,23 +167,25 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
           ),
         ),
         Expanded(
-          child: shown != null
-              ? _CardList(
-                  state: shown,
-                  mode: mode,
-                  searching: _q.isNotEmpty,
-                  scroll: _scroll,
-                  onRetryMore: () => ref
-                      .read(customerListControllerProvider(query!).notifier)
-                      .loadMore(),
-                )
-              : async.hasError
-              ? AppErrorRetry(
-                  message: messageFor(async.error!),
-                  onRetry: () =>
-                      ref.invalidate(customerListControllerProvider(query!)),
-                )
-              : const Center(child: CircularProgressIndicator()),
+          child: AsyncBody<CustomerListState>(
+            // 조건이 바뀌어 새로 불러오는 동안은 앞선 결과를 그대로 보인다.
+            value: shown != null && !async.hasValue
+                ? AsyncData(shown)
+                : async,
+            onRetry: () =>
+                ref.invalidate(customerListControllerProvider(query!)),
+            onRefresh: () =>
+                ref.refresh(customerListControllerProvider(query!).future),
+            builder: (state) => _CardList(
+              state: state,
+              mode: mode,
+              searching: _q.isNotEmpty,
+              scroll: _scroll,
+              onRetryMore: () => ref
+                  .read(customerListControllerProvider(query!).notifier)
+                  .loadMore(),
+            ),
+          ),
         ),
       ],
     );
@@ -207,33 +210,43 @@ class _CardList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                searching
-                    ? AppStrings.customersNoMatch
-                    : AppStrings.customersEmpty,
-                style: AppTypography.body,
-              ),
-              if (!searching) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  AppStrings.customersEmptyCaption,
-                  style: AppTypography.caption,
+      // 비어 있어도 당겨서 새로고침이 되게 스크롤 면에 둔다.
+      return CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      searching
+                          ? AppStrings.customersNoMatch
+                          : AppStrings.customersEmpty,
+                      style: AppTypography.body,
+                    ),
+                    if (!searching) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        AppStrings.customersEmptyCaption,
+                        style: AppTypography.caption,
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ],
+              ),
+            ),
           ),
-        ),
+        ],
       );
     }
     // 아래 여백은 떠 있는 탭바와 + 버튼 몫이다.
     return ListView.builder(
       controller: scroll,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 120),
       itemCount: state.items.length + 1,
       itemBuilder: (context, index) {
@@ -248,7 +261,7 @@ class _CardList extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(AppSpacing.lg),
               child: AppErrorRetry.row(
-                message: messageFor(state.loadMoreError!),
+                message: loadMessageFor(state.loadMoreError!),
                 onRetry: onRetryMore,
               ),
             );

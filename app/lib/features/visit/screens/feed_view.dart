@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
 import '../../../design/tokens/app_colors.dart';
@@ -57,46 +58,48 @@ class _FeedListState extends ConsumerState<FeedList> {
   @override
   Widget build(BuildContext context) {
     final provider = feedControllerProvider(widget.query);
-    final async = ref.watch(provider);
-    final state = async.value;
-    if (state == null) {
-      return async.hasError
-          ? AppErrorRetry(
-              message: messageFor(async.error!),
-              onRetry: () => ref.invalidate(provider),
-            )
-          : const Center(child: CircularProgressIndicator());
-    }
-    if (state.items.isEmpty) return const _Empty();
-    // 아래 여백은 떠 있는 탭바와 + 버튼 몫이다.
-    return ListView.builder(
-      controller: _scroll,
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 120),
-      itemCount: state.items.length + 1,
-      itemBuilder: (context, index) {
-        if (index < state.items.length) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-            child: FeedCard(item: state.items[index]),
-          );
-        }
-        if (state.loadingMore) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (state.loadMoreError != null) {
-          return Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: AppErrorRetry.row(
-              message: messageFor(state.loadMoreError!),
-              onRetry: () => ref.read(provider.notifier).loadMore(),
+    return AsyncBody<FeedState>(
+      value: ref.watch(provider),
+      onRetry: () => ref.invalidate(provider),
+      onRefresh: () => ref.refresh(provider.future),
+      builder: (state) => state.items.isEmpty
+          ? const _Empty()
+          // 아래 여백은 떠 있는 탭바와 + 버튼 몫이다.
+          : ListView.builder(
+              controller: _scroll,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                0,
+                AppSpacing.lg,
+                120,
+              ),
+              itemCount: state.items.length + 1,
+              itemBuilder: (context, index) {
+                if (index < state.items.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    child: FeedCard(item: state.items[index]),
+                  );
+                }
+                if (state.loadingMore) {
+                  return const Padding(
+                    padding: EdgeInsets.all(AppSpacing.lg),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (state.loadMoreError != null) {
+                  return Padding(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: AppErrorRetry.row(
+                      message: loadMessageFor(state.loadMoreError!),
+                      onRetry: () => ref.read(provider.notifier).loadMore(),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
-          );
-        }
-        return const SizedBox.shrink();
-      },
     );
   }
 }
@@ -113,48 +116,41 @@ class PetRecordsView extends ConsumerWidget {
     final shopId = ref.watch(selectedShopIdProvider);
     if (shopId == null) return const SizedBox.shrink();
     final provider = feedControllerProvider((shopId: shopId, petId: petId));
-    final async = ref.watch(provider);
-    final state = async.value;
-    if (state == null) {
-      return async.hasError
-          ? AppErrorRetry.inline(
-              message: messageFor(async.error!),
-              onRetry: () => ref.invalidate(provider),
-            )
-          : const Padding(
+    return AsyncBody<FeedState>.inline(
+      value: ref.watch(provider),
+      onRetry: () => ref.invalidate(provider),
+      builder: (state) => state.items.isEmpty
+          ? const Padding(
               padding: EdgeInsets.all(AppSpacing.lg),
-              child: Center(child: CircularProgressIndicator()),
-            );
-    }
-    if (state.items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(AppSpacing.lg),
-        child: Center(
-          child: Text(AppStrings.petRecordsEmpty, style: AppTypography.body),
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final item in state.items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-            child: FeedCard(item: item),
-          ),
-        if (state.loadingMore)
-          const Center(child: CircularProgressIndicator())
-        else if (state.loadMoreError != null)
-          AppErrorRetry.row(
-            message: messageFor(state.loadMoreError!),
-            onRetry: () => ref.read(provider.notifier).loadMore(),
-          )
-        else if (state.hasMore)
-          AppButton(
-            label: AppStrings.loadMore,
-            onPressed: () => ref.read(provider.notifier).loadMore(),
-          ),
-      ],
+              child: Center(
+                child: Text(
+                  AppStrings.petRecordsEmpty,
+                  style: AppTypography.body,
+                ),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final item in state.items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    child: FeedCard(item: item),
+                  ),
+                if (state.loadingMore)
+                  const Center(child: CircularProgressIndicator())
+                else if (state.loadMoreError != null)
+                  AppErrorRetry.row(
+                    message: loadMessageFor(state.loadMoreError!),
+                    onRetry: () => ref.read(provider.notifier).loadMore(),
+                  )
+                else if (state.hasMore)
+                  AppButton(
+                    label: AppStrings.loadMore,
+                    onPressed: () => ref.read(provider.notifier).loadMore(),
+                  ),
+              ],
+            ),
     );
   }
 }
@@ -162,19 +158,31 @@ class PetRecordsView extends ConsumerWidget {
 class _Empty extends StatelessWidget {
   const _Empty();
 
+  // 비어 있어도 당겨서 새로고침이 되게 스크롤 면에 둔다.
   @override
-  Widget build(BuildContext context) => const Center(
-    child: Padding(
-      padding: EdgeInsets.all(AppSpacing.xl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(AppStrings.feedEmpty, style: AppTypography.body),
-          SizedBox(height: AppSpacing.xs),
-          Text(AppStrings.feedEmptyCaption, style: AppTypography.caption),
-        ],
+  Widget build(BuildContext context) => const CustomScrollView(
+    physics: AlwaysScrollableScrollPhysics(),
+    slivers: [
+      SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(AppStrings.feedEmpty, style: AppTypography.body),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  AppStrings.feedEmptyCaption,
+                  style: AppTypography.caption,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-    ),
+    ],
   );
 }
 

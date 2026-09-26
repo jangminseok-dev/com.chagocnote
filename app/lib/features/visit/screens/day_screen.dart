@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
 import '../../../core/router/screen_keys.dart';
@@ -16,7 +17,6 @@ import '../../../design/widgets/app_big_date.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_chip.dart';
-import '../../../design/widgets/app_error_retry.dart';
 import '../../../design/widgets/app_fab.dart';
 import '../../../design/widgets/app_icon_toggle.dart';
 import '../../../design/widgets/app_photo_tile.dart';
@@ -255,14 +255,11 @@ class _DayScreenState extends ConsumerState<DayScreen> {
                 ),
               ),
               Expanded(
-                child: day.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, _) => AppErrorRetry(
-                    message: messageFor(error),
-                    onRetry: () => ref.invalidate(dayVisitsProvider(key)),
-                  ),
-                  data: (data) {
+                child: AsyncBody<DayVisits>(
+                  value: day,
+                  onRetry: () => ref.invalidate(dayVisitsProvider(key)),
+                  onRefresh: () => ref.refresh(dayVisitsProvider(key).future),
+                  builder: (data) {
                     final groups = groupDay(data.items);
                     if (groups.isEmpty) return const _Empty();
                     return mode == DayViewMode.list
@@ -292,15 +289,24 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(AppStrings.dayEmpty, style: AppTypography.body),
-          SizedBox(height: AppSpacing.xs),
-          Text(AppStrings.dayEmptyCaption, style: AppTypography.caption),
-        ],
-      ),
+    // 비어 있어도 당겨서 새로고침이 되게 스크롤 면에 둔다.
+    return const CustomScrollView(
+      physics: AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(AppStrings.dayEmpty, style: AppTypography.body),
+                SizedBox(height: AppSpacing.xs),
+                Text(AppStrings.dayEmptyCaption, style: AppTypography.caption),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -326,6 +332,7 @@ class _DayList extends StatelessWidget {
     final gaps = gapsBefore(groups);
     // 아래 여백은 떠 있는 + 버튼 몫이다.
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 120),
       children: [
         for (var i = 0; i < groups.length; i++) ...[
@@ -518,6 +525,7 @@ class _Timeline extends ConsumerWidget {
         ((t.hour - firstHour) * 60 + t.minute) / 60 * _hourHeight;
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 120),
       children: [
         LayoutBuilder(

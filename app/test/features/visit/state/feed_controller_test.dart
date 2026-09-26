@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:dio/dio.dart';
 import 'package:chagocnote/features/visit/state/feed_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -93,6 +94,54 @@ void main() {
     expect(state.items, hasLength(1));
     expect(state.hasMore, isTrue);
     expect(state.loadMoreError, isA<ApiException>());
+  });
+
+  test('다음 쪽이 인터넷 없음으로 실패했으면 인터넷이 돌아올 때 한 번 다시 부른다 — 서버 오류면 부르지 않는다', () async {
+    var failure = 'offline';
+    final setup = CustomerTestSetup((options, body) {
+      if (options.queryParameters['cursor'] == null) {
+        return FakeResponse(
+          statusCode: 200,
+          data: feedJson(items: [feedItemJson(visitId: 1)], nextCursor: 'c1'),
+        );
+      }
+      switch (failure) {
+        case 'offline':
+          throw DioException.connectionError(
+            requestOptions: options,
+            reason: 'offline',
+          );
+        case 'server':
+          return const FakeResponse(statusCode: 503, data: 'x');
+      }
+      return FakeResponse(
+        statusCode: 200,
+        data: feedJson(items: [feedItemJson(visitId: 2)]),
+      );
+    });
+    addTearDown(setup.container.dispose);
+    _listen(setup.container, _all);
+    await setup.container.read(feedControllerProvider(_all).future);
+    final notifier = setup.container.read(feedControllerProvider(_all).notifier);
+
+    await notifier.loadMore();
+    failure = 'server';
+    setup.network.restore();
+    await pumpEventQueue();
+    expect(
+      setup.container.read(feedControllerProvider(_all)).value!.loadMoreError,
+      isA<ApiException>().having((e) => e.code, 'code', 'HTTP_ERROR'),
+      reason: '인터넷 없음이었으니 돌아오자 한 번 다시 불렀다(이번엔 서버 오류)',
+    );
+
+    failure = 'none';
+    setup.network.restore();
+    await pumpEventQueue();
+    expect(
+      setup.adapter.requests.where((r) => r.queryParameters['cursor'] != null),
+      hasLength(2),
+      reason: '서버 오류는 인터넷이 돌아와도 스스로 다시 부르지 않는다',
+    );
   });
 
   test('다음 쪽을 기다리는 사이 다시 불러오면(기록 저장 뒤) 옛 목록에 이어 붙이지 않는다', () async {

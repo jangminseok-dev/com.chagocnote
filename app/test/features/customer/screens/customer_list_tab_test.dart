@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:chagocnote/core/error/error_messages.dart';
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -285,6 +287,36 @@ void main() {
 
     expect(find.text('마지막보호자 · ··5678'), findsOneWidget);
     expect(_listQueries(setup).where((q) => q['cursor'] == 'c1'), hasLength(2));
+  });
+
+  testWidgets('당겨서 새로고침이 실패하면 목록은 두고 위에 띠, 인터넷 없음은 [다시 시도] 없이 돌아오면 스스로 다시 읽는다', (
+    tester,
+  ) async {
+    var offline = false;
+    final setup = CustomerTestSetup((options, body) {
+      if (offline) {
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'offline',
+        );
+      }
+      return FakeResponse(statusCode: 200, data: _twoFamilies);
+    });
+    addTearDown(setup.container.dispose);
+    await _openTab(tester, setup);
+
+    offline = true;
+    await tester.fling(find.text('콩이'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text(offlineBannerMessage), findsOneWidget);
+    expect(find.text('콩이'), findsOneWidget);
+    expect(find.text(AppStrings.retry), findsNothing);
+
+    offline = false;
+    setup.network.restore();
+    await tester.pumpAndSettle();
+    expect(find.text(offlineBannerMessage), findsNothing);
+    expect(_listQueries(setup), hasLength(3));
   });
 
   testWidgets('"최근 방문순"을 누르면 sort=last_visit 으로 다시 부른다', (tester) async {

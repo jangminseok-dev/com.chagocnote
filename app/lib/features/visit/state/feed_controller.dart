@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/error_kind.dart';
+import '../../../core/proxy/network_watcher.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/feed_models.dart';
 import 'visit_providers.dart';
@@ -38,6 +42,15 @@ class FeedController extends AsyncNotifier<FeedState> {
   /// 붙이지 않게 비교한다(고객 목록과 같은 이유).
   int _generation = 0;
 
+  /// 다음 쪽이 인터넷 없음으로 실패한 동안만 복귀 신호를 듣는다 — 돌아오면 한 번 다시 부른다
+  /// (오류 화면 다듬기 설계 3절).
+  StreamSubscription<void>? _restored;
+
+  void _stopWatchingNetwork() {
+    _restored?.cancel();
+    _restored = null;
+  }
+
   Future<VisitFeed> _fetch(String? cursor) => runShopScoped(
     ref,
     () => ref
@@ -48,6 +61,7 @@ class FeedController extends AsyncNotifier<FeedState> {
   @override
   Future<FeedState> build() async {
     _generation++;
+    ref.onDispose(_stopWatchingNetwork);
     final page = await _fetch(null);
     return FeedState(items: page.items, nextCursor: page.nextCursor);
   }
@@ -82,6 +96,12 @@ class FeedController extends AsyncNotifier<FeedState> {
       );
     } catch (e) {
       if (stale()) return;
+      if (kindOf(e) == ErrorKind.offline) {
+        _restored ??= ref.read(networkWatcherProvider).restored.listen((_) {
+          _stopWatchingNetwork();
+          loadMore();
+        });
+      }
       state = AsyncData(
         FeedState(
           items: current.items,
