@@ -538,7 +538,8 @@ void main() {
     await _open(tester, setup);
 
     fail = true;
-    await tester.fling(find.text('두부'), const Offset(0, 400), 1000);
+    // '두부'는 오버레이 이름 카드(IgnorePointer) 안이라 히트테스트 경고가 난다 — 카드 밖 글자를 당긴다.
+    await tester.fling(find.text(AppStrings.menuLabel), const Offset(0, 400), 1000);
     await tester.pumpAndSettle();
 
     expect(reads, 2);
