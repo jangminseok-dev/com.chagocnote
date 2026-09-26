@@ -426,7 +426,7 @@ void main() {
     expect(server.reads, 1);
 
     await _tap(tester, find.bySemanticsLabel(AppStrings.playVideo));
-    expect(find.text('보기 링크가 만료됐어요. 다시 불러올게요.'), findsOneWidget);
+    expect(find.text('보기 링크가 만료됐어요. 다시 시도해 주세요.'), findsOneWidget);
 
     app.videos.created.single.failWith = null;
     await _tap(tester, find.text(AppStrings.retry));

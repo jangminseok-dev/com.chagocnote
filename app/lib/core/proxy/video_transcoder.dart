@@ -12,9 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///   진행률은 `exportSession.progress` 를 0.2초마다, 취소는 `cancelExport()`. `AppDelegate` 가
 ///   채널을 등록한다(공유 받기 채널과 같은 자리).
 /// - 안드로이드 `android/app/src/main/kotlin/.../VideoTranscoder.kt`: Media3 `Transformer`
-///   (H.264·AAC, `ClippingConfiguration` 0…maxSeconds, 긴 변 1080)와 `MediaMetadataRetriever`
-///   (1초 프레임·회전을 반영한 가로·세로·길이). 진행률은 `Transformer.getProgress` 를 200ms 마다,
-///   취소는 `Transformer.cancel()`.
+///   (H.264·AAC, `ClippingConfiguration` 0…maxSeconds, 짧은 변 1080·긴 변 1920 안, 키우지 않음)와
+///   `MediaMetadataRetriever`(1초 프레임·회전을 반영한 가로·세로·길이). 진행률은
+///   `Transformer.getProgress` 를 200ms 마다, 취소는 `Transformer.cancel()`.
 ///
 /// 채널 규약:
 /// - 메서드 채널 [ChannelVideoTranscoder.channelName]

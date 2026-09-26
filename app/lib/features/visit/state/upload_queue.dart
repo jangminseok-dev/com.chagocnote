@@ -221,6 +221,9 @@ class UploadQueue extends AsyncNotifier<List<UploadJob>> {
         ),
       );
       await _persist();
+      // _persist 를 기다리는 사이 cancel 이 항목을 뺐으면 취소로 본다 — 이미 취소한 영상에
+      // trimmed/added 스낵바가 뜨는 것을 막는다.
+      if (!_has(id)) return VideoAddOutcome.cancelled;
       unawaited(_pump());
       return result.trimmed ? VideoAddOutcome.trimmed : VideoAddOutcome.added;
     } catch (e) {

@@ -60,7 +60,7 @@ const Map<String, String> _messages = {
   'MEDIA_TYPE_UNSUPPORTED': '올릴 수 없는 형식의 파일이에요.',
   'MEDIA_LIMIT_EXCEEDED': '방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.',
   // 앱이 만든 코드 — 영상 재생이 서명 URL 만료(403)로 실패했다(④-3a 설계 5.4).
-  'MEDIA_URL_EXPIRED': '보기 링크가 만료됐어요. 다시 불러올게요.',
+  'MEDIA_URL_EXPIRED': '보기 링크가 만료됐어요. 다시 시도해 주세요.',
 };
 
 /// 인터넷 없음 — 누른 일(저장·삭제 등)이 실패했을 때.
