@@ -5,7 +5,7 @@ auth_main 은 import 시점에 JWT 개인키를 요구하므로 키를 넣어 �
 import pytest
 
 from auth.dependencies.recent_login_guard import require_recent_login
-from tests.route_inspection import find_route_violations, routes_calling
+from tests.route_inspection import find_route_violations, routes_calling, routes_without_login
 
 pytestmark = pytest.mark.integration
 
@@ -24,4 +24,17 @@ async def test_연결_해제_탈퇴는_실제로_최근_로그인_가드를_거�
         "POST /v1/auth/identities",
         "DELETE /v1/auth/identities/{provider}",
         "DELETE /v1/auth/account",
+    }
+
+
+async def test_인증_프로세스에서_로그인_없이_열리는_경로는_다섯뿐이다(wired):
+    """로그인 자체와 토큰 갱신·로그아웃(리프레시 토큰으로 확인한다), 상태 확인, 자기소개. 공개 경로는 없다."""
+    import auth_main
+
+    assert routes_without_login(auth_main.app) == {
+        "GET /v1/auth/health",
+        "GET /v1/auth/myself",
+        "POST /v1/auth/social",
+        "POST /v1/auth/refresh",
+        "POST /v1/auth/logout",
     }

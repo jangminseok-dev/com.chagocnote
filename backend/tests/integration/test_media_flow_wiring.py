@@ -1,8 +1,12 @@
 """미디어 발급·확인을 실제 배선(프로바이더·DB 커밋·매장 접근 확인·MinIO)으로 확인한다. 첫 테스트는 테넌트 격리다."""
 import asyncio
 
+import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from hub.app.dtos.shop_context import ShopContext
+from media.dependencies.media_library_provider import get_media_library_use_case
 from tests.integration.support import (
     PHOTO,
     accept_invite,
@@ -10,6 +14,7 @@ from tests.integration.support import (
     error_of,
     issue_media,
     make_operator,
+    ready_photo,
     shop_with_owner,
     staff_invite,
     upload_media,
@@ -63,3 +68,18 @@ async def test_동시에_두_번_확인해도_결과가_같다(wired, media_stor
     )
     assert [(r.status_code, r.json()["status"], r.json()["size_bytes"]) for r in (first, second)] == [
         (200, "ready", 3000)] * 2
+
+
+async def test_내려받기_URL_로_받으면_첨부_파일로_내려오고_원본_URL_은_그대로다(wired, media_storage):
+    operator = await make_operator(wired)
+    shop_id, owner = await shop_with_owner(wired, operator, "Hiss Haus", "사장님")
+    media_id = await ready_photo(wired, shop_id, bearer(owner["access_token"]))
+    ctx = ShopContext(shop_id=shop_id, member_id=0, role="owner", permissions=frozenset(), timezone="Asia/Seoul")
+    async with AsyncSession(wired.engine) as session:
+        urls = (await get_media_library_use_case(session, media_storage).read_urls(ctx, [media_id]))[media_id]
+
+    async with httpx.AsyncClient() as http:
+        download, original = await http.get(urls.download_url), await http.get(urls.original_url)
+    assert (download.status_code, len(download.content)) == (200, 3000)
+    assert download.headers["content-disposition"] == f'attachment; filename="chagocnote-{media_id}.jpg"'
+    assert original.status_code == 200 and "content-disposition" not in original.headers

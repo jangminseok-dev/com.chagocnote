@@ -26,6 +26,7 @@ class RecordMedia:
     kind: str       # photo · video
     phase: str      # before · after
     sort_order: int
+    hidden: bool = False   # ⑤ 알림장에서 뺀 사진
 
 
 @dataclass(frozen=True)

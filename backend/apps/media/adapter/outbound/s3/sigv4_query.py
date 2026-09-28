@@ -20,8 +20,9 @@ def _hmac(key: bytes, message: str) -> bytes:
 
 def presign_get_url(
     endpoint: str, bucket: str, key: str, region: str, access_key: str, secret_key: str,
-    signed_at: datetime, expires_in_seconds: int,
+    signed_at: datetime, expires_in_seconds: int, content_disposition: str | None = None,
 ) -> str:
+    """content_disposition 을 주면 저장소가 응답의 Content-Disposition 헤더로 돌려준다(내려받기용 주소)."""
     host = urlsplit(endpoint).netloc
     amz_date = signed_at.strftime("%Y%m%dT%H%M%SZ")
     day = signed_at.strftime("%Y%m%d")
@@ -34,8 +35,15 @@ def presign_get_url(
         f"&X-Amz-Expires={expires_in_seconds}"
         "&X-Amz-SignedHeaders=host"
     )
-    canonical = "\n".join(["GET", path, query, f"host:{host}", "", "host", "UNSIGNED-PAYLOAD"])
+    # 서명하는 질의 문자열은 키 순서다(대문자 X 가 소문자 r 보다 앞). URL 에서는 botocore 처럼 앞에 둔다.
+    # 값은 RFC 3986 대로 인코딩한다 — 공백은 %20, 세미콜론·등호·따옴표도 바꾼다.
+    disposition = (
+        f"response-content-disposition={quote(content_disposition, safe='')}" if content_disposition else ""
+    )
+    signed_query = f"{query}&{disposition}" if disposition else query
+    url_query = f"{disposition}&{query}" if disposition else query
+    canonical = "\n".join(["GET", path, signed_query, f"host:{host}", "", "host", "UNSIGNED-PAYLOAD"])
     string_to_sign = "\n".join([_ALGORITHM, amz_date, scope, hashlib.sha256(canonical.encode()).hexdigest()])
     signing_key = _hmac(_hmac(_hmac(_hmac(f"AWS4{secret_key}".encode(), day), region), "s3"), "aws4_request")
     signature = hmac.new(signing_key, string_to_sign.encode(), hashlib.sha256).hexdigest()
-    return f"{endpoint.rstrip('/')}{path}?{query}&X-Amz-Signature={signature}"
+    return f"{endpoint.rstrip('/')}{path}?{url_query}&X-Amz-Signature={signature}"

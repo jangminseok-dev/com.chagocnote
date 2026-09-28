@@ -17,6 +17,7 @@
 | 예약·방문 흐름 (게이트웨이 경유) | `bash ../backend/scripts/check_visit_flow.sh` — 개발 DB에 확인용 매장·유저·고객·방문이 남는다 |
 | 미디어 버킷 준비 | `docker compose run --rm backend python scripts/ensure_media_bucket.py` (버킷 생성 + 원본 수명주기 규칙. MinIO 는 계층 이동을 받지 않아 규칙을 건너뛴다) |
 | 사진·기록 흐름 (게이트웨이·MinIO 경유) | `bash ../backend/scripts/check_media_flow.sh` — 버킷 준비 뒤. 서명 URL 로 저장소에 바로 올리고 읽는다. 개발 DB·버킷에 확인용 매장·사진이 남는다 |
+| 알림장 흐름 (게이트웨이·MinIO 경유) | `bash ../backend/scripts/check_report_flow.sh` — 버킷 준비 뒤. 설정 → 보내기 → 공개 조회(헤더 `X-Report-Token`) → 열람 신호 → 끊기 → 410 → 다시 보내기 → 내려받기. 토큰과 서명 URL 은 화면에 찍지 않는다. 개발 DB·버킷에 확인용 매장·사진·알림장 링크가 남는다 |
 | 미디어 정리 | `docker compose run --rm backend python scripts/purge_stale_media.py` (하루 넘게 어느 기록도 가져가지 않은 사진·영상 — 운영은 주기적으로) |
 | 최근 방문순 키 복구 | `docker compose run --rm backend python scripts/rebuild_last_visit.py` (고객 목록 '최근 방문순'이 방문 기록과 어긋났을 때) |
 | 플랫폼 운영자 지정 | `docker compose run --rm backend python scripts/grant_operator.py <user_id>` |
@@ -42,3 +43,8 @@
 - 통합 테스트는 compose 의 MinIO 도 쓴다(`backend` 서비스가 `minio`에 기댄다). 미디어가 필요한 테스트는 `media_storage` 픽스처를 쓴다 — 테스트 버킷 `chagocnote-test`를 시작 때 비우고(테스트마다 DB ID 가 1부터라 키가 겹친다), 컨테이너 안에서 서명 URL 로 PUT 하도록 공개 주소를 내부 주소로 둔다. 사진 하나를 확인까지 마치는 도우미는 `tests/integration/support.py`의 `ready_photo`다.
 - 마이그레이션에 시드 표를 새로 만들면 루트 `conftest.py`의 `_KEEP_TABLES`에 더한다. 빠뜨리면 첫 테스트가 시드를 비워 그다음 테스트부터 실패한다.
 - 두 세션 경합 테스트는 막힌 호출을 `asyncio.create_task`로 들고 있다가 앞선 세션이 커밋한 뒤의 결과를 본다. "기다렸다"만으로 판별하지 않는다 — 외래 키의 암묵적 잠금이나 같은 행의 다른 잠금 때문에 잠금 코드가 없어도 기다릴 수 있다. 잠금 코드를 빼는 변이로 테스트가 실패하는지 확인한다.
+- 공개 경로(`/v1/public/`)는 `tests/route_inspection.py`의 허용 목록(`_PUBLIC_ROUTES`)에 더한다. 목록에 없는 공개 경로와 로그인·매장 확인을 거치는 공개 경로는 `find_route_violations`가 잡는다.
+- 로그인 없이 열리는 경로는 프로세스마다 목록 전체를 못 박는다(`routes_without_login`) — API 프로세스는 `tests/test_hub_port_binding.py`(넷), 인증 프로세스는 `tests/integration/test_route_wiring.py`(다섯). 경로를 열거나 로그인 의존성을 빼면 목록과 달라져 실패한다. 일부러 연 경로는 두 곳(허용 목록, 프로세스별 목록)에 함께 적는다.
+- 로그인 없는 경로의 응답은 표식 문자열로 본문 전체를 검사한다. 내부 메모·결제 수단·예약 메모·보호자 이름·전화번호·고객 메모에 표식을 넣고, 모든 항목을 켠 응답의 글자열 어디에도 없는지 본다(`tests/integration/test_public_report_wiring.py`). 칸 이름만 보는 검사로는 값이 다른 칸에 섞이는 것을 놓친다.
+- 토큰·서명 URL 이 든 응답을 다루는 통합 테스트가 실패하면 pytest 가 지역 변수를 찍는다. 출력을 옮겨 적을 일이 있으면 `--tb=line`·`--tb=no`로 돌린다.
+- 테스트 파일을 골라 돌릴 때 `tests/test_hub_port_binding.py`는 맨 뒤에 두거나 따로 돌린다. 통합 파일 사이에 두면 뒤쪽 통합 파일이 `fixture 'wired' not found`로 멈춘다(전체 실행에는 없다. 원인은 조사하지 않았다).

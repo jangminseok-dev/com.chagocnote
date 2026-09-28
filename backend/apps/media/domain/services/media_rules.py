@@ -39,6 +39,11 @@ def object_keys(shop_id: int, media_id: int, kind: str) -> MediaKeys:
     return MediaKeys(original=f"original-video/{tail}.mp4", display=None, thumb=f"thumb/{tail}.jpg")
 
 
+def download_name(media_id: int, kind: str) -> str:
+    """내려받을 때의 파일 이름. 서명 URL 에 실려 밖으로 나가므로 고객·매장 이름을 넣지 않는다. ASCII 만 쓴다."""
+    return f"chagocnote-{media_id}.{'jpg' if kind == PHOTO else 'mp4'}"
+
+
 def check_upload(
     kind: str, content_type: str, byte_size: int, width: int, height: int, duration_seconds: int | None
 ) -> None:

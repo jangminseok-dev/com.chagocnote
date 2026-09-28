@@ -83,3 +83,16 @@ async def test_영상은_세_편까지다():
     w.existing([RecordMedia(i, "video", "after", i - 61) for i in (61, 62, 63)])
     with pytest.raises(RecordMediaLimitError):
         await w.append(64)
+
+
+@pytest.mark.parametrize("phase", ["before", "after"])
+async def test_알림장에서_뺀_사진은_덧붙인_뒤에도_빠져_있고_새_사진은_보인다(phase):
+    """R5 — 새 사진이 뺀 사진과 같은 칸에 붙든 다른 칸에 붙든."""
+    w = _World(status="completed")
+    for i in (51, 52, 53):
+        w.library.add(i, attached=i != 53)
+    w.existing([RecordMedia(51, "photo", "before", 4, hidden=True), RecordMedia(52, "photo", "after", 0)])
+
+    await w.append(53, phase)
+
+    assert {m.media_id: m.hidden for m in w.records.rows[w.visit.id].media} == {51: True, 52: False, 53: False}

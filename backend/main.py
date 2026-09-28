@@ -59,6 +59,7 @@ from tenancy.adapter.inbound.api.v1.list_members_router import list_members_rout
 from tenancy.adapter.inbound.api.v1.remove_member_router import remove_member_router
 from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
 from tenancy.adapter.inbound.api.v1.update_shop_router import update_shop_router
+from tenancy.dependencies.get_shop_profile_provider import get_shop_profile_use_case
 from tenancy.dependencies.hub_ports import get_active_user_guard, get_user_directory
 from tenancy.dependencies.list_memberships_provider import get_list_memberships_use_case
 from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_case
@@ -71,8 +72,10 @@ from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
 from visit.adapter.inbound.api.v1.delete_visit_record_router import delete_visit_record_router
 from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_visit_draft_router
+from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_settings_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
+from visit.adapter.inbound.api.v1.get_visit_report_router import get_visit_report_router
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
@@ -80,17 +83,23 @@ from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
 from visit.adapter.inbound.api.v1.list_visit_feed_router import list_visit_feed_router
 from visit.adapter.inbound.api.v1.list_visit_slots_router import list_visit_slots_router
+from visit.adapter.inbound.api.v1.mark_report_viewed_router import mark_report_viewed_router
 from visit.adapter.inbound.api.v1.parse_visit_draft_router import parse_visit_draft_router
 from visit.adapter.inbound.api.v1.put_visit_record_router import put_visit_record_router
+from visit.adapter.inbound.api.v1.read_public_report_router import read_public_report_router
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
 from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
+from visit.adapter.inbound.api.v1.revoke_visit_report_router import revoke_visit_report_router
+from visit.adapter.inbound.api.v1.send_visit_report_router import send_visit_report_router
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
+from visit.adapter.inbound.api.v1.update_report_settings_router import update_report_settings_router
 from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
 from visit.dependencies.hub_ports import get_customer_directory
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
+from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 
 
@@ -138,6 +147,8 @@ app.include_router(delete_pet_router)
 # visit
 app.include_router(get_visit_settings_router)
 app.include_router(update_visit_settings_router)
+app.include_router(get_report_settings_router)
+app.include_router(update_report_settings_router)
 app.include_router(list_closed_dates_router)
 app.include_router(add_closed_date_router)
 app.include_router(delete_closed_date_router)
@@ -162,6 +173,12 @@ app.include_router(get_next_visit_draft_router)
 app.include_router(put_visit_record_router)
 app.include_router(append_record_media_router)
 app.include_router(delete_visit_record_router)
+app.include_router(get_visit_report_router)
+app.include_router(send_visit_report_router)
+app.include_router(revoke_visit_report_router)
+# 로그인 없이 열리는 경로 — 더할 때는 tests/route_inspection.py 의 허용 목록에도 적는다.
+app.include_router(read_public_report_router)
+app.include_router(mark_report_viewed_router)
 # media
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
@@ -185,6 +202,7 @@ app.dependency_overrides[get_customer_directory] = get_customer_directory_use_ca
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
 app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
+app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
 
 
 @app.get("/health")

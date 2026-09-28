@@ -252,8 +252,9 @@ class FakeLibrary(MediaLibraryPort):
         raise AssertionError("customer 는 미디어를 놓지 않는다")
 
     async def read_urls(self, ctx, media_ids):
-        return {i: MediaUrls(media_id=i, kind="photo", original_url=f"o/{i}", display_url=f"d/{i}", thumb_url=f"t/{i}",
-                             width=3000, height=2000, duration_seconds=None) for i in media_ids if i in self.ready}
+        return {i: MediaUrls(media_id=i, kind="photo", original_url=f"o/{i}", download_url=f"dl/{i}",
+                             display_url=f"d/{i}", thumb_url=f"t/{i}", width=3000, height=2000,
+                             duration_seconds=None) for i in media_ids if i in self.ready}
 
 
 def family():

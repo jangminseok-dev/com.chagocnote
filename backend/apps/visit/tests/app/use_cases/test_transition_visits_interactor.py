@@ -1,4 +1,5 @@
 from dataclasses import replace
+from datetime import timedelta
 
 import pytest
 
@@ -9,21 +10,29 @@ from visit.domain.errors import (
     VisitGroupMismatchError,
     VisitInputError,
     VisitNotYetError,
+    VisitReportSentError,
     VisitStateConflictError,
 )
 from visit.tests.helpers.builders import ctx, kst
 from hub.app.errors import FamilyPetPassedAwayError
-from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeVisits, Journal
+from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeReportRepository, FakeVisits, Journal
 
 NOW = kst(9, 23, 15)
 
 
-def _setup():
+def _with_reports(visits=None):
     journal = Journal()
-    visits, directory = FakeVisits(journal), FakeDirectory(journal)
+    visits, directory = visits or FakeVisits(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102, 103), passed=(103,))
     directory.family(2, pets=(201,))
-    return journal, visits, TransitionVisitsInteractor(visits, visits, FakeMenus(), directory, now=lambda: NOW)
+    reports = FakeReportRepository(visits)
+    interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), reports, directory, now=lambda: NOW)
+    return journal, visits, reports, interactor
+
+
+def _setup():
+    journal, visits, _, interactor = _with_reports()
+    return journal, visits, interactor
 
 
 def _act(ids, action, reason=None, member_id=11):
@@ -137,6 +146,75 @@ async def test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_�
     canceled = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 30, 14), status="canceled",
                            canceled_at=NOW, cancel_reason="customer_request")
     visits._swap_visit_id = canceled.id
-    interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), directory, now=lambda: NOW)
+    interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), FakeReportRepository(visits), directory,
+                                            now=lambda: NOW)
     with pytest.raises(VisitStateConflictError):
         await interactor.transition_visits(_act([canceled.id], "revert"))
+
+
+def _done(visits, pet_id=101):
+    return visits.seed(customer_id=1, pet_id=pet_id, starts_at=kst(9, 23, 13), status="completed",
+                       started_at=kst(9, 23, 13), completed_at=kst(9, 23, 14))
+
+
+async def _send(reports, visit_id, expires_at=NOW + timedelta(days=7)):
+    """어제 보낸 링크."""
+    await reports.create(ctx(), visit_id, bytes(16), expires_at, NOW - timedelta(days=1))
+
+
+async def test_알림장을_보낸_완료_방문은_되돌릴_수_없다():
+    journal, visits, reports, interactor = _with_reports()
+    sent = _done(visits)
+    await _send(reports, sent.id)
+    with pytest.raises(VisitReportSentError):
+        await interactor.transition_visits(_act([sent.id], "revert"))
+    assert visits.rows[sent.id].status == "completed"
+    assert [entry[0] for entry in journal] == ["lock_family", "lock_visits"]
+
+
+async def test_링크를_끊으면_되돌려진다():
+    _, visits, reports, interactor = _with_reports()
+    sent = _done(visits)
+    await _send(reports, sent.id)
+    await reports.revoke(ctx(), sent.id, NOW)
+    await interactor.transition_visits(_act([sent.id], "revert"))
+    assert visits.rows[sent.id].status == "reserved"
+
+
+async def test_링크의_기간이_지나면_되돌려진다():
+    _, visits, reports, interactor = _with_reports()
+    sent = _done(visits)
+    await _send(reports, sent.id, expires_at=NOW)   # 지금 끝난다
+    await interactor.transition_visits(_act([sent.id], "revert"))
+    assert visits.rows[sent.id].status == "reserved"
+
+
+async def test_함께_되돌리는_방문_하나에_알림장이_있으면_둘_다_그대로다():
+    journal, visits, reports, interactor = _with_reports()
+    kong, bori = _done(visits), _done(visits, pet_id=102)
+    await _send(reports, bori.id)
+    with pytest.raises(VisitReportSentError):
+        await interactor.transition_visits(_act([kong.id, bori.id], "revert"))
+    assert (visits.rows[kong.id].status, visits.rows[bori.id].status) == ("completed", "completed")
+    assert "apply_changes" not in [entry[0] for entry in journal]
+
+
+class _SentWhileLocking(FakeVisits):
+    """잠금을 기다리는 사이 다른 요청이 알림장을 보낸 상황을 흉내 낸다 — 잠금을 얻었을 때는 링크가 있다."""
+
+    reports: FakeReportRepository
+
+    async def lock(self, ctx, visit_ids):
+        for visit_id in visit_ids:
+            await _send(self.reports, visit_id)
+        return await super().lock(ctx, visit_ids)
+
+
+async def test_알림장을_보냈는지는_잠근_뒤에_읽는다():
+    """R9 — 잠그기 전에 읽으면 '링크 없음'을 보고 되돌려 버린다."""
+    _, visits, reports, interactor = _with_reports(_SentWhileLocking())
+    visits.reports = reports
+    sent = _done(visits)
+    with pytest.raises(VisitReportSentError):
+        await interactor.transition_visits(_act([sent.id], "revert"))
+    assert visits.rows[sent.id].status == "completed"

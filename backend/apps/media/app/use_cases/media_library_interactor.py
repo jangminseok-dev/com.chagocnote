@@ -9,6 +9,7 @@ from hub.app.errors import MediaClaimAlreadyAttachedError, MediaClaimNotFoundErr
 from hub.app.ports.media_library_port import MediaLibraryPort
 from media.app.ports.output.media_repository import MediaRepository
 from media.app.ports.output.object_storage_port import ObjectStoragePort
+from media.domain.services.media_rules import download_name
 from media.domain.services.url_expiry import signing_window
 
 
@@ -46,6 +47,7 @@ class MediaLibraryInteractor(MediaLibraryPort):
         return {
             m.id: MediaUrls(
                 media_id=m.id, kind=m.kind, original_url=sign(m.keys.original, window),
+                download_url=sign(m.keys.original, window, download_name(m.id, m.kind)),
                 display_url=sign(m.keys.display, window) if m.keys.display else None,
                 thumb_url=sign(m.keys.thumb, window), width=m.width, height=m.height,
                 duration_seconds=m.duration_seconds,

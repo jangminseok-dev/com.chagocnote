@@ -11,8 +11,8 @@ def to_record(
         visit_id=row.visit_id, weight_kg=row.weight_kg, care_note=row.care_note, internal_note=row.internal_note,
         payment_method=row.payment_method, total_amount=row.total_amount,
         items=tuple(RecordItem(menu_id=i.menu_id, amount=i.amount) for i in items),
-        media=tuple(RecordMedia(media_id=m.media_id, kind=m.kind, phase=m.phase, sort_order=m.sort_order)
-                    for m in media),
+        media=tuple(RecordMedia(media_id=m.media_id, kind=m.kind, phase=m.phase, sort_order=m.sort_order,
+                                hidden=m.hidden_from_report) for m in media),
         version=row.version, created_by_member_id=row.created_by_member_id,
         updated_by_member_id=row.updated_by_member_id,
     )

@@ -35,6 +35,8 @@ class Visit:
     menu_ids: tuple[int, ...]
     created_by_member_id: int
     status_changed_by_member_id: int | None
+    # 저장하는 값이 아니다 — 방문을 쓰는 유스케이스가 잠근 뒤 살아 있는 알림장 링크를 읽어 채운다.
+    has_live_report: bool = False
 
     @property
     def ends_at(self) -> datetime:

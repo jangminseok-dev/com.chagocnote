@@ -11,6 +11,7 @@ from visit.dependencies.hub_ports import get_customer_directory, get_media_libra
 from visit.dependencies.visit_wiring import (
     build_menu_repository,
     build_record_repository,
+    build_report_repository,
     build_schedule_repository,
     build_visit_repository,
 )
@@ -25,5 +26,5 @@ def get_list_day_visits_use_case(
     return ListDayVisitsInteractor(
         board=build_visit_repository(db), menus=build_menu_repository(db),
         schedule=build_schedule_repository(db), directory=directory, records=build_record_repository(db),
-        library=library, now=utc_now,
+        library=library, reports=build_report_repository(db), now=utc_now,
     )

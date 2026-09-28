@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterable
+from dataclasses import replace
 
 from visit.domain.entities.visit import Visit
 from visit.domain.entities.visit_record import AFTER, BEFORE, RecordMedia, VisitRecord
@@ -55,10 +56,10 @@ def next_version(current: VisitRecord | None) -> int:
 
 def append_media(media: Iterable[RecordMedia], media_id: int, kind: str, phase: str) -> tuple[RecordMedia, ...]:
     """그 칸(전/후)의 맨 뒤에 붙인다. 그 칸은 순서를 지킨 채 0부터 다시 매긴다 — 빼고 붙이기를 거듭해도
-    순서 값이 상한(99)에 닿지 않는다."""
+    순서 값이 상한(99)에 닿지 않는다. 있던 미디어는 순서만 바뀐다(알림장에서 뺀 표시가 남는다)."""
     media = list(media)
     same = sorted((m for m in media if m.phase == phase), key=lambda m: m.sort_order)
-    renumbered = [RecordMedia(m.media_id, m.kind, m.phase, order) for order, m in enumerate(same)]
+    renumbered = [replace(m, sort_order=order) for order, m in enumerate(same)]
     others = [m for m in media if m.phase != phase]
     return tuple(others + renumbered + [RecordMedia(media_id, kind, phase, len(same))])
 

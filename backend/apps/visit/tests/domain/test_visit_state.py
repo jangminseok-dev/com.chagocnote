@@ -1,6 +1,11 @@
 import pytest
 
-from visit.domain.errors import VisitInputError, VisitNotYetError, VisitStateConflictError
+from visit.domain.errors import (
+    VisitInputError,
+    VisitNotYetError,
+    VisitReportSentError,
+    VisitStateConflictError,
+)
 from visit.domain.state.visit_state import StatusChange, transition
 from visit.tests.helpers.builders import TZ, kst, visit
 
@@ -119,3 +124,12 @@ def test_되돌리기만_반려동물을_가족_확인에_넘긴다():
     visits = [visit(id=1, pet_id=102), visit(id=2, pet_id=101), visit(id=3, pet_id=None)]
     assert pets_to_confirm("revert", visits) == (101, 102)
     assert all(pets_to_confirm(action, visits) == () for action in ("start", "complete", "cancel", "no_show"))
+
+
+def test_알림장을_보내지_않은_완료_방문은_되돌린다():
+    assert _apply("completed", "revert", has_live_report=False) == StatusChange("reserved")
+
+
+def test_알림장을_보낸_완료_방문은_되돌릴_수_없다():
+    with pytest.raises(VisitReportSentError):
+        _apply("completed", "revert", has_live_report=True)

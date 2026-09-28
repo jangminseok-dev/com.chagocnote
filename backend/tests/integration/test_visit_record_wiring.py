@@ -95,6 +95,7 @@ async def test_기록을_쓰고_고치면_버전이_오르고_빠진_사진은_�
     assert (saved["version"], saved["total_amount"], [i["amount"] for i in saved["items"]]) == (1, 25000, [28000])
     assert [(m["media_id"], m["phase"]) for m in saved["media"]] == [(before, "before"), (after, "after")]
     assert all(m["thumb_url"].startswith("http") for m in saved["media"])
+    assert all("download_url" not in m for m in saved["media"])   # 내려받기 주소는 공개 알림장만 쓴다
     pet = (await wired.api.get(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=o)).json()["pet"]
     assert pet["weight_kg"] == 3.4
 

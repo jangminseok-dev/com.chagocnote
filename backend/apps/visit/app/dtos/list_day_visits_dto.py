@@ -46,6 +46,7 @@ class DayVisitItemView:
     unresolved: bool    # 지난 날인데 아직 예약됨
     has_record: bool    # 미용 기록이 있다
     cover: str | None   # 대표 사진 썸네일
+    report_sent: bool   # 살아 있는 알림장 링크가 있다
 
 
 @dataclass(frozen=True)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import secrets
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -36,7 +37,10 @@ def main() -> None:
         "S3_REGION=us-east-1\n"
         "S3_ACCESS_KEY=chagoc\n"
         "S3_SECRET_KEY=chagoc_dev_minio\n"
-        "S3_BUCKET=chagocnote-dev\n",
+        "S3_BUCKET=chagocnote-dev\n"
+        f"REPORT_LINK_KEY_B64={base64.b64encode(secrets.token_bytes(32)).decode()}\n"
+        "REPORT_WEB_BASE_URL=http://127.0.0.1:3010\n"
+        f"REPORT_WEB_SECRET={secrets.token_urlsafe(32)}\n",
         encoding="utf-8",
     )
     auth_env.write_text(

@@ -13,11 +13,16 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute, iter_route_contexts
 
 from auth.dependencies.recent_login_guard import require_recent_login
+from core.security import get_access_claims, get_current_user_id
 from core.shop_guard import get_shop_access_port, get_shop_context
 from platform_admin.dependencies.operator_guard import require_operator
 
 # 계정을 빼앗는 데 쓰일 수 있는 경로. 새로 더하는 민감 경로도 여기에 적는다.
 _RECENT_LOGIN_PREFIXES = ("/v1/auth/identities", "/v1/auth/account")
+# 로그인 없이 여는 공개 표면(/v1/public/). 여기에 적지 않은 공개 경로는 위반이다.
+_PUBLIC_ROUTES = {"GET /v1/public/report", "POST /v1/public/report/viewed"}
+# 로그인한 사용자를 읽는 의존성. require_recent_login 도 get_access_claims 위에 선다.
+_LOGIN = {get_access_claims, get_current_user_id}
 
 
 def _is_slot(call: Any) -> bool:
@@ -42,6 +47,19 @@ def routes_calling(app: FastAPI, dependency: Any) -> set[str]:
     return found
 
 
+def _names(ctx) -> set[str]:
+    return {f"{method} {ctx.path}" for method in ctx.original_route.methods}
+
+
+def routes_without_login(app: FastAPI) -> set[str]:
+    """로그인 의존성을 거치지 않는 경로를 "METHOD path" 로 돌려준다. 프로세스마다 테스트가 목록을 못 박는다."""
+    found = set()
+    for ctx in iter_route_contexts(app.routes):
+        if isinstance(ctx.original_route, APIRoute) and not _LOGIN & set(_calls(ctx.dependant)):
+            found.update(_names(ctx))
+    return found
+
+
 def find_route_violations(app: FastAPI) -> list[str]:
     """위반을 사람이 읽을 수 있는 줄로 돌려준다. 빈 목록이면 문제가 없다."""
     violations = []
@@ -58,4 +76,9 @@ def find_route_violations(app: FastAPI) -> list[str]:
             violations.append(f"{path}: 운영자 표면인데 require_operator 를 거치지 않는다")
         if path.startswith(_RECENT_LOGIN_PREFIXES) and require_recent_login not in calls:
             violations.append(f"{path}: 민감한 계정 경로인데 require_recent_login 을 거치지 않는다")
+        if path.startswith("/v1/public/"):
+            if not _names(ctx) <= _PUBLIC_ROUTES:
+                violations.append(f"{path}: 공개 경로인데 허용 목록에 없다")
+            if calls & (_LOGIN | {get_shop_context}):
+                violations.append(f"{path}: 공개 경로인데 로그인이나 매장 확인을 거친다")
     return sorted(violations)

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from visit.app.dtos.transition_visits_dto import TransitionedVisitsView, TransitionVisitsCommand
 from visit.app.ports.input.transition_visits_use_case import TransitionVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.app.services.completion_effects import apply_completion_effects
@@ -21,11 +23,12 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
 
     def __init__(
         self, visits: VisitWriteRepository, history: VisitHistoryRepository, menus: MenuRepository,
-        directory: CustomerDirectoryPort, now: Callable[[], datetime],
+        reports: ReportRepository, directory: CustomerDirectoryPort, now: Callable[[], datetime],
     ) -> None:
         self._visits = visits
         self._history = history
         self._menus = menus
+        self._reports = reports
         self._directory = directory
         self._now = now
 
@@ -40,6 +43,9 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
             raise VisitStateConflictError("다른 기기가 먼저 방문을 바꿨습니다. 다시 불러와 주세요.")
 
         now = self._now()
+        # 알림장을 보냈는지도 잠근 뒤에 읽는다 — 보내기가 같은 잠금을 쥐므로 판정과 쓰기 사이에 링크가 생기지 않는다.
+        sent = await self._reports.live_visit_ids(ctx, ids, now)
+        locked = [replace(v, has_live_report=v.id in sent) for v in locked]
         # 잠근 뒤 다시 읽은 상태로 모두 판정한 다음에 쓴다 — 하나라도 안 되면 아무것도 바꾸지 않는다.
         changes = [(v.id, transition(v, command.action, now, ctx.timezone, command.cancel_reason)) for v in locked]
         changed = await self._visits.apply_changes(ctx, changes, ctx.member_id)

@@ -14,8 +14,9 @@ class ObjectStoragePort(ABC):
         """앱이 인증 헤더 없이 PUT 할 URL. Content-Type 이 서명에 든다 — 다른 형식으로 올리면 저장소가 거절한다."""
 
     @abstractmethod
-    def presign_get(self, key: str, window: SigningWindow) -> str:
-        """읽기 URL. 같은 창이면 글자까지 같다(앱·CDN 캐시)."""
+    def presign_get(self, key: str, window: SigningWindow, download_as: str | None = None) -> str:
+        """읽기 URL. 같은 창이면 글자까지 같다(앱·CDN 캐시). download_as 를 주면 저장소가 그 이름의 첨부 파일로
+        내려 준다(Content-Disposition) — 이름은 ASCII 만 쓴다."""
 
     @abstractmethod
     async def head(self, key: str) -> ObjectInfo | None:

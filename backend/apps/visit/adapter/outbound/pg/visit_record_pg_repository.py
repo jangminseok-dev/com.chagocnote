@@ -98,7 +98,7 @@ class VisitRecordPgRepository(VisitRecordRepository):
             await self._session.execute(
                 insert(VisitRecordMediaOrm),
                 [dict(visit_id=record.visit_id, media_id=m.media_id, kind=m.kind, phase=m.phase,
-                      sort_order=m.sort_order) for m in record.media],
+                      sort_order=m.sort_order, hidden_from_report=m.hidden) for m in record.media],
             )
         row = (
             await self._session.execute(
@@ -107,6 +107,13 @@ class VisitRecordPgRepository(VisitRecordRepository):
             )
         ).scalar_one()
         return (await self._assemble([row]))[record.visit_id]
+
+    async def set_hidden(self, ctx: ShopContext, visit_id: int, hidden_ids: tuple[int, ...]) -> None:
+        await self._session.execute(
+            update(VisitRecordMediaOrm)
+            .where(VisitRecordMediaOrm.visit_id == visit_id)
+            .values(hidden_from_report=VisitRecordMediaOrm.media_id.in_(hidden_ids))
+        )
 
     async def delete(self, ctx: ShopContext, visit_id: int) -> None:
         await self._session.execute(delete(VisitRecordOrm).where(VisitRecordOrm.visit_id == visit_id))

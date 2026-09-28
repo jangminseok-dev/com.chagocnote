@@ -1,8 +1,19 @@
+from datetime import timedelta
+
 from visit.app.dtos.list_visit_feed_dto import ListVisitFeedQuery
 from visit.app.use_cases.list_visit_feed_interactor import ListVisitFeedInteractor
 from visit.domain.entities.visit_record import RecordItem
 from visit.tests.helpers.builders import ctx, kst, record
-from visit.tests.helpers.fakes import FakeDirectory, FakeLibrary, FakeMenus, FakeRecords, FakeVisits
+from visit.tests.helpers.fakes import (
+    FakeDirectory,
+    FakeLibrary,
+    FakeMenus,
+    FakeRecords,
+    FakeReportRepository,
+    FakeVisits,
+)
+
+NOW = kst(9, 24, 10)
 
 
 class _World:
@@ -11,7 +22,9 @@ class _World:
         self.directory.family(1, pets=(101, 102))
         self.records, self.library = FakeRecords(self.visits), FakeLibrary()
         self.bath, self.trim = self.menus.seed("목욕"), self.menus.seed("전체 미용")
-        self.interactor = ListVisitFeedInteractor(self.visits, self.records, self.menus, self.directory, self.library)
+        self.reports = FakeReportRepository(self.visits)
+        self.interactor = ListVisitFeedInteractor(self.visits, self.records, self.menus, self.reports,
+                                                  self.directory, self.library, now=lambda: NOW)
 
     def done(self, day, pet_id=101, menu_ids=(), shop_id=1):
         return self.visits.seed(pet_id=pet_id, starts_at=kst(9, day, 10), status="completed", shop_id=shop_id,
@@ -54,3 +67,17 @@ async def test_다른_매장의_방문은_나오지_않는다():
     w = _World()
     w.done(2, shop_id=2)
     assert (await w.feed()).items == []
+
+
+async def test_알림장을_보낸_방문을_알리고_링크는_한_번에_읽는다():
+    w = _World()
+    expired, revoked, never, sent = [w.done(day) for day in (1, 2, 3, 4)]
+    sent_at = NOW - timedelta(days=7)
+    await w.reports.create(ctx(), sent.id, bytes(16), None, sent_at)
+    await w.reports.create(ctx(), expired.id, bytes(16), NOW, sent_at)   # 지금 끝난다
+    await w.reports.create(ctx(), revoked.id, bytes(16), None, sent_at)
+    await w.reports.revoke(ctx(), revoked.id, NOW)
+    view = await w.feed()
+    assert [(i.visit_id, i.report_sent) for i in view.items] == [
+        (sent.id, True), (never.id, False), (revoked.id, False), (expired.id, False)]
+    assert w.reports.reads == ["live_visit_ids"]

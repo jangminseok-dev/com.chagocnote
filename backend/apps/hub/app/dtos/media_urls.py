@@ -6,7 +6,9 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class MediaUrls:
     """사진·영상 하나의 읽기 URL 과 표시용 정보. 목록·달력·피드·미리보기는 thumb, 상세 넘기기는 display
-    (영상은 None — 포스터 thumb 를 쓴다), 크게 보기·원본 저장·영상 재생은 original 을 쓴다.
+    (영상은 None — 포스터 thumb 를 쓴다), 크게 보기·원본 저장·영상 재생은 original 을 쓴다. download 는 원본을
+    첨부 파일(`chagocnote-{media_id}.jpg`·`.mp4`)로 내려받는 주소다 — 브라우저의 download 속성은 다른 출처의
+    파일에 동작하지 않아서, 공개 알림장의 '저장'이 쓴다.
 
     URL 은 매장 시간대 04:00 기준으로 하루 동안 같고 최대 48시간 유효하다. 앱은 media_id 를 캐시 키로 쓴다.
     """
@@ -14,6 +16,7 @@ class MediaUrls:
     media_id: int
     kind: str                     # photo · video
     original_url: str
+    download_url: str
     display_url: str | None
     thumb_url: str
     width: int

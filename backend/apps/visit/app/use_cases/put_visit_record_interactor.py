@@ -14,6 +14,7 @@ from visit.app.services.record_reader import describe_record
 from visit.app.services.visit_locking import lock_visits
 from visit.domain.entities.visit_record import RecordMedia, VisitRecord
 from visit.domain.errors import MenuNotAvailableError, RecordSalesForbiddenError
+from visit.domain.services.report_rules import carry_hidden
 from visit.domain.services.visit_record_rules import (
     check_input,
     check_media_limits,
@@ -28,6 +29,8 @@ class PutVisitRecordInteractor(PutVisitRecordUseCase):
 
     새로 든 미디어는 가져가고(claim), 빠진 미디어는 놓는다(release) — 놓인 미디어는 정리 스크립트가 지운다.
     둘 다 조건부 UPDATE 라 잠금 안에서 불러도 된다. 하나라도 안 되면 요청 전체가 되돌려진다.
+    저장은 미디어 줄을 지우고 다시 넣으므로, 알림장에서 뺀 표시를 미디어 ID 로 이어 붙인다 — 빠뜨리면 뺀 사진이
+    보호자에게 보인다.
     """
 
     def __init__(
@@ -64,8 +67,9 @@ class PutVisitRecordInteractor(PutVisitRecordUseCase):
             visit_id=visit.id, weight_kg=wanted.weight_kg, care_note=wanted.care_note,
             internal_note=wanted.internal_note, payment_method=wanted.payment_method,
             total_amount=wanted.total_amount, items=wanted.items,
-            media=tuple(RecordMedia(media_id=p.media_id, kind=kinds[p.media_id], phase=p.phase,
-                                    sort_order=p.sort_order) for p in wanted.media),
+            media=carry_hidden(current.media if current else (), tuple(
+                RecordMedia(media_id=p.media_id, kind=kinds[p.media_id], phase=p.phase, sort_order=p.sort_order)
+                for p in wanted.media)),
             version=next_version(current),
             created_by_member_id=current.created_by_member_id if current else ctx.member_id,
             updated_by_member_id=ctx.member_id,

@@ -1,7 +1,7 @@
 import pytest
 
 from media.domain.errors import MediaInputError, MediaTooLargeError, MediaTypeUnsupportedError
-from media.domain.services.media_rules import MAX_BYTES, check_upload, object_keys
+from media.domain.services.media_rules import MAX_BYTES, check_upload, download_name, object_keys
 
 MB = 1024 * 1024
 
@@ -48,3 +48,8 @@ def test_가로세로와_길이의_경계(kind, width, height, duration):
     content_type = "image/jpeg" if kind == "photo" else "video/mp4"
     with pytest.raises(MediaInputError):
         check_upload(kind, content_type, 1000, width, height, duration)
+
+
+def test_내려받는_파일_이름은_서비스_이름과_ID_와_확장자뿐이다():
+    assert download_name(42, "photo") == "chagocnote-42.jpg"
+    assert download_name(9007199254740993, "video") == "chagocnote-9007199254740993.mp4"

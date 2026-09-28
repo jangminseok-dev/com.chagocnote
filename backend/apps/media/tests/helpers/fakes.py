@@ -90,8 +90,9 @@ class FakeStorage(ObjectStoragePort):
     def presign_put(self, key, content_type, expires_in_seconds):
         return f"put://{key}?type={content_type}&expires={expires_in_seconds}"
 
-    def presign_get(self, key, window):
-        return f"get://{key}?signed={window.signed_at:%Y%m%dT%H%M}"
+    def presign_get(self, key, window, download_as=None):
+        download = f"&download={download_as}" if download_as else ""
+        return f"get://{key}?signed={window.signed_at:%Y%m%dT%H%M}{download}"
 
     async def head(self, key):
         self.journal.append(("head", key))

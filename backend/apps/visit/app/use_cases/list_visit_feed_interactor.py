@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
@@ -7,6 +9,7 @@ from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.dtos.list_visit_feed_dto import FeedItemView, ListVisitFeedQuery, VisitFeedView
 from visit.app.ports.input.list_visit_feed_use_case import ListVisitFeedUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.visit_feed_repository import VisitFeedRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.services.cover_reader import cover_urls
@@ -20,13 +23,16 @@ class ListVisitFeedInteractor(ListVisitFeedUseCase):
 
     def __init__(
         self, feed: VisitFeedRepository, records: VisitRecordRepository, menus: MenuRepository,
-        directory: CustomerDirectoryPort, library: MediaLibraryPort,
+        reports: ReportRepository, directory: CustomerDirectoryPort, library: MediaLibraryPort,
+        now: Callable[[], datetime],
     ) -> None:
         self._feed = feed
         self._records = records
         self._menus = menus
+        self._reports = reports
         self._directory = directory
         self._library = library
+        self._now = now
 
     async def list_visit_feed(self, query: ListVisitFeedQuery) -> VisitFeedView:
         ctx = query.ctx
@@ -34,6 +40,7 @@ class ListVisitFeedInteractor(ListVisitFeedUseCase):
         views = await describe_visits(ctx, page.visits, self._directory, self._menus)
         records = await self._records.list_many(ctx, [v.id for v in page.visits])
         covers = await cover_urls(ctx, records, self._library)
+        sent = await self._reports.live_visit_ids(ctx, [v.id for v in page.visits], self._now())
         item_ids = sorted({i.menu_id for r in records.values() for i in r.items})
         names = {m.id: m.name for m in await self._menus.list_by_ids(ctx, item_ids)} if item_ids else {}
         zone = ZoneInfo(ctx.timezone)
@@ -48,5 +55,6 @@ class ListVisitFeedInteractor(ListVisitFeedUseCase):
                 menus=actual or [m.name for m in view.menus],
                 care_note=note[:CARE_NOTE_PREVIEW] if note else None,
                 media_count=len(record.media) if record else 0,
+                report_sent=visit.id in sent,
             ))
         return VisitFeedView(items=items, next_cursor=page.next_cursor)

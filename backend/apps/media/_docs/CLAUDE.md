@@ -10,3 +10,4 @@
 - 허브 포트 `MediaLibraryPort`를 구현한다(`app/use_cases/media_library_interactor.py`, HTTP 없음). visit 이 기록에 붙일 때 가져가고(`claim` — 준비됐고 이 매장의 것이고 아무도 안 가져간 것만, 전부 되거나 전부 안 됨, 세이브포인트) 뺄 때 놓는다(`release`). customer·visit 이 읽기 URL 을 받는다(`read_urls`). media 는 어느 기록이 가져갔는지 모른다 — `attached_at`만 안다.
 - 놓였거나 가져가지 않은 미디어는 바로 지우지 않는다. `scripts/purge_stale_media.py`가 하루 넘은 것(pending, 또는 ready 인데 미부착 — 놓기가 `ready_at`을 다시 찍으므로 놓인 미디어는 놓인 시각부터 하루)을 표시 → 저장소 삭제 → 행 삭제 순서로 지운다. 운영에서는 이 스크립트를 주기적으로 돌린다.
 - 이 스포크는 다른 스포크를 import 하지 않는다. 다른 스포크의 허브 포트도 쓰지 않는다.
+- `read_urls`는 내려받기용 주소(`download_url`)도 준다. 원본 키를 `response-content-disposition=attachment`와 함께 서명한 것이고 파일 이름은 `media_rules.download_name`(`chagocnote-{ID}.jpg`·`.mp4`)이 정한다. 서명에 들어가므로 파일 이름만 바꾸면 저장소가 403 을 준다. 서명 시각 규칙은 읽기 URL 과 같다. `sigv4_query.presign_get_url`이 더 받는 질의 매개변수는 이것 하나다 — 다른 것을 더하면 키 정렬을 다시 짠다.

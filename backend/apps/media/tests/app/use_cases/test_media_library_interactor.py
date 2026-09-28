@@ -68,6 +68,17 @@ async def test_읽기_URL_은_준비된_것만_매장_시간대의_하루_창으
     assert urls[video.id].original_url == f"get://original-video/shops/1/{video.id}.mp4?signed=20260923T1900"
 
 
+async def test_내려받기_URL_은_원본을_첨부_파일_이름과_함께_서명한다():
+    library, media = _library()
+    photo, video = media.seed(status="ready"), media.seed(kind="video", status="ready")
+    urls = await library.read_urls(ctx(), [photo.id, video.id])
+    assert urls[photo.id].download_url == (
+        f"get://original/shops/1/{photo.id}.jpg?signed=20260923T1900&download=chagocnote-{photo.id}.jpg")
+    assert urls[video.id].download_url == (
+        f"get://original-video/shops/1/{video.id}.mp4?signed=20260923T1900&download=chagocnote-{video.id}.mp4")
+    assert "download" not in urls[photo.id].original_url + urls[photo.id].display_url + urls[photo.id].thumb_url
+
+
 async def test_다른_매장의_미디어는_URL_이_없다():
     library, media = _library()
     photo = media.seed(shop_id=2, status="ready")
