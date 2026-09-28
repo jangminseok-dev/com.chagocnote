@@ -98,3 +98,33 @@ class RecordSalesForbiddenError(VisitError):
     """돈 칸(총액·항목·결제 수단)을 적는데 sales:write 가 없다. 403."""
 
     code = "PERMISSION_DENIED"
+
+
+class ReportNotFoundError(VisitError):
+    """살아 있는 알림장 링크가 없다 — 끊을 링크가 없거나, 토큰이 틀렸거나, 그런 링크가 없다. 404."""
+
+    code = "REPORT_NOT_FOUND"
+
+
+class ReportClosedError(VisitError):
+    """끊었거나 기간이 지난 링크, 또는 정지·폐업한 매장의 링크다. 410."""
+
+    code = "REPORT_CLOSED"
+
+
+class ReportEmptyError(VisitError):
+    """보여 줄 사진·영상도 케어 메모도 없다. 링크를 새로 만들 때만 본다. 422."""
+
+    code = "REPORT_EMPTY"
+
+
+class VisitNotCompletedError(VisitError):
+    """알림장은 완료한 방문에서만 보낸다. 409."""
+
+    code = "VISIT_NOT_COMPLETED"
+
+
+class VisitReportSentError(VisitError):
+    """살아 있는 알림장 링크가 있는 방문은 되돌리거나 기록을 지울 수 없다 — 링크를 먼저 끊는다. 409."""
+
+    code = "VISIT_REPORT_SENT"

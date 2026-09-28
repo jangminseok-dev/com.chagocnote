@@ -9,13 +9,18 @@ from visit.domain.errors import (
     RecordSalesForbiddenError,
     RecordVersionConflictError,
     RecordWeightWithoutPetError,
+    ReportClosedError,
+    ReportEmptyError,
+    ReportNotFoundError,
     VisitCrossesMidnightError,
     VisitDuplicateError,
     VisitGroupMismatchError,
     VisitInputError,
     VisitNoRecordYetError,
+    VisitNotCompletedError,
     VisitNotFoundError,
     VisitNotYetError,
+    VisitReportSentError,
     VisitStateConflictError,
 )
 
@@ -37,4 +42,9 @@ VISIT_ERROR_STATUS: dict[type[Exception], int] = {
     RecordWeightWithoutPetError: 422,
     RecordItemDuplicateError: 422,
     RecordMediaLimitError: 422,
+    ReportNotFoundError: 404,
+    ReportClosedError: 410,
+    ReportEmptyError: 422,
+    VisitNotCompletedError: 409,
+    VisitReportSentError: 409,
 }

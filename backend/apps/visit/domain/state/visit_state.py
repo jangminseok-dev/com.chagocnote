@@ -22,7 +22,12 @@ from visit.domain.entities.visit import (
     RESERVED,
     Visit,
 )
-from visit.domain.errors import VisitInputError, VisitNotYetError, VisitStateConflictError
+from visit.domain.errors import (
+    VisitInputError,
+    VisitNotYetError,
+    VisitReportSentError,
+    VisitStateConflictError,
+)
 from visit.domain.services.visit_schedule import local_date
 
 ACTIONS = frozenset({"start", "complete", "cancel", "no_show", "revert"})
@@ -67,7 +72,7 @@ class VisitState(ABC):
         raise self._refuse("노쇼 처리")
 
     def revert(self, visit: Visit, request: TransitionRequest) -> StatusChange:
-        # 알림장을 보낸 뒤에는 되돌릴 수 없다는 규칙이 ⑤에서 더해진다.
+        # 알림장을 보낸 완료 방문은 되돌릴 수 없다 — 그 규칙은 CompletedState 에 있다.
         return StatusChange(status=RESERVED)
 
     def _refuse(self, action: str) -> VisitStateConflictError:
@@ -111,6 +116,11 @@ class InProgressState(VisitState):
 
 class CompletedState(VisitState):
     status = COMPLETED
+
+    def revert(self, visit: Visit, request: TransitionRequest) -> StatusChange:
+        if visit.has_live_report:
+            raise VisitReportSentError("알림장을 보낸 방문입니다. 링크를 먼저 끊어 주세요.")
+        return super().revert(visit, request)
 
 
 class CanceledState(VisitState):
