@@ -121,7 +121,9 @@ async def test_모든_항목을_켜도_공개하기로_한_것만_나간다(wire
     assert set(media) == {"kind", "phase", "width", "height", "duration_seconds", "display_url", "thumb_url",
                           "download_url"}
     # 본문 글 전체에 — 칸 이름으로도 값으로도 — 없어야 한다.
-    assert [word for word in LEAKS if word in response.text] == []
+    # 서명 주소의 질의 문자열(16진 서명)은 떼고 본다 — 숫자 조각이 서명과 우연히 겹친다.
+    shown = re.sub(r'\?[^"]*', "", response.text)
+    assert [word for word in LEAKS if word in shown] == []
     assert token not in response.text
     # 뺀 사진은 어느 주소로도 나가지 않는다.
     for url in (by_id[removed][k] for k in ("display_url", "thumb_url", "download_url")):

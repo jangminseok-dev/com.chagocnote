@@ -107,7 +107,9 @@ async def test_직원이_알림장을_미리_보고_설정과_링크가_그대�
     assert (media["media_id"], media["hidden"], media["kind"], media["phase"]) == (photo, False, "photo", "after")
     assert "response-content-disposition" in media["download_url"]
     assert "response-content-disposition" not in media["display_url"]
-    assert "SECRET" not in seen.text and "김민지" not in seen.text and "1234" not in seen.text
+    # 서명 주소의 질의 문자열(16진 서명)은 떼고 본다 — 숫자 조각이 서명과 우연히 겹친다.
+    shown = re.sub(r'\?[^"]*', "", seen.text)
+    assert "SECRET" not in shown and "김민지" not in shown and "1234" not in shown
 
     changed = await wired.api.put(
         f"/v1/shops/{shop_id}/report-settings", headers=o,

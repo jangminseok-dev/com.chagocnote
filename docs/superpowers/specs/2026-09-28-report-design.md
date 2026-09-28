@@ -204,7 +204,7 @@ token = base64url( public_id(16) ‖ HMAC-SHA256(REPORT_LINK_KEY, public_id)[:16
 | 장치 | 내용 |
 |---|---|
 | 토큰 크기 | 무작위 128비트 + 서명 128비트 |
-| 횟수 제한 | 접속 주소별 분당 60회. 실패(404)는 10분에 20회. 넘으면 429. Redis 고정 창 계수기 — `invite_attempt_redis_limiter.py` 와 같은 모양 |
+| 횟수 제한 | 접속 주소별 분당 60회, 넘으면 429. 실패(404)는 10분에 20회 — 넘으면 서명이 틀린 요청만 429 이고 서명이 맞는 토큰은 막지 않는다(결정 기록 008). Redis 고정 창 계수기 — `invite_attempt_redis_limiter.py` 와 같은 모양 |
 | Redis 장애 | 제한 없이 통과시키고 경고 로그를 남긴다. 토큰 크기가 1차 방어다 |
 
 백엔드가 보는 상대는 보호자가 아니라 웹 서버다. 웹 서버는 보호자의 접속 주소를 `X-Report-Client-IP` 로, 공유 비밀값을 `X-Report-Web-Secret` 으로 보낸다. 백엔드는 비밀값(`REPORT_WEB_SECRET`, `secret_manager`)이 맞을 때만 그 주소로 세고, 아니면 연결된 주소로 센다. 비밀값이 없는 요청도 받는다 — 공개 API 는 비밀값이 아니라 토큰이 지킨다.
