@@ -18,5 +18,9 @@
 | `ActiveUserGuardPort.lock_active(user_id) → bool` | auth `guard_active_user` | tenancy `accept_invite` |
 | `MembershipLifecyclePort.apply_withdrawal(user_id, close_sole_owned)` | tenancy `apply_withdrawal` | auth `withdraw` (인증 프로세스) |
 | `CustomerDirectoryPort.lock_family · briefs · set_last_visit · set_pet_weight · find_draft_candidates(ctx, words) → list[DraftCandidate]` | customer `customer_directory` | visit (방문 쓰기의 가족 잠금, 이름 표시, 최근 방문순, 기록의 몸무게, 카톡 초안 후보) |
-| `VisitLedgerPort` (방문 유무·앞으로의 예약·노쇼 횟수·메모 비우기·`latest_covers`) | visit `visit_ledger` | customer (삭제·익명화·무지개다리 규칙, 고객 상세, 반려동물 프로필 사진) |
-| `MediaLibraryPort.claim(ctx, ids) → {id: kind} · release · read_urls(ctx, ids) → {id: MediaUrls}` | media `media_library` | visit (기록의 사진·영상), customer (프로필 사진) |
+| `VisitLedgerPort` (방문 유무·앞으로의 예약·노쇼 횟수·메모 비우기(`clear_customer_memos` — 알림장 링크도 끊는다)·`latest_covers`) | visit `visit_ledger` | customer (삭제·익명화·무지개다리 규칙, 고객 상세, 반려동물 프로필 사진) |
+| `MediaLibraryPort.claim(ctx, ids) → {id: kind} · release · read_urls(ctx, ids) → {id: MediaUrls}` | media `media_library` | visit (기록의 사진·영상, 알림장), customer (프로필 사진) |
+| `ShopProfilePort.public_profile(shop_id) → ShopProfile \| None` (이름·전화·주소·시간대·영업 중 여부) | tenancy `get_shop_profile` | visit (알림장의 매장 정보, 공개 조회의 시간대와 정지·폐업 판정) |
+
+- `MediaUrls`에는 `download_url`이 있다 — 원본을 첨부 파일로 내려받는 서명 주소다. 칸이 `original_url` 바로 뒤라 `MediaUrls`는 이름 인자로 만든다.
+- `ShopProfilePort.public_profile`은 권한을 보지 않고 정지·폐업한 매장도 돌려준다(`None`은 없는 매장뿐). 로그인한 사용자가 없는 경로가 서명을 확인한 링크에서 읽은 매장 ID 로만 부른다.
