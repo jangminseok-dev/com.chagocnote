@@ -13,6 +13,7 @@ from visit.app.dtos.list_day_visits_dto import (
 )
 from visit.app.ports.input.list_day_visits_use_case import ListDayVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
@@ -29,7 +30,7 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
     def __init__(
         self, board: VisitBoardRepository, menus: MenuRepository, schedule: ScheduleRepository,
         directory: CustomerDirectoryPort, records: VisitRecordRepository, library: MediaLibraryPort,
-        now: Callable[[], datetime],
+        reports: ReportRepository, now: Callable[[], datetime],
     ) -> None:
         self._board = board
         self._menus = menus
@@ -37,6 +38,7 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
         self._directory = directory
         self._records = records
         self._library = library
+        self._reports = reports
         self._now = now
 
     async def list_day_visits(self, query: ListDayVisitsQuery) -> DayVisitsView:
@@ -48,10 +50,12 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
         visits = await self._board.list_between(ctx, start, end)
         occupied = await self._board.list_occupied(ctx, start, end)   # 전날 밤에 시작한 방문도 겹칠 수 있다
         closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, day, day))
-        today = local_date(self._now(), tz)
+        now = self._now()
+        today = local_date(now, tz)
         views = await describe_visits(ctx, visits, self._directory, self._menus)
         recorded = await self._records.list_many(ctx, [v.id for v in visits])
         covers = await cover_urls(ctx, recorded, self._library)
+        sent = await self._reports.live_visit_ids(ctx, [v.id for v in visits], now)
         items = [
             DayVisitItemView(
                 visit=view,
@@ -60,6 +64,7 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
                 unresolved=is_unresolved(visit, today, tz),
                 has_record=visit.id in recorded,
                 cover=covers.get(visit.id),
+                report_sent=visit.id in sent,
             )
             for visit, view in zip(visits, views)
         ]

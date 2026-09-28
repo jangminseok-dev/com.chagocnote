@@ -25,6 +25,7 @@ class DayVisitItemSchema(BaseModel):
     unresolved: bool
     has_record: bool
     cover: str | None   # 대표 사진 썸네일 URL
+    report_sent: bool   # 살아 있는 알림장 링크가 있다
 
 
 class DayVisitsSchema(BaseModel):

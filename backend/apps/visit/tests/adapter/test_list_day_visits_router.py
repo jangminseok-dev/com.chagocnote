@@ -11,7 +11,7 @@ DAY = DayVisitsView(
     counts=DayCountsView(visit_count=1, reserved=1, in_progress=0, completed=0, canceled=0, no_show=0,
                          unresolved=0),
     items=[DayVisitItemView(visit=visit_view(), group_key="1:2026-10-02T05:00:00+00:00", overlapping=True,
-                            unresolved=False, has_record=True, cover="t/51")],
+                            unresolved=False, has_record=True, cover="t/51", report_sent=True)],
 )
 
 
@@ -24,6 +24,7 @@ async def test_직원도_하루_목록을_본다():
     assert (body["date"], body["counts"]["visit_count"], body["items"][0]["overlapping"]) == (
         "2026-10-02", 1, True)
     assert (body["items"][0]["has_record"], body["items"][0]["cover"]) == (True, "t/51")
+    assert body["items"][0]["report_sent"] is True
     assert body["items"][0]["visit"]["starts_at"] == "2026-10-02T14:00:00+09:00"
     assert stub.calls[0].day == date(2026, 10, 2)
     assert error_of(missing) == (422, "VALIDATION_ERROR")

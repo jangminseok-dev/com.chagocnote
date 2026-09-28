@@ -12,7 +12,7 @@ _V = visit_view()
 FEED = VisitFeedView(
     items=[FeedItemView(visit_id=4, customer=_V.customer, pet=_V.pet,
                         completed_at=datetime(2026, 9, 9, 12, tzinfo=ZoneInfo("Asia/Seoul")), cover="t/51",
-                        menus=["전체 미용"], care_note="눈물 자국", media_count=3)],
+                        menus=["전체 미용"], care_note="눈물 자국", media_count=3, report_sent=True)],
     next_cursor="abc",
 )
 
@@ -25,6 +25,7 @@ async def test_멤버는_피드를_본다_기본은_20개():
     body = response.json()
     assert (body["next_cursor"], body["items"][0]["cover"], body["items"][0]["pet"]["name"]) == ("abc", "t/51", "콩이")
     assert body["items"][0]["completed_at"] == "2026-09-09T12:00:00+09:00"
+    assert body["items"][0]["report_sent"] is True
     assert [(q.cursor, q.limit, q.pet_id) for q in stub.calls] == [(None, 20, None), ("abc", 50, 101)]
 
 

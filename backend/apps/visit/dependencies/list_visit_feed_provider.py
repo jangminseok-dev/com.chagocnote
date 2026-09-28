@@ -8,7 +8,13 @@ from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.ports.input.list_visit_feed_use_case import ListVisitFeedUseCase
 from visit.app.use_cases.list_visit_feed_interactor import ListVisitFeedInteractor
 from visit.dependencies.hub_ports import get_customer_directory, get_media_library
-from visit.dependencies.visit_wiring import build_menu_repository, build_record_repository, build_visit_repository
+from visit.dependencies.visit_wiring import (
+    build_menu_repository,
+    build_record_repository,
+    build_report_repository,
+    build_visit_repository,
+)
+from visit.domain.services.visit_schedule import utc_now
 
 
 def get_list_visit_feed_use_case(
@@ -18,5 +24,5 @@ def get_list_visit_feed_use_case(
 ) -> ListVisitFeedUseCase:
     return ListVisitFeedInteractor(
         feed=build_visit_repository(db), records=build_record_repository(db), menus=build_menu_repository(db),
-        directory=directory, library=library,
+        reports=build_report_repository(db), directory=directory, library=library, now=utc_now,
     )

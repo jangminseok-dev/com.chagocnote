@@ -407,12 +407,14 @@ class FakeReportRepository(ReportRepository, PublicReportRepository):
     """visit_reports 스텁 — pg 구현처럼 두 포트를 한 객체가 낸다. 방문의 매장은 visits 스텁에서 본다.
 
     끊지 않은 줄이 있는 방문에 또 만들면 AssertionError 다 — 인터랙터가 닫기(close_expired)나 끊기를 빠뜨린 것이다.
+    살아 있는 링크를 읽은 호출은 reads 에 이름으로 남는다(journal 에는 쓰기만 남긴다).
     """
 
     def __init__(self, visits: FakeVisits, journal: Journal | None = None) -> None:
         self.visits = visits
         self.journal = journal if journal is not None else Journal()
         self.rows: list[VisitReport] = []
+        self.reads: list[str] = []
 
     def _open(self, ctx, **visit_fields) -> list[VisitReport]:
         """이 매장의, 조건에 맞는 방문에 달린 끊지 않은 줄."""
@@ -426,9 +428,11 @@ class FakeReportRepository(ReportRepository, PublicReportRepository):
         self.rows = [replace(r, revoked_at=now) if r in reports else r for r in self.rows]
 
     async def get_live(self, ctx, visit_id, now):
+        self.reads.append("get_live")
         return next((r for r in self._open(ctx, id=visit_id) if r.is_live(now)), None)
 
     async def live_visit_ids(self, ctx, visit_ids, now):
+        self.reads.append("live_visit_ids")
         return {r.visit_id for r in self._open(ctx) if r.visit_id in visit_ids and r.is_live(now)}
 
     async def close_expired(self, ctx, visit_id, now):

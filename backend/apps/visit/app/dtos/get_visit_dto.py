@@ -5,6 +5,7 @@ from datetime import datetime
 
 from hub.app.dtos.shop_context import ShopContext
 from visit.app.dtos.record_view_dto import RecordView
+from visit.app.dtos.report_view_dto import ReportLinkView
 from visit.app.dtos.visit_view_dto import VisitView
 
 
@@ -29,3 +30,4 @@ class VisitDetailView:
     no_show_count: int                     # 이 보호자의 노쇼 횟수
     record: RecordView | None              # 미용 기록 — 없으면 None
     cover: str | None                      # 대표 사진 썸네일(후 → 전 → 영상 포스터)
+    report: ReportLinkView                 # 알림장 링크의 상태 — 보낸 적이 없거나 닫혔으면 none

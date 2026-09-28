@@ -241,3 +241,70 @@ async def test_알림장에서_뺀_사진은_기록을_고치고_사진을_덧�
     assert appended.status_code == 200, appended.text
     assert await hidden() == {first: False, removed: True, last: False, added: False}
     assert (await wired.api.get(f"{visit}/report", headers=o)).json()["link"] == sent.json()["link"]
+
+
+async def test_보낸_방문은_되돌리지_못하고_끊으면_되돌려진다(wired):
+    shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    visit_id, _ = await _completed_visit(wired, shop_id, o)
+    report = f"/v1/shops/{shop_id}/visits/{visit_id}/report"
+    revert = {"visit_ids": [visit_id], "action": "revert"}
+    assert (await wired.api.put(report, headers=o, json={"hidden_media_ids": []})).status_code == 200
+
+    assert error_of(await wired.api.post(f"/v1/shops/{shop_id}/visits/transitions", headers=o, json=revert)) == (
+        409, "VISIT_REPORT_SENT")
+    detail = (await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}", headers=o)).json()
+    assert (detail["visit"]["status"], detail["report"]["status"]) == ("completed", "live")
+
+    assert (await wired.api.delete(report, headers=o)).status_code == 204
+    reverted = await wired.api.post(f"/v1/shops/{shop_id}/visits/transitions", headers=o, json=revert)
+    assert (reverted.status_code, reverted.json()["visits"][0]["status"]) == (200, "reserved")
+
+
+async def test_보낸_방문의_기록은_지우지_못하고_끊으면_지워진다(wired, media_storage):
+    shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    visit_id, [photo] = await _completed_visit(wired, shop_id, o, photos=1)
+    visit = f"/v1/shops/{shop_id}/visits/{visit_id}"
+    assert (await wired.api.put(f"{visit}/report", headers=o, json={"hidden_media_ids": []})).status_code == 200
+
+    assert error_of(await wired.api.delete(f"{visit}/record", headers=o)) == (409, "VISIT_REPORT_SENT")
+    kept = (await wired.api.get(visit, headers=o)).json()["record"]
+    assert [m["media_id"] for m in kept["media"]] == [photo]
+
+    assert (await wired.api.delete(f"{visit}/report", headers=o)).status_code == 204
+    assert (await wired.api.delete(f"{visit}/record", headers=o)).status_code == 204
+    assert (await wired.api.get(visit, headers=o)).json()["record"] is None
+
+
+async def test_고객을_삭제하면_그_고객의_알림장_링크가_끊긴다(wired):
+    """R19"""
+    shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    visit_id, _ = await _completed_visit(wired, shop_id, o)
+    visit = f"/v1/shops/{shop_id}/visits/{visit_id}"
+    assert (await wired.api.put(f"{visit}/report", headers=o, json={"hidden_media_ids": []})).status_code == 200
+    customer_id = (await wired.api.get(visit, headers=o)).json()["visit"]["customer"]["customer_id"]
+
+    assert (await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=o)).status_code == 204
+
+    assert (await wired.api.get(visit, headers=o)).json()["report"] == NO_LINK
+    async with wired.engine.connect() as conn:
+        rows = (await conn.execute(text("SELECT revoked_at IS NOT NULL FROM visit_reports"))).all()
+    assert rows == [(True,)]
+
+
+async def test_보낸_방문은_상세와_하루_목록과_피드에_보냄으로_나온다(wired):
+    shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    visit_id, _ = await _completed_visit(wired, shop_id, o)
+    visit = f"/v1/shops/{shop_id}/visits/{visit_id}"
+
+    async def seen():
+        detail = (await wired.api.get(visit, headers=o)).json()
+        day = (await wired.api.get(f"/v1/shops/{shop_id}/visits?date={YESTERDAY.isoformat()}", headers=o)).json()
+        feed = (await wired.api.get(f"/v1/shops/{shop_id}/visits/feed", headers=o)).json()
+        return detail["report"], [i["report_sent"] for i in day["items"]], [i["report_sent"] for i in feed["items"]]
+
+    assert await seen() == (NO_LINK, [False], [False])
+    sent = await wired.api.put(f"{visit}/report", headers=o, json={"hidden_media_ids": []})
+    assert sent.status_code == 200, sent.text
+    assert await seen() == (sent.json()["link"], [True], [True])
+    assert (await wired.api.delete(f"{visit}/report", headers=o)).status_code == 204
+    assert await seen() == (NO_LINK, [False], [False])

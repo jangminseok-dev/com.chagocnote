@@ -33,8 +33,9 @@ class VisitLedgerPort(ABC):
 
     @abstractmethod
     async def clear_customer_memos(self, ctx: ShopContext, customer_id: int) -> None:
-        """그 고객 방문들의 메모와 미용 기록의 두 메모(케어·내부)를 비운다 — 익명화 때 메모에 남은 개인정보를
-        지운다(V11, 설계 6.4). 사진은 매장의 미용 기록이라 남긴다."""
+        """그 고객 방문들의 메모와 미용 기록의 두 메모(케어·내부)를 비우고, 그 방문들의 알림장 링크를 끊는다 —
+        익명화 때 메모에 남은 개인정보를 지우고(V11, 설계 6.4) 보호자에게 보낸 페이지를 닫는다. 사진은 매장의
+        미용 기록이라 남긴다. 부르는 쪽의 트랜잭션 안에서 한다."""
 
     @abstractmethod
     async def latest_covers(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, int]:

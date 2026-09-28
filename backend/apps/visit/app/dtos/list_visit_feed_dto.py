@@ -27,6 +27,7 @@ class FeedItemView:
     menus: list[str]         # 기록의 실제 메뉴, 없으면 예약 메뉴
     care_note: str | None    # 앞 80자
     media_count: int
+    report_sent: bool        # 살아 있는 알림장 링크가 있다
 
 
 @dataclass(frozen=True)

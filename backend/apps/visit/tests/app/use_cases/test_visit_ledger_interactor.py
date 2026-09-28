@@ -1,19 +1,26 @@
+from datetime import timedelta
+
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
 from visit.tests.helpers.builders import ctx, kst, record
-from visit.tests.helpers.fakes import FakeRecords, FakeVisits
+from visit.tests.helpers.fakes import FakeRecords, FakeReportRepository, FakeVisits
 
 NOW = kst(9, 23, 15)
 
 
-def _ledger():
+def _with_reports():
     visits = FakeVisits()
-    return visits, VisitLedgerInteractor(visits, FakeRecords(visits), now=lambda: NOW)
+    records, reports = FakeRecords(visits), FakeReportRepository(visits)
+    return visits, records, reports, VisitLedgerInteractor(visits, records, reports, now=lambda: NOW)
+
+
+def _ledger():
+    visits, _, _, ledger = _with_reports()
+    return visits, ledger
 
 
 def _with_records():
-    visits = FakeVisits()
-    records = FakeRecords(visits)
-    return visits, records, VisitLedgerInteractor(visits, records, now=lambda: NOW)
+    visits, records, _, ledger = _with_reports()
+    return visits, records, ledger
 
 
 async def test_반려동물의_방문과_앞으로의_예약():
@@ -79,3 +86,21 @@ async def test_반려동물마다_사진이_붙은_가장_최근_완료_방문�
     records.seed(record(working.id, media=((54, "photo", "after", 0),)))
     records.seed(record(only_video.id, media=((61, "video", "after", 0),)))
     assert await ledger.latest_covers(ctx(), [101, 102, 103]) == {101: 53, 102: 61}
+
+
+async def test_익명화는_그_보호자의_끊지_않은_링크를_모두_끊고_다른_보호자의_것은_그대로다():
+    """R19 — 기간이 지났지만 끊지 않은 줄도 끊는다."""
+    visits, _, reports, ledger = _with_reports()
+    done = dict(status="completed", started_at=kst(9, 2, 10), completed_at=kst(9, 2, 12))
+    live = visits.seed(customer_id=1, starts_at=kst(9, 2, 10), **done)
+    expired = visits.seed(customer_id=1, starts_at=kst(9, 9, 10), **done)
+    others = visits.seed(customer_id=2, **done)
+    theirs = visits.seed(customer_id=1, shop_id=2, **done)   # 다른 매장의 같은 번호 고객
+    sent_at = NOW - timedelta(days=8)
+    for visit, shop_id, expires_at in ((live, 1, None), (expired, 1, NOW - timedelta(days=1)), (others, 1, None),
+                                       (theirs, 2, None)):
+        await reports.create(ctx(shop_id=shop_id), visit.id, bytes(16), expires_at, sent_at)
+    await ledger.clear_customer_memos(ctx(), 1)
+    assert {r.visit_id: r.revoked_at for r in reports.rows} == {
+        live.id: NOW, expired.id: NOW, others.id: None, theirs.id: None}
+    assert await reports.live_visit_ids(ctx(), [live.id, expired.id, others.id], NOW) == {others.id}

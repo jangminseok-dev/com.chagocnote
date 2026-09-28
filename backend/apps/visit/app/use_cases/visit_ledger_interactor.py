@@ -6,6 +6,7 @@ from datetime import datetime
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.dtos.upcoming_visit import UpcomingVisit
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
+from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.domain.services.visit_record_rules import cover_media_id
@@ -16,10 +17,12 @@ class VisitLedgerInteractor(VisitLedgerPort):
     """허브의 VisitLedgerPort 구현. 입력 포트가 곧 허브 포트다(HTTP 표면 없음)."""
 
     def __init__(
-        self, ledger: VisitLedgerRepository, records: VisitRecordRepository, now: Callable[[], datetime]
+        self, ledger: VisitLedgerRepository, records: VisitRecordRepository, reports: ReportRepository,
+        now: Callable[[], datetime],
     ) -> None:
         self._ledger = ledger
         self._records = records
+        self._reports = reports
         self._now = now
 
     async def pet_has_visits(self, ctx: ShopContext, pet_id: int) -> bool:
@@ -42,6 +45,7 @@ class VisitLedgerInteractor(VisitLedgerPort):
     async def clear_customer_memos(self, ctx: ShopContext, customer_id: int) -> None:
         await self._ledger.clear_memos(ctx, customer_id)
         await self._records.clear_notes(ctx, customer_id)
+        await self._reports.revoke_for_customer(ctx, customer_id, self._now())
 
     async def latest_covers(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, int]:
         latest = await self._records.latest_with_media(ctx, pet_ids)

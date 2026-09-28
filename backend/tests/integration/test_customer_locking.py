@@ -26,6 +26,7 @@ from customer.domain.errors import CustomerNotFoundError, CustomerPhoneTakenErro
 from customer.tests.helpers.fakes import today
 from customer.tests.helpers.inputs import customer_input, pet_input
 from customer.tests.helpers.profiles import ctx, customer_profile, pet_profile
+from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
@@ -44,7 +45,8 @@ def _repos(session):
 
 def _ledger(session):
     """customer 유스케이스가 묻는 방문 장부 — 진입점이 꽂는 것과 같은 실제 구현(visit)."""
-    return VisitLedgerInteractor(VisitPgRepository(session), VisitRecordPgRepository(session), now=utc_now)
+    return VisitLedgerInteractor(VisitPgRepository(session), VisitRecordPgRepository(session),
+                                 ReportPgRepository(session), now=utc_now)
 
 
 def _register(session, name):
