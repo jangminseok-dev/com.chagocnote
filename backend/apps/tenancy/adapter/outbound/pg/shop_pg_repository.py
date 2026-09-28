@@ -24,6 +24,10 @@ class ShopPgRepository(ShopRepository):
     async def get_by_id(self, shop_id: int) -> Shop:
         return to_shop(await self._row(shop_id))
 
+    async def find_by_id(self, shop_id: int) -> Shop | None:
+        row = await self._session.get(ShopOrm, shop_id)
+        return to_shop(row) if row is not None else None
+
     async def get(self, ctx: ShopContext) -> Shop:
         return to_shop(await self._row(ctx.shop_id))
 

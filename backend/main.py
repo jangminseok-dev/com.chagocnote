@@ -59,6 +59,7 @@ from tenancy.adapter.inbound.api.v1.list_members_router import list_members_rout
 from tenancy.adapter.inbound.api.v1.remove_member_router import remove_member_router
 from tenancy.adapter.inbound.api.v1.tenancy_myself_router import tenancy_myself_router
 from tenancy.adapter.inbound.api.v1.update_shop_router import update_shop_router
+from tenancy.dependencies.get_shop_profile_provider import get_shop_profile_use_case
 from tenancy.dependencies.hub_ports import get_active_user_guard, get_user_directory
 from tenancy.dependencies.list_memberships_provider import get_list_memberships_use_case
 from tenancy.dependencies.provision_shop_provider import get_provision_shop_use_case
@@ -93,6 +94,7 @@ from visit.adapter.inbound.api.v1.update_visit_settings_router import update_vis
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
 from visit.dependencies.hub_ports import get_customer_directory
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
+from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 
 
@@ -189,6 +191,7 @@ app.dependency_overrides[get_customer_directory] = get_customer_directory_use_ca
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
 app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
+app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
 
 
 @app.get("/health")

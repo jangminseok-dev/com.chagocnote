@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.media_urls import MediaUrls
+from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.errors import (
     FamilyNotFoundError,
     FamilyPetNotFoundError,
@@ -20,6 +21,7 @@ from hub.app.errors import (
 )
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.media_library_port import MediaLibraryPort
+from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.report_target_dto import ReportTarget
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.public_report_repository import PublicReportRepository
@@ -515,8 +517,18 @@ class FakeLibrary(MediaLibraryPort):
 
     async def read_urls(self, ctx, media_ids):
         return {
-            i: MediaUrls(media_id=i, kind=self.media[i][1], original_url=f"o/{i}",
+            i: MediaUrls(media_id=i, kind=self.media[i][1], original_url=f"o/{i}", download_url=f"dl/{i}",
                          display_url=f"d/{i}" if self.media[i][1] == "photo" else None, thumb_url=f"t/{i}",
                          width=3000, height=2000, duration_seconds=None if self.media[i][1] == "photo" else 30)
             for i in media_ids if i in self.media and self.media[i][0] == ctx.shop_id and self.media[i][2]
         }
+
+
+class FakeShopProfile(ShopProfilePort):
+    """ShopProfilePort 스텁 — 매장 ID → ShopProfile 사전. 없는 매장은 None."""
+
+    def __init__(self, shops: dict[int, ShopProfile] | None = None) -> None:
+        self.shops = shops if shops is not None else {}
+
+    async def public_profile(self, shop_id):
+        return self.shops.get(shop_id)

@@ -1,14 +1,24 @@
 """API 프로세스의 라우트를 훑어 조립·가드 실수를 잡는다. 손으로 관리하는 목록은 두지 않는다."""
+import pytest
 from fastapi import Depends, FastAPI
 
 import main
 from core.shop_guard import get_shop_access_port
 from tenancy.dependencies.hub_ports import get_user_directory
+from tenancy.dependencies.get_shop_profile_provider import get_shop_profile_use_case
 from tests.route_inspection import find_route_violations
+from visit.dependencies.hub_ports import get_shop_profile
 
 
 def test_API_프로세스에는_빈_자리도_빠진_가드도_없다():
     assert find_route_violations(main.app) == []
+
+
+def test_매장_공개_정보_자리는_tenancy_의_구현으로_채운다():
+    """쓰는 라우트가 아직 없어 위의 검사에는 걸리지 않는다."""
+    assert main.app.dependency_overrides[get_shop_profile] is get_shop_profile_use_case
+    with pytest.raises(RuntimeError):
+        get_shop_profile()
 
 
 def _app_with(path, dependency=None):

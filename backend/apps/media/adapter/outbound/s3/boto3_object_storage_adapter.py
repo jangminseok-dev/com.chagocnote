@@ -37,10 +37,11 @@ class Boto3ObjectStorageAdapter(ObjectStoragePort):
             ExpiresIn=expires_in_seconds,
         )
 
-    def presign_get(self, key: str, window: SigningWindow) -> str:
+    def presign_get(self, key: str, window: SigningWindow, download_as: str | None = None) -> str:
         return presign_get_url(
             self._public_endpoint, self._bucket, key, self._region, self._access_key, self._secret_key,
             window.signed_at, window.expires_in_seconds,
+            f'attachment; filename="{download_as}"' if download_as else None,
         )
 
     async def head(self, key: str) -> ObjectInfo | None:

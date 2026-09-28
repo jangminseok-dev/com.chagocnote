@@ -15,6 +15,10 @@ class ShopRepository(ABC):
         """컨텍스트가 아직 없는 경로(초대 수락)에서만 쓴다."""
 
     @abstractmethod
+    async def find_by_id(self, shop_id: int) -> Shop | None:
+        """로그인한 사용자가 없는 경로(매장 공개 정보)에서만 쓴다. 없는 매장이면 None."""
+
+    @abstractmethod
     async def get(self, ctx: ShopContext) -> Shop: ...
 
     @abstractmethod

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.media_library_port import MediaLibraryPort
+from hub.app.ports.shop_profile_port import ShopProfilePort
 
 
 def get_customer_directory() -> CustomerDirectoryPort:
@@ -14,3 +15,7 @@ def get_customer_directory() -> CustomerDirectoryPort:
 
 def get_media_library() -> MediaLibraryPort:
     raise RuntimeError("MediaLibraryPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
+
+
+def get_shop_profile() -> ShopProfilePort:
+    raise RuntimeError("ShopProfilePort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
