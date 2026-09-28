@@ -46,6 +46,8 @@ class VisitMyselfInteractor(VisitMyselfUseCase):
                 "POST /menus/{menu_id}/archive(메뉴표 — 지우지 않고 보관)도 있습니다. "
                 "GET·PUT /report-settings 는 알림장 설정입니다(링크 기간 link_days 7·30·null(계속), 보호자에게 보여 줄 "
                 "항목 show_menus·show_shop_info·show_weight·show_amount — PUT 은 다섯 칸 전체 교체). "
+                "GET /visits/{visit_id}/report 는 알림장 미리보기입니다(보호자가 볼 내용 report — 끈 항목은 null, "
+                "사진영상마다 뺀 것인지 hidden — 과 링크 상태 link, 설정 settings. 기록이 없으면 409). "
                 "방문 쓰기와 상태 전이는 reservation:write(사장·직원), 일정·메뉴·알림장 설정 수정은 shop:update(사장)가 필요합니다. "
                 "시각은 시간대를 붙여 받고 매장 시간대로 돌려줍니다. 예약 시각은 10분 단위, 오늘 기준 앞뒤 1년, "
                 "끝나는 시각이 그날 자정을 넘으면 안 됩니다. 같은 아이의 같은 시각에 살아 있는 예약은 하나입니다(409). "

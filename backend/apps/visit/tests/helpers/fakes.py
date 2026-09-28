@@ -149,6 +149,7 @@ class FakeDirectory(CustomerDirectoryPort):
         self.journal = journal if journal is not None else Journal()
         self.families: dict[int, tuple[int, dict[int, bool]]] = {}
         self.names: dict[int, str | None] = {}
+        self.pet_names: dict[int, str | None] = {}   # 없는 아이는 "아이{ID}". 익명화한 가족이면 None 을 넣는다
         self.candidates: list = []
 
     def family(self, customer_id=1, pets=(101,), shop_id=1, name="김민지", passed=()) -> None:
@@ -176,8 +177,9 @@ class FakeDirectory(CustomerDirectoryPort):
         for c, (shop, family) in self.families.items():
             for p in family:
                 if p in pet_ids and shop == ctx.shop_id:
-                    pets[p] = PetBrief(pet_id=p, customer_id=c, name=f"아이{p}", species="dog", breed="말티즈",
-                                       weight_kg=Decimal("3.2"), passed_away=family[p])
+                    pets[p] = PetBrief(pet_id=p, customer_id=c, name=self.pet_names.get(p, f"아이{p}"),
+                                       species="dog", breed="말티즈", weight_kg=Decimal("3.2"),
+                                       passed_away=family[p])
         return FamilyBriefs(customers=customers, pets=pets)
 
     async def set_last_visit(self, ctx, customer_id, at):

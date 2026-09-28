@@ -75,6 +75,7 @@ from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_vi
 from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_settings_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
+from visit.adapter.inbound.api.v1.get_visit_report_router import get_visit_report_router
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
@@ -168,6 +169,7 @@ app.include_router(get_next_visit_draft_router)
 app.include_router(put_visit_record_router)
 app.include_router(append_record_media_router)
 app.include_router(delete_visit_record_router)
+app.include_router(get_visit_report_router)
 # media
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)

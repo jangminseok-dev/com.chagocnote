@@ -16,6 +16,13 @@ def _b64_pem(name: str) -> str:
     return base64.b64decode(raw).decode() if raw else ""
 
 
+def _report_link_key() -> bytes:
+    key = base64.b64decode(_m.require("REPORT_LINK_KEY_B64"))
+    if len(key) < 32:
+        raise RuntimeError("REPORT_LINK_KEY_B64 는 32바이트 이상의 키를 base64 로 적은 값이어야 합니다.")
+    return key
+
+
 # 보안 게이트 기본값은 닫힘이어야 한다 — 운영 배포가 APP_ENV 설정을 빠뜨려도 dev 전용 로그인 제공자가 열리면 안 된다.
 APP_ENV: str = _m.get("APP_ENV", "prod") or "prod"
 DATABASE_URL: str = _m.require("DATABASE_URL")
@@ -42,3 +49,10 @@ S3_REGION: str = _m.get("S3_REGION", "us-east-1") or "us-east-1"
 S3_BUCKET: str = _m.get("S3_BUCKET", "chagocnote-media") or "chagocnote-media"
 S3_ACCESS_KEY: str = _m.get("S3_ACCESS_KEY", "") or ""
 S3_SECRET_KEY: str = _m.get("S3_SECRET_KEY", "") or ""
+
+# 미용 알림장(⑤). 링크의 토큰을 이 키로 서명한다 — 키를 바꾸면 보낸 링크가 모두 닫힌다.
+REPORT_LINK_KEY: bytes = _report_link_key()
+# 보호자가 여는 웹의 주소. 링크는 {REPORT_WEB_BASE_URL}/r/{토큰} 이다.
+REPORT_WEB_BASE_URL: str = (_m.get("REPORT_WEB_BASE_URL", "") or "http://127.0.0.1:3010").rstrip("/")
+# 웹 서버와 나누는 비밀값 — 맞을 때만 웹 서버가 알려 준 접속 주소로 횟수를 센다. 비어 있으면 믿지 않는다.
+REPORT_WEB_SECRET: str = _m.get("REPORT_WEB_SECRET", "") or ""
