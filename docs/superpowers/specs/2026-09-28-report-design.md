@@ -1,7 +1,7 @@
 # 차곡노트 — ⑤ 미용 알림장 설계
 
 - 작성일: 2026-09-28
-- 상태: 사용자 검토 대기
+- 상태: 승인(2026-09-28), 계획서 `docs/superpowers/plans/2026-09-28-report-5-1-backend.md`
 - 범위: 백엔드(`visit` 스포크에 알림장 링크·설정·공개 조회), 웹(`web/` 신설 — 보호자용 알림장 페이지), 앱(보내기 전 미리보기·공유 시트·보냄 표시·알림장 설정). 알림톡 자동 발송(⑥)과 보호자 로그인(⑦)은 하지 않는다.
 - 앞선 문서: `docs/superpowers/specs/2026-09-20-foundation-design.md`(알림장·공개 표면), `docs/superpowers/specs/2026-09-23-visit-reservation-design.md`(상태 전이·되돌리기), `docs/superpowers/specs/2026-09-24-record-media-design.md` 16절(⑤로 넘긴 것), `_docs/decisions/007-record-media.md`
 - 목업: `.superpowers/brainstorm/79357-1790560964/content/guardian-page.html`(보호자 웹), `app-screens.html`(앱). 둘 다 A안으로 확정.
