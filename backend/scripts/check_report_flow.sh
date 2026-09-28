@@ -86,7 +86,7 @@ expect "3 사장이 금액과 몸무게를 켠다" "$(call PUT "$S/report-settin
 
 # 4. 미리보기 → 사진 하나를 빼고 보내기
 expect "4 미리보기는 사진 둘을 주고 링크는 아직 없다" "$(call GET "$V/report" "$staff_token" \
-  | calc "(len(d['report']['media']), d['link']['status'], d['link']['url'])")" "(2, 'none', None)"
+  | calc "(len(d['report']['media']), d['link']['status'], d['link']['url'] is None)")" "(2, 'none', True)"
 sent=$(send "$before")
 expect "4 전 사진을 빼고 보냈다" "$(echo "$sent" | calc "(d['link']['status'], sorted(m['media_id'] for m in d['report']['media'] if m['hidden']) == [$before])")" "('live', True)"
 token=$(echo "$sent" | token_of)
