@@ -67,3 +67,32 @@ async def test_횟수_제한에_걸리면_남기지_않는다():
     with pytest.raises(TooManyReportRequestsError):
         await _mark(world, token)
     assert _viewed_at(world) == [None]
+
+
+async def test_실패가_찼어도_맞는_토큰의_열람은_남고_실패_수_차단을_보지도_않는다():
+    """검토 지적 — 실패 수 차단은 서명이 틀린 요청에만 건다."""
+    world = PublicWorld()
+    token = await world.sent()
+    world.limiter.missed = True
+    await _mark(world, token)
+    assert _viewed_at(world) == [NOW]
+    assert world.limiter.checked == []
+
+
+async def test_실패가_찼으면_틀린_토큰은_429_이고_실패를_더_세지_않는다():
+    world = PublicWorld()
+    await world.sent()
+    world.limiter.missed = True
+    with pytest.raises(TooManyReportRequestsError):
+        await _mark(world, "a" * 43)
+    assert world.limiter.checked == [CLIENT]
+    assert world.limiter.misses == []
+
+
+async def test_실패가_차지_않았으면_틀린_토큰은_404_이고_센다():
+    world = PublicWorld()
+    await world.sent()
+    with pytest.raises(ReportNotFoundError):
+        await _mark(world, "a" * 43)
+    assert world.limiter.checked == [CLIENT]
+    assert world.limiter.misses == [CLIENT]

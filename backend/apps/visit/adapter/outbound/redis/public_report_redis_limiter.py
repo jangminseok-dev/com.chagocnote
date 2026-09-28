@@ -29,17 +29,16 @@ class PublicReportRedisLimiter(PublicReportLimiterPort):
         self._redis = redis
 
     async def allow(self, client: str) -> bool:
-        hits, misses = _keys(client)
+        hits, _ = _keys(client)
         try:
             async with self._redis.pipeline(transaction=True) as pipe:
                 pipe.incr(hits)
                 pipe.expire(hits, _HIT_WINDOW_SECONDS, nx=True)  # 창은 처음 셀 때만 잡는다
-                pipe.get(misses)
-                count, _, missed = await pipe.execute()
+                count, _ = await pipe.execute()
         except RedisError:
             logger.warning("알림장 횟수 제한을 건너뜁니다 — Redis 에 닿지 못했습니다.")
             return True
-        return int(count) <= _HITS_PER_WINDOW and int(missed or 0) < _MISSES_PER_WINDOW
+        return int(count) <= _HITS_PER_WINDOW
 
     async def note_miss(self, client: str) -> None:
         _, misses = _keys(client)
@@ -50,3 +49,12 @@ class PublicReportRedisLimiter(PublicReportLimiterPort):
                 await pipe.execute()
         except RedisError:
             logger.warning("알림장 조회 실패를 세지 못했습니다 — Redis 에 닿지 못했습니다.")
+
+    async def missed_too_much(self, client: str) -> bool:
+        _, misses = _keys(client)
+        try:
+            missed = await self._redis.get(misses)
+        except RedisError:
+            logger.warning("알림장 실패 수 차단을 건너뜁니다 — Redis 에 닿지 못했습니다.")
+            return False
+        return int(missed or 0) >= _MISSES_PER_WINDOW

@@ -21,9 +21,15 @@ async def open_report(
 ) -> tuple[ReportTarget, ShopProfile]:
     if not await limiter.allow(client):
         raise TooManyReportRequestsError("요청이 너무 잦습니다. 잠시 뒤에 다시 열어 주세요.")
-    # 서명을 확인한 public_id 로만 DB 를 읽는다.
+    # 서명을 확인한 public_id 로만 DB 를 읽는다. 서명이 틀리면(추측 시도) 실패 수 차단을 본다 —
+    # 서명이 맞는 토큰은 실패 수 차단을 보지 않는다(남의 실패로 막히지 않는다).
     public_id = read_token(token, link_key)
-    target = await reports.find(public_id) if public_id is not None else None
+    if public_id is None:
+        if await limiter.missed_too_much(client):
+            raise TooManyReportRequestsError("요청이 너무 잦습니다. 잠시 뒤에 다시 열어 주세요.")
+        await limiter.note_miss(client)
+        raise ReportNotFoundError("알림장을 찾을 수 없습니다.")
+    target = await reports.find(public_id)
     if target is None:
         await limiter.note_miss(client)
         raise ReportNotFoundError("알림장을 찾을 수 없습니다.")

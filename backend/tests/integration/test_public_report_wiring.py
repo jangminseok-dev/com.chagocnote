@@ -281,8 +281,9 @@ async def test_1분에_61번째_요청부터_429_다(wired):
     assert (await wired.api.get(f"{visit}/report", headers=o)).json()["link"]["first_viewed_at"] is None
 
 
-async def test_실패가_20번이면_맞는_토큰도_429_이고_접속_주소_헤더를_바꿔도_피하지_못한다(wired, monkeypatch):
-    """R1·R17 — 비밀값 없이 보낸 X-Report-Client-IP 는 믿지 않는다. 모두 연결된 주소 하나로 센다."""
+async def test_실패가_20번이어도_맞는_토큰은_열리고_틀린_토큰은_접속_주소_헤더를_바꿔도_429_다(wired, monkeypatch):
+    """R1·R17 — 검토 지적: 실패 수 차단은 서명이 틀린 요청에만 건다. 맞는 토큰은 남의 실패로 막히지 않는다.
+    비밀값 없이 보낸 X-Report-Client-IP 는 믿지 않는다. 틀린 토큰은 모두 연결된 주소 하나로 센다."""
     from visit.dependencies import public_client
 
     monkeypatch.setattr(public_client, "REPORT_WEB_SECRET", "web-secret-for-test")
@@ -295,12 +296,21 @@ async def test_실패가_20번이면_맞는_토큰도_429_이고_접속_주소_�
             "X-Report-Token": "a" * 43, "X-Report-Client-IP": f"203.0.113.{n}", "X-Report-Web-Secret": secret,
         })).status_code
 
-    assert [await guess(n, "틀린-비밀값".encode()) for n in range(21)] == [404] * 20 + [429]
-    assert error_of(await wired.api.get(PUBLIC, headers=_with(token))) == (429, "TOO_MANY_ATTEMPTS")
-    # 비밀값이 맞으면 웹 서버가 알려 준 주소로 센다 — 막힌 것은 연결된 주소뿐이다.
+    # 틀린 토큰(서명 불일치)으로 20번 실패 — 비밀값이 틀려 모두 같은 연결된 주소로 센다.
+    assert [await guess(n, "틀린-비밀값".encode()) for n in range(20)] == [404] * 20
+    # 실패가 찼어도 맞는 토큰은 그대로 열린다 — 남의 실패로 막히지 않는다.
+    assert (await wired.api.get(PUBLIC, headers=_with(token))).status_code == 200
+    # 열람 신호도 같은 관문이다 — 실패가 찬 뒤에도 맞는 토큰의 열람은 204.
+    assert (await wired.api.post(VIEWED, headers=_with(token))).status_code == 204
+    # 틀린 토큰은 21번째부터 429다 — 접속 주소 헤더를 바꿔도(비밀값이 틀려) 피하지 못한다.
+    assert error_of(await wired.api.get(PUBLIC, headers={
+        "X-Report-Token": "a" * 43, "X-Report-Client-IP": "203.0.113.99", "X-Report-Web-Secret": "또다른-비밀값".encode(),
+    })) == (429, "TOO_MANY_ATTEMPTS")
+    # 비밀값이 맞으면 웹 서버가 알려 준 주소로 센다 — 새 주소는 아직 막히지 않았다.
     assert (await wired.api.get(PUBLIC, headers={
         **_with(token), "X-Report-Client-IP": "198.51.100.9", "X-Report-Web-Secret": "web-secret-for-test",
     })).status_code == 200
+    # 비밀값이 맞아 각각 다른 주소로 세어지면 한 번씩의 실패는 막히지 않는다.
     assert [await guess(n, "web-secret-for-test") for n in range(21)] == [404] * 21
 
 

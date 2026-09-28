@@ -33,14 +33,22 @@ async def test_1분에_60번까지_받고_61번째부터_막는다(redis):
     assert [await limiter.allow(CLIENT) for _ in range(62)] == [True] * 60 + [False, False]
 
 
-async def test_실패가_20번이_되면_21번째_요청부터_막는다(redis):
+async def test_실패가_20번_쌓여도_allow_는_막지_않는다(redis):
+    """검토 지적 — 실패 수는 allow 가 아니라 missed_too_much 가 본다. 서명이 맞는 토큰은 남의 실패로 막히지 않는다."""
+    limiter = PublicReportRedisLimiter(redis)
+    for _ in range(20):
+        await limiter.note_miss(CLIENT)
+    assert await limiter.allow(CLIENT) is True
+
+
+async def test_실패가_19번까지는_차지_않고_20번이면_찼다(redis):
     """R1"""
     limiter = PublicReportRedisLimiter(redis)
     for _ in range(19):
         await limiter.note_miss(CLIENT)
-    assert await limiter.allow(CLIENT) is True
+    assert await limiter.missed_too_much(CLIENT) is False
     await limiter.note_miss(CLIENT)
-    assert await limiter.allow(CLIENT) is False
+    assert await limiter.missed_too_much(CLIENT) is True
 
 
 async def test_접속_주소마다_따로_센다(redis):
@@ -51,6 +59,8 @@ async def test_접속_주소마다_따로_센다(redis):
         await limiter.note_miss("198.51.100.9")
     assert await limiter.allow("192.0.2.1") is True
     assert (await redis.get(_key("hits", "192.0.2.1")), await redis.get(_key("misses", "192.0.2.1"))) == ("1", None)
+    assert await limiter.missed_too_much("198.51.100.9") is True
+    assert await limiter.missed_too_much("192.0.2.1") is False
 
 
 async def test_창은_처음_셀_때_잡히고_이후_요청이_늘리지_않는다(redis):
@@ -74,10 +84,12 @@ async def test_창이_지나면_다시_받는다(redis):
         await limiter.allow(CLIENT)
     for _ in range(20):
         await limiter.note_miss(CLIENT)
+    assert await limiter.allow(CLIENT) is False           # 요청 수 창이 아직 남아 있다
     await redis.delete(_key("hits"))
-    assert await limiter.allow(CLIENT) is False      # 실패의 창은 아직 남아 있다
+    assert await limiter.allow(CLIENT) is True             # 요청 수 창이 지났다 — 새로 시작한다
+    assert await limiter.missed_too_much(CLIENT) is True   # 실패의 창은 따로 있다 — 아직 남아 있다
     await redis.delete(_key("misses"))
-    assert await limiter.allow(CLIENT) is True
+    assert await limiter.missed_too_much(CLIENT) is False
 
 
 async def test_아주_긴_접속_주소도_키는_짧다(redis):
@@ -107,11 +119,15 @@ class _DeadRedis:
     async def execute(self):
         raise RedisConnectionError("Error connecting to redis:6379")
 
+    async def get(self, *args, **kwargs):
+        raise RedisConnectionError("Error connecting to redis:6379")
+
 
 async def test_Redis_에_닿지_못하면_통과시키고_경고를_남긴다(caplog):
     limiter = PublicReportRedisLimiter(_DeadRedis())
     with caplog.at_level(logging.WARNING):
         assert await limiter.allow(CLIENT) is True
         await limiter.note_miss(CLIENT)
-    assert [r.levelname for r in caplog.records] == ["WARNING", "WARNING"]
+        assert await limiter.missed_too_much(CLIENT) is False
+    assert [r.levelname for r in caplog.records] == ["WARNING", "WARNING", "WARNING"]
     assert CLIENT not in caplog.text

@@ -473,12 +473,17 @@ class FakeReportRepository(ReportRepository, PublicReportRepository):
 
 
 class FakePublicReportLimiter(PublicReportLimiterPort):
-    """공개 조회 횟수 제한 스텁 — allowed 를 False 로 두면 막는다. 센 접속 주소가 hits·misses 에 남는다."""
+    """공개 조회 횟수 제한 스텁 — allowed 를 False 로 두면 분당 한도를 막고, missed 를 True 로 두면 실패 수 한도가 찬 것으로 친다.
+
+    센 접속 주소가 hits·misses 에, missed_too_much 를 부른 접속 주소가 checked 에 남는다.
+    """
 
     def __init__(self) -> None:
         self.allowed = True
+        self.missed = False
         self.hits: list[str] = []
         self.misses: list[str] = []
+        self.checked: list[str] = []
 
     async def allow(self, client):
         self.hits.append(client)
@@ -486,6 +491,10 @@ class FakePublicReportLimiter(PublicReportLimiterPort):
 
     async def note_miss(self, client):
         self.misses.append(client)
+
+    async def missed_too_much(self, client):
+        self.checked.append(client)
+        return self.missed
 
 
 class FakeReportSettingsRepository(ReportSettingsRepository):
