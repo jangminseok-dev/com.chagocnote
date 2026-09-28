@@ -83,8 +83,10 @@ from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
 from visit.adapter.inbound.api.v1.list_visit_feed_router import list_visit_feed_router
 from visit.adapter.inbound.api.v1.list_visit_slots_router import list_visit_slots_router
+from visit.adapter.inbound.api.v1.mark_report_viewed_router import mark_report_viewed_router
 from visit.adapter.inbound.api.v1.parse_visit_draft_router import parse_visit_draft_router
 from visit.adapter.inbound.api.v1.put_visit_record_router import put_visit_record_router
+from visit.adapter.inbound.api.v1.read_public_report_router import read_public_report_router
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
 from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
 from visit.adapter.inbound.api.v1.revoke_visit_report_router import revoke_visit_report_router
@@ -174,6 +176,9 @@ app.include_router(delete_visit_record_router)
 app.include_router(get_visit_report_router)
 app.include_router(send_visit_report_router)
 app.include_router(revoke_visit_report_router)
+# 로그인 없이 열리는 경로 — 더할 때는 tests/route_inspection.py 의 허용 목록에도 적는다.
+app.include_router(read_public_report_router)
+app.include_router(mark_report_viewed_router)
 # media
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)

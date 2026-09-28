@@ -12,6 +12,7 @@ from visit.domain.errors import (
     ReportClosedError,
     ReportEmptyError,
     ReportNotFoundError,
+    TooManyReportRequestsError,
     VisitCrossesMidnightError,
     VisitDuplicateError,
     VisitGroupMismatchError,
@@ -47,4 +48,5 @@ VISIT_ERROR_STATUS: dict[type[Exception], int] = {
     ReportEmptyError: 422,
     VisitNotCompletedError: 409,
     VisitReportSentError: 409,
+    TooManyReportRequestsError: 429,
 }

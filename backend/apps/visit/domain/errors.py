@@ -128,3 +128,9 @@ class VisitReportSentError(VisitError):
     """살아 있는 알림장 링크가 있는 방문은 되돌리거나 기록을 지울 수 없다 — 링크를 먼저 끊는다. 409."""
 
     code = "VISIT_REPORT_SENT"
+
+
+class TooManyReportRequestsError(VisitError):
+    """공개 알림장 조회가 너무 잦다. 코드는 초대 코드 시도 제한(tenancy)과 같다. 429."""
+
+    code = "TOO_MANY_ATTEMPTS"

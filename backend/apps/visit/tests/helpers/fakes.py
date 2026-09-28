@@ -24,6 +24,7 @@ from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.report_target_dto import ReportTarget
 from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
@@ -469,6 +470,22 @@ class FakeReportRepository(ReportRepository, PublicReportRepository):
         self.rows = [replace(r, first_viewed_at=now) if r.id == report_id and r.first_viewed_at is None else r
                      for r in self.rows]
         self.journal.append(("mark_report_viewed", report_id))
+
+
+class FakePublicReportLimiter(PublicReportLimiterPort):
+    """공개 조회 횟수 제한 스텁 — allowed 를 False 로 두면 막는다. 센 접속 주소가 hits·misses 에 남는다."""
+
+    def __init__(self) -> None:
+        self.allowed = True
+        self.hits: list[str] = []
+        self.misses: list[str] = []
+
+    async def allow(self, client):
+        self.hits.append(client)
+        return self.allowed
+
+    async def note_miss(self, client):
+        self.misses.append(client)
 
 
 class FakeReportSettingsRepository(ReportSettingsRepository):
