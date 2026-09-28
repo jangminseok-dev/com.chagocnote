@@ -101,3 +101,42 @@ async def test_익명화는_그_보호자의_기록_메모만_비운다(db_sessi
     await repo.clear_notes(A, 1)
     cleared, kept = await repo.get(A, visit_id), await repo.get(A, other)
     assert (cleared.care_note, cleared.internal_note, len(cleared.media), kept.care_note) == (None, None, 1, "케어")
+
+
+async def test_뺀_표시가_저장되고_읽힌다(db_session):
+    repo, visit_id, _, _ = await _setup(db_session)
+    media = (RecordMedia(8, "photo", "before", 0, hidden=True), RecordMedia(7, "photo", "after", 0))
+    saved = await repo.save(A, _record(visit_id, media=media))
+    assert saved.media == media
+    assert (await repo.get(A, visit_id)).media == media
+    assert (await repo.list_many(A, [visit_id]))[visit_id].media == media
+
+
+async def test_통째로_바꿔도_넘긴_뺀_표시가_그대로다(db_session):
+    repo, visit_id, _, _ = await _setup(db_session)
+    await repo.save(A, _record(visit_id, media=[RecordMedia(7, "photo", "after", 0, hidden=True),
+                                                RecordMedia(8, "photo", "after", 1)]))
+    media = (RecordMedia(8, "photo", "after", 0, hidden=True), RecordMedia(7, "photo", "after", 1),
+             RecordMedia(9, "video", "after", 2))
+    assert (await repo.save(A, _record(visit_id, version=2, media=media))).media == media
+
+
+async def test_뺀_표시를_다시_매겨도_버전은_오르지_않는다(db_session):
+    repo, visit_id, _, _ = await _setup(db_session)
+    other = await insert_visit(db_session, kst(9, 24, 14), "in_progress")
+    await repo.save(A, _record(visit_id, version=3, media=[
+        RecordMedia(6, "photo", "before", 0, hidden=True), RecordMedia(7, "photo", "after", 0),
+        RecordMedia(8, "video", "after", 1)]))
+    await repo.save(A, _record(other, media=[RecordMedia(9, "photo", "after", 0)]))
+    await repo.set_hidden(A, visit_id, (7, 8, 9))
+    found = await repo.get(A, visit_id)
+    assert ([(m.media_id, m.hidden) for m in found.media], found.version) == ([(6, False), (7, True), (8, True)], 3)
+    assert (await repo.get(A, other)).media == (RecordMedia(9, "photo", "after", 0),)   # 다른 기록은 그대로다
+
+
+async def test_빈_목록으로_매기면_전부_되살린다(db_session):
+    repo, visit_id, _, _ = await _setup(db_session)
+    await repo.save(A, _record(visit_id, media=[RecordMedia(7, "photo", "after", 0, hidden=True),
+                                                RecordMedia(8, "photo", "after", 1, hidden=True)]))
+    await repo.set_hidden(A, visit_id, ())
+    assert [m.hidden for m in (await repo.get(A, visit_id)).media] == [False, False]

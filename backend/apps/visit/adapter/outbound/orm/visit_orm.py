@@ -5,12 +5,14 @@ from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     SmallInteger,
     String,
@@ -47,6 +49,10 @@ class VisitShopSettingsOrm(Base):
             "default_duration_minutes " + _DURATION_RULE.format(col="default_duration_minutes"),
             name="ck_visit_shop_settings_duration",
         ),
+        CheckConstraint(
+            "report_link_days IS NULL OR report_link_days IN (7, 30)",
+            name="ck_visit_shop_settings_report_link_days",
+        ),
     )
 
     # tenancy 의 매장 ID. 스포크를 넘는 외래 키는 걸지 않는다.
@@ -54,6 +60,12 @@ class VisitShopSettingsOrm(Base):
     opens_at: Mapped[time] = mapped_column(Time)
     closes_at: Mapped[time] = mapped_column(Time)
     default_duration_minutes: Mapped[int] = mapped_column(SmallInteger)
+    # ⑤ 알림장 — 링크 기간(일, NULL 이면 무기한)과 보호자에게 보여 줄 항목.
+    report_link_days: Mapped[int | None] = mapped_column(SmallInteger, server_default=text("30"))
+    report_show_menus: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    report_show_shop_info: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    report_show_weight: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    report_show_amount: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -245,3 +257,25 @@ class VisitRecordMediaOrm(Base):
     kind: Mapped[str] = mapped_column(String(10))
     phase: Mapped[str] = mapped_column(String(10))
     sort_order: Mapped[int] = mapped_column(SmallInteger)
+    hidden_from_report: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))   # ⑤ 알림장에서 뺀 사진
+
+
+class VisitReportOrm(Base):
+    """알림장 링크 하나(설계 4.1). 매장은 방문에서 읽는다. 토큰은 저장하지 않는다 — public_id 와 서버 키로 계산한다."""
+
+    __tablename__ = "visit_reports"
+    __table_args__ = (
+        CheckConstraint("expires_at IS NULL OR expires_at > created_at", name="ck_visit_reports_expires"),
+        CheckConstraint("octet_length(public_id) = 16", name="ck_visit_reports_public_id"),
+        # 방문당 끊지 않은 줄은 하나. 색인에 현재 시각을 넣을 수 없어 기간이 지난 줄은 발급이 먼저 닫는다.
+        Index("uq_visit_reports_live", "visit_id", unique=True, postgresql_where=text("revoked_at IS NULL")),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id", ondelete="CASCADE"))
+    public_id: Mapped[bytes] = mapped_column(LargeBinary(16), unique=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))   # NULL 이면 무기한
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_member_id: Mapped[int] = mapped_column(BigInteger)   # tenancy 의 멤버 ID
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

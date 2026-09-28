@@ -31,7 +31,15 @@ class VisitRecordRepository(ABC):
 
     @abstractmethod
     async def save(self, ctx: ShopContext, record: VisitRecord) -> VisitRecord:
-        """행이 없으면 넣고 있으면 바꾼다. 항목·미디어는 통째로 바꾼다. 버전은 부르는 쪽이 정해 넘긴다."""
+        """행이 없으면 넣고 있으면 바꾼다. 항목·미디어는 통째로 바꾼다. 버전은 부르는 쪽이 정해 넘긴다.
+        미디어의 뺀 표시(hidden)도 넘긴 그대로 쓴다 — 앞선 표시를 이어 붙이는 것은 부르는 쪽의 일이다."""
+
+    @abstractmethod
+    async def set_hidden(self, ctx: ShopContext, visit_id: int, hidden_ids: tuple[int, ...]) -> None:
+        """그 기록의 미디어 전부에 뺀 표시를 다시 매긴다 — hidden_ids 에 있으면 뺀 것, 없으면 보이는 것.
+
+        기록 버전은 올리지 않는다. 뺀 표시는 앱의 폼 저장(PUT)이 모르고 지울 값이 아니다 — 폼은 이 값을 보내지
+        않고 서버가 미디어 ID 로 이어 붙인다."""
 
     @abstractmethod
     async def delete(self, ctx: ShopContext, visit_id: int) -> None:

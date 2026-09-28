@@ -2,6 +2,8 @@
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.public_report_repository import PublicReportRepository
+from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_feed_repository import VisitFeedRepository
@@ -15,6 +17,7 @@ from visit.tests.helpers.fakes import (
     FakeLibrary,
     FakeMenus,
     FakeRecords,
+    FakeReportRepository,
     FakeSchedule,
     FakeVisits,
 )
@@ -30,3 +33,5 @@ def test_스텁은_포트를_상속하고_추상_메서드가_남아_있지_않�
                  VisitBoardRepository, VisitFeedRepository):
         assert isinstance(visits, port), port.__name__
     assert isinstance(FakeRecords(visits), VisitRecordRepository)
+    reports = FakeReportRepository(visits)
+    assert isinstance(reports, ReportRepository) and isinstance(reports, PublicReportRepository)

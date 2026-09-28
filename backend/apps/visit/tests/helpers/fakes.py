@@ -20,7 +20,10 @@ from hub.app.errors import (
 )
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.media_library_port import MediaLibraryPort
+from visit.app.dtos.report_target_dto import ReportTarget
 from visit.app.ports.output.menu_repository import MenuRepository
+from visit.app.ports.output.public_report_repository import PublicReportRepository
+from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
@@ -31,12 +34,14 @@ from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.entities.menu import Menu
 from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
 from visit.domain.entities.visit_record import VisitRecord
+from visit.domain.entities.visit_report import VisitReport
 from visit.domain.errors import (
     MenuNameTakenError,
     MenuNotFoundError,
     VisitDuplicateError,
     VisitNotFoundError,
 )
+from visit.domain.services.report_rules import hide
 from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.closed_date import ClosedDate
 from visit.domain.value_objects.schedule_settings import DEFAULT_SETTINGS
@@ -383,9 +388,77 @@ class FakeRecords(VisitRecordRepository):
         self.journal.append(("save_record", record.visit_id, record.version))
         return record
 
+    async def set_hidden(self, ctx, visit_id, hidden_ids):
+        self.rows[visit_id] = replace(self.rows[visit_id], media=hide(self.rows[visit_id], hidden_ids))
+        self.journal.append(("set_hidden", visit_id, tuple(hidden_ids)))
+
     async def delete(self, ctx, visit_id):
         self.rows.pop(visit_id, None)
         self.journal.append(("delete_record", visit_id))
+
+
+class FakeReportRepository(ReportRepository, PublicReportRepository):
+    """visit_reports 스텁 — pg 구현처럼 두 포트를 한 객체가 낸다. 방문의 매장은 visits 스텁에서 본다.
+
+    끊지 않은 줄이 있는 방문에 또 만들면 AssertionError 다 — 인터랙터가 닫기(close_expired)나 끊기를 빠뜨린 것이다.
+    """
+
+    def __init__(self, visits: FakeVisits, journal: Journal | None = None) -> None:
+        self.visits = visits
+        self.journal = journal if journal is not None else Journal()
+        self.rows: list[VisitReport] = []
+
+    def _open(self, ctx, **visit_fields) -> list[VisitReport]:
+        """이 매장의, 조건에 맞는 방문에 달린 끊지 않은 줄."""
+        return [
+            r for r in self.rows
+            if r.revoked_at is None and self.visits.rows[r.visit_id].shop_id == ctx.shop_id
+            and all(getattr(self.visits.rows[r.visit_id], k) == v for k, v in visit_fields.items())
+        ]
+
+    def _revoke(self, reports, now) -> None:
+        self.rows = [replace(r, revoked_at=now) if r in reports else r for r in self.rows]
+
+    async def get_live(self, ctx, visit_id, now):
+        return next((r for r in self._open(ctx, id=visit_id) if r.is_live(now)), None)
+
+    async def live_visit_ids(self, ctx, visit_ids, now):
+        return {r.visit_id for r in self._open(ctx) if r.visit_id in visit_ids and r.is_live(now)}
+
+    async def close_expired(self, ctx, visit_id, now):
+        self._revoke([r for r in self._open(ctx, id=visit_id) if not r.is_live(now)], now)
+        self.journal.append(("close_expired_reports", visit_id))
+
+    async def create(self, ctx, visit_id, public_id, expires_at, now):
+        assert all(r.revoked_at is not None for r in self.rows if r.visit_id == visit_id), "끊지 않은 줄이 있다"
+        report = VisitReport(
+            id=len(self.rows) + 1, visit_id=visit_id, public_id=public_id, expires_at=expires_at, revoked_at=None,
+            first_viewed_at=None, created_by_member_id=ctx.member_id, created_at=now)
+        self.rows.append(report)
+        self.journal.append(("create_report", visit_id))
+        return report
+
+    async def revoke(self, ctx, visit_id, now):
+        live = [r for r in self._open(ctx, id=visit_id) if r.is_live(now)]
+        self._revoke(live, now)
+        self.journal.append(("revoke_report", visit_id))
+        return bool(live)
+
+    async def revoke_for_customer(self, ctx, customer_id, now):
+        self._revoke(self._open(ctx, customer_id=customer_id), now)
+        self.journal.append(("revoke_reports_for_customer", customer_id))
+
+    async def find(self, public_id):
+        report = next((r for r in self.rows if r.public_id == public_id), None)
+        if report is None:
+            return None
+        visit = self.visits.rows[report.visit_id]
+        return ReportTarget(report=report, shop_id=visit.shop_id, visit=visit)
+
+    async def mark_viewed(self, report_id, now):
+        self.rows = [replace(r, first_viewed_at=now) if r.id == report_id and r.first_viewed_at is None else r
+                     for r in self.rows]
+        self.journal.append(("mark_report_viewed", report_id))
 
 
 class FakeLibrary(MediaLibraryPort):
