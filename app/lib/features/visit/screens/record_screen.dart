@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,19 +8,25 @@ import 'package:go_router/go_router.dart';
 import '../../../core/error/api_exception.dart';
 import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
+import '../../../core/proxy/speech_recognizer.dart';
 import '../../../core/router/screen_keys.dart';
 import '../../../design/app_theme.dart';
+import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_choice_chip.dart';
+import '../../../design/widgets/app_mic_button.dart';
+import '../../../design/widgets/app_snack_bar.dart';
+import '../../../design/widgets/dictation_text_editing_controller.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/record_models.dart';
 import '../api/visit_models.dart';
+import '../state/dictation.dart';
 import '../state/record_rules.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
@@ -30,6 +38,9 @@ import 'visit_labels.dart';
 /// 사진 줄(붙은 사진 · 올리는 중 · 추가), 몸무게, 실제 메뉴와 금액, 총액, 결제 수단, 케어 메모, 내부 메모.
 /// [completing]이면 저장 버튼이 "완료하기"(기록 저장 → 같은 묶음 완료)이고 맨 아래 "나중에 적고 완료"가
 /// 있다. 완료했으면 `true`로 닫힌다 — 부른 화면이 다음 예약 시트를 띄운다.
+///
+/// 케어 메모·내부 메모는 제목 줄의 마이크로 받아쓴다(④-3b). 한 번에 한 칸만 듣고, 다른 칸으로 옮기거나
+/// 화면을 나가거나 앱이 뒤로 가면 듣던 것을 `cancel` 한다(회색 글은 굳혀 둔다).
 ///
 /// 올리는 중이어도 저장을 막지 않는다. 저장은 이미 붙은 사진만 보내고 남은 사진은 대기열이 덧붙인다.
 /// 그 사이 붙은 사진 때문에 버전이 어긋나면(409) 다시 읽어 새 사진만 더하고 한 번 더 보낸다(설계 8절).
@@ -51,8 +62,16 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
   bool _started = false;
   final _weight = TextEditingController();
   final _total = TextEditingController();
-  final _careNote = TextEditingController();
-  final _internalNote = TextEditingController();
+  final _careNote = DictationTextEditingController();
+  final _internalNote = DictationTextEditingController();
+  final _careFocus = FocusNode();
+  final _internalFocus = FocusNode();
+  late final Dictation _careDictation;
+  late final Dictation _internalDictation;
+  late final AppLifecycleListener _lifecycle;
+
+  /// 칸마다 마지막으로 스낵바에 띄운 오류 — 알림이 거듭 와도 한 번만 띄운다.
+  final _shownErrors = <Dictation, SpeechErrorCode>{};
 
   /// 고른 메뉴(고른 순서)와 메뉴마다의 금액 칸.
   final _lines = <({int menuId, String name})>[];
@@ -74,8 +93,50 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
 
   int? get _shopId => ref.read(selectedShopIdProvider);
 
+  List<Dictation> get _dictations => [_careDictation, _internalDictation];
+
+  @override
+  void initState() {
+    super.initState();
+    final recognizer = ref.read(speechRecognizerProvider);
+    Dictation dictation(DictationTextEditingController controller) =>
+        Dictation(
+          recognizer: recognizer,
+          controller: controller,
+          maxLength: maxNoteLength,
+        );
+    _careDictation = dictation(_careNote);
+    _internalDictation = dictation(_internalNote);
+    for (final (d, focus) in [
+      (_careDictation, _careFocus),
+      (_internalDictation, _internalFocus),
+    ]) {
+      d.addListener(() => _showError(d));
+      // 다른 칸을 눌러 포커스가 옮겨 가면 끝낸다. stop 이 아니라 cancel 인 까닭: stop 뒤 네이티브의 늦은
+      // 결과가 곧 시작할 다른 칸에 섞일 수 있다. 듣는 중일 때만 — 끝난 칸의 cancel 도 네이티브에 가므로,
+      // 마이크가 옮긴 포커스로 부르면 방금 시작한 다른 칸의 세션을 끊는다.
+      focus.addListener(() {
+        if (!focus.hasFocus && d.listening) unawaited(d.cancel());
+      });
+    }
+    _lifecycle = AppLifecycleListener(onHide: _cancelDictations);
+  }
+
+  void _cancelDictations() {
+    for (final d in _dictations) {
+      unawaited(d.cancel());
+    }
+  }
+
   @override
   void dispose() {
+    _lifecycle.dispose();
+    _cancelDictations();
+    for (final d in _dictations) {
+      d.dispose();
+    }
+    _careFocus.dispose();
+    _internalFocus.dispose();
     for (final c in [
       _weight,
       _total,
@@ -86,6 +147,64 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  /// 마이크 — 듣는 중이면 끝내고, 아니면 모든 칸을 cancel 한 뒤 지원·권한을 확인하고 이 칸에서 듣는다.
+  Future<void> _toggleDictation(Dictation dictation, FocusNode focus) async {
+    if (dictation.listening) return dictation.stop();
+    // 앞 칸의 cancel 을 기다리는 사이 화면이 닫힐 수 있다 — ref 는 기다리기 전에 읽는다.
+    final recognizer = ref.read(speechRecognizerProvider);
+    // 이 칸 자신까지 cancel 한다 — stop 뒤 네이티브가 보낼 늦은 final 이 새 세션에 섞이지 않는다
+    // (메서드 결과는 앞서 보낸 이벤트보다 늦게 오므로 기다린 뒤에는 늦은 이벤트가 없다).
+    for (final d in _dictations) {
+      await d.cancel();
+    }
+    if (!mounted) return;
+    final availability = await recognizer.availability();
+    if (!mounted) return;
+    if (!availability.supported) {
+      return AppSnackBar.show(context, AppStrings.dictationUnsupported);
+    }
+    final permission = await recognizer.requestPermission();
+    if (!mounted) return;
+    if (permission == SpeechPermission.denied) return _showDenied();
+    focus.requestFocus();
+    await dictation.start();
+  }
+
+  /// 스낵바는 화면이 닫혀도 남는다 — 인식기를 지금 잡아 두고 [설정 열기]는 그것으로 연다.
+  void _showDenied() {
+    final recognizer = ref.read(speechRecognizerProvider);
+    AppSnackBar.show(
+      context,
+      AppStrings.dictationDenied,
+      action: SnackBarAction(
+        label: AppStrings.openSettings,
+        textColor: AppColors.white,
+        onPressed: () => unawaited(recognizer.openSettings()),
+      ),
+    );
+  }
+
+  /// 세션을 끝낸 오류를 알린다. 새로 시작하면 오류가 비워져 다음 오류는 다시 띄운다.
+  void _showError(Dictation dictation) {
+    final error = dictation.lastError;
+    if (error == null) {
+      _shownErrors.remove(dictation);
+      return;
+    }
+    if (!mounted || _shownErrors[dictation] == error) return;
+    _shownErrors[dictation] = error;
+    switch (error) {
+      case SpeechErrorCode.denied:
+        _showDenied();
+      case SpeechErrorCode.unsupported:
+        AppSnackBar.show(context, AppStrings.dictationUnsupported);
+      case SpeechErrorCode.noSpeech:
+        AppSnackBar.show(context, AppStrings.dictationNoSpeech);
+      case SpeechErrorCode.failed:
+        AppSnackBar.show(context, AppStrings.dictationFailed);
+    }
   }
 
   /// 처음 한 번 폼을 채운다(설계 10.1 ④의 미리 채움 — `recordFormStart`).
@@ -337,6 +456,16 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
     );
   }
 
+  Widget _mic(String label, Dictation dictation, FocusNode focus) =>
+      ListenableBuilder(
+        listenable: dictation,
+        builder: (_, _) => AppMicButton(
+          listening: dictation.listening,
+          semanticLabel: '$label ${AppStrings.micLabel}',
+          onTap: () => unawaited(_toggleDictation(dictation, focus)),
+        ),
+      );
+
   Widget _form(VisitDetail detail, List<Menu> menus) {
     final visit = detail.visit;
     final selected = {for (final l in _lines) l.menuId};
@@ -478,9 +607,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         ),
         _Section(
           label: AppStrings.careNoteLabel,
+          trailing: _mic(
+            AppStrings.careNoteLabel,
+            _careDictation,
+            _careFocus,
+          ),
           child: TextField(
             key: const ValueKey('careNote'),
             controller: _careNote,
+            focusNode: _careFocus,
             maxLines: null,
             inputFormatters: [LengthLimitingTextInputFormatter(maxNoteLength)],
             decoration: const InputDecoration(
@@ -490,9 +625,15 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
         ),
         _Section(
           label: AppStrings.internalNoteLabel,
+          trailing: _mic(
+            AppStrings.internalNoteLabel,
+            _internalDictation,
+            _internalFocus,
+          ),
           child: TextField(
             key: const ValueKey('internalNote'),
             controller: _internalNote,
+            focusNode: _internalFocus,
             maxLines: null,
             inputFormatters: [LengthLimitingTextInputFormatter(maxNoteLength)],
             decoration: const InputDecoration(
@@ -531,10 +672,13 @@ class _Invalid implements Exception {
 }
 
 class _Section extends StatelessWidget {
-  const _Section({required this.label, required this.child});
+  const _Section({required this.label, required this.child, this.trailing});
 
   final String label;
   final Widget child;
+
+  /// 제목 줄 오른쪽(마이크).
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -545,7 +689,15 @@ class _Section extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: AppTypography.caption),
+            if (trailing == null)
+              Text(label, style: AppTypography.caption)
+            else
+              Row(
+                children: [
+                  Expanded(child: Text(label, style: AppTypography.caption)),
+                  trailing!,
+                ],
+              ),
             const SizedBox(height: AppSpacing.xs),
             child,
           ],

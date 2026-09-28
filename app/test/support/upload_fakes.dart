@@ -8,6 +8,7 @@ import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/core/proxy/photo_album.dart';
 import 'package:chagocnote/core/proxy/photo_renditions.dart';
+import 'package:chagocnote/core/proxy/speech_recognizer.dart';
 import 'package:chagocnote/core/proxy/video_transcoder.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
@@ -304,4 +305,69 @@ class FakeMediaFiles implements MediaFiles {
     paths.add(file.path);
     return file.path;
   }
+}
+
+/// 음성 인식 대역 — 가용성·권한을 정해 두고, 호출을 세며, emit* 로 이벤트를 흘린다.
+class FakeSpeechRecognizer implements SpeechRecognizer {
+  SpeechAvailability availabilityResult = const SpeechAvailability(
+    supported: true,
+  );
+  SpeechPermission permissionResult = SpeechPermission.granted;
+
+  final _events = StreamController<SpeechEvent>.broadcast();
+
+  /// start 에 넘긴 locale 들.
+  final starts = <String>[];
+  var stops = 0;
+  var cancels = 0;
+  var settingsOpened = 0;
+  var permissionRequests = 0;
+
+  /// start·stop·cancel 을 부른 차례.
+  final calls = <String>[];
+
+  /// 정해 두면 cancel 이 이것이 끝날 때까지 기다린다(네이티브 cancel 이 늦는 경우).
+  Completer<void>? cancelGate;
+
+  @override
+  Future<SpeechAvailability> availability() async => availabilityResult;
+
+  @override
+  Future<SpeechPermission> requestPermission() async {
+    permissionRequests++;
+    return permissionResult;
+  }
+
+  @override
+  Stream<SpeechEvent> get events => _events.stream;
+
+  @override
+  Future<void> start({String locale = 'ko-KR'}) async {
+    starts.add(locale);
+    calls.add('start');
+  }
+
+  @override
+  Future<void> stop() async {
+    stops++;
+    calls.add('stop');
+  }
+
+  @override
+  Future<void> cancel() async {
+    cancels++;
+    calls.add('cancel');
+    await cancelGate?.future;
+  }
+
+  @override
+  Future<void> openSettings() async => settingsOpened++;
+
+  void emitPartial(String text) => _events.add(SpeechPartial(text));
+
+  void emitFinal(String text) => _events.add(SpeechFinal(text));
+
+  void emitEnded() => _events.add(const SpeechEnded());
+
+  void emitError(SpeechErrorCode code) => _events.add(SpeechError(code));
 }

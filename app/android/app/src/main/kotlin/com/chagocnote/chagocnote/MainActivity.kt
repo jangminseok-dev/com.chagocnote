@@ -16,6 +16,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private var pending: String? = null
+    private var speech: SpeechRecognizerChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,6 +33,8 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         // 영상 압축·포스터(④-3a).
         VideoTranscoderChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
+        // 음성 인식(④-3b) — 권한 창을 띄우고 설정을 열어야 해서 액티비티를 준다.
+        speech = SpeechRecognizerChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).also { ch ->
             ch.setMethodCallHandler { call, result ->
                 if (call.method == "getPending") {
@@ -42,6 +45,12 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+    }
+
+    /** 마이크 권한 창의 답을 음성 인식 채널에 넘긴다. */
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speech?.onRequestPermissionsResult(requestCode, grantResults)
     }
 
     /**

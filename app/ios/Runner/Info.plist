@@ -47,11 +47,13 @@
 	<key>NSCameraUsageDescription</key>
 	<string>미용 전후 사진을 찍어 기록에 붙여요.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>영상을 찍을 때 소리를 함께 담아요.</string>
+	<string>영상을 찍을 때 소리를 담고, 말해서 메모를 적을 때 목소리를 들어요.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>미용 기록의 원본 사진을 앨범에 저장해요.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>앨범의 사진을 골라 미용 기록에 붙여요.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>말한 것을 기기 안에서 글로 바꿔 메모에 넣어요.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

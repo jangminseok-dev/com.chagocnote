@@ -1,6 +1,7 @@
 import 'package:chagocnote/core/proxy/api_client.dart';
 import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
+import 'package:chagocnote/core/proxy/speech_recognizer.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
@@ -56,6 +57,8 @@ class CustomerTestSetup {
         prefsStoreProvider.overrideWithValue(prefs),
         // 테스트에는 연결 상태 플러그인이 없다 — 인터넷 복귀 신호는 [network]로 보낸다.
         networkWatcherProvider.overrideWithValue(network),
+        // 테스트에는 음성 인식 채널이 없다 — 기록 화면의 받아쓰기는 [speech]로 흘린다.
+        speechRecognizerProvider.overrideWithValue(speech),
         apiClientProvider.overrideWith(
           (ref) => ApiClient(
             tokenStore: MemoryTokenStore(),
@@ -72,6 +75,7 @@ class CustomerTestSetup {
   final FakeHttpClientAdapter adapter;
   final FakeSessionGateway gateway;
   final network = FakeNetworkWatcher();
+  final speech = FakeSpeechRecognizer();
   final MemoryPrefsStore prefs;
   late final ProviderContainer container;
 
