@@ -24,6 +24,7 @@ from visit.app.dtos.report_target_dto import ReportTarget
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_repository import ReportRepository
+from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
@@ -44,6 +45,7 @@ from visit.domain.errors import (
 from visit.domain.services.report_rules import hide
 from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.closed_date import ClosedDate
+from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS, ReportSettings
 from visit.domain.value_objects.schedule_settings import DEFAULT_SETTINGS
 from visit.tests.helpers.builders import kst
 
@@ -459,6 +461,22 @@ class FakeReportRepository(ReportRepository, PublicReportRepository):
         self.rows = [replace(r, first_viewed_at=now) if r.id == report_id and r.first_viewed_at is None else r
                      for r in self.rows]
         self.journal.append(("mark_report_viewed", report_id))
+
+
+class FakeReportSettingsRepository(ReportSettingsRepository):
+    """rows 는 매장 ID → 설정. 없는 매장은 기본값이다."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.rows: dict[int, ReportSettings] = {}
+
+    async def get(self, ctx):
+        return self.rows.get(ctx.shop_id, DEFAULT_REPORT_SETTINGS)
+
+    async def update(self, ctx, settings):
+        self.journal.append(("update_report_settings", ctx.shop_id))
+        self.rows[ctx.shop_id] = settings
+        return settings
 
 
 class FakeLibrary(MediaLibraryPort):

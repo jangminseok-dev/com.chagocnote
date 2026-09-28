@@ -71,6 +71,7 @@ from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
 from visit.adapter.inbound.api.v1.delete_visit_record_router import delete_visit_record_router
 from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_visit_draft_router
+from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_settings_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
@@ -86,6 +87,7 @@ from visit.adapter.inbound.api.v1.register_visit_router import register_visit_ro
 from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
+from visit.adapter.inbound.api.v1.update_report_settings_router import update_report_settings_router
 from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
@@ -138,6 +140,8 @@ app.include_router(delete_pet_router)
 # visit
 app.include_router(get_visit_settings_router)
 app.include_router(update_visit_settings_router)
+app.include_router(get_report_settings_router)
+app.include_router(update_report_settings_router)
 app.include_router(list_closed_dates_router)
 app.include_router(add_closed_date_router)
 app.include_router(delete_closed_date_router)
