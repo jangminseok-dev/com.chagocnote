@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -96,3 +97,11 @@ def test_덧붙이면_그_칸의_맨_뒤이고_그_칸은_순서를_지킨_채_0
         _m(3, phase="after", order=5), _m(1, phase="before", order=0), _m(2, phase="before", order=1),
         _m(9, "video", "before", 2))
     assert append_media([], 9, "photo", "after") == (_m(9, order=0),)
+
+
+def test_덧붙여도_알림장에서_뺀_표시는_남고_새_미디어는_보인다():
+    """R5 — 순서를 다시 매기는 칸이든 아니든 뺀 것은 뺀 채다."""
+    media = [replace(_m(1, phase="before", order=3), hidden=True), _m(2, phase="before", order=90),
+             replace(_m(3, phase="after", order=5), hidden=True)]
+    assert [(m.media_id, m.sort_order, m.hidden) for m in append_media(media, 9, "photo", "before")] == [
+        (3, 5, True), (1, 0, True), (2, 1, False), (9, 2, False)]

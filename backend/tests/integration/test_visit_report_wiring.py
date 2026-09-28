@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy import text
 
 from tests.integration.support import (
     accept_invite,
@@ -48,6 +49,31 @@ async def _started_visit(wired, shop_id, headers) -> int:
     return visit_id
 
 
+async def _complete(wired, shop_id, headers, visit_id) -> None:
+    done = await wired.api.post(f"/v1/shops/{shop_id}/visits/transitions", headers=headers,
+                                json={"visit_ids": [visit_id], "action": "complete"})
+    assert done.status_code == 200, done.text
+
+
+async def _completed_visit(wired, shop_id, headers, photos=0):
+    """기록(케어 메모와 후 사진 photos 장)을 남기고 완료한 방문. (방문 ID, 사진 ID 목록)을 준다."""
+    visit_id = await _started_visit(wired, shop_id, headers)
+    media = [await ready_photo(wired, shop_id, headers) for _ in range(photos)]
+    written = await wired.api.put(
+        f"/v1/shops/{shop_id}/visits/{visit_id}/record", headers=headers,
+        json={"care_note": "눈물 자국을 닦았어요",
+              "media": [{"media_id": m, "phase": "after", "sort_order": i} for i, m in enumerate(media)]})
+    assert written.status_code == 200, written.text
+    await _complete(wired, shop_id, headers, visit_id)
+    return visit_id, media
+
+
+async def _staff(wired, shop_id, owner):
+    staff = await wired.login("직원")
+    assert (await accept_invite(wired, staff, await staff_invite(wired, shop_id, owner))).status_code == 200
+    return bearer(staff["access_token"])
+
+
 async def test_직원이_알림장을_미리_보고_설정과_링크가_그대로_비친다(wired, media_storage):
     from core.config import REPORT_LINK_KEY, REPORT_WEB_BASE_URL
     from visit.domain.services.report_token import read_token
@@ -88,21 +114,21 @@ async def test_직원이_알림장을_미리_보고_설정과_링크가_그대�
         json={"link_days": 7, "show_menus": False, "show_shop_info": False, "show_weight": True,
               "show_amount": False})
     assert changed.status_code == 200, changed.text
-    await wired.execute(
-        "UPDATE visit_record_media SET hidden_from_report = true WHERE media_id = :id", id=photo)
-    await wired.execute(
-        "INSERT INTO visit_reports (visit_id, public_id, expires_at, created_by_member_id, created_at)"
-        " VALUES (:visit_id, :public_id, now() + interval '7 days', 1, now())",
-        visit_id=visit_id, public_id=bytes(range(16)))
+    await _complete(wired, shop_id, o, visit_id)
+    sent = await wired.api.put(path, headers=o, json={"hidden_media_ids": [photo]})
+    assert sent.status_code == 200, sent.text
 
     body = (await wired.api.get(path, headers=o)).json()
+    assert body == sent.json()
     assert (body["report"]["menus"], body["report"]["shop"], body["report"]["weight_kg"]) == (None, None, 3.4)
     assert ([m["hidden"] for m in body["report"]["media"]], body["report"]["cover"]) == ([True], None)
     assert body["settings"]["show_weight"] is True
     assert body["link"]["status"] == "live"
     token = re.fullmatch(re.escape(REPORT_WEB_BASE_URL) + r"/r/([A-Za-z0-9_-]{43})", body["link"]["url"]).group(1)
-    assert read_token(token, REPORT_LINK_KEY) == bytes(range(16))
+    assert len(read_token(token, REPORT_LINK_KEY)) == 16
     assert body["link"]["expires_at"].endswith("+09:00") and body["link"]["created_at"].endswith("+09:00")
+    sent_at, expires_at = (datetime.fromisoformat(body["link"][k]) for k in ("created_at", "expires_at"))
+    assert expires_at - sent_at == timedelta(days=7)
 
 
 async def test_다른_매장의_방문은_미리_볼_수_없고_기록이_없으면_409_다(wired):
@@ -122,3 +148,96 @@ async def test_다른_매장의_방문은_미리_볼_수_없고_기록이_없으
     assert error_of(await wired.api.get(f"/v1/shops/{a_shop}/visits/{a_visit}/report", headers=a)) == (
         409, "VISIT_NO_RECORD_YET")
     assert (await wired.api.get(f"/v1/shops/{b_shop}/visits/{b_visit}/report", headers=b)).status_code == 200
+
+
+async def test_사장과_직원이_보내면_같은_링크이고_끊은_뒤_다시_보내면_새_링크다(wired):
+    """R4 — 끊은 링크는 새 링크를 만들어도 되살아나지 않는다(줄이 다르다)."""
+    shop_id, owner, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    staff = await _staff(wired, shop_id, owner)
+    visit_id, _ = await _completed_visit(wired, shop_id, o)
+    path = f"/v1/shops/{shop_id}/visits/{visit_id}/report"
+
+    first = await wired.api.put(path, headers=o, json={"hidden_media_ids": []})
+    assert (first.status_code, first.json()["link"]["status"]) == (200, "live")
+    again = await wired.api.put(path, headers=staff, json={"hidden_media_ids": []})
+    assert (again.status_code, again.json()["link"]) == (200, first.json()["link"])
+
+    assert (await wired.api.delete(path, headers=staff)).status_code == 204
+    assert (await wired.api.get(path, headers=o)).json()["link"] == NO_LINK
+    assert error_of(await wired.api.delete(path, headers=o)) == (404, "REPORT_NOT_FOUND")
+
+    second = await wired.api.put(path, headers=staff, json={"hidden_media_ids": []})
+    assert (second.status_code, second.json()["link"]["status"]) == (200, "live")
+    assert second.json()["link"]["url"] != first.json()["link"]["url"]
+    async with wired.engine.connect() as conn:
+        rows = (await conn.execute(text(
+            "SELECT revoked_at IS NULL, created_by_member_id FROM visit_reports ORDER BY id"))).all()
+    assert [live for live, _ in rows] == [False, True]
+    assert rows[0][1] != rows[1][1]   # 사장이 만든 줄, 직원이 만든 줄
+
+
+async def test_완료_전이거나_보낼_것이_없으면_거절하고_링크를_만들지_않는다(wired):
+    shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    visit_id = await _started_visit(wired, shop_id, o)
+    path = f"/v1/shops/{shop_id}/visits/{visit_id}/report"
+    assert (await wired.api.put(f"/v1/shops/{shop_id}/visits/{visit_id}/record", headers=o,
+                                json={"weight_kg": 3.4})).status_code == 200   # 메모도 사진도 없는 기록
+
+    assert error_of(await wired.api.put(path, headers=o, json={"hidden_media_ids": []})) == (
+        409, "VISIT_NOT_COMPLETED")
+    await _complete(wired, shop_id, o, visit_id)
+    assert error_of(await wired.api.put(path, headers=o, json={"hidden_media_ids": []})) == (422, "REPORT_EMPTY")
+    assert error_of(await wired.api.put(path, headers=o, json={"hidden_media_ids": [999]})) == (
+        422, "VALIDATION_ERROR")
+    async with wired.engine.connect() as conn:
+        assert (await conn.execute(text("SELECT count(*) FROM visit_reports"))).scalar_one() == 0
+
+
+async def test_다른_매장의_방문에는_보내지도_끊지도_못한다(wired):
+    """R2"""
+    operator = await make_operator(wired)
+    a_shop, _, a = await _shop(wired, operator, "A 매장", "A사장")
+    b_shop, _, b = await _shop(wired, operator, "B 매장", "B사장")
+    b_visit, _ = await _completed_visit(wired, b_shop, b)
+    sent = await wired.api.put(f"/v1/shops/{b_shop}/visits/{b_visit}/report", headers=b,
+                               json={"hidden_media_ids": []})
+    assert sent.status_code == 200, sent.text
+
+    through_mine = f"/v1/shops/{a_shop}/visits/{b_visit}/report"
+    assert error_of(await wired.api.put(through_mine, headers=a, json={"hidden_media_ids": []})) == (
+        404, "VISIT_NOT_FOUND")
+    assert error_of(await wired.api.delete(through_mine, headers=a)) == (404, "VISIT_NOT_FOUND")
+    theirs = f"/v1/shops/{b_shop}/visits/{b_visit}/report"
+    assert error_of(await wired.api.put(theirs, headers=a, json={"hidden_media_ids": []})) == (403, "NOT_A_MEMBER")
+    assert error_of(await wired.api.delete(theirs, headers=a)) == (403, "NOT_A_MEMBER")
+
+    assert (await wired.api.get(theirs, headers=b)).json()["link"] == sent.json()["link"]   # 그대로 살아 있다
+
+
+async def test_알림장에서_뺀_사진은_기록을_고치고_사진을_덧붙여도_빠져_있다(wired, media_storage):
+    """R5"""
+    shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    visit_id, [first, removed, last] = await _completed_visit(wired, shop_id, o, photos=3)
+    visit = f"/v1/shops/{shop_id}/visits/{visit_id}"
+    sent = await wired.api.put(f"{visit}/report", headers=o, json={"hidden_media_ids": [removed]})
+    assert sent.status_code == 200, sent.text
+
+    async def hidden():
+        media = (await wired.api.get(f"{visit}/report", headers=o)).json()["report"]["media"]
+        return {m["media_id"]: m["hidden"] for m in media}
+
+    assert await hidden() == {first: False, removed: True, last: False}
+
+    rewritten = await wired.api.put(
+        f"{visit}/record", headers=o,
+        json={"version": 1, "care_note": "메모만 고쳤어요",
+              "media": [{"media_id": m, "phase": "after", "sort_order": i}
+                        for i, m in enumerate([last, removed, first])]})   # 자리도 바꿨다
+    assert rewritten.status_code == 200, rewritten.text
+    assert await hidden() == {first: False, removed: True, last: False}
+
+    added = await ready_photo(wired, shop_id, o)
+    appended = await wired.api.post(f"{visit}/record/media", headers=o, json={"media_id": added, "phase": "after"})
+    assert appended.status_code == 200, appended.text
+    assert await hidden() == {first: False, removed: True, last: False, added: False}
+    assert (await wired.api.get(f"{visit}/report", headers=o)).json()["link"] == sent.json()["link"]

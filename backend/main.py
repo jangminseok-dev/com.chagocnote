@@ -87,6 +87,8 @@ from visit.adapter.inbound.api.v1.parse_visit_draft_router import parse_visit_dr
 from visit.adapter.inbound.api.v1.put_visit_record_router import put_visit_record_router
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
 from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
+from visit.adapter.inbound.api.v1.revoke_visit_report_router import revoke_visit_report_router
+from visit.adapter.inbound.api.v1.send_visit_report_router import send_visit_report_router
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_report_settings_router import update_report_settings_router
@@ -170,6 +172,8 @@ app.include_router(put_visit_record_router)
 app.include_router(append_record_media_router)
 app.include_router(delete_visit_record_router)
 app.include_router(get_visit_report_router)
+app.include_router(send_visit_report_router)
+app.include_router(revoke_visit_report_router)
 # media
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)

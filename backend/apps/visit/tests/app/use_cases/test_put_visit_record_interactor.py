@@ -158,3 +158,25 @@ async def test_익명화한_고객과_다른_매장의_방문은_쓸_수_없다(
         await w.put(record())
     with pytest.raises(VisitNotFoundError):
         await w.put(record(), context=ctx(shop_id=2))
+
+
+async def test_알림장에서_뺀_사진은_기록을_다시_저장해도_빠져_있다():
+    """R5 — 저장은 미디어 줄을 지우고 다시 넣는다. 뺀 표시는 자리가 아니라 미디어 ID 를 따라간다."""
+    w = _World(status="completed")
+    for i in (51, 52, 53):
+        w.library.add(i, attached=i != 53)
+    w.existing(media=[RecordMedia(51, "photo", "after", 0, hidden=True), RecordMedia(52, "photo", "after", 1)])
+
+    await w.put(record(media=[at(53, order=0), at(52, order=1), at(51, "before", 0)]), version=2)   # 자리를 바꿨다
+
+    assert {m.media_id: m.hidden for m in w.records.rows[w.visit.id].media} == {53: False, 52: False, 51: True}
+    await w.put(record(care="메모만 고침", media=[at(53, order=0), at(52, order=1), at(51, "before", 0)]), version=3)
+    assert {m.media_id: m.hidden for m in w.records.rows[w.visit.id].media} == {53: False, 52: False, 51: True}
+
+
+async def test_기록_응답에는_뺀_표시가_없다():
+    w = _World(status="completed")
+    w.library.add(51, attached=True)
+    w.existing(media=[RecordMedia(51, "photo", "after", 0, hidden=True)])
+    view = await w.put(record(media=[at(51)]), version=2)
+    assert not hasattr(view.media[0], "hidden")
