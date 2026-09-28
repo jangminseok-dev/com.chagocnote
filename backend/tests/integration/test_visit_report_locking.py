@@ -28,7 +28,7 @@ from visit.app.use_cases.delete_visit_record_interactor import DeleteVisitRecord
 from visit.app.use_cases.revoke_visit_report_interactor import RevokeVisitReportInteractor
 from visit.app.use_cases.send_visit_report_interactor import SendVisitReportInteractor
 from visit.app.use_cases.transition_visits_interactor import TransitionVisitsInteractor
-from visit.domain.errors import VisitReportSentError
+from visit.domain.errors import VisitNotCompletedError, VisitReportSentError
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import FakeShopProfile
 from visit.tests.helpers.rows import insert_visit
@@ -142,6 +142,25 @@ async def test_보내는_동안_온_되돌리기와_기록_삭제는_기다렸�
         await second.rollback()
 
     assert await _after(db_session, visit_id) == ("completed", True, [True])
+
+
+async def test_되돌리는_동안_온_보내기는_기다렸다가_VISIT_NOT_COMPLETED_로_끝난다(db_engine, db_session):
+    """R9 의 반대 방향 — 잠그지 않거나 잠그기 전에 읽은 방문으로 판정하면 '완료'를 본 채 되돌린 방문에 링크를 만든다."""
+    visit_id = await _recorded_visit(db_session)
+
+    sessions = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with sessions() as reverting, sessions() as second:
+        await _revert(reverting, visit_id)
+        late = asyncio.create_task(_send(second).send_visit_report(
+            SendVisitReportCommand(ctx=SHOP, visit_id=visit_id, hidden_media_ids=())))
+        await asyncio.sleep(BLOCKED)
+        assert not late.done()
+        await reverting.commit()
+        with pytest.raises(VisitNotCompletedError):
+            await late
+        await second.rollback()
+
+    assert await _after(db_session, visit_id) == ("reserved", True, [])
 
 
 async def test_보내는_동안_온_끊기는_기다렸다가_그_링크를_끊는다(db_engine, db_session):

@@ -291,6 +291,32 @@ async def test_고객을_삭제하면_그_고객의_알림장_링크가_끊긴�
     assert rows == [(True,)]
 
 
+async def test_익명화한_고객의_방문에는_다시_보내지_못한다(wired):
+    """가족 잠금이 익명화한 고객을 거절한다 — 오류 코드는 VISIT_… 가 아니라 CUSTOMER_NOT_FOUND 다."""
+    shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
+    visit_id, _ = await _completed_visit(wired, shop_id, o)
+    visit = f"/v1/shops/{shop_id}/visits/{visit_id}"
+    assert (await wired.api.put(f"{visit}/report", headers=o, json={"hidden_media_ids": []})).status_code == 200
+    customer_id = (await wired.api.get(visit, headers=o)).json()["visit"]["customer"]["customer_id"]
+    assert (await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=o)).status_code == 204
+
+    seen = [
+        error_of(await wired.api.put(f"{visit}/report", headers=o, json={"hidden_media_ids": []})),
+        error_of(await wired.api.delete(f"{visit}/report", headers=o)),
+        error_of(await wired.api.post(f"/v1/shops/{shop_id}/visits/transitions", headers=o,
+                                      json={"visit_ids": [visit_id], "action": "revert"})),
+        error_of(await wired.api.delete(f"{visit}/record", headers=o)),
+    ]
+
+    assert seen == [(404, "CUSTOMER_NOT_FOUND")] * 4
+    async with wired.engine.connect() as conn:
+        live = (await conn.execute(text(
+            "SELECT count(*) FROM visit_reports WHERE visit_id = :id AND revoked_at IS NULL"), {"id": visit_id}))
+        assert live.scalar_one() == 0
+    detail = (await wired.api.get(visit, headers=o)).json()
+    assert (detail["visit"]["status"], detail["record"] is None, detail["report"]) == ("completed", False, NO_LINK)
+
+
 async def test_보낸_방문은_상세와_하루_목록과_피드에_보냄으로_나온다(wired):
     shop_id, _, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
     visit_id, _ = await _completed_visit(wired, shop_id, o)

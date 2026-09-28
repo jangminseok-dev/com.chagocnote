@@ -2,14 +2,18 @@
 
 검토 기준은 하나다 — 공개하기로 한 것 말고는 아무것도 나가지 않는다.
 """
+import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
+import httpx
 import pytest
 from sqlalchemy import text
 
-from tests.integration.support import bearer, error_of, make_operator, ready_photo, shop_with_owner
+from tests.integration.support import bearer, error_of, make_operator, ready_photo, ready_video, shop_with_owner
 
 pytestmark = pytest.mark.integration
 
@@ -39,8 +43,11 @@ async def _shop(wired, name="Hiss Haus", owner_name="사장님"):
     return shop_id, bearer(owner["access_token"])
 
 
-async def _completed_visit(wired, shop_id, headers, photos=0, phone=CUSTOMER["phone"]):
-    """모든 칸을 채운 기록(후 사진 photos 장)을 남기고 완료한 콩이의 어제 방문. (방문 주소, 사진 ID 목록, 메뉴 이름)."""
+async def _completed_visit(wired, shop_id, headers, photos=0, phone=CUSTOMER["phone"], videos=0):
+    """모든 칸을 채운 기록(후 사진 photos 장, 영상 videos 편)을 남기고 완료한 콩이의 어제 방문.
+
+    (방문 주소, 미디어 ID 목록, 메뉴 이름)을 준다.
+    """
     family = await wired.api.post(f"/v1/shops/{shop_id}/customers", headers=headers,
                                   json={"customer": {**CUSTOMER, "phone": phone}, "pet": PET})
     assert family.status_code == 201, family.text
@@ -52,6 +59,7 @@ async def _completed_visit(wired, shop_id, headers, photos=0, phone=CUSTOMER["ph
     assert booked.status_code == 201, booked.text
     visit = f"/v1/shops/{shop_id}/visits/{booked.json()['visits'][0]['visit_id']}"
     media = [await ready_photo(wired, shop_id, headers) for _ in range(photos)]
+    media += [await ready_video(wired, shop_id, headers) for _ in range(videos)]
     bath = (await wired.api.get(f"/v1/shops/{shop_id}/menus", headers=headers)).json()["items"][0]
     for action, body in (
         ("start", None),
@@ -228,6 +236,71 @@ async def test_다른_매장의_알림장과_섞이지_않는다(wired):
     seen = [(await wired.api.get(PUBLIC, headers=_with(t))).json() for t in (a_token, b_token)]
     assert [(s["shop"]["name"], s["care_note"]) for s in seen] == [
         ("A 매장", "눈물 자국을 닦았어요"), ("B 매장", "B 매장의 메모")]
+
+
+async def test_열람_신호가_동시에_둘_와도_둘_다_204_이고_시각은_하나다(wired):
+    """R10 — 동시에 온 둘 가운데 어느 시각이 남는지는 여기서 가릴 수 없다. 그 판별은 저장소의 두 세션 테스트가 한다.
+
+    여기서는 둘의 상태 코드와, 그 뒤에 온 신호가 남은 시각을 바꾸지 않는 것을 고정한다.
+    """
+    shop_id, o = await _shop(wired)
+    visit, _, _ = await _completed_visit(wired, shop_id, o)
+    token = await _send(wired, visit, o)
+
+    both = await asyncio.gather(wired.api.post(VIEWED, headers=_with(token)),
+                                wired.api.post(VIEWED, headers=_with(token)))
+
+    assert [r.status_code for r in both] == [204, 204]
+    seen_at = (await wired.api.get(f"{visit}/report", headers=o)).json()["link"]["first_viewed_at"]
+    assert seen_at is not None
+    assert (await wired.api.post(VIEWED, headers=_with(token))).status_code == 204
+    assert (await wired.api.get(f"{visit}/report", headers=o)).json()["link"]["first_viewed_at"] == seen_at
+    async with wired.engine.connect() as conn:
+        rows = (await conn.execute(text("SELECT first_viewed_at IS NOT NULL FROM visit_reports"))).all()
+    assert rows == [(True,)]
+
+
+async def test_영상만_있는_알림장은_포스터가_대표이고_원본으로_재생한다(wired, media_storage):
+    """영상에는 표시용이 없다 — 재생은 원본(mp4), 대표와 썸네일은 포스터다."""
+    shop_id, o = await _shop(wired)
+    visit, _, _ = await _completed_visit(wired, shop_id, o, videos=1)
+    token = await _send(wired, visit, o)
+
+    response = await wired.api.get(PUBLIC, headers=_with(token))
+
+    assert response.status_code == 200, response.text
+    [media] = response.json()["media"]
+    assert (media["kind"], media["duration_seconds"], media["width"], media["height"]) == ("video", 12, 1920, 1080)
+    paths = {k: urlsplit(media[k]).path for k in ("display_url", "thumb_url", "download_url")}
+    assert "/original-video/" in paths["display_url"] and paths["display_url"].endswith(".mp4")
+    assert "/thumb/" in paths["thumb_url"] and paths["thumb_url"].endswith(".jpg")
+    assert paths["download_url"] == paths["display_url"]
+    assert response.json()["cover"] == {"url": media["thumb_url"], "width": 1920, "height": 1080}
+    async with httpx.AsyncClient() as http:
+        played, saved = await http.get(media["display_url"]), await http.get(media["download_url"])
+    assert (played.status_code, saved.status_code) == (200, 200)
+    assert "content-disposition" not in played.headers
+    assert re.fullmatch(r'attachment; filename="chagocnote-\d+\.mp4"', saved.headers["content-disposition"])
+    assert saved.headers["content-type"] == "video/mp4"
+
+
+async def test_보낸_뒤_전부_빼고_메모를_비워도_공개_조회는_200_이다(wired, media_storage):
+    """살아 있는 링크가 있으면 REPORT_EMPTY 를 보지 않는다 — 페이지에는 이름과 날짜만 남는다."""
+    shop_id, o = await _shop(wired)
+    visit, [photo], _ = await _completed_visit(wired, shop_id, o, photos=1)
+    token = await _send(wired, visit, o)
+    emptied = await wired.api.put(
+        f"{visit}/record", headers=o,
+        json={"version": 1, "care_note": None, "media": [{"media_id": photo, "phase": "after", "sort_order": 0}]})
+    assert emptied.status_code == 200, emptied.text
+
+    assert await _send(wired, visit, o, hidden=[photo]) == token
+
+    response = await wired.api.get(PUBLIC, headers=_with(token))
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["media"], body["cover"], body["care_note"]) == ([], None, None)
+    assert (body["pet_name"], body["visit_date"]) == ("콩이", YESTERDAY.isoformat())
 
 
 @pytest.mark.parametrize("headers", [

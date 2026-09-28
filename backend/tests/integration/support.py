@@ -90,6 +90,8 @@ class FakeKakaoStrategy(SocialProviderPort):
 
 
 PHOTO = {"kind": "photo", "content_type": "image/jpeg", "byte_size": 3000, "width": 3000, "height": 2000}
+VIDEO = {"kind": "video", "content_type": "video/mp4", "byte_size": 3000, "width": 1920, "height": 1080,
+         "duration_seconds": 12}
 
 
 async def issue_media(wired: Wired, shop_id: int, headers: dict, body: dict = PHOTO) -> dict:
@@ -113,6 +115,15 @@ async def upload_media(issued: dict, sizes=(3000, 800, 200)) -> None:
 async def ready_photo(wired: Wired, shop_id: int, headers: dict) -> int:
     """발급 → 올리기 → 확인까지 마친 사진 하나의 ID. `media_storage` 픽스처가 필요하다."""
     issued = await issue_media(wired, shop_id, headers)
+    await upload_media(issued)
+    confirmed = await wired.api.post(f"/v1/shops/{shop_id}/media/{issued['media_id']}/confirm", headers=headers)
+    assert confirmed.status_code == 200, confirmed.text
+    return issued["media_id"]
+
+
+async def ready_video(wired: Wired, shop_id: int, headers: dict) -> int:
+    """발급 → 원본과 포스터 올리기 → 확인까지 마친 영상 하나의 ID. `media_storage` 픽스처가 필요하다."""
+    issued = await issue_media(wired, shop_id, headers, VIDEO)
     await upload_media(issued)
     confirmed = await wired.api.post(f"/v1/shops/{shop_id}/media/{issued['media_id']}/confirm", headers=headers)
     assert confirmed.status_code == 200, confirmed.text

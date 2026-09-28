@@ -1,8 +1,10 @@
+import asyncio
 from datetime import timedelta
 
 import pytest
 from sqlalchemy import event
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
 from visit.tests.helpers.builders import ctx, kst
@@ -188,6 +190,26 @@ async def test_처음_연_시각은_한_번만_적는다(db_session):
     await repo.mark_viewed(created.id, opened + timedelta(hours=1))
     assert (await repo.find(FIRST)).report.first_viewed_at == opened
     assert (await repo.find(SECOND)).report.first_viewed_at is None
+
+
+async def test_두_세션이_동시에_처음_연_시각을_적어도_먼저_커밋한_것이_남는다(db_engine, db_session):
+    """R10 — '아직 비어 있을 때만'이라는 조건이 없으면 기다리던 쪽이 앞선 시각을 덮어쓴다."""
+    repo, visit_id = await _setup(db_session)
+    created = await repo.create(A, visit_id, FIRST, WEEK, NOW)
+    await db_session.commit()
+    early, later = NOW + timedelta(minutes=5), NOW + timedelta(hours=1)
+
+    sessions = async_sessionmaker(db_engine, expire_on_commit=False, autoflush=False)
+    async with sessions() as first, sessions() as second:
+        await ReportPgRepository(first).mark_viewed(created.id, early)
+        late = asyncio.create_task(ReportPgRepository(second).mark_viewed(created.id, later))
+        await asyncio.sleep(0.5)
+        assert not late.done()
+        await first.commit()
+        await late
+        await second.commit()
+
+    assert (await repo.find(FIRST)).report.first_viewed_at == early
 
 
 async def test_방문을_지우면_링크도_함께_지워진다(db_session):
