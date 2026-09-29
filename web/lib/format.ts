@@ -48,3 +48,13 @@ export function duration(seconds: number): string {
 export function reportTitle(petName: string | null): string {
   return petName === null ? '미용 알림장' : `${petName}의 미용 알림장`
 }
+
+/** 'after' → '미용 후' */
+export function phaseLabel(phase: 'before' | 'after'): string {
+  return phase === 'after' ? '미용 후' : '미용 전'
+}
+
+/** 그림의 alt 와 버튼 이름에 쓴다. → '미용 후 사진', '미용 전 영상' */
+export function mediaLabel(media: { kind: 'photo' | 'video'; phase: 'before' | 'after' }): string {
+  return `${phaseLabel(media.phase)} ${media.kind === 'video' ? '영상' : '사진'}`
+}

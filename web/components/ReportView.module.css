@@ -1,0 +1,326 @@
+/* 목업(guardian-page.html ②·③)의 수치다. 목업은 폭 320px·본문 12px 이고 웹의 본문은 14px 이라 7/6 배로 옮겼다. */
+
+.page {
+  padding: 0 24px calc(40px + env(safe-area-inset-bottom));
+  line-height: normal;
+  /* 한글은 낱말에서 끊고, 띄어쓰기 없는 긴 글은 어디서든 끊는다. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.page ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page button {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.serif {
+  font-family: var(--font-serif);
+}
+
+/* 머리 */
+.brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 19px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.brand i {
+  flex: none;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.brand span {
+  text-align: right;
+}
+
+/* 날짜 */
+.date {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+  font-family: var(--font-serif);
+}
+
+.day {
+  font-size: 72px;
+  line-height: 0.86;
+}
+
+.month {
+  padding-bottom: 5px;
+  font-size: 17.5px;
+  font-style: italic;
+  line-height: 1.25;
+}
+
+/* 제목 */
+.title {
+  margin: 14px 0 0;
+  font-family: var(--font-myeongjo);
+  font-size: 24.5px;
+  font-weight: 400;
+}
+
+/* 대표 미디어 */
+.hero {
+  position: relative;
+  overflow: hidden;
+  margin-top: 16px;
+  border: 3px solid #fff;
+  border-radius: 26px;
+  background: #d9d9d9;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.14);
+}
+
+.open {
+  display: block;
+  width: 100%;
+}
+
+.open img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.count {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  padding: 4px 10px;
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11.5px;
+}
+
+.tag {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  padding: 5px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.page .save {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  font-size: 17.5px;
+}
+
+/* 재생 표시 — 글자 ▶ 는 기기에 따라 그림 문자로 바뀌므로 CSS 로 그린다. */
+.play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.play::before {
+  content: '';
+  border-style: solid;
+  border-width: 9px 0 9px 15px;
+  border-color: transparent transparent transparent #fff;
+}
+
+.hero .play::before {
+  border-width: 18px 0 18px 30px;
+}
+
+/* 구역 머리말 */
+.label {
+  display: flex;
+  justify-content: space-between;
+  margin: 21px 0 8px;
+  color: var(--mute);
+  font-size: 11.5px;
+}
+
+.label i {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* 미디어 줄 — 그림자가 잘리지 않게 안쪽 여백을 두고 그만큼 바깥으로 뺀다. */
+.page .strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: -4px -24px -10px;
+  padding: 4px 24px 10px;
+  scrollbar-width: none;
+}
+
+.strip::-webkit-scrollbar {
+  display: none;
+}
+
+.strip li {
+  flex: 0 0 calc((100% - 24px) / 4);
+}
+
+.page .thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 3px solid #fff;
+  border-radius: 16px;
+  background: #d9d9d9;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.1);
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.duration {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  color: #fff;
+  font-size: 10px;
+}
+
+/* 흰 카드 */
+.card {
+  margin: 0;
+  padding: 14px 15px;
+  border-radius: 19px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+}
+
+.memo {
+  font-family: var(--font-myeongjo);
+  font-size: 14.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.page .rows {
+  padding: 14px 15px;
+}
+
+.rows li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 13.5px;
+}
+
+.rows li:last-child {
+  border-bottom: 0;
+}
+
+.rows li span:first-child {
+  color: var(--mute);
+}
+
+/* 금액·몸무게는 줄을 바꾸지 않는다. 긴 이름이 줄을 바꾼다. */
+.rows li span + span {
+  flex: none;
+}
+
+.rows .sum {
+  font-weight: 600;
+}
+
+.rows .sum span:first-child {
+  color: var(--ink);
+}
+
+/* 알약 버튼 */
+.page .pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 54px;
+  margin-top: 14px;
+  border-radius: 27px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.page .pill.light {
+  height: 44px;
+  margin-top: 12px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* 매장 */
+.shop b {
+  font-family: var(--font-myeongjo);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.shop small {
+  display: block;
+  color: var(--mute);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.shop b + small {
+  margin-top: 3px;
+}
+
+/* 꼬리 */
+.foot {
+  margin-top: 19px;
+  color: var(--mute);
+  font-size: 11.5px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.foot i {
+  color: var(--ink);
+  font-family: var(--font-myeongjo);
+  font-size: 14px;
+}
