@@ -224,6 +224,7 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 - **카카오톡 안내는 모두 저장 버튼 아래 한 곳이다.** 사용자 에이전트에 `KAKAOTALK`이 있을 때 브라우저가 붙은 뒤에 판단해 그린다(`useSyncExternalStore`의 서버 값 `false` — 서버 HTML 에는 없다).
 - **크게 보기**는 목업에 없어 모습을 정했다 — 검은 바탕, 위에 순번과 닫기, 아래에 이전·저장·다음. 끝에서는 이전·다음이 눌리지 않고 돌아서 넘어가지 않는다. 밀기는 가로로 40px 넘게, 세로보다 가로로 더 움직였을 때만 넘긴다. 열리면 초점이 닫기 버튼으로 가고, Esc 로 닫히며, 열린 동안 `body`의 `overflow`가 `hidden`이다. 넘기면 앞 영상은 멈춘다. **뒤로 가기(안드로이드의 버튼·몸짓)는 크게 보기만 닫는다** — 열 때 `history.pushState(null, '')`로 방문 기록에 한 칸을 쌓고(URL 인자가 없어 주소는 그대로, 넘기기는 쌓지 않는다, 개발 모드의 이펙트 두 번에도 한 번) `popstate`가 오면 닫는다. 닫기 버튼·Esc 로 닫으면 쌓은 칸을 `history.back()`으로 치워 뒤로 가기 한 번에 알림장을 떠난다.
 - **`next.config.ts`의 개발용 두 줄.** `agentRules: false` — 빼면 `next dev`가 `web/AGENTS.md`·`web/CLAUDE.md`를 만든다(두 파일이 없을 때, 대조로 확인). 이제 `web/CLAUDE.md`가 있으므로 빼면 그 파일에 Next 의 에이전트 규칙 묶음을 끼워 넣는다(`generate-agent-files.js`를 읽고 한 판단). `allowedDevOrigins: ['127.0.0.1']` — 백엔드가 만드는 링크는 `http://127.0.0.1:3010/r/…`인데, 빼면 `next dev`가 `/_next/hmr` 등 개발 자원을 막아("Blocked cross-origin request") 브라우저 쪽 코드가 붙지 않는다. e2e 여섯 가운데 열람 신호·크게 보기·404 화면 셋이 실패한다.
+- **카카오톡 미리보기 로봇은 og 태그를 스트리밍으로 받지 않는다.** `next.config.ts`의 `htmlLimitedBots`에 Next 기본 목록(`node_modules/next/dist/shared/lib/router/utils/html-bots.js`의 `HTML_LIMITED_BOT_UA_RE`)과 `kakaotalk-scrap`을 함께 넣었다. 기본 목록에 카카오 로봇이 없어 메타데이터가 스트리밍 대상이었다 — 지금까지 og 태그가 `<head>`에 온 것은 본문이 같은 조회(`getReport`)를 기다리기 때문일 뿐이었다. `kakaotalk-scrap` UA 로 받으면 `<body>` 바로 뒤의 스트리밍용 이어붙임 표시(`<div hidden><!--$--><!--/$--></div>`)가 사라져 Next 가 막힌 렌더링(html-limited)으로 인식한 것을 서버 응답 검사로 확인했다.
 - **compose 의 `web`**: `node:24-alpine`, `corepack enable` 뒤 pnpm 11.17.0, `pnpm install --frozen-lockfile --store-dir node_modules/.pnpm-store` → `next dev -p 3010 -H 0.0.0.0`. `node_modules`·`.next`는 볼륨(`web_node_modules`·`web_next`)이라 맥의 것(darwin)과 컨테이너의 것(linux-musl)이 서로 가린다. pnpm 저장소를 `--store-dir`로 볼륨 안에 두지 않으면 저장소 루트에 `.pnpm-store/`(약 530MB)가 생긴다. `API_BASE_URL`은 compose 가 `http://backend:8000`으로 넣고 `REPORT_WEB_SECRET`은 저장소 루트의 `.env`에서 백엔드와 같은 값을 읽는다. 포트는 `127.0.0.1:3010`. 파일 변경 감지는 폴링 없이 된다(Docker Desktop, 맥).
 - **보호자가 먼저 부딪힐 다섯은 테스트로 고정했다.**
   - 백엔드가 매달리면 5초 남짓(6초 안) 뒤 "잠시 후 다시 열어 주세요"(200), 열람 신호는 503 — `check:server`(가짜 백엔드 앞머리 `slow`).
@@ -258,6 +259,7 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 - 썸네일은 모두 `loading="lazy"`인 `<img>`이지만 서명 주소는 첫 HTML 에 모두 들어간다(미디어 33개면 33개).
 - 영상이 대표이면 포스터(`thumb_url`)를 크게 늘려 쓴다. 포스터가 작으면 흐리다.
 - 받기 응답의 파일 이름은 `Content-Disposition`의 `filename="…"`만 읽는다(백엔드의 이름은 ASCII 다). 브라우저 코드에 그 헤더가 보이지 않으면 순번 이름이다.
+- **크게 보기를 연 채 새로 고치면** 쌓아 둔 방문 기록 칸이 남아, 알림장을 떠나려면 뒤로 가기를 두 번 눌러야 한다.
 
 ### 남는 것 — 알고 미룬다
 
@@ -283,6 +285,9 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 - compose 의 `web`이 떠 있는 동안 맥에서 `web/.next`를 지울 수 없다(볼륨의 마운트 자리). `web`을 지운 뒤 남는 빈 `web/.next`를 지울 수 있는지, 맥에서 `pnpm install`을 하지 않은 사람이 `web`을 띄우면 맥에 빈 `web/node_modules`가 생기는지는 확인하지 않았다.
 - `web`은 `depends_on: backend`다. 참조 작업 트리처럼 다른 폴더의 compose 파일로 `web`만 띄울 때는 `--no-deps`를 붙인다(없으면 backend 가 그 폴더 기준으로 다시 만들어질 수 있다 — 해 보지는 않았다).
 - 카카오톡 UA 는 Playwright 로 UA 글자만 바꿔 봤다. 사파리·카카오톡 내장 브라우저·Android 에서는 아무것도 보지 않았다.
+- **모두 저장의 메모리·데이터 양과 중복 받기** — 공유 경로는 미디어 전부(영상은 개당 최대 200MB)를 메모리로 받은 뒤 공유 시트를 연다. 운영 배포 전에 사진만 또는 합계 크기 한도 안으로 좁히거나, 실패하면 남은 받기를 끊을지 정한다(설계 8.3 이 정한 방식이라 실기기 확인과 함께 정한다).
+- **뒤로 가기의 실기기 확인**(설계 11.5 의 새 항목 12) — Android 뒤로 몸짓·버튼, iOS Safari 가장자리 밀기, 카카오톡 내장 브라우저에서 크게 보기를 연 채 뒤로 가면 크게 보기만 닫히는지. e2e 는 `next dev` 위 chromium 에서만 돌았다.
+- **e2e 는 `next dev` 에만 붙는다.** 배포 전에 `next start` 대상으로 한 번 돌린다.
 
 ### ⑤-3 앱이 기댈 것
 

@@ -17,6 +17,7 @@
 - **열람 신호는 브라우저 스크립트만 보낸다**(`components/ViewedSignal.tsx`, 설계 R12). 페이지를 서버에서 그릴 때 보내지 않는다 — 미리보기 로봇이 '열람'으로 찍힌다. 신호 경로는 `Sec-Fetch-Site` 가 있고 `same-origin` 이 아니면 403 이다.
 - **뒤로 가기는 크게 보기만 닫는다**(`components/Lightbox.tsx`). 열 때 `history.pushState(null, '')` 로 한 칸을 쌓고(URL 인자를 넣지 않는다 — 토큰이 든 주소를 더 만들지 않는다) `popstate` 에 닫는다. 닫기 버튼·Esc 는 `history.back()` 으로 그 칸을 치운다. 넘기기는 칸을 쌓지 않는다.
 - `og:url`·canonical 을 넣지 않는다. 토큰이 든 주소를 더 퍼뜨리지 않는다.
+- **`next.config.ts` 의 `htmlLimitedBots` 에 `kakaotalk-scrap` 이 있다** — 빼지 않는다. 카카오 미리보기 로봇이 og 태그를 스트리밍으로 받지 않게 한다(Next 기본 목록에 이 로봇이 없다).
 - **접속 주소는 `x-forwarded-for` 의 첫 값이다**(`lib/client-ip.ts`). Vercel 은 이 헤더를 플랫폼이 덮어써서 위조할 수 없다. 직접 노출한 `next start`·compose 개발 환경에서는 위조할 수 있다 — 운영은 Vercel 뒤에서만 둔다는 전제다. 값이 없으면 `X-Report-Client-IP` 를 보내지 않는다.
 - 토큰·서명 주소·비밀값·요청 주소·응답 본문을 `console.*` 에 넣지 않는다. `next dev` 는 들어온 요청 주소(토큰이 든 `/r/…`)를 찍으므로 `logging.incomingRequests: false` 로 꺼 두었다.
 - 보호자가 쓴 것이 아닌 글(케어 메모·이름·매장 정보)도 React 가 이스케이프하게 둔다. `dangerouslySetInnerHTML` 금지.

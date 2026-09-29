@@ -143,6 +143,25 @@ const checks = [
     },
   },
   {
+    // og:title·og:image 의 </head> 앞 위치는 이 페이지 구조(작은 Suspense 하나)에서는 설정 없이도 항상 참이라 판별력이 없다.
+    // 대신 <body> 바로 뒤 이어붙임 표시(<div hidden>...)의 있고 없음이 Next 가 이 로봇을 htmlLimitedBots 로 인식했는지를 드러낸다 —
+    // 스트리밍 가능한 클라이언트(로봇이 아니거나 기본 목록에 없는 로봇)에게만 이 표시가 붙는다. kakaotalk-scrap 이 htmlLimitedBots 에서 빠지면 이 줄이 실패한다.
+    name: '카카오톡 미리보기 로봇에게는 og 태그가 </head> 앞에 오고 Next 가 막힌 렌더링으로 인식한다',
+    async run({ get }) {
+      const html = await (await get(`/r/${token('ok')}`, { headers: { 'User-Agent': 'kakaotalk-scrap/1.0' } })).text()
+      const headEnd = html.indexOf('</head>')
+      assert.ok(headEnd > -1, '</head> 가 없다')
+      const titleIndex = html.indexOf('property="og:title"')
+      const imageIndex = html.indexOf('property="og:image"')
+      assert.ok(titleIndex > -1 && titleIndex < headEnd, 'og:title 이 </head> 앞에 없다')
+      assert.ok(imageIndex > -1 && imageIndex < headEnd, 'og:image 가 </head> 앞에 없다')
+      assert.ok(
+        !html.includes('<div hidden=""><!--$--><!--/$--></div>'),
+        'Next 가 이 로봇을 htmlLimitedBots 로 인식하지 않았다(스트리밍용 이어붙임 표시가 있다)',
+      )
+    },
+  },
+  {
     name: '알림장의 응답에 헤더 셋이 있고 Cache-Control 은 private, no-store 그대로다',
     async run({ get }) {
       const res = await get(`/r/${token('ok')}`)
