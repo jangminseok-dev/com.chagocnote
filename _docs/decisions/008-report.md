@@ -112,8 +112,8 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 - 하루 목록·피드·상세·전이는 질의가 하나씩 늘었다. 실행 계획과 시간은 재지 않았다. `visit_reports.visit_id`에는 부분 유일 색인만 있다 — 끊은 줄까지 방문으로 찾는 질의가 생기면 색인을 더한다.
 - 두 사장이 동시에 설정을 바꾸면 늦은 쪽이 덮는다.
 - 미룬 것(설계 10절): 알림톡 자동 발송(⑥), 보호자 로그인과 지난 알림장 모아 보기(⑦), CloudFront 서명 URL, 서버 측 EXIF 검증, 실제 Vercel 배포와 도메인 리다이렉트, 링크 키 교체 절차, 랜딩 페이지·알림장 다국어·만족도 버튼.
-- 웹(⑤-2)이 지킬 것: `X-Report-Client-IP`에는 플랫폼이 확인한 주소를 넣는다. 요청에 실려 온 `X-Forwarded-For`의 첫 값을 그대로 넘기면 비밀값이 맞아도 횟수 제한을 피할 수 있다.
-- `REPORT_WEB_SECRET`은 운영에서 꼭 정한다. 비어 있으면 모든 보호자가 연결 주소 하나로 세어져 분당 60회를 나눠 쓴다. 기동 때 강제하지는 않는다(웹이 아직 없다) — ⑤-2 에서 다시 정한다.
+- 웹(⑤-2)이 지킬 것: `X-Report-Client-IP`에는 플랫폼이 확인한 주소를 넣는다. 요청에 실려 온 `X-Forwarded-For`의 첫 값을 그대로 넘기면 비밀값이 맞아도 횟수 제한을 피할 수 있다. → ⑤-2: 웹은 `x-forwarded-for`의 첫 값을 넘긴다. Vercel 이 이 헤더를 덮어쓰므로 운영은 Vercel 뒤에서만 둔다는 전제로 정했다(아래 "⑤-2 웹에서 정한 것").
+- `REPORT_WEB_SECRET`은 운영에서 꼭 정한다. 비어 있으면 모든 보호자가 연결 주소 하나로 세어져 분당 60회를 나눠 쓴다. 기동 때 강제하지는 않는다(웹이 아직 없다) — ⑤-2 에서 다시 정한다. → ⑤-2: 웹 쪽에서는 필수로 했고(없으면 웹이 요청을 받지 못한다), 백엔드 쪽은 바꾸지 않아 여전히 선택이다.
 - 인증 프로세스도 `REPORT_LINK_KEY_B64`를 읽는다(`core/config.py`를 함께 쓴다). 설계 5절은 API 프로세스의 비밀값이라고 했다 — 운영 배포 때 설정을 나눌지 정한다.
 - `core/config.py`가 키를 느슨하게 푼다(`b64decode`의 `validate` 없음) — 글자가 섞인 키가 조용히 다른 키가 될 수 있다.
 - `core/redis.py`의 클라이언트에 소켓 타임아웃이 없다 — Redis 가 응답 없이 멈추면 통과가 아니라 공개 요청이 매달린다.
@@ -195,3 +195,93 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 ### 흐름 확인 (2026-09-28)
 
 `backend/scripts/check_report_flow.sh`를 개발 스택의 게이트웨이(Caddy) 경유로 돌려 34줄 모두 통과했다(첫 실행). 판별력: 5단계("내부 메모 표식이 없다")의 기대를 `True`로 뒤집으면 그 줄에서 멈추는지 확인했다 — 확인했다(종료 코드 1). 라우트 표는 62줄에서 69줄이 됐다(늘어난 경로 정확히 일곱, 없어지거나 바뀐 줄 없음).
+
+## ⑤-2 웹에서 정한 것
+
+`web/` 신설 — Next.js 16.3.6(App Router, Turbopack)·React 19.3.0·TypeScript 7.0.2(`strict`)·pnpm 11.17.0. 경로는 알림장 페이지 `/r/[token]`과 열람 신호 경로 핸들러 `/r/[token]/viewed`(POST) 둘이고 나머지는 404 다. 글꼴은 npm `pretendard` 1.3.9(OFL-1.1)의 subset 셋을 직접 싣는다. 그 밖의 런타임 의존성(상태 관리·UI 라이브러리·CSS 프레임워크·분석 도구)은 없다. compose 에 `web` 서비스(`next dev`, 호스트 포트 3010)를 더했다. 테스트: Vitest 119(파일 10), 서버 응답 검사(`pnpm check:server`) 42줄, 실제 브라우저(Playwright) 6. 백엔드 코드와 API 계약은 바꾸지 않았다.
+
+### 사용자와 정한 것 (2026-09-29)
+
+- **페이지의 상태 코드는 200 과 404 뿐이다.** 설계 7.3 의 표를 고쳤다 — 404·형식이 틀린 토큰은 404(`notFound()`), 410 은 "닫힌 알림장이에요"(200), 429·연결 실패·5xx·그 밖은 "잠시 후 다시 열어 주세요"(200). 스파이크 결과: App Router 페이지는 410·429·503 을 낼 수 없고, `rewrite`로 돌려도 status 는 무시된다. 유명 서비스 25곳을 받아 본 결과 410 을 내는 곳은 한 곳뿐이었고 대부분 200·404 만 냈다.
+- **알림장을 열 때 백엔드 조회는 한 번이다.** `generateMetadata`와 본문이 React `cache`로 감싼 `getReport`를 나눠 쓴다. fetch 는 `cache: 'no-store'`다.
+- **App Router 만 쓴다.** 프록시(`proxy.ts`)·Pages Router·별도 오류 경로 핸들러를 만들지 않는다.
+
+### 이 계획에서 새로 정한 것
+
+- **토큰 형식은 웹이 먼저 본다.** `^[A-Za-z0-9_-]{43}$`가 아니면 백엔드를 부르지 않고 404 다. 헤더에 넣을 수 없는 글자로 fetch 가 터지는 것도 막는다. 이상한 토큰 일곱(`/r/`, 42·44글자, 5000글자, 한글, `%0d%0a`, `..%2f`)이 모두 404 이고 백엔드 호출이 0번인 것을 서버 응답 검사가 본다.
+- **설정 둘(`API_BASE_URL`, `REPORT_WEB_SECRET`)은 필수다.** `process.env`는 `lib/config.ts`에서만 읽고 `NEXT_PUBLIC_`을 쓰지 않는다. 없으면 `instrumentation.ts`의 `register()`가 변수 이름을 담아 던진다(값은 넣지 않는다). `next start`는 멈추지 않고 떠 있되 **모든 요청에 500** 이다. `process.exit`는 넣지 않았다 — Vercel 의 함수 환경에서 어떻게 되는지 확인할 수 없어서다. `next dev`는 같은 오류를 찍고 종료 코드 1 로 끝난다. `next build`는 설정 없이도 된다.
+- **접속 주소는 `x-forwarded-for`의 첫 값이다.** Vercel 은 이 헤더를 플랫폼이 덮어쓴다. 직접 노출한 `next start`·compose 개발 환경에서는 위조할 수 있다 — 운영은 Vercel 뒤에서만 둔다는 전제다. 값이 없으면 `X-Report-Client-IP`를 보내지 않는다.
+- **응답 헤더 셋**(`X-Robots-Tag: noindex, nofollow`, `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`)은 `next.config.ts`의 `headers()`로 단다. `source`는 `'/((?!_next/static/|og-default\\.png$).*)'` — 정적 파일(글꼴 등)과 공통 미리보기 그림은 뺀다. 미리보기 로봇이 캐시 금지 그림을 버릴 수 있다는 판단이다(그림에서는 검색 금지·Referrer 헤더도 함께 빠진다). 없는 경로의 404 는 Next 가 `Cache-Control`을 자기 값(`private, no-cache, no-store, …`)으로 바꾸므로 검사는 `private`·`no-store`의 포함 여부로 한다. 알림장 페이지(200)의 값은 정확히 `private, no-store`다. `X-Powered-By`는 끈다.
+- **헤더 검사는 `next start`로 한다.** `next dev`는 페이지의 `Cache-Control`을 덮지 못한다.
+- **글꼴**: Pretendard 는 `next/font/local`로 굵기 400·600·700 의 subset 만 싣는다(각 약 265KB, 합 약 796KB, `display: swap`). 가변 글꼴 하나는 2MB 다. 세리프(Didot)·명조는 시스템 글꼴 스택이다. 외부 도메인 요청은 없다(브라우저가 부른 호스트는 웹과 저장소 둘뿐인 것을 e2e 가 본다).
+- **웹 서버 코드는 토큰·서명 주소·비밀값을 로그에 찍지 않는다.** 서버 응답 검사의 마지막 줄이 모든 요청 뒤 `next start`의 표준 출력·오류에 검사에 쓴 토큰(인코딩한 값·푼 값)과 비밀값이 없는지 본다. `next dev`는 들어온 요청의 주소(`GET /r/<토큰> 200 …`)를 기록에 찍는다 — `logging: { incomingRequests: false }`로 껐다. 끈 뒤 흐름을 다 돌려 web 기록이 0줄인 것을 봤다. Next 문서에는 dev 에서만 찍는 기록이라 운영 빌드에는 영향이 없다고 적혀 있다.
+- **오류 화면의 설명은 닫힌 화면에만 있다.** 설계 7.3 에 문구가 있는 것이 그것뿐이다. 영문 장식은 `Not found`·`Closed`·`One moment`(busy·unavailable 은 같은 화면)이고 `aria-hidden`이다.
+- **수치는 목업의 7/6 배다.** 목업은 폭 320px·본문 12px 의 축소판이고 웹의 본문은 14px 다. 알림장 화면과 오류 화면이 같은 배율이다. 오류 화면은 7/6 배로 키우자 폭 390 에서 "One moment"가 두 줄로 꺾여 영문 표시를 한 줄로 묶고 좁은 화면에서 줄게 했다.
+- **대표 미디어의 높이는 실제 비율을 따르되 세로가 가로의 4/3 배를 넘지 않는다.** 3:4 사진은 자르지 않고, 9:16 영상은 `1080 / 1440` 칸에 `object-fit: cover`다. `width`·`height` 속성으로 자리를 잡아 그림이 오기 전후로 자리가 밀리지 않는다(그림 요청을 막고 열어 대표 칸과 미디어 줄의 자리가 같은 것을 봤다).
+- **미리보기 정보**: `og:title`·`<title>` = "○○의 미용 알림장"(이름이 없으면 "미용 알림장"), `og:description` = "○월 ○일 · 매장 이름"(매장 정보가 없으면 날짜만), `og:image` = `cover`(가로·세로 포함). `cover`가 없으면 `/og-default.png`(1200×630 회색조)의 절대 주소를 `x-forwarded-proto`(없으면 `https`)와 `host`로 만든다. `og:url`·canonical 은 넣지 않는다. 오류 화면은 레이아웃의 제목 "차곡노트 미용 알림장"뿐이고 og 태그가 없다.
+- **열람 신호는 브라우저 스크립트만 보낸다**(R12). 화면이 붙으면 `POST /r/<토큰>/viewed`를 `keepalive`로 한 번 보낸다(StrictMode 에서도 한 번). 페이지를 서버에서 그릴 때는 보내지 않는다. 신호 경로는 `Sec-Fetch-Site`가 있고 `same-origin`이 아니면 403 이고 백엔드를 부르지 않는다(헤더가 없는 옛 브라우저는 통과). 백엔드의 상태 코드(204·404·410·429)를 본문 없이 돌려주고 그 밖·연결 실패는 503 이다. GET 은 405 다. 실제 chromium 이 보낸 `Sec-Fetch-Site`는 `same-origin`이었다.
+- **하나 저장은 `download_url`로 가는 링크(`<a>`)다.** 모두 저장은 먼저 빈 파일 하나로 `navigator.canShare`를 묻고, 안 되면 미디어를 받지 않고 600ms 간격으로 차례로 내려받는다. 되면 전부 받아 `navigator.share({ files })`를 한 번 부른다. 받기가 200 대가 아니거나(서명 만료의 403 등) 공유가 `NotAllowedError`면 차례로 내려받기로 넘어가고, 사용자가 공유를 취소하면(`AbortError`) 거기서 멈춘다.
+- **카카오톡 안내는 모두 저장 버튼 아래 한 곳이다.** 사용자 에이전트에 `KAKAOTALK`이 있을 때 브라우저가 붙은 뒤에 판단해 그린다(`useSyncExternalStore`의 서버 값 `false` — 서버 HTML 에는 없다).
+- **크게 보기**는 목업에 없어 모습을 정했다 — 검은 바탕, 위에 순번과 닫기, 아래에 이전·저장·다음. 끝에서는 이전·다음이 눌리지 않고 돌아서 넘어가지 않는다. 밀기는 가로로 40px 넘게, 세로보다 가로로 더 움직였을 때만 넘긴다. 열리면 초점이 닫기 버튼으로 가고, Esc 로 닫히며, 열린 동안 `body`의 `overflow`가 `hidden`이다. 넘기면 앞 영상은 멈춘다.
+- **`next.config.ts`의 개발용 두 줄.** `agentRules: false` — 빼면 `next dev`가 `web/AGENTS.md`·`web/CLAUDE.md`를 만든다(두 파일이 없을 때, 대조로 확인). 이제 `web/CLAUDE.md`가 있으므로 빼면 그 파일에 Next 의 에이전트 규칙 묶음을 끼워 넣는다(`generate-agent-files.js`를 읽고 한 판단). `allowedDevOrigins: ['127.0.0.1']` — 백엔드가 만드는 링크는 `http://127.0.0.1:3010/r/…`인데, 빼면 `next dev`가 `/_next/hmr` 등 개발 자원을 막아("Blocked cross-origin request") 브라우저 쪽 코드가 붙지 않는다. e2e 여섯 가운데 열람 신호·크게 보기·404 화면 셋이 실패한다.
+- **compose 의 `web`**: `node:24-alpine`, `corepack enable` 뒤 pnpm 11.17.0, `pnpm install --frozen-lockfile --store-dir node_modules/.pnpm-store` → `next dev -p 3010 -H 0.0.0.0`. `node_modules`·`.next`는 볼륨(`web_node_modules`·`web_next`)이라 맥의 것(darwin)과 컨테이너의 것(linux-musl)이 서로 가린다. pnpm 저장소를 `--store-dir`로 볼륨 안에 두지 않으면 저장소 루트에 `.pnpm-store/`(약 530MB)가 생긴다. `API_BASE_URL`은 compose 가 `http://backend:8000`으로 넣고 `REPORT_WEB_SECRET`은 저장소 루트의 `.env`에서 백엔드와 같은 값을 읽는다. 포트는 `127.0.0.1:3010`. 파일 변경 감지는 폴링 없이 된다(Docker Desktop, 맥).
+- **e2e 는 compose 의 web 과 개발 스택에 붙는다.** `pnpm e2e:prepare`가 게이트웨이로 확인용 매장·고객·방문·사진 둘(30×40 JPEG)·기록을 만들고 보내기 → 끊기 → 다시 보내기로 끊은 링크와 살아 있는 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다. 로그인 토큰은 파일에 쓰지 않고 개발용 로그인 이름을 쓴다(만료 때문). Playwright 는 `workers: 1`(첫 테스트가 "아직 아무도 열지 않은 링크"를 전제한다), 기기 `Pixel 7`, `outputDir: test-results/playwright`(Playwright 가 outputDir 를 비우므로 링크 파일과 떼었다)다.
+
+### 설계·브리프와 다르게 간 것
+
+- **404 의 첫 HTML 에는 화면 글자가 없다.** `notFound()`를 셸 전에 던지면 Next 가 빈 본문과 스크립트(RSC 페이로드)만 보낸다. `generateMetadata`에서 먼저 `notFound()`, 경로별 `not-found.tsx`를 시도했지만 같았다. 상태는 404 이고 `<title>`은 있으며, 실제 브라우저에서는 "알림장을 찾을 수 없어요"가 보인다(e2e). 스크립트를 돌리지 않는 로봇에게는 제목만 보인다.
+- **React `cache`가 있어야 조회가 한 번이다.** 빼면 조회가 2번이 된다(서버 응답 검사로 확인) — Next 는 같은 fetch 를 합치지 않는다. `export const dynamic = 'force-dynamic'`은 필요 없다(`headers()`를 써서 이미 동적이다).
+- **대표의 높이.** 목업은 높이 300px 고정에 `object-fit: cover`다. 실제 비율 + 4/3 한도로 바꿨다(위). 3:4 사진이면 390×798 화면의 첫 화면에 썸네일 줄이 절반쯤 걸린다.
+- 머리·날짜·제목은 파일 하나(`ReportHead.tsx`)이고 `data-section`은 셋으로 따로다. CSS 는 모듈 하나(`ReportView.module.css`)를 조각들이 함께 쓴다.
+- 재생 표시는 글자 ▶ 가 아니라 CSS 세모다(▶ 가 기기에 따라 그림 문자로 바뀌기 때문 — 실기기에서 본 것은 아니다).
+- 미디어 줄은 넷이 한 줄에 차고 나머지는 가로로 넘긴다(목업은 넷만 그렸다). 목업에 없는 줄바꿈 규칙(`word-break: keep-all`, 영문 머리·금액·몸무게 줄 안 바꿈)을 눈으로 보고 더했다.
+- `viewport`에 `themeColor: '#f5f5f5'`를 넣었다.
+- 기본 미리보기 그림에도 `og:image:width`·`height`(1200·630)를 넣었다.
+- 공개 응답의 `kind`·`phase`는 백엔드 스키마에서 `str`이지만 웹의 형은 `'photo' | 'video'`·`'before' | 'after'`로 좁혔다. 백엔드가 그 넷만 내는지는 코드로 확인하지 않았다.
+- 서버 응답 검사의 가짜 백엔드는 미디어 주소를 `localhost`로 준다. 백엔드 주소(`127.0.0.1`) 아래에 두면 "첫 HTML 에 백엔드 주소가 없다"를 검사할 수 없다. 실제 서명 주소도 저장소 주소라 백엔드 주소와 다르다.
+- e2e 준비의 사진은 진짜 JPEG 이다(`naturalWidth > 0`을 보려고). `check_report_flow.sh`는 0 바이트를 올린다.
+
+### 알려진 동작 — 막지 않기로 했다
+
+- 없는 토큰·형식이 틀린 토큰의 404 는 첫 HTML 에 글자가 없다(위). 루트(`/`)·그 밖 경로의 404 는 첫 HTML 에 글자가 있다.
+- 닫힌 링크·오류 화면은 200 이다. 상태 코드로 닫힘을 가를 수 없다.
+- 열람 신호의 "한 번"은 화면 하나 안에서다. 새로 고치면 다시 보낸다 — 백엔드가 첫 열람만 적는다.
+- `Sec-Fetch-Site`가 `same-site`여도 403 이다(웹과 신호 경로는 같은 출처다).
+- 설정 오류가 요청 시점에 나면 "잠시 후 다시 열어 주세요"로 삼켜진다. `register()`가 먼저 막으므로 `next start`에서는 닿지 않는 길이다.
+- 매장이 메뉴를 켰지만 빈 목록이고 다른 줄도 없으면 "오늘의 케어" 구역이 없다.
+- 썸네일은 모두 `loading="lazy"`인 `<img>`이지만 서명 주소는 첫 HTML 에 모두 들어간다(미디어 33개면 33개).
+- 영상이 대표이면 포스터(`thumb_url`)를 크게 늘려 쓴다. 포스터가 작으면 흐리다.
+- 받기 응답의 파일 이름은 `Content-Disposition`의 `filename="…"`만 읽는다(백엔드의 이름은 ASCII 다). 브라우저 코드에 그 헤더가 보이지 않으면 순번 이름이다.
+
+### 남는 것 — 알고 미룬다
+
+- **실기기·배포 뒤 확인**(설계 11.5 의 5~11 에 더했다). 모두 개발 맥의 chromium 으로만 봤다.
+  - 모두 저장의 공유 시트 경로 — chromium 에 `canShare`가 없어 스텁으로만 확인했다. 받는 동안 사용자 동작의 유효 시간이 지나 `share`가 거절될 수 있다(그러면 받은 것을 버리고 차례로 내려받는다). 저장소(MinIO·S3) 버킷에 CORS 가 없으면 받기가 실패해 늘 차례로 내려받는다(버킷 CORS 는 보지 않았다). 영상이 섞인 목록을 iOS 가 공유해 주는지 모른다.
+  - iOS Safari·카카오톡 내장 브라우저에서 여러 개를 차례로 내려받기.
+  - 크게 보기의 스크롤 잠금이 iOS Safari 의 손가락 끌기에서 막히는지, 영상 위의 옆 밀기가 재생 막대와 겹치는지.
+  - iOS Safari·카카오톡 내장 브라우저가 `Sec-Fetch-Site`를 보내는지.
+  - 카카오 미리보기 로봇이 실제로 읽는 것. `kakaotalk-scrap/1.0` UA 로 받으면 og 태그가 `<head>`에 있었다 — 본문이 같은 조회를 기다려 셸 전에 메타데이터가 끝나기 때문이고, 본문에 Suspense 가 생기면 바뀔 수 있다(추측). 오류 화면처럼 `og:title`이 없을 때 `<title>`을 쓰는지 모른다.
+  - 대표의 서명이 만료된 뒤의 미리보기 그림 — `og:image`는 대표의 서명 주소다. 카카오톡이 처음 받은 그림을 캐시할 것이다(추측).
+  - 백엔드 장애·429 중에 카카오톡이 링크를 읽으면 미리보기 카드는 일반 제목뿐이고, 카카오가 그 카드를 캐시하면 복구 뒤에도 남을 수 있다(추측).
+  - Vercel 에서 `x-forwarded-proto`·`host`가 실제 도메인인지(기본 그림의 절대 주소), `x-forwarded-for`가 플랫폼 값인지, 응답 헤더 셋, `register()`가 던질 때의 동작. `next start`에서는 `http://127.0.0.1:<포트>`로 나왔다.
+  - `/og-default.png`의 실제 `Cache-Control`과 "로봇이 캐시 금지 그림을 버린다"는 전제.
+  - Android 에서 세리프(Didot)·명조가 무엇으로 바뀌는지, iOS Safari 의 `background … fixed`·`backdrop-filter`.
+- **크게 보기는 초점을 가두지 않는다.** Tab 을 계속 누르면 뒤 화면으로 가고, 닫아도 초점이 눌렀던 썸네일로 돌아가지 않는다.
+- **dev 에서는 `X-Report-Client-IP`를 보내지 않는다.** 브라우저가 compose 의 `next dev`에 바로 붙어 `x-forwarded-for`가 없다. 그때 백엔드가 무엇으로 세는지는 보지 않았다.
+- **백엔드의 `REPORT_WEB_SECRET`은 여전히 선택이다.** 웹 쪽만 필수로 했다. 운영에서 백엔드에 값이 없으면 웹이 보낸 접속 주소를 믿지 않아 모든 보호자가 웹 서버 주소 하나로 세어진다.
+- **접속 기록의 토큰.** 웹 코드는 찍지 않고 `next dev`의 요청 기록은 껐다. `logging.incomingRequests: false`를 빼면 dev 서버는 토큰이 든 경로를 찍는다. Vercel 자체 접속 기록에 주소가 남는 것은 설계 7.2 대로 감수한다.
+- 글꼴은 첫 HTML 에서 preload 되지 않는다(404 화면에서 확인). 느린 망에서는 시스템 글꼴이 먼저 보인다.
+- 백엔드 호출은 5초에 끊도록 `AbortSignal.timeout`을 건다. 실제로 기다려 보지 않았다(`signal`이 있는 것만 테스트) — 끊기면 "잠시 후 다시 열어 주세요"가 될 것이다(추측). `x-forwarded-for`에 헤더에 넣을 수 없는 글자가 있으면 fetch 가 던져 "잠시 후 다시 열어 주세요"가 될 것이다(추측, 테스트 없음). 금액의 쉼표는 `toLocaleString('en-US')`에 기댄다(ICU 가 없는 런타임에서는 빠질 수 있다).
+- 열람 신호의 `keepalive`는 Vitest 에서 인자로만 봤다.
+- 개발 DB·버킷에 e2e 준비의 확인용 매장·유저·고객·방문·사진·알림장 링크가 쌓인다. 지우는 스크립트는 없다.
+- compose 의 `web`이 떠 있는 동안 맥에서 `web/.next`를 지울 수 없다(볼륨의 마운트 자리). `web`을 지운 뒤 남는 빈 `web/.next`를 지울 수 있는지, 맥에서 `pnpm install`을 하지 않은 사람이 `web`을 띄우면 맥에 빈 `web/node_modules`가 생기는지는 확인하지 않았다.
+- `web`은 `depends_on: backend`다. 참조 작업 트리처럼 다른 폴더의 compose 파일로 `web`만 띄울 때는 `--no-deps`를 붙인다(없으면 backend 가 그 폴더 기준으로 다시 만들어질 수 있다 — 해 보지는 않았다).
+- 카카오톡 UA 는 Playwright 로 UA 글자만 바꿔 봤다. 사파리·카카오톡 내장 브라우저·Android 에서는 아무것도 보지 않았다.
+
+### ⑤-3 앱이 기댈 것
+
+바뀐 것이 없다. 백엔드 API 계약(위 "⑤-2 웹·⑤-3 앱이 기댈 API 계약")은 그대로이고, 앱이 공유하는 링크는 여전히 `{REPORT_WEB_BASE_URL}/r/{토큰}`이다. 개발 환경에서 그 링크는 compose 의 `web`(http://127.0.0.1:3010)이 연다.
+
+### 흐름 확인 (2026-09-29)
+
+`rm -rf .next` 뒤 `pnpm test`는 파일 10, 테스트 119 모두 통과했다. `pnpm build` 뒤 `pnpm check:server`는 42줄 모두 통과했다(실패 0). 개발 스택에 compose 의 `web`을 띄우고 `pnpm e2e:prepare`(매장 78, 방문 184) → `pnpm e2e`로 여섯 모두 통과했다(4.5초) — 살아 있는 링크 열기(200, 제목·날짜, 대표 그림, 열람 신호 한 번과 방문의 `first_viewed_at`, 부른 호스트는 웹·저장소 둘, 콘솔 오류 0), 크게 보기(`1 / 2` → `2 / 2` → 닫기), 하나 저장(파일 `chagocnote-<숫자>.jpg`), 끊은 링크(200, "닫힌 알림장이에요", 신호 없음), 없는 토큰(404, 브라우저에 "알림장을 찾을 수 없어요"), 자바스크립트를 끈 브라우저(제목·케어 메모·대표 사진). 판별력은 변이로 봤다 — 열람 신호 컴포넌트를 빼면, 크게 보기의 닫기 버튼을 없애면, 준비의 끊기를 빼면, `allowedDevOrigins`를 빼면 각각 해당 테스트가 실패한다.

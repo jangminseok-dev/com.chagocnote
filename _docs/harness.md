@@ -1,6 +1,6 @@
 # 검증 장치
 
-백엔드 명령은 `infra/`에서, 앱 명령은 `app/`에서 실행한다.
+백엔드 명령은 `infra/`에서, 앱 명령은 `app/`에서, 웹 명령은 `web/`에서(맥의 node·pnpm) 실행한다.
 
 | 무엇을 | 명령 |
 |---|---|
@@ -28,6 +28,12 @@
 | 앱 개발용 실행 | `app/tool/run_dev.sh` (백엔드를 `infra/`에서 먼저 띄운 뒤) |
 | 앱 흐름 확인 (시뮬레이터 + 실서버) | `SHOTS_DIR=<폴더> flutter drive --driver=test_driver/integration_test.dart --target=integration_test/<파일> -d <기기> --dart-define=APP_ENV=dev --dart-define=API_BASE_URL=http://127.0.0.1:8080 …` (`app/`에서. 파일 머리 주석에 준비와 추가 `--dart-define`이 있다 — `visit_flow_test.dart`(③-A2), `draft_flow_test.dart`(③-A3 카톡 초안), `record_flow_test.dart`(④-2a 사진·기록·완료 — 준비는 `infra/`에서 `bash ../app/tool/prepare_record_flow.sh`, 실행마다 새로), `photo_flow_test.dart`(④-2b 넘기기·크게 보기·원본 저장·피드·달력·고객 탭 사진 — 준비는 같은 스크립트, 그리고 실행마다 바로 앞에 `xcrun simctl privacy <기기> grant photos-add com.chagocnote.app`: `flutter drive`가 끝날 때 앱을 지워 권한도 사라진다), `error_flow_test.dart`(오류 화면 다듬기 — 띠·처음 실패 문구·인터넷 복귀·대기열 멈춤, 준비는 같은 스크립트), `video_flow_test.dart`(④-3a 영상 — 5초 압축·올리기, 65초 앞 60초 자르기, 크게 보기 재생·원본 저장, 방문당 3편 한도, 회전 메타 세로, 준비는 같은 스크립트, 그리고 표본 폴더 `--dart-define=VIDEO_ASSETS=<절대 경로>/app/integration_test/assets` — 시뮬레이터는 맥 파일을 그대로 읽는다. 에뮬레이터는 맥 파일을 못 읽으니 먼저 `adb push integration_test/assets/. /data/local/tmp/vflow/` 하고 `VIDEO_ASSETS=/data/local/tmp/vflow`를 준다. 앨범 저장은 흐름이 대역으로 바꿔 권한이 필요 없다), `dictation_flow_test.dart`(④-3b 말로 기록하기 — iOS 시뮬레이터. 확인 1은 실제 음성 인식 채널: 시뮬레이터는 availability 는 지원이라 답하지만 시작하면 곧바로 `unsupported`로 끝나 미지원 안내가 뜨는 경로, 확인 2는 인식기 대역으로 커서 자리 받아쓰기·저장·상세. 준비는 같은 스크립트, 그리고 실행마다 바로 앞에 `xcrun simctl privacy <기기> grant microphone com.chagocnote.app` + 음성 인식은 simctl 이 지원하지 않아 시뮬레이터 `data/Library/TCC/TCC.db`의 `access`에 `kTCCServiceSpeechRecognition` 행을 넣고 `launchctl kickstart -k system/com.apple.tccd` — 명령은 파일 머리 주석. 시스템 권한 창이 남아 있으면 스크린샷이 하얗게 찍히니 시뮬레이터를 다시 켠다)). 공용 도구는 `integration_test/flow_kit.dart`. 안드로이드 에뮬레이터는 `-d emulator-5554`로 같은 명령을 쓰되, 먼저 `adb reverse tcp:8080 tcp:8080`과 `adb reverse tcp:9010 tcp:9010`(에뮬레이터 안의 127.0.0.1 을 맥의 게이트웨이·MinIO 로)을 한다 — 앨범 권한은 API 29 넘으면 필요 없다. zsh 에서 준비 결과를 변수로 받으면 `${=D}`로 펼친다 — 그냥 `$D`는 한 인자로 넘어가 `--dart-define`이 비는다 |
 | 공유 받기 확인 | 실기기에서 카톡 [공유] → 차곡노트 (시뮬레이터엔 카톡이 없고 App Group 은 서명이 있어야 붙는다) |
+| 웹 준비 | `pnpm install` (`web/`에서. e2e 브라우저는 `pnpm exec playwright install chromium`) |
+| 웹 컴포넌트·단위 | `pnpm test` (Vitest) |
+| 웹 빌드·형 검사 | `pnpm build` (`tests/**`도 형 검사에 들어간다) |
+| 웹 서버 응답 | `pnpm check:server` — `pnpm build` 뒤. 가짜 백엔드와 `next start`를 빈 포트에 띄워 상태 코드·헤더 셋·첫 HTML·백엔드 호출 수·기록에 토큰이 없는지를 보고 둘 다 끈다 |
+| 웹 개발 서버 | compose 의 `web` (`infra/`에서 `docker compose up -d web`, http://127.0.0.1:3010. 지우기는 `docker compose rm -sf web` — 볼륨은 남는다) |
+| 웹 실제 브라우저 흐름 | `pnpm e2e:prepare && pnpm e2e` — 개발 스택과 compose 의 `web`이 떠 있어야 한다. 준비가 게이트웨이로 확인용 매장·방문·사진·알림장을 만들고 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다 |
 
 - 통합 테스트는 별도 데이터베이스 `chagocnote_test`를 쓴다. 개발 데이터를 건드리지 않는다. pytest가 세션마다 한 번 `scripts/prepare_test_db.py`를 돌려 스키마를 비우고 `alembic upgrade head`로 다시 만든다. 테스트 사이에는 시드 표(`roles`, `permissions`, `role_permissions`, `pet_condition_types`)와 마이그레이션 버전 표(`alembic_version`)를 뺀 모든 표를 비운다.
 - 마이그레이션은 손으로 쓴다. `tests/test_schema_drift.py`가 마이그레이션 결과와 ORM이 어긋나면 실패한다. 새 ORM 모듈은 `backend/orm_registry.py`에 등록한다.
@@ -48,3 +54,10 @@
 - 로그인 없는 경로의 응답은 표식 문자열로 본문 전체를 검사한다. 내부 메모·결제 수단·예약 메모·보호자 이름·전화번호·고객 메모에 표식을 넣고, 모든 항목을 켠 응답의 글자열 어디에도 없는지 본다(`tests/integration/test_public_report_wiring.py`). 칸 이름만 보는 검사로는 값이 다른 칸에 섞이는 것을 놓친다.
 - 토큰·서명 URL 이 든 응답을 다루는 통합 테스트가 실패하면 pytest 가 지역 변수를 찍는다. 출력을 옮겨 적을 일이 있으면 `--tb=line`·`--tb=no`로 돌린다.
 - 테스트 파일을 골라 돌릴 때 `tests/test_hub_port_binding.py`는 맨 뒤에 두거나 따로 돌린다. 통합 파일 사이에 두면 뒤쪽 통합 파일이 `fixture 'wired' not found`로 멈춘다(전체 실행에는 없다. 원인은 조사하지 않았다).
+- 웹의 `check:server`는 `.next`의 빌드를 띄운다. 코드를 고친 뒤 `pnpm build` 없이 돌리면 옛 빌드를 검사한다. 빌드가 없으면 "먼저 `pnpm build` 를 돌린다"로 멈춘다. 응답 헤더 셋은 `next start`로만 본다 — `next dev`는 페이지의 `Cache-Control`을 덮지 못한다.
+- dev 와 build 를 오가다 `web/.next`가 꼬이면 지운다. 다만 compose 의 `web`이 떠 있는 동안에는 맥에서 `web/.next`를 지울 수 없다(`Permission denied` — 볼륨의 마운트 자리다). `web`을 지운 뒤에 지운다. 맥의 `pnpm build`는 `web`이 떠 있어도 된다.
+- compose 의 `web`은 `node_modules`·`.next`를 볼륨(`web_node_modules`·`web_next`)에 둔다. 맥의 `web/node_modules`(darwin 바이너리)와 컨테이너의 것(linux-musl)이 서로 가린다. pnpm 저장소는 `--store-dir node_modules/.pnpm-store`로 볼륨 안에 둔다 — 빼면 저장소 루트에 수백 MB 의 `.pnpm-store/`가 생긴다. 파일 변경 감지는 폴링 없이 된다(Docker Desktop, 맥).
+- e2e 는 돌릴 때마다 먼저 `pnpm e2e:prepare`를 돌린다. 첫 테스트가 "아직 아무도 열지 않은 링크"를 전제하므로 준비 없이 다시 돌리면 그 테스트가 실패한다. `workers: 1`로 적힌 순서대로 돌며, 테스트 하나만 골라 돌리면(`-g`) 이 전제가 깨질 수 있다.
+- e2e 준비는 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크를 남긴다. 지우는 스크립트는 없다.
+- e2e 는 `next dev`에 붙는다. `next.config.ts`의 `allowedDevOrigins: ['127.0.0.1']`을 빼면 `http://127.0.0.1:3010` 에서 브라우저 쪽 코드가 막혀 크게 보기·열람 신호·404 화면 글자 테스트가 실패한다.
+- 웹을 띄운 기록(`next dev`·`next start`)에 토큰이 없어야 한다. `check:server`의 마지막 줄이 `next start`의 기록을 보고, `next dev`는 `logging.incomingRequests: false`로 요청 주소를 찍지 않는다.
