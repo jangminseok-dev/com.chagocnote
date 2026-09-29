@@ -28,7 +28,7 @@ const MALFORMED_TOKENS = {
 }
 
 /** 검사에 쓴 토큰 전부 — 웹 서버의 기록에 남으면 안 된다(R18). */
-const USED_TOKENS = [...['ok', 'min', 'nf', 'gone', 'rate', 'boom', 'down'].map(token), ...Object.values(MALFORMED_TOKENS)]
+const USED_TOKENS = [...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow'].map(token), ...Object.values(MALFORMED_TOKENS)]
 
 /** 첫 HTML 의 <meta> 값. 없으면 null. */
 function meta(html, key) {
@@ -37,6 +37,24 @@ function meta(html, key) {
 
 function assertBackendNotCalled(stats) {
   assert.equal(stats.count, 0, `백엔드가 불렸다: ${stats.count}번`)
+}
+
+/**
+ * 백엔드가 매달렸을 때의 요청. 웹은 백엔드를 5초(lib/report.ts) 기다린 뒤 답해야 한다.
+ * 6초 안에 답이 끝나지 않으면 실패다 — 페이지가 끝없이 돌면 안 된다.
+ */
+async function timed(get, path, init) {
+  const started = Date.now()
+  let res, body
+  try {
+    res = await get(path, { ...init, signal: AbortSignal.timeout(6000) })
+    body = await res.text()
+  } catch {
+    assert.fail('6초 안에 답이 끝나지 않았다')
+  }
+  const elapsed = Date.now() - started
+  assert.ok(elapsed >= 5000, `5초보다 일찍 답했다: ${elapsed}ms`)
+  return { res, body }
 }
 
 function hasHeaderSet(res) {
@@ -220,6 +238,28 @@ const checks = [
     },
   })),
   {
+    name: '백엔드가 응답하지 않으면 5초 남짓 뒤 200 이고 "잠시 후 다시 열어 주세요" 다',
+    async run({ get }) {
+      const { res, body } = await timed(get, `/r/${token('slow')}`)
+      assert.equal(res.status, 200)
+      assert.match(body, /<h1[^>]*>잠시 후 다시 열어 주세요<\/h1>/)
+    },
+  },
+  {
+    name: '영상만 있는 알림장은 200 이고 미리보기 그림이 영상의 포스터다',
+    async run({ web, get }) {
+      const res = await get(`/r/${token('vid')}`)
+      assert.equal(res.status, 200)
+      const html = await res.text()
+      const image = meta(html, 'og:image')
+      assert.ok(image?.includes('/media/poster/only.jpg'), 'og:image 가 포스터 주소가 아니다')
+      assert.notEqual(image, `${web}/og-default.png`, 'og:image 가 기본 그림이다')
+      assert.equal(meta(html, 'og:image:width'), '1080')
+      assert.equal(meta(html, 'og:image:height'), '1920')
+      assert.ok(html.includes('data-play'), '첫 HTML 에 재생 표시가 없다')
+    },
+  },
+  {
     name: '빈 토큰(/r/)은 404 로 끝나고 백엔드를 부르지 않는다',
     async run({ web, get, stats }) {
       let res = await get('/r/')
@@ -255,6 +295,14 @@ const checks = [
       assert.equal(last.client_ip, '203.0.113.9')
     },
   })),
+  {
+    name: '백엔드가 응답하지 않으면 열람 신호는 5초 남짓 뒤 503 이다',
+    async run({ get }) {
+      const { res, body } = await timed(get, `/r/${token('slow')}/viewed`, { method: 'POST' })
+      assert.equal(res.status, 503)
+      assert.equal(body, '')
+    },
+  },
   {
     name: '형식이 틀린 토큰의 열람 신호는 404 이고 백엔드를 부르지 않는다',
     async run({ get, stats }) {

@@ -1,5 +1,6 @@
 // 실제 브라우저 흐름(pnpm e2e)의 준비물 — 게이트웨이로 매장·고객·방문·사진 둘(전·후)·기록을 만들고
 // 알림장을 보낸 뒤 끊고 다시 보내, 끊은 링크 하나와 살아 있는 링크 하나를 test-results/e2e-links.json 에 쓴다.
+// 화면이 옆으로 밀리지 않는지 볼 긴 글 알림장도 하나 더 만든다(같은 매장·반려동물의 다른 방문).
 // 사용: infra/ 에서 개발 스택과 web 을 띄운 뒤 web/ 에서 pnpm e2e:prepare → pnpm e2e.
 // e2e 는 살아 있는 링크를 아직 아무도 열지 않았다고 보므로 e2e 를 돌릴 때마다 먼저 이것을 돌린다.
 // 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크가 남는다.
@@ -84,8 +85,27 @@ const closed = (await call('PUT', `${V}/report`, staff, { hidden_media_ids: [] }
 await call('DELETE', `${V}/report`, staff)
 const live = (await call('PUT', `${V}/report`, staff, { hidden_media_ids: [] })).link.url
 
+// 4. 긴 글 알림장 — 띄어쓰기 없는 긴 글·긴 이름. 길이는 백엔드 스키마의 한도다
+//    (주소 255: update_shop_schema, 메뉴 이름 30: create_menu_schema, 케어 메모 1000: put_visit_record_schema).
+//    매장 주소는 이 확인용 매장의 설정이라 살아 있는 링크에도 보인다.
+await call('PUT', `${S}/settings`, owner.access_token, {
+  name: shop.name, address: '서울특별시마포구아주긴길이름로'.repeat(20).slice(0, 255),
+})
+const longMenu = (await call('POST', `${S}/menus`, owner.access_token, { name: '띄어쓰기없는아주긴메뉴이름'.repeat(3).slice(0, 30) })).menu_id
+const longVisit = (await call('POST', `${S}/visits`, staff, {
+  customer_id: registered.customer.customer_id, pet_ids: [pet], starts_at: startsAt.replace('T11:', 'T15:'),
+})).visits[0].visit_id
+const LV = `${S}/visits/${longVisit}`
+await call('POST', `${S}/visits/transitions`, staff, { visit_ids: [longVisit], action: 'start' })
+await call('PUT', `${LV}/record`, staff, {
+  care_note: `${'a'.repeat(600)}\nhttps://example.com/${'b'.repeat(300)}\n${'🐶'.repeat(60)}`,
+  total_amount: 1234567, items: [{ menu_id: longMenu, amount: 1234567 }],
+})
+await call('POST', `${S}/visits/transitions`, staff, { visit_ids: [longVisit], action: 'complete' })
+const long = (await call('PUT', `${LV}/report`, staff, { hidden_media_ids: [] })).link.url
+
 mkdirSync('test-results', { recursive: true })
 writeFileSync('test-results/e2e-links.json', JSON.stringify(
-  { live, closed, visitDate: startsAt.slice(0, 10), api: BASE, staffLogin, visitPath: V }, null, 2,
+  { live, closed, long, visitDate: startsAt.slice(0, 10), api: BASE, staffLogin, visitPath: V }, null, 2,
 ))
 console.log(`준비 완료 — 매장 ${shop.shop_id}, 방문 ${visit}. 링크는 test-results/e2e-links.json 에 있다.`)

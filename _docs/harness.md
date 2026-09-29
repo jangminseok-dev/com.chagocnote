@@ -33,7 +33,7 @@
 | 웹 빌드·형 검사 | `pnpm build` (`tests/**`도 형 검사에 들어간다) |
 | 웹 서버 응답 | `pnpm check:server` — `pnpm build` 뒤. 가짜 백엔드와 `next start`를 빈 포트에 띄워 상태 코드·헤더 셋·첫 HTML·백엔드 호출 수·기록에 토큰이 없는지를 보고 둘 다 끈다 |
 | 웹 개발 서버 | compose 의 `web` (`infra/`에서 `docker compose up -d web`, http://127.0.0.1:3010. 지우기는 `docker compose rm -sf web` — 볼륨은 남는다) |
-| 웹 실제 브라우저 흐름 | `pnpm e2e:prepare && pnpm e2e` — 개발 스택과 compose 의 `web`이 떠 있어야 한다. 준비가 게이트웨이로 확인용 매장·방문·사진·알림장을 만들고 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다 |
+| 웹 실제 브라우저 흐름 | `pnpm e2e:prepare && pnpm e2e` — 개발 스택과 compose 의 `web`이 떠 있어야 한다. 준비가 게이트웨이로 확인용 매장·방문·사진·알림장과 가로 넘침을 볼 긴 글 알림장을 만들고 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다 |
 
 - 통합 테스트는 별도 데이터베이스 `chagocnote_test`를 쓴다. 개발 데이터를 건드리지 않는다. pytest가 세션마다 한 번 `scripts/prepare_test_db.py`를 돌려 스키마를 비우고 `alembic upgrade head`로 다시 만든다. 테스트 사이에는 시드 표(`roles`, `permissions`, `role_permissions`, `pet_condition_types`)와 마이그레이션 버전 표(`alembic_version`)를 뺀 모든 표를 비운다.
 - 마이그레이션은 손으로 쓴다. `tests/test_schema_drift.py`가 마이그레이션 결과와 ORM이 어긋나면 실패한다. 새 ORM 모듈은 `backend/orm_registry.py`에 등록한다.

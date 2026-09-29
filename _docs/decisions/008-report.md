@@ -198,7 +198,7 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 
 ## ⑤-2 웹에서 정한 것
 
-`web/` 신설 — Next.js 16.3.6(App Router, Turbopack)·React 19.3.0·TypeScript 7.0.2(`strict`)·pnpm 11.17.0. 경로는 알림장 페이지 `/r/[token]`과 열람 신호 경로 핸들러 `/r/[token]/viewed`(POST) 둘이고 나머지는 404 다. 글꼴은 npm `pretendard` 1.3.9(OFL-1.1)의 subset 셋을 직접 싣는다. 그 밖의 런타임 의존성(상태 관리·UI 라이브러리·CSS 프레임워크·분석 도구)은 없다. compose 에 `web` 서비스(`next dev`, 호스트 포트 3010)를 더했다. 테스트: Vitest 119(파일 10), 서버 응답 검사(`pnpm check:server`) 42줄, 실제 브라우저(Playwright) 6. 백엔드 코드와 API 계약은 바꾸지 않았다.
+`web/` 신설 — Next.js 16.3.6(App Router, Turbopack)·React 19.3.0·TypeScript 7.0.2(`strict`)·pnpm 11.17.0. 경로는 알림장 페이지 `/r/[token]`과 열람 신호 경로 핸들러 `/r/[token]/viewed`(POST) 둘이고 나머지는 404 다. 글꼴은 npm `pretendard` 1.3.9(OFL-1.1)의 subset 셋을 직접 싣는다. 그 밖의 런타임 의존성(상태 관리·UI 라이브러리·CSS 프레임워크·분석 도구)은 없다. compose 에 `web` 서비스(`next dev`, 호스트 포트 3010)를 더했다. 테스트: Vitest 125(파일 10), 서버 응답 검사(`pnpm check:server`) 45줄, 실제 브라우저(Playwright) 11. 백엔드 코드와 API 계약은 바꾸지 않았다.
 
 ### 사용자와 정한 것 (2026-09-29)
 
@@ -222,10 +222,16 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 - **열람 신호는 브라우저 스크립트만 보낸다**(R12). 화면이 붙으면 `POST /r/<토큰>/viewed`를 `keepalive`로 한 번 보낸다(StrictMode 에서도 한 번). 페이지를 서버에서 그릴 때는 보내지 않는다. 신호 경로는 `Sec-Fetch-Site`가 있고 `same-origin`이 아니면 403 이고 백엔드를 부르지 않는다(헤더가 없는 옛 브라우저는 통과). 백엔드의 상태 코드(204·404·410·429)를 본문 없이 돌려주고 그 밖·연결 실패는 503 이다. GET 은 405 다. 실제 chromium 이 보낸 `Sec-Fetch-Site`는 `same-origin`이었다.
 - **하나 저장은 `download_url`로 가는 링크(`<a>`)다.** 모두 저장은 먼저 빈 파일 하나로 `navigator.canShare`를 묻고, 안 되면 미디어를 받지 않고 600ms 간격으로 차례로 내려받는다. 되면 전부 받아 `navigator.share({ files })`를 한 번 부른다. 받기가 200 대가 아니거나(서명 만료의 403 등) 공유가 `NotAllowedError`면 차례로 내려받기로 넘어가고, 사용자가 공유를 취소하면(`AbortError`) 거기서 멈춘다.
 - **카카오톡 안내는 모두 저장 버튼 아래 한 곳이다.** 사용자 에이전트에 `KAKAOTALK`이 있을 때 브라우저가 붙은 뒤에 판단해 그린다(`useSyncExternalStore`의 서버 값 `false` — 서버 HTML 에는 없다).
-- **크게 보기**는 목업에 없어 모습을 정했다 — 검은 바탕, 위에 순번과 닫기, 아래에 이전·저장·다음. 끝에서는 이전·다음이 눌리지 않고 돌아서 넘어가지 않는다. 밀기는 가로로 40px 넘게, 세로보다 가로로 더 움직였을 때만 넘긴다. 열리면 초점이 닫기 버튼으로 가고, Esc 로 닫히며, 열린 동안 `body`의 `overflow`가 `hidden`이다. 넘기면 앞 영상은 멈춘다.
+- **크게 보기**는 목업에 없어 모습을 정했다 — 검은 바탕, 위에 순번과 닫기, 아래에 이전·저장·다음. 끝에서는 이전·다음이 눌리지 않고 돌아서 넘어가지 않는다. 밀기는 가로로 40px 넘게, 세로보다 가로로 더 움직였을 때만 넘긴다. 열리면 초점이 닫기 버튼으로 가고, Esc 로 닫히며, 열린 동안 `body`의 `overflow`가 `hidden`이다. 넘기면 앞 영상은 멈춘다. **뒤로 가기(안드로이드의 버튼·몸짓)는 크게 보기만 닫는다** — 열 때 `history.pushState(null, '')`로 방문 기록에 한 칸을 쌓고(URL 인자가 없어 주소는 그대로, 넘기기는 쌓지 않는다, 개발 모드의 이펙트 두 번에도 한 번) `popstate`가 오면 닫는다. 닫기 버튼·Esc 로 닫으면 쌓은 칸을 `history.back()`으로 치워 뒤로 가기 한 번에 알림장을 떠난다.
 - **`next.config.ts`의 개발용 두 줄.** `agentRules: false` — 빼면 `next dev`가 `web/AGENTS.md`·`web/CLAUDE.md`를 만든다(두 파일이 없을 때, 대조로 확인). 이제 `web/CLAUDE.md`가 있으므로 빼면 그 파일에 Next 의 에이전트 규칙 묶음을 끼워 넣는다(`generate-agent-files.js`를 읽고 한 판단). `allowedDevOrigins: ['127.0.0.1']` — 백엔드가 만드는 링크는 `http://127.0.0.1:3010/r/…`인데, 빼면 `next dev`가 `/_next/hmr` 등 개발 자원을 막아("Blocked cross-origin request") 브라우저 쪽 코드가 붙지 않는다. e2e 여섯 가운데 열람 신호·크게 보기·404 화면 셋이 실패한다.
 - **compose 의 `web`**: `node:24-alpine`, `corepack enable` 뒤 pnpm 11.17.0, `pnpm install --frozen-lockfile --store-dir node_modules/.pnpm-store` → `next dev -p 3010 -H 0.0.0.0`. `node_modules`·`.next`는 볼륨(`web_node_modules`·`web_next`)이라 맥의 것(darwin)과 컨테이너의 것(linux-musl)이 서로 가린다. pnpm 저장소를 `--store-dir`로 볼륨 안에 두지 않으면 저장소 루트에 `.pnpm-store/`(약 530MB)가 생긴다. `API_BASE_URL`은 compose 가 `http://backend:8000`으로 넣고 `REPORT_WEB_SECRET`은 저장소 루트의 `.env`에서 백엔드와 같은 값을 읽는다. 포트는 `127.0.0.1:3010`. 파일 변경 감지는 폴링 없이 된다(Docker Desktop, 맥).
-- **e2e 는 compose 의 web 과 개발 스택에 붙는다.** `pnpm e2e:prepare`가 게이트웨이로 확인용 매장·고객·방문·사진 둘(30×40 JPEG)·기록을 만들고 보내기 → 끊기 → 다시 보내기로 끊은 링크와 살아 있는 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다. 로그인 토큰은 파일에 쓰지 않고 개발용 로그인 이름을 쓴다(만료 때문). Playwright 는 `workers: 1`(첫 테스트가 "아직 아무도 열지 않은 링크"를 전제한다), 기기 `Pixel 7`, `outputDir: test-results/playwright`(Playwright 가 outputDir 를 비우므로 링크 파일과 떼었다)다.
+- **보호자가 먼저 부딪힐 다섯은 테스트로 고정했다.**
+  - 백엔드가 매달리면 5초 남짓(6초 안) 뒤 "잠시 후 다시 열어 주세요"(200), 열람 신호는 503 — `check:server`(가짜 백엔드 앞머리 `slow`).
+  - 크게 보기를 연 채 뒤로 가기 — Vitest `tests/MediaGallery.test.tsx`(칸 쌓기·`popstate`·`history.back`), e2e `뒤로 가기` 둘.
+  - 띄어쓰기 없는 긴 글·긴 이름 — e2e 가 긴 글 알림장을 폭 320·390 에서 열어 가로 넘침이 없는지 본다. 넘침을 막는 것은 `.page`의 `overflow-wrap: anywhere`다.
+  - 여러 번 새로 고쳐도 `first_viewed_at`이 그대로 — e2e.
+  - 영상만 있는 알림장의 `og:image`는 포스터(`cover`)이고 첫 HTML 에 재생 표시가 있다 — `check:server`(앞머리 `vid`).
+- **e2e 는 compose 의 web 과 개발 스택에 붙는다.** `pnpm e2e:prepare`가 게이트웨이로 확인용 매장·고객·방문·사진 둘(30×40 JPEG)·기록을 만들고 보내기 → 끊기 → 다시 보내기로 끊은 링크와 살아 있는 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다. 같은 매장·반려동물의 다른 방문으로 긴 글 알림장(케어 메모 `a` 600자·긴 URL·이모지, 메뉴 이름 30자, 매장 주소 255자 — 모두 백엔드 스키마의 한도 안)도 하나 더 만든다. 로그인 토큰은 파일에 쓰지 않고 개발용 로그인 이름을 쓴다(만료 때문). Playwright 는 `workers: 1`(첫 테스트가 "아직 아무도 열지 않은 링크"를 전제한다), 기기 `Pixel 7`, `outputDir: test-results/playwright`(Playwright 가 outputDir 를 비우므로 링크 파일과 떼었다)다.
 
 ### 설계·브리프와 다르게 간 것
 
@@ -271,7 +277,7 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 - **백엔드의 `REPORT_WEB_SECRET`은 여전히 선택이다.** 웹 쪽만 필수로 했다. 운영에서 백엔드에 값이 없으면 웹이 보낸 접속 주소를 믿지 않아 모든 보호자가 웹 서버 주소 하나로 세어진다.
 - **접속 기록의 토큰.** 웹 코드는 찍지 않고 `next dev`의 요청 기록은 껐다. `logging.incomingRequests: false`를 빼면 dev 서버는 토큰이 든 경로를 찍는다. Vercel 자체 접속 기록에 주소가 남는 것은 설계 7.2 대로 감수한다.
 - 글꼴은 첫 HTML 에서 preload 되지 않는다(404 화면에서 확인). 느린 망에서는 시스템 글꼴이 먼저 보인다.
-- 백엔드 호출은 5초에 끊도록 `AbortSignal.timeout`을 건다. 실제로 기다려 보지 않았다(`signal`이 있는 것만 테스트) — 끊기면 "잠시 후 다시 열어 주세요"가 될 것이다(추측). `x-forwarded-for`에 헤더에 넣을 수 없는 글자가 있으면 fetch 가 던져 "잠시 후 다시 열어 주세요"가 될 것이다(추측, 테스트 없음). 금액의 쉼표는 `toLocaleString('en-US')`에 기댄다(ICU 가 없는 런타임에서는 빠질 수 있다).
+- 백엔드 호출은 5초에 끊도록 `AbortSignal.timeout`을 건다. 끊기면 "잠시 후 다시 열어 주세요"(200)·열람 신호 503 인 것을 서버 응답 검사가 실제로 기다려 본다. `x-forwarded-for`에 헤더에 넣을 수 없는 글자가 있으면 fetch 가 던져 "잠시 후 다시 열어 주세요"가 될 것이다(추측, 테스트 없음). 금액의 쉼표는 `toLocaleString('en-US')`에 기댄다(ICU 가 없는 런타임에서는 빠질 수 있다).
 - 열람 신호의 `keepalive`는 Vitest 에서 인자로만 봤다.
 - 개발 DB·버킷에 e2e 준비의 확인용 매장·유저·고객·방문·사진·알림장 링크가 쌓인다. 지우는 스크립트는 없다.
 - compose 의 `web`이 떠 있는 동안 맥에서 `web/.next`를 지울 수 없다(볼륨의 마운트 자리). `web`을 지운 뒤 남는 빈 `web/.next`를 지울 수 있는지, 맥에서 `pnpm install`을 하지 않은 사람이 `web`을 띄우면 맥에 빈 `web/node_modules`가 생기는지는 확인하지 않았다.
@@ -284,4 +290,4 @@ visit 스포크에 알림장 링크(발급·끊기·미리보기), 알림장 설
 
 ### 흐름 확인 (2026-09-29)
 
-`rm -rf .next` 뒤 `pnpm test`는 파일 10, 테스트 119 모두 통과했다. `pnpm build` 뒤 `pnpm check:server`는 42줄 모두 통과했다(실패 0). 개발 스택에 compose 의 `web`을 띄우고 `pnpm e2e:prepare`(매장 78, 방문 184) → `pnpm e2e`로 여섯 모두 통과했다(4.5초) — 살아 있는 링크 열기(200, 제목·날짜, 대표 그림, 열람 신호 한 번과 방문의 `first_viewed_at`, 부른 호스트는 웹·저장소 둘, 콘솔 오류 0), 크게 보기(`1 / 2` → `2 / 2` → 닫기), 하나 저장(파일 `chagocnote-<숫자>.jpg`), 끊은 링크(200, "닫힌 알림장이에요", 신호 없음), 없는 토큰(404, 브라우저에 "알림장을 찾을 수 없어요"), 자바스크립트를 끈 브라우저(제목·케어 메모·대표 사진). 판별력은 변이로 봤다 — 열람 신호 컴포넌트를 빼면, 크게 보기의 닫기 버튼을 없애면, 준비의 끊기를 빼면, `allowedDevOrigins`를 빼면 각각 해당 테스트가 실패한다.
+`rm -rf .next` 뒤 `pnpm test`는 파일 10, 테스트 125 모두 통과했다. `pnpm build` 뒤 `pnpm check:server`는 45줄 모두 통과했다(실패 0). 개발 스택에 compose 의 `web`을 띄우고 `pnpm e2e:prepare`(매장 85, 방문 197) → `pnpm e2e`로 열한 모두 통과했다(6.6초) — 살아 있는 링크 열기(200, 제목·날짜, 대표 그림, 열람 신호 한 번과 방문의 `first_viewed_at`, 부른 호스트는 웹·저장소 둘, 콘솔 오류 0), 여러 번 새로 고침(`first_viewed_at` 그대로), 크게 보기(`1 / 2` → `2 / 2` → 닫기), 뒤로 가기 둘(크게 보기만 닫힘 → 한 번 더 가면 떠남, 닫기 버튼 뒤 한 번에 떠남), 긴 글 알림장 폭 320·390(가로 넘침 없음), 하나 저장(파일 `chagocnote-<숫자>.jpg`), 끊은 링크(200, "닫힌 알림장이에요", 신호 없음), 없는 토큰(404, 브라우저에 "알림장을 찾을 수 없어요"), 자바스크립트를 끈 브라우저(제목·케어 메모·대표 사진). 판별력은 변이로 봤다 — 열람 신호 컴포넌트를 빼면, 크게 보기의 닫기 버튼을 없애면, 준비의 끊기를 빼면, `allowedDevOrigins`를 빼면, `popstate` 처리를 빼면, 닫기의 `history.back()`을 빼면, `overflow-wrap: anywhere`를 빼면 각각 해당 테스트가 실패한다.

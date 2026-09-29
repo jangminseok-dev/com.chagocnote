@@ -11,7 +11,7 @@ const SWIPE = 40
 
 type Props = { media: Media[]; start: number; onClose: () => void }
 
-/** 크게 보기. 좌우로 넘기고(버튼·화살표 키·손가락), Esc 나 닫기 버튼으로 닫는다. */
+/** 크게 보기. 좌우로 넘기고(버튼·화살표 키·손가락), Esc·닫기 버튼·뒤로 가기로 닫는다. */
 export function Lightbox({ media, start, onClose }: Props) {
   const [index, setIndex] = useState(start)
   const video = useRef<HTMLVideoElement>(null)
@@ -26,9 +26,27 @@ export function Lightbox({ media, start, onClose }: Props) {
     setIndex(next)
   }
 
+  // 뒤로 가기(안드로이드의 버튼·몸짓)가 알림장을 떠나지 않고 크게 보기만 닫게 방문 기록에 한 칸을 쌓는다.
+  // 주소는 바꾸지 않는다(URL 인자가 없다). 개발 모드는 이펙트를 두 번 돌리므로 한 번만 쌓는다.
+  const pushed = useRef(false)
+  useEffect(() => {
+    if (!pushed.current) {
+      pushed.current = true
+      history.pushState(null, '')
+    }
+    window.addEventListener('popstate', onClose)
+    return () => window.removeEventListener('popstate', onClose)
+  }, [onClose])
+
+  /** 닫기 버튼·Esc — 쌓은 칸을 치운다. 두면 뒤로 가기를 두 번 눌러야 알림장을 떠난다. */
+  function close() {
+    onClose()
+    history.back()
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') close()
       if (event.key === 'ArrowLeft') go(-1)
       if (event.key === 'ArrowRight') go(1)
     }
@@ -50,7 +68,7 @@ export function Lightbox({ media, start, onClose }: Props) {
         <span>
           {index + 1} / {media.length}
         </span>
-        <button type="button" className={styles.close} onClick={onClose} aria-label="닫기" autoFocus>
+        <button type="button" className={styles.close} onClick={close} aria-label="닫기" autoFocus>
           ✕
         </button>
       </div>

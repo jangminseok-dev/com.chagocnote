@@ -3,8 +3,9 @@
 //
 //   ok    200 알림장 전체(모든 항목 켬)      gone  410
 //   min   200 끈 항목의 칸이 없는 알림장      rate  429
-//   nf    404 (그 밖의 앞머리도 404)          boom  500
-//                                              down  소켓을 끊는다
+//   vid   200 영상 하나뿐인 알림장            boom  500
+//   nf    404 (그 밖의 앞머리도 404)          down  소켓을 끊는다
+//                                              slow  응답하지 않고 연결을 붙들고 있는다
 // POST /v1/public/report/viewed 도 같은 규칙이고 200 자리에 204 다.
 import http from 'node:http'
 
@@ -65,14 +66,18 @@ const MINIMAL = {
   expires_at: null,
 }
 
-const REPORTS = { ok: FULL, min: MINIMAL }
+// 사진이 없다. 백엔드는 대표(cover)로 영상의 포스터를 준다(결정 기록 008).
+const only = video('only', 'after')
+const VIDEO_ONLY = { ...MINIMAL, pet_name: '두부', media: [only], cover: { url: only.thumb_url, width: 1080, height: 1920 } }
+
+const REPORTS = { ok: FULL, min: MINIMAL, vid: VIDEO_ONLY }
 const ERRORS = {
   gone: [410, 'REPORT_CLOSED'],
   rate: [429, 'TOO_MANY_ATTEMPTS'],
   boom: [500, 'INTERNAL_ERROR'],
 }
 
-const prefixOf = (token) => ['ok', 'min', 'gone', 'rate', 'boom', 'down'].find((prefix) => token.startsWith(prefix))
+const prefixOf = (token) => ['ok', 'min', 'vid', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
 
 http
   .createServer((req, res) => {
@@ -100,6 +105,7 @@ http
 
     const prefix = prefixOf(String(req.headers['x-report-token'] ?? ''))
     if (prefix === 'down') return req.socket.destroy()
+    if (prefix === 'slow') return
     if (prefix in ERRORS) {
       const [status, code] = ERRORS[prefix]
       return send(status, { code, message: '가짜 백엔드의 오류' })

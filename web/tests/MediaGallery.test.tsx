@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { MediaGallery } from '../components/MediaGallery'
@@ -6,9 +7,14 @@ import { makeMedia, makeReport, makeVideo } from './report-fixture'
 
 // jsdom 은 영상의 pause 를 구현하지 않는다.
 let pause: ReturnType<typeof vi.spyOn>
+// 방문 기록은 세기만 한다 — jsdom 의 history.back 은 뒤늦게 popstate 를 보내 다음 테스트의 크게 보기를 닫을 수 있다.
+let pushState: ReturnType<typeof vi.spyOn>
+let back: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+  pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {})
+  back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
 })
 
 afterEach(() => {
@@ -123,6 +129,56 @@ test('닫기 버튼으로 닫힌다', () => {
   fireEvent.click(dialog.getByRole('button', { name: '닫기' }))
 
   expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('크게 보기를 열면 방문 기록에 한 칸을 쌓되 주소는 바꾸지 않는다', () => {
+  openAt('3번째 미용 후 영상 크게 보기')
+
+  expect(pushState).toHaveBeenCalledTimes(1)
+  // URL 인자가 없다 — 토큰이 든 주소를 더 만들지 않는다.
+  expect(pushState.mock.calls[0]).toHaveLength(2)
+})
+
+test('개발 모드(StrictMode)에서도 칸은 한 번만 쌓는다', () => {
+  render(
+    <StrictMode>
+      <MediaGallery media={media} />
+    </StrictMode>,
+  )
+  fireEvent.click(screen.getByRole('button', { name: '미용 후 사진 크게 보기' }))
+
+  expect(pushState).toHaveBeenCalledTimes(1)
+})
+
+test('뒤로 가기(popstate)가 오면 크게 보기가 닫히고 history.back 은 부르지 않는다', () => {
+  openAt('3번째 미용 후 영상 크게 보기')
+
+  fireEvent.popState(window)
+
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(back).not.toHaveBeenCalled()
+})
+
+test.each([
+  ['닫기 버튼으로', () => fireEvent.click(screen.getByRole('button', { name: '닫기' }))],
+  ['Esc 로', () => fireEvent.keyDown(document, { key: 'Escape' })],
+])('%s 닫으면 쌓은 칸을 history.back 으로 한 번 치운다', (_, close) => {
+  openAt('3번째 미용 후 영상 크게 보기')
+
+  close()
+
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(back).toHaveBeenCalledTimes(1)
+})
+
+test('넘겨도 칸을 더 쌓지 않는다', () => {
+  const dialog = openAt('미용 후 사진 크게 보기')
+
+  fireEvent.click(dialog.getByRole('button', { name: '다음' }))
+  fireEvent.keyDown(document, { key: 'ArrowRight' })
+
+  expect(dialog.getByText('3 / 5')).toBeInTheDocument()
+  expect(pushState).toHaveBeenCalledTimes(1)
 })
 
 test('영상에서 넘기면 pause 가 불린다', () => {
