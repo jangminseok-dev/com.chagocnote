@@ -1,11 +1,20 @@
 import { render, screen, within } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { ReportView } from '../components/ReportView'
 import type { Report } from '../lib/report'
 import { makeFullReport, makeMedia, makeReport, makeVideo } from './report-fixture'
 
 const TOKEN = 'tokentokentokentokentokentokentokentokentok'
+
+// 화면이 뜨면 열람 신호가 나간다.
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })))
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 function show(report: Report) {
   const { container } = render(<ReportView report={report} token={TOKEN} />)
@@ -87,7 +96,7 @@ test('켰지만 값이 없는 줄과 전화 버튼은 없고 null 글자가 보�
   const rows = [...section('care')!.querySelectorAll('li')].map((li) => li.textContent)
   expect(rows).toEqual(['전체 미용'])
   expect(section('shop')!.textContent).toBe('ShopHiss Haus')
-  expect(container.querySelector('a')).toBeNull()
+  expect(container.querySelector('a[href^="tel:"]')).toBeNull()
   expect(container).not.toHaveTextContent('null')
   expect(container).not.toHaveTextContent('undefined')
   expect(sections()).toContain('shop')
@@ -110,6 +119,7 @@ test('미디어도 메모도 없으면 머리와 날짜, 제목, 꼬리만 있�
 
   expect(sections()).toEqual(['head', 'date', 'title', 'foot'])
   expect(container.querySelector('button')).toBeNull()
+  expect(container.querySelector('a')).toBeNull()
   expect(container.querySelector('img')).toBeNull()
 })
 
@@ -131,7 +141,7 @@ test('대표는 첫 미디어의 표시용 사진이고 꼬리표와 순번, 저
   expect(img).toHaveAttribute('alt', '미용 후 사진')
   expect(hero).toHaveTextContent('미용 후')
   expect(hero).toHaveTextContent('1 / 2')
-  expect(within(hero).getByRole('button', { name: '저장' })).toBeInTheDocument()
+  expect(within(hero).getByRole('link', { name: '저장' })).toBeInTheDocument()
   expect(hero.querySelector('[data-play]')).toBeNull()
 })
 

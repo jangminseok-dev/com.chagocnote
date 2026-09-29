@@ -98,6 +98,7 @@
   display: block;
   width: 100%;
   height: auto;
+  object-fit: cover;
 }
 
 .count {
@@ -124,17 +125,22 @@
   font-weight: 700;
 }
 
-.page .save {
+.save {
   position: absolute;
   right: 14px;
   bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 40px;
   height: 40px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.82);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
+  color: inherit;
   font-size: 17.5px;
+  text-decoration: none;
 }
 
 /* 재생 표시 — 글자 ▶ 는 기기에 따라 그림 문자로 바뀌므로 CSS 로 그린다. */
@@ -290,6 +296,19 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   color: var(--ink);
   font-size: 14px;
+}
+
+.page .pill:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 카카오톡 안내 */
+.notice {
+  margin: 9px 0 0;
+  color: var(--mute);
+  font-size: 12px;
+  text-align: center;
 }
 
 /* 매장 */

@@ -3,7 +3,7 @@ import type { Media } from '../lib/report'
 import styles from './ReportView.module.css'
 
 /** 미디어 줄. 넷이 한 줄에 보이고 더 있으면 가로로 넘겨 본다. */
-export function MediaStrip({ media }: { media: Media[] }) {
+export function MediaStrip({ media, onOpen }: { media: Media[]; onOpen: (index: number) => void }) {
   return (
     <section data-section="strip">
       <div className={styles.label}>
@@ -17,6 +17,7 @@ export function MediaStrip({ media }: { media: Media[] }) {
               type="button"
               className={styles.thumb}
               aria-label={`${index + 1}번째 ${mediaLabel(item)} 크게 보기`}
+              onClick={() => onOpen(index)}
             >
               <img src={item.thumb_url} alt="" loading="lazy" />
               {item.kind === 'video' && <span className={styles.play} data-play aria-hidden="true" />}
