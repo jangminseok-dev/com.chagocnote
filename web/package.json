@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start -p 3010",
     "test": "vitest run",
-    "check:server": "node tests/server/check.mjs"
+    "check:server": "node tests/server/check.mjs",
+    "e2e:prepare": "node tests/e2e/prepare.mjs",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "next": "16.3.6",

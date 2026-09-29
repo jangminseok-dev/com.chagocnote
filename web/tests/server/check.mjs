@@ -181,11 +181,14 @@ const checks = [
     },
   },
   {
-    name: '기본 미리보기 그림은 PNG 로 받아진다',
+    name: '기본 미리보기 그림은 PNG 로 받아지고 no-store 가 없다',
     async run({ get }) {
       const res = await get('/og-default.png')
       assert.equal(res.status, 200)
       assert.equal(res.headers.get('content-type'), 'image/png')
+      // 토큰과 상관없는 공통 그림이다. 미리보기 로봇이 캐시 금지 그림을 버리지 않게 한다.
+      const cacheControl = res.headers.get('cache-control') ?? ''
+      assert.ok(!cacheControl.includes('no-store'), `기본 그림의 Cache-Control 에 no-store 가 있다: ${cacheControl}`)
     },
   },
   {
