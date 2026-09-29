@@ -1,0 +1,33 @@
+/* 목업(guardian-page.html ④)의 수치를 알림장 화면과 같이 7/6 배로 옮겼다. */
+
+.screen {
+  padding: 175px 40px 0;
+  text-align: center;
+}
+
+/* 두 낱말("One moment")이 좁은 화면에서도 한 줄이게 옆 여백까지 쓰고, 글자는 화면 폭을 따라 줄어든다. */
+.mark {
+  margin: 0 -40px;
+  color: var(--faint);
+  font-family: var(--font-serif);
+  font-size: min(63px, 16vw);
+  white-space: nowrap;
+  font-style: italic;
+  line-height: 1.2;
+}
+
+.title {
+  margin: 16px 0 12px;
+  font-family: var(--font-myeongjo);
+  font-size: 22px;
+  font-weight: 400;
+  word-break: keep-all;
+}
+
+.text {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: keep-all;
+}

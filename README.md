@@ -6,7 +6,8 @@
 |---|---|---|
 | 백엔드 | Python 3.13 · FastAPI · SQLAlchemy 2.0(asyncio) · Alembic | `backend/` |
 | 앱 | Flutter 3.41 이상 | `app/` |
-| 개발 환경 | Docker Compose (pgvector · redis · minio · backend · auth · gateway) | `infra/` |
+| 웹 (보호자 알림장) | Next.js 16 (App Router) · TypeScript · pnpm | `web/` |
+| 개발 환경 | Docker Compose (pgvector · redis · minio · backend · auth · gateway · web) | `infra/` |
 | 설계·계획 | 서브 프로젝트별 문서 | `docs/superpowers/` |
 
 ## 처음 띄우기
@@ -14,7 +15,7 @@
     cd infra
     docker compose build backend
     docker compose run --rm --no-deps backend python scripts/generate_dev_env.py   # .env 와 .env.auth 를 만든다 (이미 있으면 건너뛴다)
-    docker compose up -d                                                            # 게이트웨이 http://127.0.0.1:8080
+    docker compose up -d                                                            # 게이트웨이 http://127.0.0.1:8080, 보호자 웹 http://127.0.0.1:3010
     bash ../backend/scripts/check_auth_flow.sh                                      # 로그인 흐름 확인
     bash ../backend/scripts/check_shop_flow.sh                                      # 매장 개설·합류 흐름 확인
     bash ../backend/scripts/check_account_flow.sh                                   # 회원 탈퇴 흐름 확인
@@ -32,16 +33,42 @@
             f.write('REPORT_LINK_KEY_B64=' + base64.b64encode(secrets.token_bytes(32)).decode() + '\n')
     "
 
-`REPORT_WEB_BASE_URL`(보호자 웹의 주소, 기본 `http://127.0.0.1:3010`)과 `REPORT_WEB_SECRET`(웹 서버와 나누는 비밀값, 기본은 빈 값)은 없어도 뜬다. 새로 만든 개발 환경(`generate_dev_env.py`)에는 `REPORT_WEB_SECRET`이 무작위 값으로 들어가고, 기존 `.env`에 키 한 줄만 더한 환경에는 비어 있다. 웹(⑤-2)을 붙일 때 두 쪽에 같은 값을 넣는다.
+`REPORT_WEB_BASE_URL`(보호자 웹의 주소, 기본 `http://127.0.0.1:3010`)과 `REPORT_WEB_SECRET`(웹 서버와 나누는 비밀값, 기본은 빈 값)은 없어도 백엔드는 뜬다. 웹은 `REPORT_WEB_SECRET`이 없으면 뜨지 않는다 — compose 의 `web`(`next dev`)은 "환경 변수 REPORT_WEB_SECRET 이 없다." 를 찍고 끝난다. 새로 만든 개발 환경(`generate_dev_env.py`)에는 무작위 값이 들어가고, 기존 `.env`에 키 한 줄만 더한 환경에는 없다. 백엔드와 `web`은 같은 `.env`를 읽으므로 한 줄이면 두 쪽이 같은 값이 된다. 아래 명령은 값을 출력하지 않고, 값이 있으면 아무것도 하지 않는다(값이 빈 `REPORT_WEB_SECRET=` 줄만 있으면 그 줄을 지우고 새로 쓴다. `.env`가 줄바꿈으로 끝나지 않아도 된다). 이미 떠 있는 backend 는 다시 만들 때까지 새 값을 모른다 — 그동안에도 웹은 열리고, 백엔드가 웹이 알려 준 접속 주소를 믿지 않을 뿐이다.
+
+    docker compose run --rm --no-deps backend python -c "
+    import re, secrets
+    from pathlib import Path
+    env = Path('/work/.env')
+    text = env.read_text()
+    if not re.search(r'^REPORT_WEB_SECRET=.', text, re.M):
+        text = re.sub(r'^REPORT_WEB_SECRET=$\n?', '', text, flags=re.M)
+        if text and not text.endswith('\n'):
+            text += '\n'
+        env.write_text(text + 'REPORT_WEB_SECRET=' + secrets.token_urlsafe(32) + '\n')
+    "
 
 개발 환경에서는 제공자 `dev`로 이름만 넣어 로그인한다. 운영자는 `docker compose run --rm backend python scripts/grant_operator.py <user_id>`로 지정한다.
 
 백엔드가 떠 있으면 `app/tool/run_dev.sh`로 앱을 켠다(iOS 시뮬레이터 기준, `app/CLAUDE.md` 참고).
 
+## 보호자 웹
+
+`web/`은 보호자가 매장이 보낸 링크(`/r/<토큰>`)로 여는 알림장 한 장이다. Next.js 서버가 백엔드 공개 API 를 부르고, 보호자의 브라우저는 백엔드를 직접 부르지 않는다. 개발 서버는 compose 의 `web` 서비스(`next dev`, http://127.0.0.1:3010)이고 `docker compose up -d`가 함께 띄운다. 첫 기동 때 컨테이너 안에서 `pnpm install`을 한다(볼륨 `web_node_modules`). 앱에서 보낸 알림장 링크를 맥 브라우저로 열면 이 서버가 그린다.
+
+테스트와 빌드는 맥에서 `web/`에 들어가 돌린다(node·pnpm 필요, `pnpm install` 먼저).
+
+    pnpm test                    # 컴포넌트·단위
+    pnpm build                   # 빌드와 형 검사
+    pnpm check:server            # 빌드 뒤. 가짜 백엔드로 서버 응답 검사
+    pnpm e2e:prepare && pnpm e2e # 실제 브라우저 (개발 스택과 web 이 떠 있어야 한다)
+
+운영은 Vercel 에 둘 예정이다(아직 배포하지 않았다). 설정은 `API_BASE_URL`(백엔드 주소)과 `REPORT_WEB_SECRET` 둘이고 둘 다 필수다. 규칙은 `web/CLAUDE.md`.
+
 ## 더 읽을 것
 
 - `CLAUDE.md` — 꼭 지킬 규칙과 명령어
 - `app/CLAUDE.md` — 앱에만 해당하는 규칙과 명령어
+- `web/CLAUDE.md` — 웹에만 해당하는 규칙과 명령어
 - `_docs/architecture.md` — 계층, 수직 슬라이스, 허브-스포크, 허브 포트 조립, 폴더 작명 규칙
 - `_docs/harness.md` — 검증 명령
 - `_docs/decisions/` — 결정 기록

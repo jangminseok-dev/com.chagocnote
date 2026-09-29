@@ -1,0 +1,29 @@
+:root {
+  --ink: #161616;
+  --mute: #8d8d8d;
+  --faint: #b9b9b9;
+  /* 세리프·명조는 파일을 싣지 않는다 — 기기에 있는 글꼴을 쓴다. */
+  --font-serif: 'Didot', 'Bodoni 72', 'Noto Serif KR', serif;
+  --font-myeongjo: 'AppleMyungjo', 'Nanum Myeongjo', 'Noto Serif KR', serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: linear-gradient(180deg, #f5f5f5 0%, #efefef 60%, #ececec 100%) fixed;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  max-width: 480px;
+  min-height: 100vh;
+  margin: 0 auto;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
