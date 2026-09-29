@@ -254,8 +254,11 @@ async def test_직원은_예약을_다루지만_일정과_메뉴는_못_바꾼�
 
     booked = await _book(wired, shop_id, s, customer_id, [kong], _at(1, 11))
     assert (await _act(wired, shop_id, s, [booked["visits"][0]["visit_id"]], "cancel", "shop_reason")).status_code == 200
-    walk_in = await wired.api.post(f"/v1/shops/{shop_id}/visits",
-                                   json={"customer_id": customer_id, "pet_ids": [kong], "walk_in": True}, headers=s)
+    # 소요를 10분으로 보낸다 — 매장 기본 소요(120분)에 맡기면 밤 22시 10분부터 자정을 넘겨 422 가 된다.
+    walk_in = await wired.api.post(
+        f"/v1/shops/{shop_id}/visits",
+        json={"customer_id": customer_id, "pet_ids": [kong], "walk_in": True, "duration_minutes": 10}, headers=s,
+    )
     assert walk_in.json()["visits"][0]["status"] == "in_progress"
     assert (await wired.api.get(f"/v1/shops/{shop_id}/visit-settings", headers=s)).status_code == 200
 
