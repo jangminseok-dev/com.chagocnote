@@ -81,7 +81,42 @@ const checks = [
       assert.equal((await get('/nothing')).headers.get('x-powered-by'), null)
     },
   },
+  ...['API_BASE_URL', 'REPORT_WEB_SECRET'].map((missing) => ({
+    // 프로세스는 끝나지 않는다. 준비에 실패한 채로 모든 요청에 500 을 낸다.
+    name: `${missing} 없이 띄우면 모든 요청이 500 이고 오류가 변수 이름을 말한다`,
+    async run({ backend }) {
+      const env = { API_BASE_URL: backend, REPORT_WEB_SECRET: WEB_SECRET }
+      delete env[missing]
+      const port = await freePort()
+      const child = startWeb(port, env, ['ignore', 'pipe', 'pipe'])
+      let log = ''
+      child.stdout.on('data', (chunk) => (log += chunk))
+      child.stderr.on('data', (chunk) => (log += chunk))
+      try {
+        await waitUntilUp(`http://127.0.0.1:${port}`, child)
+        for (const path of ['/nothing', `/r/${token('ok')}`]) {
+          const res = await fetch(`http://127.0.0.1:${port}${path}`)
+          assert.equal(res.status, 500, `${path} 가 500 이 아니다: ${res.status}`)
+          assert.ok(!(await res.text()).includes(missing), `${path} 의 응답에 변수 이름이 있다`)
+        }
+        assert.match(log, new RegExp(`환경 변수 ${missing} 이 없다`))
+        assert.ok(!log.includes(WEB_SECRET), '기록에 비밀값이 있다')
+      } finally {
+        await stop(child)
+      }
+    },
+  })),
 ]
+
+/** `next start` 를 띄운다. 설정 둘은 env 에 준 것만 있다(셸의 값은 넘기지 않는다). */
+function startWeb(port, env, stdio) {
+  const { API_BASE_URL, REPORT_WEB_SECRET, ...rest } = process.env
+  return spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {
+    cwd: root,
+    stdio,
+    env: { ...rest, ...env },
+  })
+}
 
 function freePort() {
   return new Promise((done, fail) => {
@@ -128,15 +163,7 @@ async function main() {
 
   const children = [
     spawn(process.execPath, ['tests/server/fake-backend.mjs', String(backendPort)], { cwd: root, stdio: 'inherit' }),
-    spawn(
-      process.execPath,
-      ['node_modules/next/dist/bin/next', 'start', '-p', String(webPort), '-H', '127.0.0.1'],
-      {
-        cwd: root,
-        stdio: ['ignore', 'ignore', 'inherit'],
-        env: { ...process.env, API_BASE_URL: backend, REPORT_WEB_SECRET: WEB_SECRET },
-      },
-    ),
+    startWeb(webPort, { API_BASE_URL: backend, REPORT_WEB_SECRET: WEB_SECRET }, ['ignore', 'ignore', 'inherit']),
   ]
 
   let failed = 0
