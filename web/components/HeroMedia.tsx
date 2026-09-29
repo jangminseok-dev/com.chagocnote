@@ -5,8 +5,11 @@ import { SaveButton } from './SaveButton'
 
 type Props = { media: Media; index: number; total: number; onOpen: () => void }
 
-/** 칸의 세로는 가로의 이 배수를 넘지 않는다 — 세로로 긴 미디어가 첫 화면을 다 차지하지 않게 한다. */
-const TALLEST = 1.25
+/**
+ * 칸의 세로는 가로의 이 배수를 넘지 않는다 — 세로로 긴 미디어가 첫 화면을 다 차지하지 않게 한다.
+ * 가장 흔한 3:4 세로 사진은 잘리지 않는다.
+ */
+const TALLEST = 4 / 3
 
 /** 대표 미디어. 사진은 표시용, 영상은 포스터와 재생 표시다. */
 export function HeroMedia({ media, index, total, onOpen }: Props) {

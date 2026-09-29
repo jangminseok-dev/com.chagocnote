@@ -9,9 +9,13 @@
 import http from 'node:http'
 
 const port = Number(process.argv[2])
-const media = `http://127.0.0.1:${port}/media`
+// 미디어 주소는 백엔드 주소(API_BASE_URL = 127.0.0.1)와 글자가 다르게 localhost 로 둔다.
+// 실제 서명 주소도 저장소의 주소라 백엔드 주소와 다르다. 첫 HTML 에 백엔드 주소가 없는지 볼 수 있다.
+const media = `http://localhost:${port}/media`
 
 let count = 0
+let reports = 0 // GET /v1/public/report
+let viewed = 0 // POST /v1/public/report/viewed
 let last = null
 
 const photo = (name, phase) => ({
@@ -76,14 +80,16 @@ http
       res.writeHead(status, { 'content-type': 'application/json' })
       res.end(body === undefined ? '' : JSON.stringify(body))
     }
-    if (req.url === '/__stats') return send(200, { count, last })
+    if (req.url === '/__stats') return send(200, { count, reports, viewed, last })
     if (req.url === '/__reset') {
-      count = 0
+      count = reports = viewed = 0
       last = null
       return send(200, {})
     }
 
     count += 1
+    if (req.method === 'GET' && req.url === '/v1/public/report') reports += 1
+    if (req.method === 'POST' && req.url === '/v1/public/report/viewed') viewed += 1
     // 토큰은 적지 않는다. 웹이 붙인 두 헤더만 남긴다.
     last = {
       method: req.method,

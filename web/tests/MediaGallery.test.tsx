@@ -158,7 +158,7 @@ test('하나 저장의 href 가 download_url 이고 새 창을 열지 않는다'
   expect(inDialog).not.toHaveAttribute('target')
 })
 
-test('대표 칸은 미디어의 비율을 따르되 세로가 가로의 1.25배를 넘지 않는다', () => {
+test('대표 칸은 미디어의 비율을 따르되 세로가 가로의 4/3배를 넘지 않는다 — 3:4 사진은 잘리지 않는다', () => {
   const ratioOf = (width: number, height: number) => {
     const { container, unmount } = render(<MediaGallery media={[makeMedia({ width, height })]} />)
     const ratio = container.querySelector<HTMLElement>('[data-section="hero"] img')!.style.aspectRatio
@@ -167,8 +167,8 @@ test('대표 칸은 미디어의 비율을 따르되 세로가 가로의 1.25배
   }
 
   expect(ratioOf(1200, 900)).toBe('1200 / 900')
-  expect(ratioOf(1200, 1500)).toBe('1200 / 1500')
-  expect(ratioOf(1080, 1920)).toBe('1080 / 1350')
+  expect(ratioOf(1200, 1600)).toBe('1200 / 1600')
+  expect(ratioOf(1080, 1920)).toBe('1080 / 1440')
 })
 
 test('미디어가 하나뿐이면 미디어 줄이 없고 대표로 크게 본다', () => {

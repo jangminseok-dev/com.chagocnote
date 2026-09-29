@@ -17,6 +17,28 @@ export const token = (prefix) => prefix.padEnd(43, 'A')
 
 const NOT_FOUND_PATHS = ['/', '/nothing', '/r']
 
+/** 형식이 틀린 토큰(R13). 웹이 먼저 걸러 백엔드를 부르지 않는다. */
+const MALFORMED_TOKENS = {
+  '42글자': token('ok').slice(0, 42),
+  '44글자': `${token('ok')}A`,
+  '수천 글자': token('ok').padEnd(5000, 'A'),
+  '한글': encodeURIComponent('가'.repeat(43)),
+  '줄바꿈이 든 값': `ok%0d%0a${'A'.repeat(39)}`,
+  '..%2f 가 든 값': `..%2f${'A'.repeat(40)}`,
+}
+
+/** 검사에 쓴 토큰 전부 — 웹 서버의 기록에 남으면 안 된다(R18). */
+const USED_TOKENS = [...['ok', 'min', 'nf', 'gone', 'rate', 'boom', 'down'].map(token), ...Object.values(MALFORMED_TOKENS)]
+
+/** 첫 HTML 의 <meta> 값. 없으면 null. */
+function meta(html, key) {
+  return html.match(new RegExp(`<meta (?:name|property)="${key}" content="([^"]*)"`))?.[1] ?? null
+}
+
+function assertBackendNotCalled(stats) {
+  assert.equal(stats.count, 0, `백엔드가 불렸다: ${stats.count}번`)
+}
+
 function hasHeaderSet(res) {
   assert.equal(res.headers.get('x-robots-tag'), 'noindex, nofollow', 'X-Robots-Tag 가 다르다')
   assert.equal(res.headers.get('referrer-policy'), 'no-referrer', 'Referrer-Policy 가 다르다')
@@ -28,9 +50,11 @@ function hasHeaderSet(res) {
 
 /**
  * 검사 목록. 뒤 작업은 여기에 줄을 더한다.
- * run 은 { web, backend, get, stats } 를 받고, 틀리면 던진다.
+ * run 은 { web, backend, get, stats, log } 를 받고, 틀리면 던진다.
  *   get(path, init)  웹 서버에 요청한다(리다이렉트를 따라가지 않는다)
- *   stats()          가짜 백엔드가 받은 요청 — { count, last: { method, path, web_secret, client_ip } | null }
+ *   stats()          가짜 백엔드가 받은 요청 — { count, reports, viewed, last: { method, path, web_secret, client_ip } | null }
+ *                    reports 는 알림장 조회, viewed 는 열람 신호의 수다
+ *   log()            지금까지 `next start` 가 표준 출력·오류에 쓴 것
  * 가짜 백엔드의 요청 수는 검사마다 0 에서 시작한다.
  */
 const checks = [
@@ -81,6 +105,182 @@ const checks = [
       assert.equal((await get('/nothing')).headers.get('x-powered-by'), null)
     },
   },
+  {
+    name: '알림장은 200 이고 첫 HTML 에 제목·케어 메모·미리보기 정보가 있다',
+    async run({ get }) {
+      const res = await get(`/r/${token('ok')}`)
+      assert.equal(res.status, 200)
+      const html = await res.text()
+      assert.match(html, /<h1[^>]*>두부의 미용 알림장<\/h1>/)
+      assert.ok(html.includes('드라이할 때 조금 긴장했지만'), '케어 메모가 없다')
+      assert.equal(meta(html, 'og:title'), '두부의 미용 알림장')
+      assert.equal(meta(html, 'og:description'), '9월 28일 · Hiss Haus')
+      assert.ok(meta(html, 'og:image')?.includes('/media/display/after-1.jpg'), 'og:image 가 대표 주소가 아니다')
+      assert.equal(meta(html, 'og:image:width'), '1200')
+      assert.equal(meta(html, 'og:image:height'), '1600')
+      assert.equal(meta(html, 'og:type'), 'website')
+      assert.equal(meta(html, 'og:url'), null, 'og:url 이 있다')
+      assert.ok(!html.includes('rel="canonical"'), 'canonical 이 있다')
+      assert.match(meta(html, 'robots') ?? '', /noindex/)
+    },
+  },
+  {
+    name: '알림장의 응답에 헤더 셋이 있고 Cache-Control 은 private, no-store 그대로다',
+    async run({ get }) {
+      const res = await get(`/r/${token('ok')}`)
+      hasHeaderSet(res)
+      assert.equal(res.headers.get('cache-control'), 'private, no-store')
+    },
+  },
+  {
+    name: '알림장을 열면 백엔드 조회는 한 번이고 열람 신호는 보내지 않는다',
+    async run({ get, stats }) {
+      await (await get(`/r/${token('ok')}`)).text()
+      const { count, reports, viewed } = await stats()
+      assert.equal(reports, 1, `조회 호출 수: ${reports}`)
+      assert.equal(viewed, 0, `페이지 GET 만으로 열람 신호가 나갔다: ${viewed}`)
+      assert.equal(count, 1)
+    },
+  },
+  {
+    name: '백엔드는 웹 비밀값과 접속 주소를 받는다',
+    async run({ get, stats }) {
+      await (await get(`/r/${token('ok')}`)).text()
+      const { last } = await stats()
+      assert.equal(last.web_secret, WEB_SECRET)
+      assert.ok(last.client_ip, '접속 주소가 없다')
+    },
+  },
+  {
+    name: 'X-Forwarded-For 의 첫 값이 접속 주소로 넘어간다',
+    async run({ get, stats }) {
+      await (await get(`/r/${token('ok')}`, { headers: { 'X-Forwarded-For': '203.0.113.9' } })).text()
+      assert.equal((await stats()).last.client_ip, '203.0.113.9')
+    },
+  },
+  {
+    name: '첫 HTML 에 비밀값과 백엔드 주소가 없다',
+    async run({ backend, get }) {
+      const html = await (await get(`/r/${token('ok')}`)).text()
+      assert.ok(!html.includes(WEB_SECRET), '비밀값이 있다')
+      assert.ok(!html.includes(backend), '백엔드 주소가 있다')
+    },
+  },
+  {
+    name: '끈 항목이 없는 알림장은 그 구역이 없고 미리보기 그림은 기본 그림이다',
+    async run({ web, get }) {
+      const res = await get(`/r/${token('min')}`)
+      assert.equal(res.status, 200)
+      const html = await res.text()
+      assert.match(html, /<h1[^>]*>미용 알림장<\/h1>/)
+      assert.ok(!html.includes('오늘의 케어'), '오늘의 케어가 있다')
+      assert.ok(!html.includes('data-section="shop"'), '매장 구역이 있다')
+      assert.equal(meta(html, 'og:title'), '미용 알림장')
+      assert.equal(meta(html, 'og:description'), '9월 28일')
+      assert.equal(meta(html, 'og:image'), `${web}/og-default.png`)
+    },
+  },
+  {
+    name: '기본 미리보기 그림은 PNG 로 받아진다',
+    async run({ get }) {
+      const res = await get('/og-default.png')
+      assert.equal(res.status, 200)
+      assert.equal(res.headers.get('content-type'), 'image/png')
+    },
+  },
+  {
+    name: '없는 알림장은 404 다',
+    async run({ get }) {
+      assert.equal((await get(`/r/${token('nf')}`)).status, 404)
+    },
+  },
+  {
+    name: '닫힌 알림장은 200 이고 매장 정보와 미리보기 그림이 없다',
+    async run({ get }) {
+      const res = await get(`/r/${token('gone')}`)
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = await res.text()
+      assert.match(html, /<h1[^>]*>닫힌 알림장이에요<\/h1>/)
+      assert.ok(html.includes('매장에 다시 요청해 주세요.'), '설명이 없다')
+      assert.ok(!html.includes('Hiss Haus') && !html.includes('tel:'), '매장 정보가 있다')
+      assert.equal(meta(html, 'og:image'), null, 'og:image 가 있다')
+      assert.match(html, /<title>차곡노트 미용 알림장<\/title>/)
+    },
+  },
+  ...['rate', 'boom', 'down'].map((prefix) => ({
+    name: `${prefix} 알림장은 200 이고 "잠시 후 다시 열어 주세요" 다`,
+    async run({ get }) {
+      const res = await get(`/r/${token(prefix)}`)
+      assert.equal(res.status, 200)
+      assert.match(await res.text(), /<h1[^>]*>잠시 후 다시 열어 주세요<\/h1>/)
+    },
+  })),
+  {
+    name: '빈 토큰(/r/)은 404 로 끝나고 백엔드를 부르지 않는다',
+    async run({ web, get, stats }) {
+      let res = await get('/r/')
+      if (res.status === 308) res = await get(new URL(res.headers.get('location'), web).pathname)
+      assert.equal(res.status, 404)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  ...Object.entries(MALFORMED_TOKENS).map(([label, value]) => ({
+    name: `${label} 토큰은 404 이고 백엔드를 부르지 않는다`,
+    async run({ get, stats }) {
+      assert.equal((await get(`/r/${value}`)).status, 404)
+      assertBackendNotCalled(await stats())
+    },
+  })),
+  ...[
+    ['ok', 204],
+    ['gone', 410],
+    ['nf', 404],
+    ['rate', 429],
+    ['boom', 503],
+    ['down', 503],
+  ].map(([prefix, status]) => ({
+    name: `${prefix} 알림장의 열람 신호는 ${status} 이고 본문이 없다`,
+    async run({ get, stats }) {
+      const res = await get(`/r/${token(prefix)}/viewed`, { method: 'POST', headers: { 'X-Forwarded-For': '203.0.113.9' } })
+      assert.equal(res.status, status)
+      assert.equal(await res.text(), '')
+      hasHeaderSet(res)
+      const { viewed, last } = await stats()
+      assert.equal(viewed, 1)
+      assert.equal(last.web_secret, WEB_SECRET)
+      assert.equal(last.client_ip, '203.0.113.9')
+    },
+  })),
+  {
+    name: '형식이 틀린 토큰의 열람 신호는 404 이고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      assert.equal((await get(`/r/${MALFORMED_TOKENS['44글자']}/viewed`, { method: 'POST' })).status, 404)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '다른 사이트에서 온 열람 신호는 403 이고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      const res = await get(`/r/${token('ok')}/viewed`, { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' } })
+      assert.equal(res.status, 403)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '열람 신호를 GET 으로 부르면 405 이고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      assert.equal((await get(`/r/${token('ok')}/viewed`)).status, 405)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '같은 출처의 열람 신호는 통과한다',
+    async run({ get }) {
+      const res = await get(`/r/${token('ok')}/viewed`, { method: 'POST', headers: { 'Sec-Fetch-Site': 'same-origin' } })
+      assert.equal(res.status, 204)
+    },
+  },
   ...['API_BASE_URL', 'REPORT_WEB_SECRET'].map((missing) => ({
     // 프로세스는 끝나지 않는다. 준비에 실패한 채로 모든 요청에 500 을 낸다.
     name: `${missing} 없이 띄우면 모든 요청이 500 이고 오류가 변수 이름을 말한다`,
@@ -106,6 +306,17 @@ const checks = [
       }
     },
   })),
+  {
+    // 맨 끝에 둔다 — 앞의 요청을 다 보낸 뒤의 기록을 본다.
+    name: '웹 서버의 기록에 토큰과 비밀값이 없다',
+    async run({ log }) {
+      const text = log()
+      for (const value of [...USED_TOKENS, ...USED_TOKENS.map(decodeURIComponent)]) {
+        assert.ok(!text.includes(value), '기록에 검사에 쓴 토큰이 있다')
+      }
+      assert.ok(!text.includes(WEB_SECRET), '기록에 비밀값이 있다')
+    },
+  },
 ]
 
 /** `next start` 를 띄운다. 설정 둘은 env 에 준 것만 있다(셸의 값은 넘기지 않는다). */
@@ -163,8 +374,14 @@ async function main() {
 
   const children = [
     spawn(process.execPath, ['tests/server/fake-backend.mjs', String(backendPort)], { cwd: root, stdio: 'inherit' }),
-    startWeb(webPort, { API_BASE_URL: backend, REPORT_WEB_SECRET: WEB_SECRET }, ['ignore', 'ignore', 'inherit']),
+    startWeb(webPort, { API_BASE_URL: backend, REPORT_WEB_SECRET: WEB_SECRET }, ['ignore', 'pipe', 'pipe']),
   ]
+  let webLog = ''
+  children[1].stdout.on('data', (chunk) => (webLog += chunk))
+  children[1].stderr.on('data', (chunk) => {
+    webLog += chunk
+    process.stderr.write(chunk)
+  })
 
   let failed = 0
   try {
@@ -176,6 +393,7 @@ async function main() {
       backend,
       get: (path, init) => fetch(`${web}${path}`, { redirect: 'manual', ...init }),
       stats: async () => (await fetch(`${backend}/__stats`)).json(),
+      log: () => webLog,
     }
     for (const { name, run } of checks) {
       await fetch(`${backend}/__reset`, { method: 'POST' })

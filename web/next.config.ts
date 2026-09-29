@@ -2,6 +2,8 @@ import type { NextConfig } from 'next'
 
 const config: NextConfig = {
   poweredByHeader: false,
+  // next dev 가 AGENTS.md·CLAUDE.md 를 만들지 않게 한다.
+  agentRules: false,
   async headers() {
     return [
       {
