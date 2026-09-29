@@ -32,6 +32,6 @@
 - 방문 상세에는 `report`(링크 상태), 하루 목록·피드의 항목에는 `report_sent`가 있다. 방문 여러 개의 링크는 `live_visit_ids`로 한 번에 읽는다. 달력은 바꾸지 않았다.
 - **익명화가 링크를 끊는다.** `clear_customer_memos`가 같은 트랜잭션에서 그 고객 방문의 끊지 않은 링크를 모두 끊는다(기간이 지난 줄도). 익명화한 고객의 방문에는 다시 보낼 수 없다 — 가족 잠금이 404 `CUSTOMER_NOT_FOUND`로 거절한다.
 - **공개 조회**(`GET /v1/public/report`, `POST /v1/public/report/viewed`)는 로그인이 없고 토큰을 헤더 `X-Report-Token`으로 받는다. 판정은 `app/services/public_report_gate.py` 한 곳이고 순서는 분당 한도(429) → 서명 확인 → (틀리면) 실패가 찼으면 429, 아니면 세고 404 → (맞으면) 링크 찾기(없으면 세고 404) → 살아 있음(410) → 매장(410) → 기록(410)이다. 닫힌 이유는 가르지 않는다.
-- **공개 저장소만 `ShopContext`를 받지 않는다**(`PublicReportRepository.find`·`mark_viewed`). 서명을 확인한 `public_id`로만 부른다. `ShopContext`를 가드 없이 만드는 곳은 `app/services/public_context.py` 하나다 — 권한이 비어 있고 읽기에만 쓴다.
+- **공개 저장소만 `ShopContext`를 받지 않는다**(`PublicReportRepository.find`·`mark_viewed`). 서명을 확인한 `public_id`로만 부른다. 로그인 없는 요청 경로에서 `ShopContext`를 가드 없이 만드는 곳은 `app/services/public_context.py` 하나다 — 권한이 비어 있고 읽기에만 쓴다.
 - **공개 스키마는 매장용과 따로다**(`schemas/public_report_schema.py`). 칸을 하나하나 적고 ID·내부 메모·결제 수단·보호자 정보의 칸이 없다. 매장이 끈 항목은 null 이 아니라 칸이 없고, 켰지만 값이 없으면 null 이다. 새 칸을 더하는 것은 공개 범위를 넓히는 일이다.
 - 횟수 제한은 분당 60회를 모두에게 건다(조회와 열람 신호가 같은 통). **실패 수 차단은 서명이 틀린 요청에만 건다** — 틀린 토큰은 10분에 20번까지 404, 그다음부터 429(세지 않는다), 서명이 맞는 토큰은 실패가 몇 번 쌓였든 막히지 않는다(`adapter/outbound/redis/public_report_redis_limiter.py`). 웹 서버가 알려 준 주소(`X-Report-Client-IP`)는 `X-Report-Web-Secret`이 맞을 때만 믿는다. **Redis 에 닿지 못하면 통과시키고** 경고를 남긴다 — 토큰 크기가 1차 방어다.
