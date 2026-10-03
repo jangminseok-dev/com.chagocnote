@@ -5,8 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
+import '../../../core/proxy/share_sheet.dart';
 import '../../../core/router/screen_keys.dart';
+import '../../../core/time/today_provider.dart';
 import '../../../design/app_theme.dart';
+import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
@@ -16,14 +19,17 @@ import '../../../design/widgets/app_chip.dart';
 import '../../../design/widgets/app_photo_pager.dart';
 import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/app_sheet_action.dart';
+import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/record_models.dart';
+import '../api/report_models.dart';
 import '../api/visit_models.dart';
 import '../state/photo_edits.dart';
 import '../state/record_rules.dart';
+import '../state/report_commands.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
 import 'record_photos.dart';
@@ -33,6 +39,9 @@ import 'visit_labels.dart';
 /// 방문 하나 — 기울어진 사진 넘기기(누르면 크게 보기)와 그 위 이름 카드(이름·품종·몸무게·상태), 보호자, 사진 줄과 [사진 추가](미용 중·완료),
 /// "오늘의 케어"(기록)와 [기록 수정], 날짜·메뉴·메모·지난 방문·노쇼 횟수, 상태에 맞는 버튼
 /// (설계 9.1, ④ 설계 10.1 ③). `···`에 수정·되돌리기·바로 완료·다음 예약 잡기·기록 삭제(사장)가 있다.
+///
+/// 완료한 방문에는 알림장(⑤ 설계 9.1)이 붙는다 — 보내기 전에는 "알림장" 줄과 [알림장 보내기],
+/// 보낸 뒤에는 꼬리표 "완료 · 알림장 보냄"·확인 카드·[다시 공유], `···`에 [보낼 사진 고르기]·[링크 끊기].
 ///
 /// 버튼은 같은 묶음에서 이 방문과 상태가 같은 방문들을 한 번에 바꾼다 —
 /// 두 마리가 함께 왔으면 함께 시작하고 함께 끝낸다.
@@ -128,6 +137,17 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
               label: AppStrings.actionNextReservation,
               onTap: () => Navigator.of(context).pop(_More.next),
             ),
+          // 보낸 알림장 — 뺄 사진을 다시 고르거나 링크를 끊는다(record:write — 직원도 한다).
+          if (detail.report.live) ...[
+            AppSheetAction(
+              label: AppStrings.reportPickMedia,
+              onTap: () => Navigator.of(context).pop(_More.pickReportMedia),
+            ),
+            AppSheetAction(
+              label: AppStrings.reportRevoke,
+              onTap: () => Navigator.of(context).pop(_More.revokeReport),
+            ),
+          ],
           // 기록 삭제는 record:delete — 사장만(설계 9절).
           if (detail.record != null && ref.read(isOwnerProvider))
             AppSheetAction(
@@ -147,12 +167,33 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
         await _act(detail, VisitAction.complete);
       case _More.revert:
         await _act(detail, VisitAction.revert);
+      case _More.pickReportMedia:
+        context.push('/visits/${detail.visit.visitId}/report?pick=1');
+      case _More.revokeReport:
+        await _confirmThen(
+          question: AppStrings.reportRevokeConfirm,
+          label: AppStrings.reportRevoke,
+          send: (shopId) => ref
+              .read(reportCommandsProvider)
+              .revoke(shopId, detail.visit.visitId),
+        );
       case _More.deleteRecord:
-        await _deleteRecord(detail);
+        await _confirmThen(
+          question: AppStrings.deleteRecordConfirm,
+          label: AppStrings.deleteRecord,
+          send: (shopId) => ref
+              .read(visitCommandsProvider)
+              .deleteRecord(shopId, detail.visit.visitId),
+        );
     }
   }
 
-  Future<void> _deleteRecord(VisitDetail detail) async {
+  /// 되돌릴 수 없는 일(기록 삭제·링크 끊기)은 한 번 묻고 보낸다. 시트를 닫으면 보내지 않는다.
+  Future<void> _confirmThen({
+    required String question,
+    required String label,
+    required Future<void> Function(int shopId) send,
+  }) async {
     final shopId = _shopId;
     if (shopId == null || _busy) return;
     final confirmed = await AppSheet.show<bool>(
@@ -160,14 +201,14 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            AppStrings.deleteRecordConfirm,
+          Text(
+            question,
             style: AppTypography.body,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.lg),
           AppButton(
-            label: AppStrings.deleteRecord,
+            label: label,
             filled: true,
             onPressed: () => Navigator.of(context).pop(true),
           ),
@@ -185,9 +226,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
       _errorText = null;
     });
     try {
-      await ref
-          .read(visitCommandsProvider)
-          .deleteRecord(shopId, detail.visit.visitId);
+      await send(shopId);
       if (mounted) setState(() => _busy = false);
     } catch (e) {
       if (!mounted) return;
@@ -195,6 +234,18 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
         _busy = false;
         _errorText = messageFor(e);
       });
+    }
+  }
+
+  /// [다시 공유] — 서버를 부르지 않는다. 방문 상세가 읽은 주소를 그대로 공유 시트에 넘긴다(보내기
+  /// PUT 을 다시 부르면 뺀 표시를 건드린다). 살아 있는 동안은 같은 링크다.
+  Future<void> _shareReport(VisitDetail detail, Rect origin) async {
+    try {
+      await ref
+          .read(shareSheetProvider)
+          .shareText(detail.report.url!, origin: origin);
+    } on Exception {
+      if (mounted) AppSnackBar.show(context, AppStrings.reportShareAgainFailed);
     }
   }
 
@@ -267,6 +318,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
                     busy: _busy,
                     errorText: _errorText,
                     onAction: (action) => _act(detail, action),
+                    onShareReport: (origin) => _shareReport(detail, origin),
                   ),
                 ),
               ),
@@ -284,17 +336,20 @@ class _Body extends ConsumerWidget {
     required this.busy,
     required this.errorText,
     required this.onAction,
+    required this.onShareReport,
   });
 
   final VisitDetail detail;
   final bool busy;
   final String? errorText;
   final ValueChanged<VisitAction> onAction;
+  final ValueChanged<Rect> onShareReport;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final visit = detail.visit;
     final record = detail.record;
+    final report = detail.report;
     final media = record?.media ?? const <RecordMedia>[];
     // 기록은 미용 중·완료 방문에만 쓴다(설계 8절). 사진은 시작부터 넣는다 — 미용 중이면 전, 완료면 후.
     final recordable =
@@ -328,7 +383,7 @@ class _Body extends ConsumerWidget {
           onTap: (i) => context.push(
             '/visits/${visit.visitId}/photos/${gallery[i].mediaId}',
           ),
-          overlay: _WhoCard(visit: visit),
+          overlay: _WhoCard(visit: visit, reportSent: report.live),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -375,6 +430,9 @@ class _Body extends ConsumerWidget {
                         : () => context.push('/visits/${visit.visitId}/record'),
                   ),
                 ),
+              // 보낸 알림장의 확인 카드는 정보 카드 맨 위다(목업 ④).
+              if (report.live)
+                _ReportCard(report: report, today: ref.watch(todayProvider)),
               _InfoCard(
                 label: AppStrings.visitDateLabel,
                 value:
@@ -398,6 +456,14 @@ class _Body extends ConsumerWidget {
                 value:
                     '${previous == null ? AppStrings.none : dayLabel(previous.startsAt.wall)} · ${AppStrings.noShowCount(detail.noShowCount)}',
               ),
+              // 아직 안 보낸 완료 방문 — 기록이 있어야 보낼 수 있다(없으면 서버가 409 로 거절한다).
+              if (visit.status == VisitStatus.completed && !report.live)
+                _InfoCard(
+                  label: AppStrings.reportLabel,
+                  value: record == null
+                      ? AppStrings.reportNeedsRecord
+                      : AppStrings.reportNotSent,
+                ),
               if (others.isNotEmpty) _GroupCard(others: others),
               if (errorText != null)
                 Padding(
@@ -406,9 +472,10 @@ class _Body extends ConsumerWidget {
                 ),
               const SizedBox(height: AppSpacing.md),
               _StatusButtons(
-                status: visit.status,
+                detail: detail,
                 busy: busy,
                 onAction: onAction,
+                onShareReport: onShareReport,
               ),
             ],
           ),
@@ -419,11 +486,12 @@ class _Body extends ConsumerWidget {
 }
 
 /// 넘기기 위의 이름 카드(기준 목업) — 이름, 품종·몸무게, 상태. 목업은 글래스지만 스크롤 화면이라 불투명
-/// 카드다(기반 설계 6.2, `glass_boundary_test`).
+/// 카드다(기반 설계 6.2, `glass_boundary_test`). 알림장을 보냈으면 상태 뒤에 "알림장 보냄"이 붙는다.
 class _WhoCard extends StatelessWidget {
-  const _WhoCard({required this.visit});
+  const _WhoCard({required this.visit, required this.reportSent});
 
   final Visit visit;
+  final bool reportSent;
 
   @override
   Widget build(BuildContext context) {
@@ -455,7 +523,11 @@ class _WhoCard extends StatelessWidget {
                 ],
               ),
             ),
-            AppChip(label: statusLabel(visit.status)),
+            AppChip(
+              label: reportSent
+                  ? '${statusLabel(visit.status)} · ${AppStrings.reportSentMark}'
+                  : statusLabel(visit.status),
+            ),
           ],
         ),
       ),
@@ -463,23 +535,28 @@ class _WhoCard extends StatelessWidget {
   }
 }
 
-/// 상태에 맞는 버튼만 — 예약됨이면 [노쇼 · 취소 · 시작], 미용 중이면 [완료].
+/// 상태에 맞는 버튼만 — 예약됨이면 [노쇼 · 취소 · 시작], 미용 중이면 [완료], 완료면 알림장
+/// (보냈으면 [다시 공유], 안 보냈고 기록이 있으면 [알림장 보내기]).
 class _StatusButtons extends StatelessWidget {
   const _StatusButtons({
-    required this.status,
+    required this.detail,
     required this.busy,
     required this.onAction,
+    required this.onShareReport,
   });
 
-  final VisitStatus status;
+  final VisitDetail detail;
   final bool busy;
   final ValueChanged<VisitAction> onAction;
+
+  /// [다시 공유] — 공유 시트가 붙을 자리(버튼의 화면 사각형, 아이패드의 말풍선)를 넘긴다.
+  final ValueChanged<Rect> onShareReport;
 
   @override
   Widget build(BuildContext context) {
     VoidCallback? on(VisitAction action) =>
         busy ? null : () => onAction(action);
-    return switch (status) {
+    return switch (detail.visit.status) {
       VisitStatus.reserved => Row(
         children: [
           AppButton(
@@ -505,6 +582,25 @@ class _StatusButtons extends StatelessWidget {
         filled: true,
         busy: busy,
         onPressed: on(VisitAction.complete),
+      ),
+      VisitStatus.completed when detail.report.live => Builder(
+        builder: (context) => AppButton(
+          label: AppStrings.reportShareAgain,
+          filled: true,
+          onPressed: busy
+              ? null
+              : () {
+                  final box = context.findRenderObject()! as RenderBox;
+                  onShareReport(box.localToGlobal(Offset.zero) & box.size);
+                },
+        ),
+      ),
+      VisitStatus.completed when detail.record != null => AppButton(
+        label: AppStrings.reportStart,
+        filled: true,
+        onPressed: busy
+            ? null
+            : () => context.push('/visits/${detail.visit.visitId}/report'),
       ),
       VisitStatus.completed ||
       VisitStatus.canceled ||
@@ -565,6 +661,72 @@ class _CareCard extends StatelessWidget {
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 보낸 알림장의 확인 카드(목업 ④) — 보호자가 열었는지와 처음 연 시각, 링크 기간. 열람은 처음 연
+/// 시각만 보인다(설계 2절).
+class _ReportCard extends StatelessWidget {
+  const _ReportCard({required this.report, required this.today});
+
+  final ReportLink report;
+  final DateTime today;
+
+  /// 처음 연 시각 — 오늘이 아니면 날짜도 붙인다.
+  String _at(DateTime viewed) => sameDay(viewed, today)
+      ? hhmm(viewed)
+      : '${dayLabel(viewed)} ${hhmm(viewed)}';
+
+  @override
+  Widget build(BuildContext context) {
+    final viewed = report.firstViewedAt?.wall;
+    final until = report.expiresAt?.wall;
+    final period = until == null
+        ? AppStrings.reportOpenForever
+        : AppStrings.reportOpenUntil(until.month, until.day);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        child: Row(
+          children: [
+            if (viewed != null) ...[
+              Container(
+                width: 28,
+                height: 28,
+                decoration: const BoxDecoration(
+                  color: AppColors.ink,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check,
+                  size: 16,
+                  color: AppColors.white,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    viewed == null
+                        ? AppStrings.reportNotViewed
+                        : AppStrings.reportViewed,
+                    style: AppTypography.bodyStrong,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    viewed == null ? period : '${_at(viewed)} · $period',
+                    style: AppTypography.caption,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -638,4 +800,12 @@ class _GroupCard extends StatelessWidget {
 }
 
 /// `···` 시트의 항목. 문자열 대신 닫힌 enum 이라 처리 `switch`가 완전 열거된다.
-enum _More { edit, completeNow, revert, next, deleteRecord }
+enum _More {
+  edit,
+  completeNow,
+  revert,
+  next,
+  pickReportMedia,
+  revokeReport,
+  deleteRecord,
+}

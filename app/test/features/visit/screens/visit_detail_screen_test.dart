@@ -11,6 +11,7 @@ import 'package:chagocnote/design/widgets/app_card.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_test_app.dart';
@@ -21,9 +22,11 @@ import '../../../support/visit_test_backend.dart';
 
 final _today = [todayProvider.overrideWithValue(DateTime(2026, 10, 2))];
 
+const _reportPath = '/v1/shops/3/visits/101/report';
+
 /// 방문 101(두부)을 [status]로 보이는 서버. 전이를 받으면 상태를 바꿔 다음
 /// 조회에 반영한다. [withBori]면 102(보리)가 같은 묶음·같은 상태다.
-/// 서버 계약대로 `group`은 자기를 뺀 형제만 준다.
+/// 서버 계약대로 `group`은 자기를 뺀 형제만 준다. [report]는 알림장 링크의 상태다 — 끊으면 '안 보냄'이 된다.
 class _Server {
   _Server({this.status = 'reserved', this.withBori = false}) {
     backend = VisitTestBackend({
@@ -33,6 +36,7 @@ class _Server {
           visit: _dubu(),
           group: [if (withBori) _bori()],
           record: record,
+          report: report,
         ),
       ),
       'GET /v1/shops/3/visits/102': (o, b) => FakeResponse(
@@ -67,12 +71,20 @@ class _Server {
         recordPuts.add(bodyOf(body));
         return FakeResponse(statusCode: 200, data: recordJson());
       },
+      // 알림장(⑤) — 미리보기 화면이 읽는 것과 링크 끊기.
+      'GET $_reportPath': (o, b) =>
+          FakeResponse(statusCode: 200, data: visitReportJson(link: report)),
+      'DELETE $_reportPath': (o, b) {
+        report = reportLinkJson();
+        return const FakeResponse(statusCode: 204);
+      },
     });
   }
 
   String status;
   String? cancelReason;
   Map<String, dynamic>? record;
+  Map<String, dynamic> report = reportLinkJson();
   final bool withBori;
   final transitions = <Map<String, dynamic>>[];
   final recordPuts = <Map<String, dynamic>>[];
@@ -778,6 +790,305 @@ void main() {
       await _tap(tester, find.bySemanticsLabel(AppStrings.more));
       expect(find.text(AppStrings.deleteRecord), findsNothing);
       expect(find.text(AppStrings.actionRevert), findsOneWidget);
+    });
+  });
+
+  group('알림장(⑤)', () {
+    // 가짜 서버가 주는 링크의 주소(픽스처의 가짜 주소).
+    final url = reportLinkJson(live: true)['url'] as String;
+    const revertBlocked = '알림장을 보낸 방문이에요. 링크를 먼저 끊어 주세요.';
+
+    /// 완료한 방문 101 — 기록(케어 메모)이 있고 알림장은 아직 안 보냈다.
+    _Server done() =>
+        _Server(status: 'completed')..record = recordJson(careNote: '발바닥 각질');
+
+    /// 알림장을 보낸 방문 — 링크가 살아 있다.
+    _Server sent({
+      String? firstViewedAt,
+      String? expiresAt = '2026-11-01T15:30:00+09:00',
+    }) => done()
+      ..report = reportLinkJson(
+        live: true,
+        firstViewedAt: firstViewedAt,
+        expiresAt: expiresAt,
+      );
+
+    Future<CustomerTestSetup> open(
+      WidgetTester tester,
+      _Server server, {
+      String role = 'owner',
+    }) async {
+      final setup = CustomerTestSetup(
+        server.backend.call,
+        role: role,
+        overrides: _today,
+      );
+      addTearDown(setup.container.dispose);
+      await _open(tester, setup);
+      return setup;
+    }
+
+    testWidgets('완료한 방문에 기록이 있으면 "아직 안 보냄"과 [알림장 보내기]가 있고, 누르면 미리보기를 연다', (
+      tester,
+    ) async {
+      await open(tester, done());
+
+      expect(find.text('알림장'), findsOneWidget);
+      expect(find.text('아직 안 보냄'), findsOneWidget);
+      expect(find.text(AppStrings.statusCompleted), findsOneWidget);
+      expect(find.text('아직 안 열었어요'), findsNothing);
+      expect(_button(AppStrings.reportShareAgain), findsNothing);
+
+      await _tap(tester, _button(AppStrings.reportStart));
+
+      expect(find.byKey(ScreenKeys.reportPreview), findsOneWidget);
+      expect(_button(AppStrings.reportSend), findsOneWidget);
+    });
+
+    testWidgets('기록이 없는 완료 방문에는 [알림장 보내기]가 없고 안내 한 줄이 있다', (tester) async {
+      await open(tester, _Server(status: 'completed'));
+
+      expect(find.text('알림장'), findsOneWidget);
+      expect(find.text('기록을 쓰면 보낼 수 있어요'), findsOneWidget);
+      expect(find.text('아직 안 보냄'), findsNothing);
+      expect(_button(AppStrings.reportStart), findsNothing);
+    });
+
+    for (final status in ['in_progress', 'reserved']) {
+      testWidgets('미용 중·예약됨에는 알림장 줄이 없다 — $status', (tester) async {
+        final server = _Server(status: status);
+        // 미용 중에는 기록이 있어도 보낼 수 없다.
+        if (status == 'in_progress') server.record = recordJson(careNote: '메모');
+        await open(tester, server);
+
+        expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+        expect(find.text('알림장'), findsNothing);
+        expect(_button(AppStrings.reportStart), findsNothing);
+      });
+    }
+
+    testWidgets(
+      '보낸 방문은 꼬리표가 "완료 · 알림장 보냄"이고, 아직 안 열었으면 "아직 안 열었어요"와 기간을 보인다',
+      (tester) async {
+        await open(tester, sent());
+
+        expect(find.text('완료 · 알림장 보냄'), findsOneWidget);
+        expect(find.text(AppStrings.statusCompleted), findsNothing);
+        expect(find.text('아직 안 열었어요'), findsOneWidget);
+        expect(find.text('11월 1일까지 열려요.'), findsOneWidget);
+        expect(find.byIcon(Icons.check), findsNothing);
+        // "알림장" 줄과 [알림장 보내기] 대신 확인 카드와 [다시 공유]다.
+        expect(find.text('알림장'), findsNothing);
+        expect(_button(AppStrings.reportStart), findsNothing);
+        expect(_button(AppStrings.reportShareAgain), findsOneWidget);
+      },
+    );
+
+    testWidgets('보호자가 열었으면 "보호자가 확인했어요"와 처음 연 시각을 보인다', (tester) async {
+      await open(tester, sent(firstViewedAt: '2026-10-02T15:20:00+09:00'));
+
+      expect(find.text('보호자가 확인했어요'), findsOneWidget);
+      expect(find.text('15:20 · 11월 1일까지 열려요.'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.text('아직 안 열었어요'), findsNothing);
+    });
+
+    testWidgets('처음 연 날이 오늘이 아니면 날짜도 붙인다', (tester) async {
+      // 오늘은 10월 2일이다.
+      await open(tester, sent(firstViewedAt: '2026-10-01T09:05:00+09:00'));
+
+      expect(find.text('10월 1일 목 09:05 · 11월 1일까지 열려요.'), findsOneWidget);
+    });
+
+    testWidgets('기간이 없으면 "계속 열려 있어요"', (tester) async {
+      await open(tester, sent(expiresAt: null));
+
+      expect(find.text('아직 안 열었어요'), findsOneWidget);
+      expect(find.text('계속 열려 있어요.'), findsOneWidget);
+      expect(find.textContaining('까지 열려요'), findsNothing);
+    });
+
+    testWidgets('[다시 공유]는 서버를 부르지 않고 읽은 주소를 공유 시트에 넘긴다', (tester) async {
+      final setup = await open(tester, sent());
+      final before = [...setup.calls];
+      final button = _button(AppStrings.reportShareAgain);
+
+      await _tap(tester, button);
+
+      expect(setup.calls, before);
+      expect(setup.shareSheet.shared.single, url);
+      // 공유 시트가 붙을 자리는 버튼의 화면 사각형이다(아이패드의 말풍선).
+      final origin = setup.shareSheet.origins.single;
+      expect(origin.isEmpty, isFalse);
+      expect(origin, tester.getRect(button));
+    });
+
+    for (final error in <Exception>[
+      PlatformException(code: 'NO_VIEW'),
+      MissingPluginException(),
+    ]) {
+      testWidgets('[다시 공유]가 실패하면 안내를 보인다 — ${error.runtimeType}', (
+        tester,
+      ) async {
+        final setup = await open(tester, sent());
+        setup.shareSheet.error = error;
+
+        await _tap(tester, _button(AppStrings.reportShareAgain));
+
+        expect(find.text('공유 화면을 열지 못했어요. 다시 눌러 주세요.'), findsOneWidget);
+        expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+      });
+    }
+
+    testWidgets('··· 의 [보낼 사진 고르기]는 미리보기를 고르기 모드로 연다', (tester) async {
+      await open(tester, sent());
+
+      await _more(tester, AppStrings.reportPickMedia);
+
+      expect(find.byKey(ScreenKeys.reportPreview), findsOneWidget);
+      expect(_button(AppStrings.save), findsOneWidget);
+      expect(_button(AppStrings.reportSend), findsNothing);
+    });
+
+    testWidgets('[링크 끊기]는 한 번 묻고 끊은 뒤 "아직 안 보냄"으로 돌아온다', (tester) async {
+      // 끊기는 record:write 라 직원도 한다.
+      final setup = await open(tester, sent(), role: 'staff');
+
+      await _more(tester, AppStrings.reportRevoke);
+      expect(find.text('보호자가 받은 링크가 더는 열리지 않아요.'), findsOneWidget);
+      expect(setup.calls, isNot(contains('DELETE $_reportPath')));
+      await _tap(tester, _button(AppStrings.reportRevoke));
+
+      expect(setup.calls.where((c) => c == 'DELETE $_reportPath'), hasLength(1));
+      expect(find.text('아직 안 보냄'), findsOneWidget);
+      expect(find.text(AppStrings.statusCompleted), findsOneWidget);
+      expect(_button(AppStrings.reportStart), findsOneWidget);
+      expect(_button(AppStrings.reportShareAgain), findsNothing);
+    });
+
+    testWidgets('확인 시트를 닫으면 끊지 않는다', (tester) async {
+      final setup = await open(tester, sent());
+
+      await _more(tester, AppStrings.reportRevoke);
+      await _tap(tester, _button(AppStrings.cancel));
+      await _more(tester, AppStrings.reportRevoke);
+      await tester.tapAt(const Offset(10, 10));
+      await settle(tester);
+
+      expect(setup.calls, isNot(contains('DELETE $_reportPath')));
+      expect(find.text('완료 · 알림장 보냄'), findsOneWidget);
+    });
+
+    testWidgets('끊는 동안에는 [다시 공유]와 ··· 를 막아 한 번만 보낸다', (tester) async {
+      final server = sent();
+      final gate = Completer<FakeResponse>();
+      server.backend.routes['DELETE $_reportPath'] = (o, b) => gate.future;
+      final setup = await open(tester, server);
+
+      await _more(tester, AppStrings.reportRevoke);
+      await _tap(tester, _button(AppStrings.reportRevoke));
+      expect(
+        tester
+            .widget<AppButton>(_button(AppStrings.reportShareAgain))
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.bySemanticsLabel(AppStrings.more));
+      await tester.pump();
+      expect(find.text(AppStrings.reportRevoke), findsNothing);
+      server.report = reportLinkJson();
+      gate.complete(const FakeResponse(statusCode: 204));
+      await settle(tester);
+
+      expect(setup.calls.where((c) => c == 'DELETE $_reportPath'), hasLength(1));
+      expect(find.text('아직 안 보냄'), findsOneWidget);
+    });
+
+    testWidgets('안 보낸 방문의 ··· 에는 [보낼 사진 고르기]·[링크 끊기]가 없다', (tester) async {
+      await open(tester, done());
+
+      await _tap(tester, find.bySemanticsLabel(AppStrings.more));
+
+      expect(find.text(AppStrings.actionRevert), findsOneWidget);
+      expect(find.text(AppStrings.reportPickMedia), findsNothing);
+      expect(find.text(AppStrings.reportRevoke), findsNothing);
+    });
+
+    testWidgets(
+      '알림장을 보낸 방문을 되돌리면(409 VISIT_REPORT_SENT) "…링크를 먼저 끊어 주세요."를 보인다',
+      (tester) async {
+        final server = sent();
+        server.backend.routes['POST /v1/shops/3/visits/transitions'] = (o, b) =>
+            const FakeResponse(
+              statusCode: 409,
+              data: {'code': 'VISIT_REPORT_SENT', 'message': 'x'},
+            );
+        await open(tester, server);
+
+        await _more(tester, AppStrings.actionRevert);
+
+        expect(find.text(revertBlocked), findsOneWidget);
+        expect(find.text('완료 · 알림장 보냄'), findsOneWidget);
+      },
+    );
+
+    testWidgets('알림장을 보낸 방문의 기록 삭제도(409 VISIT_REPORT_SENT) 같은 문구를 보인다', (
+      tester,
+    ) async {
+      final server = sent();
+      server.backend.routes['DELETE /v1/shops/3/visits/101/record'] = (o, b) =>
+          const FakeResponse(
+            statusCode: 409,
+            data: {'code': 'VISIT_REPORT_SENT', 'message': 'x'},
+          );
+      await open(tester, server);
+
+      await _more(tester, AppStrings.deleteRecord);
+      await _tap(tester, _button(AppStrings.deleteRecord));
+
+      expect(find.text(revertBlocked), findsOneWidget);
+      expect(find.text('발바닥 각질'), findsOneWidget);
+    });
+
+    testWidgets(
+      '그 사이 닫힌 링크를 끊으면(404 REPORT_NOT_FOUND) 문구를 보이고 "아직 안 보냄"으로 돌아온다',
+      (tester) async {
+        final server = sent();
+        // 다른 기기에서 이미 끊었다 — 화면이 읽은 뒤에 링크가 없어졌다.
+        server.backend.routes['DELETE $_reportPath'] = (o, b) {
+          server.report = reportLinkJson();
+          return const FakeResponse(
+            statusCode: 404,
+            data: {'code': 'REPORT_NOT_FOUND', 'message': 'x'},
+          );
+        };
+        await open(tester, server);
+
+        await _more(tester, AppStrings.reportRevoke);
+        await _tap(tester, _button(AppStrings.reportRevoke));
+
+        expect(find.text('이미 닫힌 알림장이에요.'), findsOneWidget);
+        expect(find.text('아직 안 보냄'), findsOneWidget);
+        expect(_button(AppStrings.reportShareAgain), findsNothing);
+      },
+    );
+
+    testWidgets('알림장을 보내기 전 골든', (tester) async {
+      await open(tester, done());
+
+      await expectLater(
+        find.byKey(ScreenKeys.visitDetail),
+        matchesGoldenFile('goldens/visit_detail_report_unsent.png'),
+      );
+    });
+
+    testWidgets('알림장을 보낸 뒤 골든 — 보호자가 확인함', (tester) async {
+      await open(tester, sent(firstViewedAt: '2026-10-02T15:20:00+09:00'));
+
+      await expectLater(
+        find.byKey(ScreenKeys.visitDetail),
+        matchesGoldenFile('goldens/visit_detail_report_sent.png'),
+      );
     });
   });
 }

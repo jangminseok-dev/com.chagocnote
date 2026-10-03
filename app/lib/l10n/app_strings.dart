@@ -486,6 +486,24 @@ class AppStrings {
   /// '10월 28일까지 열려요.'
   static String reportOpenUntil(int month, int day) => '$month월 $day일까지 열려요.';
 
+  // 미용 알림장 — 방문 상세(⑤-3).
+  static const reportLabel = '알림장';
+  static const reportNotSent = '아직 안 보냄';
+  static const reportNeedsRecord = '기록을 쓰면 보낼 수 있어요';
+
+  /// 방문 상세에서 미리보기를 여는 버튼. 미리보기의 [reportSend]('보내기')가 실제로 보낸다.
+  static const reportStart = '알림장 보내기';
+
+  /// '완료 · 알림장 보냄' — 이름 카드의 상태 꼬리표 뒤에 붙는다.
+  static const reportSentMark = '알림장 보냄';
+  static const reportViewed = '보호자가 확인했어요';
+  static const reportNotViewed = '아직 안 열었어요';
+  static const reportShareAgain = '다시 공유';
+  static const reportShareAgainFailed = '공유 화면을 열지 못했어요. 다시 눌러 주세요.';
+  static const reportPickMedia = '보낼 사진 고르기';
+  static const reportRevoke = '링크 끊기';
+  static const reportRevokeConfirm = '보호자가 받은 링크가 더는 열리지 않아요.';
+
   /// 35000 → '35,000원'.
   static String wonText(int amount) {
     final digits = amount.toString();
