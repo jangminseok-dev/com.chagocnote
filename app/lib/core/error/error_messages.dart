@@ -59,6 +59,11 @@ const Map<String, String> _messages = {
   'MEDIA_TOO_LARGE': '사진은 20MB, 영상은 200MB까지 올릴 수 있어요.',
   'MEDIA_TYPE_UNSUPPORTED': '올릴 수 없는 형식의 파일이에요.',
   'MEDIA_LIMIT_EXCEEDED': '방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.',
+  // 미용 알림장(⑤ 설계 6.1·6.2)
+  'VISIT_REPORT_SENT': '알림장을 보낸 방문이에요. 링크를 먼저 끊어 주세요.',
+  'VISIT_NOT_COMPLETED': '완료한 방문만 알림장을 보낼 수 있어요.',
+  'REPORT_EMPTY': '보여 줄 사진·영상이나 케어 메모가 있어야 보낼 수 있어요.',
+  'REPORT_NOT_FOUND': '이미 닫힌 알림장이에요.',
   // 앱이 만든 코드 — 영상 재생이 서명 URL 만료(403)로 실패했다(④-3a 설계 5.4).
   'MEDIA_URL_EXPIRED': '보기 링크가 만료됐어요. 다시 시도해 주세요.',
 };

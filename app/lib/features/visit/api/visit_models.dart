@@ -7,6 +7,7 @@ library;
 // 매장 시각·날짜 문자열 도우미는 core/time 에 있다. 이 모듈을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
 import '../../../core/time/shop_time.dart';
 import 'record_models.dart';
+import 'report_models.dart';
 
 export '../../../core/time/shop_time.dart';
 
@@ -206,6 +207,7 @@ class DayVisitItem {
     required this.unresolved,
     required this.hasRecord,
     required this.cover,
+    required this.reportSent,
   });
 
   factory DayVisitItem.fromJson(Map<String, dynamic> json) => DayVisitItem(
@@ -215,6 +217,7 @@ class DayVisitItem {
     unresolved: json['unresolved'] as bool,
     hasRecord: json['has_record'] as bool,
     cover: json['cover'] as String?,
+    reportSent: json['report_sent'] as bool,
   );
 
   final Visit visit;
@@ -227,6 +230,9 @@ class DayVisitItem {
 
   /// 대표 사진 썸네일 서명 URL. 없으면 회색 자리.
   final String? cover;
+
+  /// 살아 있는 알림장 링크가 있다.
+  final bool reportSent;
 }
 
 /// 하루 목록 — 취소·노쇼까지 모두, 시작 순.
@@ -393,7 +399,7 @@ class PreviousVisit {
   final ShopTime startsAt;
 }
 
-/// 방문 상세 — 방문, 같은 묶음의 다른 방문(자기 제외), 지난 방문, 노쇼 횟수, 미용 기록.
+/// 방문 상세 — 방문, 같은 묶음의 다른 방문(자기 제외), 지난 방문, 노쇼 횟수, 미용 기록, 알림장 링크.
 class VisitDetail {
   const VisitDetail({
     required this.visit,
@@ -401,6 +407,7 @@ class VisitDetail {
     required this.previousVisit,
     required this.noShowCount,
     required this.record,
+    required this.report,
   });
 
   factory VisitDetail.fromJson(Map<String, dynamic> json) => VisitDetail(
@@ -417,6 +424,7 @@ class VisitDetail {
     record: json['record'] == null
         ? null
         : VisitRecord.fromJson(json['record'] as Map<String, dynamic>),
+    report: ReportLink.fromJson(json['report'] as Map<String, dynamic>),
   );
 
   final Visit visit;
@@ -426,6 +434,9 @@ class VisitDetail {
 
   /// 없으면 null(아직 사진도 메모도 없다).
   final VisitRecord? record;
+
+  /// 알림장 링크의 상태. 서버가 늘 준다 — 안 보냈으면 `live` 가 false 다.
+  final ReportLink report;
 }
 
 /// 다음 예약 초안. 저장하지 않은 값이다.
