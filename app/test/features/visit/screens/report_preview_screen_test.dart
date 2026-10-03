@@ -339,6 +339,27 @@ void main() {
     expect(closed.value, isTrue);
   });
 
+  testWidgets('보낼 사진 고르기에서 [저장]을 눌렀는데 그 사이 링크가 닫혔으면 저장하지 않고 닫히며 "이미 닫힌 알림장이에요."를 알린다', (
+    tester,
+  ) async {
+    final server = _Server(
+      media: [reportMediaJson(mediaId: 51), reportMediaJson(mediaId: 52)],
+      live: true,
+    );
+    final (app, closed) = await _open(tester, server, picking: true);
+    // 화면을 열어 둔 사이 다른 기기에서 링크를 끊었다.
+    server.link = reportLinkJson();
+    await _tap(tester, _tile('후 사진 1'));
+
+    await _tap(tester, _button(AppStrings.save));
+
+    expect(server.puts, isEmpty);
+    expect(app.setup.shareSheet.shared, isEmpty);
+    expect(closed.closed, isTrue);
+    expect(closed.value, isNot(isTrue));
+    expect(find.text('이미 닫힌 알림장이에요.'), findsOneWidget);
+  });
+
   testWidgets('서버가 거절하면(422 REPORT_EMPTY) 문구를 보이고 닫지 않는다 — 누른 것은 그대로다', (
     tester,
   ) async {

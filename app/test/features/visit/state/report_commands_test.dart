@@ -111,6 +111,51 @@ void main() {
     expect(sent.link.live, isTrue);
   });
 
+  test('onlyIfLive 로 보낼 때 다시 읽은 링크가 닫혀 있으면 PUT 을 보내지 않고 REPORT_NOT_FOUND 로 끝난다', () async {
+    final setup = _setup({
+      'PUT $_reportPath': (o, b) =>
+          FakeResponse(statusCode: 200, data: _preview(live: true)),
+    });
+    await _watchEverything(setup);
+
+    await expectLater(
+      setup.container
+          .read(reportCommandsProvider)
+          .send(_shop, 101, changes: {1: true}, onlyIfLive: true),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.code, 'code', 'REPORT_NOT_FOUND')
+            .having((e) => e.statusCode, 'statusCode', 404),
+      ),
+    );
+    await _settle(setup);
+
+    expect(
+      setup.calls,
+      unorderedEquals(['GET $_reportPath', ..._rereads]),
+    );
+    expect(setup.calls.where((c) => c.startsWith('PUT')), isEmpty);
+  });
+
+  test('onlyIfLive 여도 링크가 살아 있으면 PUT 한다', () async {
+    final setup = _setup({
+      'GET $_reportPath': (o, b) =>
+          FakeResponse(statusCode: 200, data: _preview(live: true)),
+      'PUT $_reportPath': (o, b) =>
+          FakeResponse(statusCode: 200, data: _preview(live: true)),
+    });
+
+    final sent = await setup.container
+        .read(reportCommandsProvider)
+        .send(_shop, 101, changes: {1: true}, onlyIfLive: true);
+
+    expect(setup.calls, ['GET $_reportPath', 'PUT $_reportPath']);
+    expect(bodyOf(setup.adapter.lastBodyByPath[_reportPath]), {
+      'hidden_media_ids': [1, 2],
+    });
+    expect(sent.link.live, isTrue);
+  });
+
   test('보내기의 다시 읽기가 실패하면 PUT 을 보내지 않는다', () async {
     final setup = _setup({
       'GET $_reportPath': (o, b) => _error(404, 'VISIT_NOT_FOUND'),

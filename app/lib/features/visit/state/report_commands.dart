@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/error/api_exception.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/report_api.dart';
 import '../api/report_models.dart';
@@ -19,12 +20,23 @@ class ReportCommands {
 
   /// 보내기·다시 저장. 직전에 미리보기를 다시 읽어 [changes](미디어 ID → 뺄지)를 덮은 목록으로
   /// PUT 한다 — 낡은 화면이 그 사이 다른 기기에서 뺀 사진을 되살리지 않게.
+  ///
+  /// [onlyIfLive] — 보낼 사진 고르기: 살아 있는 링크의 뺌만 고친다. 다시 읽은 링크가 닫혀 있으면
+  /// PUT(없으면 링크를 만든다)을 보내지 않고 `REPORT_NOT_FOUND` 로 끝낸다.
   Future<VisitReportPreview> send(
     int shopId,
     int visitId, {
     required Map<int, bool> changes,
+    bool onlyIfLive = false,
   }) => _linkWrite(() async {
     final now = await _api.preview(shopId, visitId);
+    if (onlyIfLive && !now.link.live) {
+      throw ApiException(
+        statusCode: 404,
+        code: 'REPORT_NOT_FOUND',
+        message: '',
+      );
+    }
     return _api.send(
       shopId,
       visitId,

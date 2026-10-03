@@ -100,10 +100,22 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
     try {
       sent = await ref
           .read(reportCommandsProvider)
-          .send(shopId, widget.visitId, changes: _changes);
+          .send(
+            shopId,
+            widget.visitId,
+            changes: _changes,
+            onlyIfLive: widget.picking,
+          );
     } catch (e) {
       // 실패해도 `send`가 미리보기를 다시 읽게 한다 — 누른 것은 그대로 두고 문구만 보인다.
       if (!mounted) return;
+      // 고르는 사이 링크가 닫혔다 — 남아 있으면 [저장]이 계속 실패하니 알리고 닫는다.
+      if (widget.picking && e is ApiException && e.code == 'REPORT_NOT_FOUND') {
+        setState(() => _busy = false);
+        AppSnackBar.show(context, messageFor(e));
+        context.pop();
+        return;
+      }
       setState(() {
         _busy = false;
         _errorText = messageFor(e);
