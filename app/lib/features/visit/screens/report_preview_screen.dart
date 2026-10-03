@@ -223,64 +223,64 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-            const _Label(AppStrings.reportMediaLabel),
-            if (media.isEmpty)
-              const Text(AppStrings.reportNoMedia, style: AppTypography.body)
-            else
-              _grid(media, images),
-            const SizedBox(height: AppSpacing.lg),
-            _Label(
-              AppStrings.careNoteLabel,
-              trailing: Pressable(
-                onTap: _busy ? null : _editNote,
-                // 누름 영역(44×44)의 오른쪽 가운데에 글자를 둔다 — 제목과 같은 줄에 놓인다.
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  widthFactor: 1,
-                  heightFactor: 1,
-                  child: Text(
-                    AppStrings.reportEditNote,
-                    style: AppTypography.caption.copyWith(
-                      decoration: TextDecoration.underline,
+              const _Label(AppStrings.reportMediaLabel),
+              if (media.isEmpty)
+                const Text(AppStrings.reportNoMedia, style: AppTypography.body)
+              else
+                _grid(media, images),
+              const SizedBox(height: AppSpacing.lg),
+              _Label(
+                AppStrings.careNoteLabel,
+                trailing: Pressable(
+                  onTap: _busy ? null : _editNote,
+                  // 누름 영역(44×44)의 오른쪽 가운데에 글자를 둔다 — 제목과 같은 줄에 놓인다.
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    widthFactor: 1,
+                    heightFactor: 1,
+                    child: Text(
+                      AppStrings.reportEditNote,
+                      style: AppTypography.caption.copyWith(
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            SizedBox(
-              width: double.infinity,
-              child: AppCard(
-                child: note == null
-                    ? const Text(
-                        AppStrings.reportNoCareNote,
-                        style: AppTypography.caption,
-                      )
-                    : Text(note, style: AppTypography.body),
+              SizedBox(
+                width: double.infinity,
+                child: AppCard(
+                  child: note == null
+                      ? const Text(
+                          AppStrings.reportNoCareNote,
+                          style: AppTypography.caption,
+                        )
+                      : Text(note, style: AppTypography.body),
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            const _Label(
-              AppStrings.reportItemsLabel,
-              trailing: Text(
-                AppStrings.reportItemsHint,
+              const SizedBox(height: AppSpacing.lg),
+              const _Label(
+                AppStrings.reportItemsLabel,
+                trailing: Text(
+                  AppStrings.reportItemsHint,
+                  style: AppTypography.caption,
+                ),
+              ),
+              Wrap(
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
+                children: [
+                  _ItemChip(AppStrings.reportItemMenus, on: settings.showMenus),
+                  _ItemChip(AppStrings.reportItemShopInfo, on: settings.showShopInfo),
+                  _ItemChip(AppStrings.reportItemAmount, on: settings.showAmount),
+                  _ItemChip(AppStrings.reportItemWeight, on: settings.showWeight),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                '${_period(preview, today)} ${AppStrings.reportReflectsEdits}',
                 style: AppTypography.caption,
               ),
-            ),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                _ItemChip(AppStrings.reportItemMenus, on: settings.showMenus),
-                _ItemChip(AppStrings.reportItemShopInfo, on: settings.showShopInfo),
-                _ItemChip(AppStrings.reportItemAmount, on: settings.showAmount),
-                _ItemChip(AppStrings.reportItemWeight, on: settings.showWeight),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              '${_period(preview, today)} ${AppStrings.reportReflectsEdits}',
-              style: AppTypography.caption,
-            ),
             ],
           ),
         ),
