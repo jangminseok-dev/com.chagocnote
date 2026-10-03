@@ -216,79 +216,98 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
     // 살아 있는 링크의 사진 고르기는 전부 빼도 저장할 수 있다 — 서버는 링크를 새로 만들 때만 막는다(설계 7.4).
     final empty = !widget.picking && !hasSomethingToShow(media, _changes, note);
     final message = empty ? _emptyText : _errorText;
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+    // 내용만 스크롤되고, 이유·실패 문구와 버튼은 아래에 고정이다.
+    return Column(
       children: [
-        const _Label(AppStrings.reportMediaLabel),
-        if (media.isEmpty)
-          const Text(AppStrings.reportNoMedia, style: AppTypography.body)
-        else
-          _grid(media, images),
-        const SizedBox(height: AppSpacing.lg),
-        _Label(
-          AppStrings.careNoteLabel,
-          trailing: Pressable(
-            onTap: _busy ? null : _editNote,
-            // 누름 영역(44×44)의 오른쪽 가운데에 글자를 둔다 — 제목과 같은 줄에 놓인다.
-            child: Align(
-              alignment: Alignment.centerRight,
-              widthFactor: 1,
-              heightFactor: 1,
-              child: Text(
-                AppStrings.reportEditNote,
-                style: AppTypography.caption.copyWith(
-                  decoration: TextDecoration.underline,
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+            const _Label(AppStrings.reportMediaLabel),
+            if (media.isEmpty)
+              const Text(AppStrings.reportNoMedia, style: AppTypography.body)
+            else
+              _grid(media, images),
+            const SizedBox(height: AppSpacing.lg),
+            _Label(
+              AppStrings.careNoteLabel,
+              trailing: Pressable(
+                onTap: _busy ? null : _editNote,
+                // 누름 영역(44×44)의 오른쪽 가운데에 글자를 둔다 — 제목과 같은 줄에 놓인다.
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  widthFactor: 1,
+                  heightFactor: 1,
+                  child: Text(
+                    AppStrings.reportEditNote,
+                    style: AppTypography.caption.copyWith(
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
                 ),
               ),
             ),
+            SizedBox(
+              width: double.infinity,
+              child: AppCard(
+                child: note == null
+                    ? const Text(
+                        AppStrings.reportNoCareNote,
+                        style: AppTypography.caption,
+                      )
+                    : Text(note, style: AppTypography.body),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            const _Label(
+              AppStrings.reportItemsLabel,
+              trailing: Text(
+                AppStrings.reportItemsHint,
+                style: AppTypography.caption,
+              ),
+            ),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                _ItemChip(AppStrings.reportItemMenus, on: settings.showMenus),
+                _ItemChip(AppStrings.reportItemShopInfo, on: settings.showShopInfo),
+                _ItemChip(AppStrings.reportItemAmount, on: settings.showAmount),
+                _ItemChip(AppStrings.reportItemWeight, on: settings.showWeight),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              '${_period(preview, today)} ${AppStrings.reportReflectsEdits}',
+              style: AppTypography.caption,
+            ),
+            ],
           ),
         ),
-        SizedBox(
-          width: double.infinity,
-          child: AppCard(
-            child: note == null
-                ? const Text(
-                    AppStrings.reportNoCareNote,
-                    style: AppTypography.caption,
-                  )
-                : Text(note, style: AppTypography.body),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.sm,
+            AppSpacing.lg,
+            AppSpacing.lg,
           ),
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        const _Label(
-          AppStrings.reportItemsLabel,
-          trailing: Text(
-            AppStrings.reportItemsHint,
-            style: AppTypography.caption,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (message != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Text(message, style: AppTypography.caption),
+                ),
+              AppButton(
+                key: _buttonKey,
+                label: widget.picking ? AppStrings.save : AppStrings.reportSend,
+                filled: true,
+                busy: _busy,
+                onPressed: empty ? null : _send,
+              ),
+            ],
           ),
-        ),
-        Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [
-            _ItemChip(AppStrings.reportItemMenus, on: settings.showMenus),
-            _ItemChip(AppStrings.reportItemShopInfo, on: settings.showShopInfo),
-            _ItemChip(AppStrings.reportItemAmount, on: settings.showAmount),
-            _ItemChip(AppStrings.reportItemWeight, on: settings.showWeight),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          '${_period(preview, today)} ${AppStrings.reportReflectsEdits}',
-          style: AppTypography.caption,
-        ),
-        const SizedBox(height: AppSpacing.lg),
-        if (message != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(message, style: AppTypography.caption),
-          ),
-        AppButton(
-          key: _buttonKey,
-          label: widget.picking ? AppStrings.save : AppStrings.reportSend,
-          filled: true,
-          busy: _busy,
-          onPressed: empty ? null : _send,
         ),
       ],
     );

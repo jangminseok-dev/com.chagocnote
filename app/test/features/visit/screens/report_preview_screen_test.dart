@@ -4,6 +4,7 @@ import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
+import 'package:chagocnote/design/widgets/app_pick_tile.dart';
 import 'package:chagocnote/features/visit/state/report_providers.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
@@ -104,10 +105,11 @@ Future<(_App, Closed<bool>)> _open(
   WidgetTester tester,
   _Server server, {
   bool picking = false,
+  double height = 1400,
 }) async {
   final app = _App(server);
   addTearDown(app.setup.container.dispose);
-  useTallView(tester, height: 1400);
+  useTallView(tester, height: height);
   final closed = await pushOnHome<bool>(
     tester,
     app.setup,
@@ -458,6 +460,58 @@ void main() {
     server.link = reportLinkJson(live: true, expiresAt: null);
     await reload();
     expect(find.textContaining('계속 열려 있어요.'), findsOneWidget);
+  });
+
+  /// 사진 30개와 케어 메모 — 폰 화면(390×844)에 다 들어가지 않는다.
+  _Server manyPhotos() => _Server(
+    media: [for (var i = 1; i <= 30; i++) reportMediaJson(mediaId: i)],
+    careNote: _note,
+  );
+
+  testWidgets('사진이 많아도 [보내기]는 스크롤 없이 화면 안에 있다 — 격자의 끝은 화면 밖이다', (tester) async {
+    final server = manyPhotos();
+    await _open(tester, server, height: 844);
+
+    final button = tester.getRect(_button('보내기'));
+    expect(button.top, greaterThanOrEqualTo(0));
+    expect(button.bottom, lessThanOrEqualTo(844));
+    expect(
+      tester.getRect(find.byType(AppPickTile).last).top,
+      greaterThan(844),
+    );
+
+    // 스크롤하지 않고 바로 눌러 보낸다.
+    await tester.tap(_button('보내기'));
+    await settle(tester);
+    expect(server.puts, hasLength(1));
+  });
+
+  testWidgets('내용을 끝까지 스크롤해도 [보내기]의 자리는 그대로다', (tester) async {
+    await _open(tester, manyPhotos(), height: 844);
+    final before = tester.getRect(_button('보내기'));
+
+    await tester.drag(find.byType(ListView), const Offset(0, -5000));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getRect(find.byType(AppPickTile).last).bottom,
+      lessThan(before.top),
+    );
+    expect(tester.getRect(_button('보내기')), before);
+  });
+
+  testWidgets('고르기 모드의 [저장]도 같은 자리에 고정이다', (tester) async {
+    await _open(tester, manyPhotos(), picking: true, height: 844);
+    final before = tester.getRect(_button(AppStrings.save));
+
+    expect(before.bottom, lessThanOrEqualTo(844));
+    expect(
+      tester.getRect(find.byType(AppPickTile).last).top,
+      greaterThan(844),
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, -5000));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(_button(AppStrings.save)), before);
   });
 
   testWidgets('미리보기 골든', (tester) async {
