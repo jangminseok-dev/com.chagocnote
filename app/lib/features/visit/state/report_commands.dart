@@ -36,18 +36,22 @@ class ReportCommands {
   Future<void> revoke(int shopId, int visitId) =>
       _linkWrite(() => _api.revoke(shopId, visitId));
 
-  /// 설정 전체 교체. 미리보기의 "함께 보이는 항목"과 기간 안내가 설정을 따른다.
+  /// 설정 전체 교체. 미리보기의 "함께 보이는 항목"과 기간 안내가 설정을 따른다. **성공하든 실패하든**
+  /// 설정을 다시 읽게 한다 — 설정 화면은 낙관적으로 그리지 않고 다시 읽은 값으로 그리며, 거절(403)됐다면
+  /// 화면이 든 값이 낡았을 수 있다.
   Future<ReportSettings> updateSettings(
     int shopId,
     ReportSettings settings,
   ) async {
-    final result = await runShopScoped(
-      _ref,
-      () => _api.updateSettings(shopId, settings),
-    );
-    _ref.invalidate(reportSettingsProvider);
-    _ref.invalidate(visitReportProvider);
-    return result;
+    try {
+      return await runShopScoped(
+        _ref,
+        () => _api.updateSettings(shopId, settings),
+      );
+    } finally {
+      _ref.invalidate(reportSettingsProvider);
+      _ref.invalidate(visitReportProvider);
+    }
   }
 
   /// 보내기·끊기는 **성공하든 실패하든** 링크 상태를 보이는 화면을 다시 불러오게 한다 — 방문 상세,

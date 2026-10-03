@@ -504,6 +504,26 @@ class AppStrings {
   static const reportRevoke = '링크 끊기';
   static const reportRevokeConfirm = '보호자가 받은 링크가 더는 열리지 않아요.';
 
+  // 미용 알림장 — 설정(⑤-3). 항목 이름은 미리보기의 reportItem… 을 함께 쓴다.
+  /// 설정 허브의 줄.
+  static const settingsReport = '알림장';
+  static const reportSettingsTitle = '알림장 설정';
+  static const reportSettingsOwnerOnly = '사장만 바꿀 수 있어요.';
+  static const reportLinkDaysLabel = '링크가 열려 있는 기간';
+  static const reportLinkDaysHint =
+      '앞으로 보내는 알림장부터 적용돼요. 이미 보낸 알림장의 기간은 그대로예요.';
+  static const reportShowItemsLabel = '알림장에 보여 줄 항목';
+  static const reportShowItemsHint =
+      '바꾸면 이미 보낸 알림장에도 바로 적용돼요. 사진 · 영상과 케어 메모는 늘 보이고, '
+      '내부 메모와 결제 수단은 절대 보이지 않아요.';
+  static const reportItemMenusHint = '기록에 적은 메뉴';
+  static const reportItemAmountHint = '메뉴별 금액과 합계';
+  static const reportItemWeightHint = '기록에 적은 날만 보여요';
+  static const reportItemShopInfoHint = '이름 · 전화 · 주소';
+
+  /// 링크 기간 칩 — '7일'·'30일', 기간이 없으면(null) '계속'.
+  static String reportLinkDays(int? days) => days == null ? '계속' : '$days일';
+
   /// 35000 → '35,000원'.
   static String wonText(int amount) {
     final digits = amount.toString();

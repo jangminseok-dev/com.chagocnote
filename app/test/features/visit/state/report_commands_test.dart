@@ -199,6 +199,32 @@ void main() {
     );
   });
 
+  test('설정 바꾸기는 실패해도 설정과 미리보기를 다시 읽게 한다', () async {
+    final setup = _setup({
+      'PUT $_settingsPath': (o, b) => _error(403, 'PERMISSION_DENIED'),
+    });
+    await _watchEverything(setup);
+
+    await expectLater(
+      setup.container
+          .read(reportCommandsProvider)
+          .updateSettings(_shop, ReportSettings.fromJson(reportSettingsJson())),
+      throwsA(
+        isA<ApiException>().having((e) => e.code, 'code', 'PERMISSION_DENIED'),
+      ),
+    );
+    await _settle(setup);
+
+    expect(
+      setup.calls,
+      unorderedEquals([
+        'PUT $_settingsPath',
+        'GET $_settingsPath',
+        'GET $_reportPath',
+      ]),
+    );
+  });
+
   test('알림장 읽기·쓰기가 NOT_A_MEMBER 면 내 정보를 다시 불러온다', () async {
     FakeResponse notAMember(_, _) => _error(403, 'NOT_A_MEMBER');
     final setup = _setup({

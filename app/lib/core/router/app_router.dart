@@ -26,6 +26,7 @@ import '../../features/visit/screens/record_screen.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
 import '../../features/visit/screens/report_preview_screen.dart';
 import '../../features/visit/screens/settings/menu_settings_screen.dart';
+import '../../features/visit/screens/settings/report_settings_screen.dart';
 import '../../features/visit/screens/settings/schedule_settings_screen.dart';
 import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
@@ -114,6 +115,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/menus',
         builder: (context, state) => const MenuSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/report',
+        builder: (context, state) => const ReportSettingsScreen(),
       ),
       GoRoute(
         path: '/settings/account',
