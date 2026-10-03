@@ -364,7 +364,7 @@ class _DayList extends StatelessWidget {
 }
 
 /// 목록 카드 — 시간·끝 시각, 사진 자리(가족은 겹친 자리), 이름, 메뉴·보호자,
-/// 겹침·정리 안 됨 표시, 상태 버튼.
+/// 겹침·정리 안 됨·알림장 보냄 표시, 상태 버튼.
 class _GroupCard extends StatelessWidget {
   const _GroupCard({
     required this.group,
@@ -384,6 +384,7 @@ class _GroupCard extends StatelessWidget {
     final marks = [
       if (group.overlapping) AppStrings.markOverlap,
       if (group.unresolved) AppStrings.markUnresolved,
+      if (group.reportSent) AppStrings.reportSentMark,
     ];
     final status = group.uniformStatus;
     // 상태가 섞였으면 아직 진행 가능한 아이들의 상태로 버튼을 정한다(A2 잔여).
@@ -645,6 +646,7 @@ class _Block extends StatelessWidget {
                       ownerLabel(group.first.customer),
                       statusLabel(group.uniformStatus ?? group.first.status),
                       if (group.overlapping) AppStrings.markOverlap,
+                      if (group.reportSent) AppStrings.reportSentMark,
                     ].join(' · '),
                     style: AppTypography.caption,
                     overflow: TextOverflow.ellipsis,

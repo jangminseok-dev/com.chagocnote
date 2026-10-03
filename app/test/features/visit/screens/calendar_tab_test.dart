@@ -307,7 +307,8 @@ void main() {
 
   group('피드', () {
     /// 피드 두 쪽 — 첫 쪽 [first]개(사진 있는 두부 + 보호자만), 다음 쪽 하나.
-    VisitTestBackend feedBackend({int first = 2}) {
+    /// [sent]면 두부의 방문은 알림장을 보냈다.
+    VisitTestBackend feedBackend({int first = 2, bool sent = false}) {
       final backend = _backend();
       backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) =>
           o.queryParameters['cursor'] == null
@@ -319,6 +320,7 @@ void main() {
                     cover: thumbUrl(51),
                     menus: const ['전체 미용', '발톱'],
                     mediaCount: 3,
+                    reportSent: sent,
                   ),
                   for (var i = 1; i < first; i++)
                     feedItemJson(
@@ -379,6 +381,35 @@ void main() {
       expect(app.images.urls, contains(thumbUrl(51)));
       // 보호자만의 방문은 보호자 이름, 사진 수 줄 없음.
       expect(find.text('이수진'), findsOneWidget);
+    });
+
+    testWidgets('알림장을 보낸 카드에 "알림장 보냄"이 보인다 — 사진 수가 없어도', (tester) async {
+      final backend = _backend();
+      backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) => FakeResponse(
+        statusCode: 200,
+        data: feedJson(
+          items: [
+            feedItemJson(careNote: null, reportSent: true),
+            feedItemJson(
+              visitId: 102,
+              careNote: null,
+              mediaCount: 3,
+              reportSent: true,
+            ),
+          ],
+        ),
+      );
+      final app = build(backend);
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+
+      expect(find.text(AppStrings.reportSentMark), findsOneWidget);
+      expect(
+        find.text(
+          '${AppStrings.mediaCount(3)} · ${AppStrings.reportSentMark}',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('카드를 누르면 방문 상세로 가고, [달력]을 누르면 달력으로 돌아온다', (tester) async {
@@ -530,7 +561,7 @@ void main() {
     });
 
     testWidgets('피드 골든', (tester) async {
-      final app = build(feedBackend());
+      final app = build(feedBackend(sent: true));
       await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
       await _pumpHome(tester, app.setup);
       await tester.runAsync(

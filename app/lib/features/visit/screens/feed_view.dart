@@ -187,7 +187,7 @@ class _Empty extends StatelessWidget {
 }
 
 /// 피드 한 장 — 대표 사진 크게(둥근 사각형·흰 테두리), 그 위 글래스 이름 카드, 아래에 날짜·메뉴·
-/// 케어 메모 앞부분·사진 수. 사진이 없으면 회색 자리. 누르면 방문 상세.
+/// 케어 메모 앞부분·사진 수·알림장 보냄. 사진이 없으면 회색 자리. 누르면 방문 상세.
 class FeedCard extends ConsumerWidget {
   const FeedCard({super.key, required this.item});
 
@@ -200,6 +200,10 @@ class FeedCard extends ConsumerWidget {
     final cover = item.cover;
     final pet = item.pet;
     final name = pet?.name ?? ownerLabel(item.customer);
+    final marks = [
+      if (item.mediaCount > 0) AppStrings.mediaCount(item.mediaCount),
+      if (item.reportSent) AppStrings.reportSentMark,
+    ];
     return Pressable(
       semanticLabel: '$name ${dayLabel(item.completedAt.wall)}',
       onTap: () => context.push('/visits/${item.visitId}'),
@@ -286,12 +290,9 @@ class FeedCard extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  if (item.mediaCount > 0) ...[
+                  if (marks.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      AppStrings.mediaCount(item.mediaCount),
-                      style: AppTypography.caption,
-                    ),
+                    Text(marks.join(' · '), style: AppTypography.caption),
                   ],
                 ],
               ),
