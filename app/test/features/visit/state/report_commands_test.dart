@@ -111,6 +111,23 @@ void main() {
     expect(sent.link.live, isTrue);
   });
 
+  test('보내기의 다시 읽기가 실패하면 PUT 을 보내지 않는다', () async {
+    final setup = _setup({
+      'GET $_reportPath': (o, b) => _error(404, 'VISIT_NOT_FOUND'),
+      'PUT $_reportPath': (o, b) =>
+          FakeResponse(statusCode: 200, data: _preview(live: true)),
+    });
+
+    await expectLater(
+      setup.container
+          .read(reportCommandsProvider)
+          .send(_shop, 101, changes: {1: true}),
+      throwsA(isA<ApiException>()),
+    );
+
+    expect(setup.calls, ['GET $_reportPath']);
+  });
+
   test('보내기·끊기가 끝나면 방문 상세·하루 목록·피드·미리보기를 다시 읽고, 달력·고객 쪽은 두지 않는다', () async {
     final setup = _setup({
       'PUT $_reportPath': (o, b) =>

@@ -49,8 +49,14 @@ class RecordingShareSheet implements ShareSheet {
 }
 
 /// 보호자 웹이 그 주소에 준 첫 HTML.
-Future<String> openLink(String url) async =>
-    utf8.decode(await download(url), allowMalformed: true);
+Future<String> openLink(String url) async {
+  try {
+    return utf8.decode(await download(url), allowMalformed: true);
+  } on Exception {
+    // 예외의 글자에 전체 주소(토큰)가 들어갈 수 있어 그대로 던지지 않는다.
+    throw TestFailure('링크를 열지 못했다');
+  }
+}
 
 /// 찾아서 화면 안으로 옮긴다 — 방문 상세의 알림장 줄과 버튼은 맨 아래라, 옮겨야 스크린샷에 보인다.
 Future<void> bring(Finder f) async {
