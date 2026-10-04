@@ -75,6 +75,7 @@ Map<String, dynamic> dayItemJson(
   bool unresolved = false,
   bool hasRecord = false,
   String? cover,
+  bool reportSent = false,
 }) => {
   'visit': visit,
   'group_key':
@@ -84,6 +85,7 @@ Map<String, dynamic> dayItemJson(
   'unresolved': unresolved,
   'has_record': hasRecord,
   'cover': cover,
+  'report_sent': reportSent,
 };
 
 Map<String, dynamic> dayJson({
@@ -199,6 +201,7 @@ Map<String, dynamic> visitDetailJson({
   },
   int noShowCount = 0,
   Map<String, dynamic>? record,
+  Map<String, dynamic>? report,
 }) {
   final v = visit ?? visitJson();
   return {
@@ -209,6 +212,7 @@ Map<String, dynamic> visitDetailJson({
     'no_show_count': noShowCount,
     'record': record,
     'cover': null,
+    'report': report ?? reportLinkJson(),
   };
 }
 
@@ -271,6 +275,7 @@ Map<String, dynamic> feedItemJson({
   List<String> menus = const ['목욕'],
   String? careNote = '귀 청소했어요',
   int mediaCount = 0,
+  bool reportSent = false,
 }) => {
   'visit_id': visitId,
   'customer': customer ?? visitCustomerJson(),
@@ -280,12 +285,87 @@ Map<String, dynamic> feedItemJson({
   'menus': menus,
   'care_note': careNote,
   'media_count': mediaCount,
+  'report_sent': reportSent,
 };
 
 Map<String, dynamic> feedJson({
   List<Map<String, dynamic>> items = const [],
   String? nextCursor,
 }) => {'items': items, 'next_cursor': nextCursor};
+
+/// 알림장 링크의 상태(방문 상세의 `report`, 미리보기의 `link`). 안 보냈으면 나머지 칸은 null 이다.
+/// 주소는 가짜다 — 진짜 링크에는 토큰이 들어 있어 테스트에 옮겨 적지 않는다.
+Map<String, dynamic> reportLinkJson({
+  bool live = false,
+  String? firstViewedAt,
+  String? expiresAt = '2026-11-01T15:30:00+09:00',
+}) => {
+  'status': live ? 'live' : 'none',
+  'url': live ? 'http://127.0.0.1:3010/r/TEST-TOKEN' : null,
+  'expires_at': live ? expiresAt : null,
+  'first_viewed_at': live ? firstViewedAt : null,
+  'created_at': live ? '2026-10-02T15:30:00+09:00' : null,
+};
+
+/// 알림장 미리보기의 사진·영상 하나. 뺀 것도 `hidden: true`로 함께 온다.
+Map<String, dynamic> reportMediaJson({
+  int mediaId = 51,
+  String kind = 'photo',
+  String phase = 'after',
+  bool hidden = false,
+  int? durationSeconds,
+}) => {
+  'media_id': mediaId,
+  'kind': kind,
+  'phase': phase,
+  'hidden': hidden,
+  'width': 3000,
+  'height': 2000,
+  'duration_seconds': durationSeconds,
+  'display_url': 'http://media.test/b/display/shops/3/$mediaId.jpg?sig=a',
+  'thumb_url': thumbUrl(mediaId),
+  'download_url': 'http://media.test/b/original/shops/3/$mediaId.jpg?sig=a',
+};
+
+/// 알림장 설정(요청·응답이 같은 모양). 기본값은 서버의 기본값이다.
+Map<String, dynamic> reportSettingsJson({
+  int? linkDays = 30,
+  bool showMenus = true,
+  bool showShopInfo = true,
+  bool showWeight = false,
+  bool showAmount = false,
+}) => {
+  'link_days': linkDays,
+  'show_menus': showMenus,
+  'show_shop_info': showShopInfo,
+  'show_weight': showWeight,
+  'show_amount': showAmount,
+};
+
+/// 알림장 미리보기(GET·PUT 응답). 앱은 `report` 에서 미디어와 케어 메모만 읽는다 — 나머지 칸은
+/// 서버가 주는 모양대로 채워 둔다(끈 항목은 null).
+Map<String, dynamic> visitReportJson({
+  List<Map<String, dynamic>> media = const [],
+  String? careNote,
+  Map<String, dynamic>? link,
+  Map<String, dynamic>? settings,
+}) => {
+  'report': {
+    'pet_name': '두부',
+    'visit_date': '2026-10-02',
+    'care_note': careNote,
+    'media': media,
+    'cover': null,
+    'menus': [
+      {'name': '목욕', 'amount': null},
+    ],
+    'total_amount': null,
+    'weight_kg': null,
+    'shop': {'name': 'Hiss Haus', 'phone': null, 'address': null},
+  },
+  'link': link ?? reportLinkJson(),
+  'settings': settings ?? reportSettingsJson(),
+};
 
 /// 사진 발급 응답(설계 7.1).
 Map<String, dynamic> issuedUploadJson({int mediaId = 51}) => {

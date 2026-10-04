@@ -24,7 +24,9 @@ import '../../features/visit/screens/draft_screen.dart';
 import '../../features/visit/screens/photo_viewer_screen.dart';
 import '../../features/visit/screens/record_screen.dart';
 import '../../features/visit/screens/register_visit_screen.dart';
+import '../../features/visit/screens/report_preview_screen.dart';
 import '../../features/visit/screens/settings/menu_settings_screen.dart';
+import '../../features/visit/screens/settings/report_settings_screen.dart';
 import '../../features/visit/screens/settings/schedule_settings_screen.dart';
 import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
@@ -115,6 +117,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const MenuSettingsScreen(),
       ),
       GoRoute(
+        path: '/settings/report',
+        builder: (context, state) => const ReportSettingsScreen(),
+      ),
+      GoRoute(
         path: '/settings/account',
         builder: (context, state) => const AccountScreen(),
       ),
@@ -193,6 +199,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => RecordScreen(
           visitId: int.parse(state.pathParameters['visitId']!),
           completing: state.uri.queryParameters['complete'] == '1',
+        ),
+      ),
+      // 알림장 보내기 전 미리보기. `?pick=1`이면 보낸 뒤의 [보낼 사진 고르기] — 버튼이 [저장]이고
+      // 공유 시트를 열지 않는다. 보냈거나 저장했으면 true 로 닫힌다.
+      GoRoute(
+        path: '/visits/:visitId/report',
+        builder: (context, state) => ReportPreviewScreen(
+          visitId: int.parse(state.pathParameters['visitId']!),
+          picking: state.uri.queryParameters['pick'] == '1',
         ),
       ),
       // 크게 보기 — [mediaId]의 사진부터 연다.

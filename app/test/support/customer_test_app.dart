@@ -1,6 +1,7 @@
 import 'package:chagocnote/core/proxy/api_client.dart';
 import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
+import 'package:chagocnote/core/proxy/share_sheet.dart';
 import 'package:chagocnote/core/proxy/speech_recognizer.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
@@ -16,6 +17,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 
 import 'fake_http_client_adapter.dart';
 import 'fake_session_gateway.dart';
+import 'fake_share_sheet.dart';
 import 'upload_fakes.dart';
 
 /// 고객 기능 테스트의 매장(3번, 첫 입점 매장 이름).
@@ -59,6 +61,8 @@ class CustomerTestSetup {
         networkWatcherProvider.overrideWithValue(network),
         // 테스트에는 음성 인식 채널이 없다 — 기록 화면의 받아쓰기는 [speech]로 흘린다.
         speechRecognizerProvider.overrideWithValue(speech),
+        // 테스트에는 공유 시트 채널이 없다 — 넘긴 글과 버튼 사각형은 [shareSheet]에 적힌다.
+        shareSheetProvider.overrideWithValue(shareSheet),
         apiClientProvider.overrideWith(
           (ref) => ApiClient(
             tokenStore: MemoryTokenStore(),
@@ -76,6 +80,7 @@ class CustomerTestSetup {
   final FakeSessionGateway gateway;
   final network = FakeNetworkWatcher();
   final speech = FakeSpeechRecognizer();
+  final shareSheet = FakeShareSheet();
   final MemoryPrefsStore prefs;
   late final ProviderContainer container;
 

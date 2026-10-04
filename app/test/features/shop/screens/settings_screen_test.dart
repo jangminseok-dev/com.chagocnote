@@ -273,6 +273,31 @@ void main() {
     expect(find.text(AppStrings.settingsMenus), findsNothing);
   });
 
+  testWidgets('"알림장" 줄은 직원에게도 보이고 누르면 알림장 설정이 열린다(읽기 전용 — ⑤ 설계 9.1)', (
+    tester,
+  ) async {
+    final container = _containerWith(
+      const Me(
+        id: 1,
+        displayName: '민석',
+        profileImageUrl: null,
+        identities: ['apple'],
+        shops: [_staffShop],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.settingsReport));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.reportSettings), findsOneWidget);
+  });
+
   testWidgets('초대 코드로 합류를 누르면 초대 화면으로 간다', (tester) async {
     final container = _containerWith(
       const Me(

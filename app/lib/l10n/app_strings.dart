@@ -449,6 +449,81 @@ class AppStrings {
   static const playVideo = '영상 재생';
   static const pauseVideo = '일시정지';
 
+  // 미용 알림장 — 보내기 전 미리보기(⑤-3).
+  static const reportPreviewTitle = '이렇게 보내요';
+  static const reportMediaLabel = '사진 · 영상 — 빼려면 누르세요';
+  static const reportNoMedia = '붙인 사진·영상이 없어요.';
+  static const reportHiddenMark = '뺌';
+  static const reportEditNote = '고치기';
+  static const reportNoCareNote = '케어 메모가 없어요.';
+  static const reportItemsLabel = '함께 보이는 항목';
+  static const reportItemsHint = '설정에서 바꿔요';
+  static const reportItemMenus = '메뉴 이름';
+  static const reportItemShopInfo = '매장 정보';
+  static const reportItemAmount = '금액';
+  static const reportItemWeight = '몸무게';
+  static const reportOpenForever = '계속 열려 있어요.';
+  static const reportReflectsEdits = '보낸 뒤에 기록을 고치면 알림장에도 바로 반영돼요.';
+  static const reportSend = '보내기';
+  static const reportShareFailed =
+      '공유 화면을 열지 못했어요. 방문 화면의 [다시 공유]로 다시 보낼 수 있어요.';
+
+  /// '5개 중 4개' — 미리보기 머리. 전체 수 중 보호자에게 보이는 수.
+  static String reportShownCount(int total, int shown) => '$total개 중 $shown개';
+
+  /// '후 사진 1', 뺀 것은 '후 사진 1 뺌' — 미리보기 격자의 타일(접근성 이름).
+  static String reportTileLabel(
+    String phase,
+    int index, {
+    required bool hidden,
+  }) => hidden
+      ? '${photoTileLabel(phase, index)} $reportHiddenMark'
+      : photoTileLabel(phase, index);
+
+  /// '금액 안 보임' — 끈 항목의 칩(접근성 이름. 눈에는 줄을 그어 보인다).
+  static String reportItemOff(String item) => '$item 안 보임';
+
+  /// '10월 28일까지 열려요.'
+  static String reportOpenUntil(int month, int day) => '$month월 $day일까지 열려요.';
+
+  // 미용 알림장 — 방문 상세(⑤-3).
+  static const reportLabel = '알림장';
+  static const reportNotSent = '아직 안 보냄';
+  static const reportNeedsRecord = '기록을 쓰면 보낼 수 있어요';
+
+  /// 방문 상세에서 미리보기를 여는 버튼. 미리보기의 [reportSend]('보내기')가 실제로 보낸다.
+  static const reportStart = '알림장 보내기';
+
+  /// '완료 · 알림장 보냄' — 이름 카드의 상태 꼬리표 뒤에 붙는다.
+  static const reportSentMark = '알림장 보냄';
+  static const reportViewed = '보호자가 확인했어요';
+  static const reportNotViewed = '아직 안 열었어요';
+  static const reportShareAgain = '다시 공유';
+  static const reportShareAgainFailed = '공유 화면을 열지 못했어요. 다시 눌러 주세요.';
+  static const reportPickMedia = '보낼 사진 고르기';
+  static const reportRevoke = '링크 끊기';
+  static const reportRevokeConfirm = '보호자가 받은 링크가 더는 열리지 않아요.';
+
+  // 미용 알림장 — 설정(⑤-3). 항목 이름은 미리보기의 reportItem… 을 함께 쓴다.
+  /// 설정 허브의 줄.
+  static const settingsReport = '알림장';
+  static const reportSettingsTitle = '알림장 설정';
+  static const reportSettingsOwnerOnly = '사장만 바꿀 수 있어요.';
+  static const reportLinkDaysLabel = '링크가 열려 있는 기간';
+  static const reportLinkDaysHint =
+      '앞으로 보내는 알림장부터 적용돼요. 이미 보낸 알림장의 기간은 그대로예요.';
+  static const reportShowItemsLabel = '알림장에 보여 줄 항목';
+  static const reportShowItemsHint =
+      '바꾸면 이미 보낸 알림장에도 바로 적용돼요. 사진 · 영상과 케어 메모는 늘 보이고, '
+      '내부 메모와 결제 수단은 절대 보이지 않아요.';
+  static const reportItemMenusHint = '기록에 적은 메뉴';
+  static const reportItemAmountHint = '메뉴별 금액과 합계';
+  static const reportItemWeightHint = '기록에 적은 날만 보여요';
+  static const reportItemShopInfoHint = '이름 · 전화 · 주소';
+
+  /// 링크 기간 칩 — '7일'·'30일', 기간이 없으면(null) '계속'.
+  static String reportLinkDays(int? days) => days == null ? '계속' : '$days일';
+
   /// 35000 → '35,000원'.
   static String wonText(int amount) {
     final digits = amount.toString();

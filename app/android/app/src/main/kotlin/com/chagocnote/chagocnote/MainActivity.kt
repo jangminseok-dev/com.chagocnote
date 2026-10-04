@@ -35,6 +35,8 @@ class MainActivity : FlutterActivity() {
         VideoTranscoderChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         // 음성 인식(④-3b) — 권한 창을 띄우고 설정을 열어야 해서 액티비티를 준다.
         speech = SpeechRecognizerChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        // 공유 시트(⑤) — 선택기를 이 액티비티에서 띄운다.
+        ShareSheetChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).also { ch ->
             ch.setMethodCallHandler { call, result ->
                 if (call.method == "getPending") {

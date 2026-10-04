@@ -10,6 +10,7 @@ DayVisitItem _item(
   int duration = 60,
   String? group,
   String status = 'reserved',
+  bool reportSent = false,
 }) => DayVisitItem.fromJson(
   dayItemJson(
     visitJson(
@@ -19,6 +20,7 @@ DayVisitItem _item(
       status: status,
     ),
     groupKey: group ?? 'g$id',
+    reportSent: reportSent,
   ),
 );
 
@@ -60,6 +62,31 @@ void main() {
     ]).single;
 
     expect(allCanceled.endsAt, DateTime(2026, 10, 2, 15, 30));
+  });
+
+  test('묶음은 완료한 방문이 모두 보냈을 때만 보냄이다', () {
+    DayVisitItem item(int id, String status, {bool sent = false}) =>
+        _item(id, '13:00', group: 'a', status: status, reportSent: sent);
+    bool sent(List<DayVisitItem> items) => groupDay(items).single.reportSent;
+
+    expect(
+      sent([
+        item(1, 'completed', sent: true),
+        item(2, 'completed', sent: true),
+      ]),
+      isTrue,
+    );
+    // 일부만 보냈는데 표시하면 다 보낸 줄 안다.
+    expect(
+      sent([item(1, 'completed', sent: true), item(2, 'completed')]),
+      isFalse,
+    );
+    // 취소한 아이는 보낼 것이 없다 — 세지 않는다.
+    expect(
+      sent([item(1, 'completed', sent: true), item(2, 'canceled')]),
+      isTrue,
+    );
+    expect(sent([item(1, 'reserved'), item(2, 'canceled')]), isFalse);
   });
 
   test('시간을 차지하는 묶음 사이가 한 시간 이상 비면 그 길이를 준다', () {

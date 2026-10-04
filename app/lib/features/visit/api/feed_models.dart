@@ -15,6 +15,7 @@ class FeedItem {
     required this.menus,
     required this.careNote,
     required this.mediaCount,
+    required this.reportSent,
   });
 
   factory FeedItem.fromJson(Map<String, dynamic> json) => FeedItem(
@@ -28,6 +29,7 @@ class FeedItem {
     menus: [for (final m in json['menus'] as List) m as String],
     careNote: json['care_note'] as String?,
     mediaCount: json['media_count'] as int,
+    reportSent: json['report_sent'] as bool,
   );
 
   final int visitId;
@@ -46,6 +48,9 @@ class FeedItem {
   /// 케어 메모 앞 80자.
   final String? careNote;
   final int mediaCount;
+
+  /// 살아 있는 알림장 링크가 있다.
+  final bool reportSent;
 }
 
 /// 피드 한 쪽. [nextCursor]가 null 이면 마지막 쪽이다.

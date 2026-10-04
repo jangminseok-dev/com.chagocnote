@@ -94,6 +94,14 @@ void main() {
     }
   });
 
+  test('알림장 코드(⑤ 설계 6.1·6.2)는 모두 앱의 문구가 있다 — VISIT_REPORT_SENT 는 설계 9.3 의 글자 그대로', () {
+    const codes = ['VISIT_REPORT_SENT', 'VISIT_NOT_COMPLETED', 'REPORT_EMPTY', 'REPORT_NOT_FOUND'];
+    for (final code in codes) {
+      expect(messageFor(_error(code, message: '서버 문구')), isNot('서버 문구'), reason: code);
+    }
+    expect(messageFor(_error('VISIT_REPORT_SENT', status: 409)), '알림장을 보낸 방문이에요. 링크를 먼저 끊어 주세요.');
+  });
+
   test('크기·한도 문구는 사진과 영상을 함께 안내한다 — 코드 하나를 둘이 같이 쓴다', () {
     expect(messageFor(_error('MEDIA_TOO_LARGE', status: 422)), '사진은 20MB, 영상은 200MB까지 올릴 수 있어요.');
     expect(

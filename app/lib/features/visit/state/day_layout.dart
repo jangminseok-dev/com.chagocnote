@@ -25,6 +25,15 @@ class DayGroup {
   bool get overlapping => items.any((i) => i.overlapping);
   bool get unresolved => items.any((i) => i.unresolved);
 
+  /// 완료한 방문이 모두 알림장을 보냈는가(완료가 없으면 false). 일부만 보냈는데
+  /// 표시하면 다 보낸 줄 안다.
+  bool get reportSent {
+    final completed = items.where(
+      (i) => i.visit.status == VisitStatus.completed,
+    );
+    return completed.isNotEmpty && completed.every((i) => i.reportSent);
+  }
+
   /// 시간을 차지하는 방문이 있는가(취소·노쇼만이면 빈 시간이다).
   bool get occupiesTime => items.any((i) => i.visit.occupiesTime);
 

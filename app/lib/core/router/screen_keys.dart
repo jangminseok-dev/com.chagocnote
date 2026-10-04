@@ -25,5 +25,7 @@ class ScreenKeys {
   static const visitDetail = Key('screen_visit_detail');
   static const visitRecord = Key('screen_visit_record');
   static const photoViewer = Key('screen_photo_viewer');
+  static const reportPreview = Key('screen_report_preview');
+  static const reportSettings = Key('screen_report_settings');
   static const day = Key('screen_day');
 }

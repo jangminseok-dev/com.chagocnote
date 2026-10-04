@@ -15,6 +15,7 @@ import UIKit
     SharedTextPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "SharedTextPlugin")!)
     VideoTranscoderPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "VideoTranscoderPlugin")!)
     SpeechRecognizerPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "SpeechRecognizerPlugin")!)
+    ShareSheetPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "ShareSheetPlugin")!)
   }
 }
 

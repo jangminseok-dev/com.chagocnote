@@ -41,9 +41,12 @@ Map<String, dynamic> _v(
   menus: menus,
 );
 
-/// 목업의 하루 — 콩이 완료, 두부·보리 미용 중(묶음), 1시간 빈 뒤 몽이 예약,
-/// 겹치는 코코 예약.
-List<Map<String, dynamic>> _mockupItems({String duoStatus = 'in_progress'}) => [
+/// 목업의 하루 — 콩이 완료([sent]면 알림장 보냄), 두부·보리 미용 중(묶음),
+/// 1시간 빈 뒤 몽이 예약, 겹치는 코코 예약.
+List<Map<String, dynamic>> _mockupItems({
+  String duoStatus = 'in_progress',
+  bool sent = false,
+}) => [
   dayItemJson(
     _v(
       1,
@@ -52,6 +55,7 @@ List<Map<String, dynamic>> _mockupItems({String duoStatus = 'in_progress'}) => [
       status: 'completed',
       menus: [menuBriefJson(menuId: 4, name: '전체 미용')],
     ),
+    reportSent: sent,
   ),
   dayItemJson(
     _v(
@@ -435,6 +439,87 @@ void main() {
     expect(find.text('2마리 · 예약 2 · 취소 1'), findsOneWidget);
   });
 
+  /// 완료한 셋 — 콩이는 보냄, 두부·보리(가족)는 두부만 보냄, 몽이는 안 보냄.
+  List<Map<String, dynamic>> sentItems() => [
+    dayItemJson(_v(1, '10:00', status: 'completed'), reportSent: true),
+    dayItemJson(
+      _v(
+        2,
+        '12:00',
+        status: 'completed',
+        pet: '두부',
+        owner: '이수진',
+        customerId: 8,
+      ),
+      groupKey: 'duo',
+      reportSent: true,
+    ),
+    dayItemJson(
+      _v(
+        3,
+        '12:00',
+        status: 'completed',
+        pet: '보리',
+        petId: 12,
+        owner: '이수진',
+        customerId: 8,
+      ),
+      groupKey: 'duo',
+    ),
+    dayItemJson(
+      _v(
+        4,
+        '14:00',
+        status: 'completed',
+        pet: '몽이',
+        owner: '박하늘',
+        customerId: 9,
+      ),
+    ),
+  ];
+
+  testWidgets('알림장을 보낸 방문의 카드에 "알림장 보냄"이 보이고, 안 보낸 방문에는 없다', (tester) async {
+    final setup = CustomerTestSetup(
+      _backend(sentItems()).call,
+      overrides: _today,
+    );
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    expect(
+      find.text('목욕 · 김민지 · ${AppStrings.reportSentMark}'),
+      findsOneWidget,
+    );
+    // 가족은 한 아이만 보냈으면 적지 않는다.
+    expect(find.text('목욕 · 이수진'), findsOneWidget);
+    expect(find.text('목욕 · 박하늘'), findsOneWidget);
+  });
+
+  testWidgets('시간표의 블록에도 "알림장 보냄"을 적는다', (tester) async {
+    final setup = CustomerTestSetup(
+      _backend(sentItems()).call,
+      overrides: _today,
+    );
+    addTearDown(setup.container.dispose);
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
+    await _open(tester, setup);
+
+    expect(
+      find.text(
+        '목욕 · 김민지 · ${AppStrings.statusCompleted} · ${AppStrings.reportSentMark}',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('목욕 · 이수진 · ${AppStrings.statusCompleted}'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('목욕 · 박하늘 · ${AppStrings.statusCompleted}'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('시간표로 바꾸면 기기에 기억하고 시간 줄 위에 묶음을 그린다(취소는 그리지 않는다)', (tester) async {
     final setup = CustomerTestSetup(
       _backend([
@@ -629,7 +714,10 @@ void main() {
   });
 
   testWidgets('하루 목록 골든', (tester) async {
-    final setup = CustomerTestSetup(_backend().call, overrides: _today);
+    final setup = CustomerTestSetup(
+      _backend(_mockupItems(sent: true)).call,
+      overrides: _today,
+    );
     addTearDown(setup.container.dispose);
     await _open(tester, setup);
     tester.view.physicalSize = const Size(390, 844);
