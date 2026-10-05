@@ -32,7 +32,7 @@
 - 잠금 순서는 유저 행 → 매장 행(ID 오름차순) → 멤버 행 → 초대 행이다. 고객·방문 쪽은 고객 행 → 방문 행(ID 오름차순)이다 — 방문을 쓰는 유스케이스는 허브 포트 `CustomerDirectoryPort.lock_family`로 고객 행부터 잠근다. 잠금을 쥔 채 외부 HTTP를 부르지 않는다.
 - `load_dotenv`·`os.getenv`·`os.environ`은 `core/singleton/secret_manager.py`에서만 쓴다.
 - 비밀값을 로그·커밋·문서에 남기지 않는다. `.env*` 파일 내용을 그대로 출력하지 않는다.
-- 커밋과 푸시는 사용자가 요청할 때만 한다. CI는 없다. 검증은 로컬에서 한다.
+- 커밋과 푸시는 사용자가 요청할 때만 한다. CI(GitHub Actions, `.github/workflows/`)는 푸시마다 바뀐 영역의 테스트·import-linter·analyze·빌드를 돈다. 골든·e2e·흐름·라우트 표는 CI가 보지 않으니 로컬에서 확인한다.
 - 볼륨 삭제, `docker compose down -v`, 스키마를 파괴하는 명령은 사용자 확인 없이 실행하지 않는다.
 
 ## 명령어

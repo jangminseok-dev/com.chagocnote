@@ -40,7 +40,9 @@ services:
       - "127.0.0.1:6389:6379"
 
   minio:
-    image: quay.io/minio/minio   # minio/minio 는 Docker Hub에서 내려가 quay.io로 옮겼다 (2026-09-20 확인)
+    # MinIO 는 공개 이미지를 내렸다(Docker Hub 삭제, quay.io 는 익명 401 — 2026-10-06 확인).
+    # 같은 설정·명령·저장 형식을 잇는 커뮤니티 포크 Silo 를 버전 고정으로 쓴다.
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: chagoc

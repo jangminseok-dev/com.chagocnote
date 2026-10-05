@@ -1,0 +1,40 @@
+# 백엔드 — 구조 계약(import-linter)·단위·통합 테스트.
+# 로컬과 같은 compose 명령을 돈다(_docs/harness.md). .env·.env.auth 는 실행마다 새로 만드는 일회용이다.
+name: backend
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'infra/docker-compose.yml'
+      - 'infra/docker/**'
+      - '.github/workflows/backend.yml'
+  workflow_dispatch:
+
+# 같은 브랜치에 새로 푸시하면 앞선 실행을 취소한다 — 무료 분을 아낀다.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v7
+      - name: 이미지 빌드
+        run: docker compose build backend
+      - name: 일회용 .env 만들기
+        run: docker compose run --rm --no-deps backend python scripts/generate_dev_env.py
+      - name: 구조 계약
+        run: docker compose run --rm --no-deps backend lint-imports --config .importlinter
+      - name: 단위 테스트
+        run: docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m "not integration and not network"
+      - name: 통합 테스트
+        run: docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m integration
