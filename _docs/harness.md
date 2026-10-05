@@ -34,7 +34,9 @@
 | 웹 서버 응답 | `pnpm check:server` — `pnpm build` 뒤. 가짜 백엔드와 `next start`를 빈 포트에 띄워 상태 코드·헤더 셋·첫 HTML·백엔드 호출 수·기록에 토큰이 없는지를 보고 둘 다 끈다 |
 | 웹 개발 서버 | compose 의 `web` (`infra/`에서 `docker compose up -d web`, http://127.0.0.1:3010. 지우기는 `docker compose rm -sf web` — 볼륨은 남는다) |
 | 웹 실제 브라우저 흐름 | `pnpm e2e:prepare && pnpm e2e` — 개발 스택과 compose 의 `web`이 떠 있어야 한다. 준비가 게이트웨이로 확인용 매장·방문·사진·알림장과 가로 넘침을 볼 긴 글 알림장을 만들고 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다 |
+| CI (GitHub Actions) | 푸시마다 바뀐 영역의 워크플로만 돈다 — `backend.yml`(구조 계약·단위·통합), `web.yml`(Vitest·빌드·`check:server`), `app.yml`(analyze·test, 골든 비교 끔). Actions 화면에서 손으로도 돌린다 |
 
+- CI 는 우분투 러너만 쓴다(비공개 저장소라 무료 분이 월 2,000분이고 macOS 는 10배로 깎인다). 작업마다 시간 상한(백엔드 30분·웹과 앱 20분)이 있고 같은 브랜치에 새로 푸시하면 앞선 실행을 취소한다. 백엔드의 `.env`·`.env.auth`는 `generate_dev_env.py`로 실행마다 새로 만드는 일회용이다. 앱 골든은 맥에서 만들어 리눅스와 글꼴 렌더링이 달라서 CI 는 `--dart-define=SKIP_GOLDEN_COMPARE=true`로 비교만 끈다(`app/test/flutter_test_config.dart`) — 골든은 로컬에서 본다. 맥의 Flutter 를 올리면 `app.yml`의 `flutter-version`도, pnpm 은 `web/package.json`의 `packageManager`를 따른다.
 - 통합 테스트는 별도 데이터베이스 `chagocnote_test`를 쓴다. 개발 데이터를 건드리지 않는다. pytest가 세션마다 한 번 `scripts/prepare_test_db.py`를 돌려 스키마를 비우고 `alembic upgrade head`로 다시 만든다. 테스트 사이에는 시드 표(`roles`, `permissions`, `role_permissions`, `pet_condition_types`)와 마이그레이션 버전 표(`alembic_version`)를 뺀 모든 표를 비운다.
 - 마이그레이션은 손으로 쓴다. `tests/test_schema_drift.py`가 마이그레이션 결과와 ORM이 어긋나면 실패한다. 새 ORM 모듈은 `backend/orm_registry.py`에 등록한다.
 - 구조 위반은 테스트가 아니라 import-linter가 잡는다. 구조를 건드린 변경은 테스트와 구조 계약을 둘 다 돌린다. 계약은 6종이다 — 설계 문서가 말하는 5종에 "core는 스포크를 import하지 않는다"를 하네스에서 더했다.

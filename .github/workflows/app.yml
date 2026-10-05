@@ -1,0 +1,39 @@
+# 앱 — 정적 분석과 테스트.
+# 골든은 맥에서 만들어 리눅스의 글꼴 렌더링과 달라서 비교만 끈다(test/flutter_test_config.dart). 골든은 맥에서 로컬로 확인한다.
+name: app
+
+on:
+  push:
+    paths:
+      - 'app/**'
+      - '.github/workflows/app.yml'
+  workflow_dispatch:
+
+# 같은 브랜치에 새로 푸시하면 앞선 실행을 취소한다 — 무료 분을 아낀다.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v7
+      # 맥의 Flutter 를 올리면 여기도 같이 올린다.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.8
+          cache: true
+      - run: flutter pub get
+      - name: 정적 분석
+        run: flutter analyze
+      - name: 테스트
+        run: flutter test --timeout 30s --dart-define=SKIP_GOLDEN_COMPARE=true
