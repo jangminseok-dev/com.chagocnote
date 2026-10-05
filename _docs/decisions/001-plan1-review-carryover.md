@@ -32,7 +32,7 @@
 13. compose가 저장소 전체를 두 컨테이너에 마운트하므로 backend 컨테이너에서도 `.env.auth` 파일을 읽을 수 있다. 개인키 경계는 지금 "API 프로세스 경로가 `core.auth_config`를 import하지 않는다"는 규율로만 지켜진다. 배포 구성에서는 파일 수준으로 분리한다.
 14. `/v1/auth/social`과 `/v1/auth/refresh`에 요청 제한이 없다.
 15. `/docs`가 두 프로세스에 열려 있다.
-16. `requirements.txt`가 하한(`>=`)뿐이고 잠금 파일이 없다. 이 브랜치가 FastAPI 0.137의 호환성 깨는 변경에 한 번 걸렸다. `pip freeze` 기반 constraints 파일을 둔다. `minio` 이미지에 태그를 단다.
+16. `requirements.txt`가 하한(`>=`)뿐이고 잠금 파일이 없다. 이 브랜치가 FastAPI 0.137의 호환성 깨는 변경에 한 번 걸렸다. `pip freeze` 기반 constraints 파일을 둔다. `minio` 이미지에 태그를 단다. **— 해결됨(2026-10-06): 범위는 `requirements.in`, 간접 의존성까지 고정한 `requirements.txt`는 pip-compile 로 만든다(`_docs/harness.md`). MinIO 는 공개 이미지가 내려가 버전을 고정한 Silo(MinIO 포크)로 바꿨다.**
 17. `auth` 서비스가 마이그레이션을 기다리지 않아 첫 기동 직후 몇 초간 로그인이 500일 수 있다.
 
 ## 작은 것
