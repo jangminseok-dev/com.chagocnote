@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from core.access_log import redact_access_log_queries
 from core.database import dispose_engine, init_engine
-from core.observer.in_process_event_bus import get_event_bus
+from core.observer.in_process_event_bus import get_event_bus, subscribe
 from core.redis import dispose_redis
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
@@ -47,6 +47,7 @@ from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_ro
 from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
+from notification.adapter.inbound.observer.visit_event_subscriber import handle_visit_event
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -204,8 +205,9 @@ app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
 app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
 app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
-# 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자(main.py 가 기동 때 subscribe 로 꽂는다)에 넘긴다.
+# 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
 app.dependency_overrides[get_domain_events] = get_event_bus
+subscribe(handle_visit_event)
 
 
 @app.get("/health")

@@ -3,8 +3,9 @@ import pytest
 from fastapi import Depends, FastAPI
 
 import main
-from core.observer.in_process_event_bus import get_event_bus
+from core.observer.in_process_event_bus import get_event_bus, subscribers
 from core.shop_guard import get_shop_access_port
+from notification.adapter.inbound.observer.visit_event_subscriber import handle_visit_event
 from tenancy.dependencies.hub_ports import get_user_directory
 from tenancy.dependencies.get_shop_profile_provider import get_shop_profile_use_case
 from core.security import get_current_user_id
@@ -37,6 +38,10 @@ def test_도메인_이벤트_자리는_core_의_버스로_채운다():
     assert main.app.dependency_overrides[get_domain_events] is get_event_bus
     with pytest.raises(RuntimeError):
         get_domain_events()
+
+
+def test_notification_구독자가_버스에_등록되어_있다():
+    assert handle_visit_event in subscribers()
 
 
 def _app_with(path, dependency=None):

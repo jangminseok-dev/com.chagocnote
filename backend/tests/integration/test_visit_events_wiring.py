@@ -9,7 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
-from core.observer.in_process_event_bus import clear_subscribers, subscribe
+from core.observer.in_process_event_bus import subscribe, unsubscribe
 from hub.app.dtos.visit_events import VisitCanceled, VisitRescheduled, VisitReserved
 from tests.integration.support import bearer, make_operator, shop_with_owner
 
@@ -28,7 +28,7 @@ def _at(days: int, hour: int) -> str:
 
 @pytest.fixture
 def received():
-    """구독자 하나를 실제 버스에 등록해 받은 (세션, 이벤트)를 모은다. 끝나면 구독자 목록을 비운다."""
+    """구독자 하나를 실제 버스에 등록해 받은 (세션, 이벤트)를 모은다. 끝나면 자기 구독자만 뺀다(실제 구독자는 남긴다)."""
     events = []
 
     async def collect(session, event):
@@ -37,7 +37,7 @@ def received():
 
     subscribe(collect)
     yield events
-    clear_subscribers()
+    unsubscribe(collect)
 
 
 async def _shop(wired):
@@ -98,7 +98,7 @@ async def test_구독자가_던지면_500_이고_방문은_생기지_않는다(w
                                     headers=headers)
         assert booked.status_code == 500
     finally:
-        clear_subscribers()
+        unsubscribe(explode)
     day = (datetime.now(SEOUL).date() + timedelta(days=3)).isoformat()
     listed = await wired.api.get(f"/v1/shops/{shop_id}/visits?date={day}", headers=headers)
     assert listed.status_code == 200 and listed.json()["items"] == []

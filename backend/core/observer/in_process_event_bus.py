@@ -23,12 +23,18 @@ def subscribe(handler: Subscriber) -> None:
         _subscribers.append(handler)
 
 
+def unsubscribe(handler: Subscriber) -> None:
+    """그 구독자만 뺀다(없으면 무시). 통합 테스트가 자기 구독자를 빼고 실제 구독자는 남기는 데 쓴다."""
+    if handler in _subscribers:
+        _subscribers.remove(handler)
+
+
 def subscribers() -> tuple[Subscriber, ...]:
     return tuple(_subscribers)
 
 
 def clear_subscribers() -> None:
-    """테스트용."""
+    """단위 테스트용 — 실제 구독자까지 비우므로 통합 테스트는 unsubscribe 를 쓴다."""
     _subscribers.clear()
 
 

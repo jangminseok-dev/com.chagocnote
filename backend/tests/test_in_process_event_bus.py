@@ -11,6 +11,7 @@ from core.observer.in_process_event_bus import (
     get_event_bus,
     subscribe,
     subscribers,
+    unsubscribe,
 )
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.dtos.visit_events import VisitReserved
@@ -21,9 +22,13 @@ NOW = datetime(2026, 10, 14, 1, 0, tzinfo=timezone.utc)
 
 @pytest.fixture(autouse=True)
 def _clean_subscribers():
+    """비우고 돌린 뒤 실제 구독자(main.py 가 import 때 꽂은 것)를 되살린다 — 같은 프로세스의 뒤 테스트가 잃지 않게."""
+    kept = subscribers()
     clear_subscribers()
     yield
     clear_subscribers()
+    for handler in kept:
+        subscribe(handler)
 
 
 def _event() -> VisitReserved:
@@ -66,6 +71,15 @@ async def test_같은_함수를_두_번_subscribe_해도_한_번만_등록된다
     subscribe(handler)
     subscribe(handler)
     assert subscribers() == (handler,)
+
+
+async def test_unsubscribe_는_그_구독자만_빼고_없는_것은_무시한다():
+    first, second = _recorder("first", []), _recorder("second", [])
+    subscribe(first)
+    subscribe(second)
+    unsubscribe(first)
+    unsubscribe(first)
+    assert subscribers() == (second,)
 
 
 async def test_get_event_bus_는_넘긴_세션에_묶인_버스를_준다():
