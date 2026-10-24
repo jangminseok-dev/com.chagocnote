@@ -48,6 +48,7 @@ from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
 from notification.adapter.inbound.observer.visit_event_subscriber import handle_visit_event
+from notification.dependencies.notification_wiring import get_message_gateway
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -108,6 +109,8 @@ from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_engine()
+    # 발송 게이트웨이를 기동 때 만든다 — 운영에서 솔라피 키가 비면 첫 발송이 아니라 여기서 멈춘다(설계 6.1).
+    get_message_gateway()
     try:
         yield
     finally:

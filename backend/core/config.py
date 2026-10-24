@@ -56,3 +56,10 @@ REPORT_LINK_KEY: bytes = _report_link_key()
 REPORT_WEB_BASE_URL: str = (_m.get("REPORT_WEB_BASE_URL", "") or "http://127.0.0.1:3010").rstrip("/")
 # 웹 서버와 나누는 비밀값 — 맞을 때만 웹 서버가 알려 준 접속 주소로 횟수를 센다. 비어 있으면 믿지 않는다.
 REPORT_WEB_SECRET: str = _m.get("REPORT_WEB_SECRET", "") or ""
+
+# 알림톡(⑥). 솔라피 API 키 — 둘 다 비면 dev 에서는 가짜 어댑터, 운영에서는 API 프로세스가 기동하지 않는다.
+SOLAPI_API_KEY: str = _m.get("SOLAPI_API_KEY", "") or ""
+SOLAPI_API_SECRET: str = _m.get("SOLAPI_API_SECRET", "") or ""
+# 잔액이 이 아래로 내려가면 경고 로그. 매장별 하루 발송 상한 — 넘으면 보내지 않고 대기에 둔다(설계 9.4).
+SOLAPI_BALANCE_WARN_KRW: int = int(_m.get("SOLAPI_BALANCE_WARN_KRW", "") or 30000)
+NOTIFICATION_DAILY_CAP: int = int(_m.get("NOTIFICATION_DAILY_CAP", "") or 300)

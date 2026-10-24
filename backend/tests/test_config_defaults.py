@@ -58,3 +58,13 @@ def test_알림장_웹_주소는_끝의_빗금을_떼고_비밀값은_없으면_
     assert (load_config().REPORT_WEB_BASE_URL, load_config().REPORT_WEB_SECRET) == ("http://127.0.0.1:3010", "")
     config = load_config(REPORT_WEB_BASE_URL="https://r.chagocnote.com/", REPORT_WEB_SECRET="web-secret")
     assert (config.REPORT_WEB_BASE_URL, config.REPORT_WEB_SECRET) == ("https://r.chagocnote.com", "web-secret")
+
+
+def test_솔라피_키는_없으면_빈_문자열이고_잔액_경고와_하루_상한은_정수_기본값이다(load_config):
+    config = load_config()
+    assert (config.SOLAPI_API_KEY, config.SOLAPI_API_SECRET) == ("", "")
+    assert (config.SOLAPI_BALANCE_WARN_KRW, config.NOTIFICATION_DAILY_CAP) == (30000, 300)
+    config = load_config(SOLAPI_API_KEY="k", SOLAPI_API_SECRET="s", SOLAPI_BALANCE_WARN_KRW="5000",
+                         NOTIFICATION_DAILY_CAP="10")
+    assert (config.SOLAPI_API_KEY, config.SOLAPI_API_SECRET) == ("k", "s")
+    assert (config.SOLAPI_BALANCE_WARN_KRW, config.NOTIFICATION_DAILY_CAP) == (5000, 10)
