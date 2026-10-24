@@ -29,7 +29,7 @@ from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
 from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
-from notification.app.services.message_text import message_variables
+from notification.app.services.message_text import message_target, message_variables
 from notification.app.services.system_context import system_context
 from notification.domain.entities.notification_message import NotificationMessage
 from notification.domain.services.schedule_rules import (
@@ -40,7 +40,7 @@ from notification.domain.services.schedule_rules import (
     is_too_late,
     retry_at,
 )
-from notification.domain.services.templates import TEMPLATES, TEXT_VERSION, render, sms_channel, target_label
+from notification.domain.services.templates import TEMPLATES, TEXT_VERSION, render, sms_channel
 from notification.domain.value_objects.message_kind import DEFAULT_KINDS, NEXT_VISIT, REMINDER, SCHEDULED_KINDS
 from notification.domain.value_objects.message_status import (
     ACCEPTED,
@@ -160,8 +160,8 @@ class Dispatcher:
         if channel is None or not channel.is_linked:
             return self._cancel(m, "channel_unlinked")
         settings = await self._settings.get(ctx)
-        if settings is None or not settings.enabled_for(m.kind):
-            return self._cancel(m, "setting_off")
+        if settings is None or (not settings.enabled_for(m.kind) and m.requested_by_member_id is None):
+            return self._cancel(m, "setting_off")   # 매장이 직접 누른 재발송은 설정과 무관하게 간다
         template = await self._templates.get(ctx, m.kind)
         if template is None or template.status == REJECTED:
             return self._cancel(m, "template_rejected")
@@ -192,12 +192,8 @@ class Dispatcher:
                            m.shop_id, sent_today, self._daily_cap)
             return replace(m, status=SCHEDULED, scheduled_at=now + DAILY_CAP_DEFER)
 
-        pet_name = None
-        if m.pet_id is not None:
-            pet = (await self._directory.briefs(ctx, [], [m.pet_id])).pets.get(m.pet_id)
-            pet_name = pet.name if pet is not None else None
-        variables = message_variables(m.kind, shop_name=profile.name, target=target_label(pet_name, contact.name),
-                                      tz=tz, variables=m.variables)
+        target = await message_target(ctx, self._directory, m, contact)
+        variables = message_variables(m.kind, shop_name=profile.name, target=target, tz=tz, variables=m.variables)
         rendered = render(m.kind, variables)
         fallback = None
         if channel.can_fallback:

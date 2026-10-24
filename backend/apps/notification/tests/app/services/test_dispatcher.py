@@ -239,6 +239,18 @@ async def test_보내기_전_검사에_걸리면_이유를_적고_취소한다(b
     assert report.canceled == 1 and world.sent() == []
 
 
+async def test_매장이_직접_누른_재발송은_설정이_꺼진_종류여도_보낸다():
+    """[다시 보내기]로 만든 줄(requested_by_member_id)은 setting_off 검사를 건너뛴다. 자동 줄은 그대로 취소."""
+    world = _World(confirm_enabled=False)
+    world.queue(id=1, requested_by_member_id=11)
+    world.queue(id=2, visit_id=2)
+
+    report = await world.run()
+
+    assert (world.row(1).status, world.row(2).canceled_reason) == (ACCEPTED, "setting_off")
+    assert (report.sent, report.canceled) == (1, 1)
+
+
 async def test_템플릿이_검수_중이면_10분_뒤로_미룬다():
     world = _World()
     world.templates.rows[(1, CONFIRM)] = template(status=PENDING, decided_at=None)
