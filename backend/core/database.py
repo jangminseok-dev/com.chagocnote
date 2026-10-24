@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends
@@ -52,6 +53,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+@asynccontextmanager
+async def session_scope() -> AsyncGenerator[AsyncSession, None]:
+    """요청 밖(디스패처)에서 세션 하나를 연다. 커밋은 부르는 쪽이 단계마다 한다 — 닫힐 때 남은 것은 롤백된다."""
+    if _session_factory is None:
+        init_engine()
+    assert _session_factory is not None
+    async with _session_factory() as session:
+        yield session
 
 
 # 요청 함수가 끝나는 즉시(응답을 보내기 전에) 커밋되도록 function 스코프로 정리한다.

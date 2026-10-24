@@ -5,13 +5,16 @@ from fastapi import Depends, FastAPI
 import main
 from core.observer.in_process_event_bus import get_event_bus, subscribers
 from core.shop_guard import get_shop_access_port
+from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
 from notification.adapter.inbound.observer.visit_event_subscriber import handle_visit_event
+from notification.dependencies.dispatcher_ports import dispatcher_ports
 from tenancy.dependencies.hub_ports import get_user_directory
 from tenancy.dependencies.get_shop_profile_provider import get_shop_profile_use_case
 from core.security import get_current_user_id
 from core.shop_guard import get_shop_context
 from tests.route_inspection import find_route_violations, routes_without_login
 from visit.dependencies.hub_ports import get_domain_events, get_shop_profile
+from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 
 
 def test_API_프로세스에는_빈_자리도_빠진_가드도_없다():
@@ -42,6 +45,13 @@ def test_도메인_이벤트_자리는_core_의_버스로_채운다():
 
 def test_notification_구독자가_버스에_등록되어_있다():
     assert handle_visit_event in subscribers()
+
+
+def test_디스패처의_허브_포트_공장은_tenancy_customer_visit_의_프로바이더다():
+    ports = dispatcher_ports()
+    assert ports.shop_profile is get_shop_profile_use_case
+    assert ports.customer_directory is get_customer_directory_use_case
+    assert ports.visit_ledger is get_visit_ledger_use_case
 
 
 def _app_with(path, dependency=None):

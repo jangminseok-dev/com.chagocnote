@@ -48,6 +48,9 @@ from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
 from notification.adapter.inbound.observer.visit_event_subscriber import handle_visit_event
+from notification.app.services.dispatcher_wakeup import wake
+from notification.dependencies.dispatcher_ports import DispatcherPorts, configure_dispatcher_ports
+from notification.dependencies.dispatcher_provider import start_dispatcher
 from notification.dependencies.notification_wiring import get_message_gateway
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
@@ -111,9 +114,14 @@ async def lifespan(app: FastAPI):
     init_engine()
     # 발송 게이트웨이를 기동 때 만든다 — 운영에서 솔라피 키가 비면 첫 발송이 아니라 여기서 멈춘다(설계 6.1).
     get_message_gateway()
+    # 디스패처 — 프로세스에 asyncio 작업 하나(설계 3.2). 끝낼 때 정지를 알리고 깨워서 기다림을 끊는다.
+    task, stop = start_dispatcher()
     try:
         yield
     finally:
+        stop.set()
+        wake()
+        await task
         await dispose_engine()
         await dispose_redis()
 
@@ -211,6 +219,11 @@ app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
 # 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
 app.dependency_overrides[get_domain_events] = get_event_bus
 subscribe(handle_visit_event)
+# 디스패처는 요청 밖이라 Depends 자리를 못 쓴다 — 같은 세 프로바이더를 세션을 받는 공장으로 꽂는다.
+configure_dispatcher_ports(DispatcherPorts(
+    shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,
+    visit_ledger=get_visit_ledger_use_case,
+))
 
 
 @app.get("/health")

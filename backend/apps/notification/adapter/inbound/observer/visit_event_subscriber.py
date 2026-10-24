@@ -12,6 +12,7 @@ from notification.adapter.outbound.pg.message_pg_repository import MessagePgRepo
 from notification.adapter.outbound.pg.settings_pg_repository import SettingsPgRepository
 from notification.adapter.outbound.pg.template_pg_repository import TemplatePgRepository
 from notification.app.dtos.handle_visit_event_dto import HandleVisitEventCommand
+from notification.app.services.dispatcher_wakeup import wake
 from notification.app.use_cases.handle_visit_event_interactor import HandleVisitEventInteractor
 from notification.domain.services.clock import utc_now
 
@@ -23,3 +24,4 @@ async def handle_visit_event(session: AsyncSession, event: VisitEvent) -> None:
         templates=TemplatePgRepository(session), messages=MessagePgRepository(session), now=utc_now,
     )
     await use_case.handle_visit_event(HandleVisitEventCommand(event=event))
+    wake()   # 줄을 만들었든 아니든 — 루프가 반 초 뒤(요청의 커밋 뒤) 돈다(설계 5.3-1)

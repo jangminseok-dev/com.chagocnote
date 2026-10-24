@@ -7,8 +7,17 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime
+from decimal import Decimal
 
+from hub.app.dtos.customer_contact import CustomerContact
+from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
+from hub.app.dtos.shop_profile import ShopProfile
+from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.shop_profile_port import ShopProfilePort
+from hub.app.ports.visit_ledger_port import VisitLedgerPort
+from notification.adapter.outbound.strategy.fake_gateway import FakeGateway
 from notification.app.ports.output.channel_repository import ChannelRepository
+from notification.app.ports.output.message_gateway_port import DeliveryState
 from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
 from notification.app.ports.output.settings_repository import SettingsRepository
@@ -237,3 +246,124 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
                             key=lambda t: KINDS.index(t.kind))
             for shop_id in shop_ids
         }
+
+
+# --- 디스패처가 읽는 허브 포트 스텁 --------------------------------------------------------------------------------
+
+class FakeShopProfile(ShopProfilePort):
+    """ShopProfilePort 스텁 — 매장 ID → ShopProfile 사전. 없는 매장은 None."""
+
+    def __init__(self, shops: dict[int, ShopProfile] | None = None) -> None:
+        self.shops = shops if shops is not None else {}
+
+    async def public_profile(self, shop_id):
+        return self.shops.get(shop_id)
+
+
+class FakeDirectory(CustomerDirectoryPort):
+    """CustomerDirectoryPort 스텁 — 디스패처가 쓰는 contact·briefs 만 값을 낸다. 매장이 다르면 없는 것으로 본다.
+
+    contacts 는 {고객 ID: CustomerContact}(익명화를 흉내 내려면 뺀다), pets 는 {반려동물 ID: PetBrief}.
+    """
+
+    def __init__(self, shop_id: int = 1) -> None:
+        self.shop_id = shop_id
+        self.contacts: dict[int, CustomerContact] = {}
+        self.pets: dict[int, PetBrief] = {}
+
+    def family(self, customer_id=1, pet_id=101, name="김민지", phone="01012345678", pet_name="콩이",
+               marketing_consent=True) -> None:
+        self.contacts[customer_id] = CustomerContact(customer_id=customer_id, name=name, phone=phone,
+                                                     marketing_consent=marketing_consent)
+        self.pets[pet_id] = PetBrief(pet_id=pet_id, customer_id=customer_id, name=pet_name, species="dog",
+                                     breed="말티즈", weight_kg=Decimal("3.2"), passed_away=False)
+
+    async def lock_family(self, ctx, customer_id, pet_ids):
+        return None
+
+    async def briefs(self, ctx, customer_ids, pet_ids):
+        if ctx.shop_id != self.shop_id:
+            return FamilyBriefs(customers={}, pets={})
+        customers = {c: CustomerBrief(customer_id=c, name=self.contacts[c].name, phone_masked=None)
+                     for c in customer_ids if c in self.contacts}
+        return FamilyBriefs(customers=customers, pets={p: self.pets[p] for p in pet_ids if p in self.pets})
+
+    async def set_last_visit(self, ctx, customer_id, at):
+        return None
+
+    async def set_pet_weight(self, ctx, pet_id, weight_kg):
+        return None
+
+    async def find_draft_candidates(self, ctx, words):
+        return []
+
+    async def contact(self, ctx, customer_id):
+        return self.contacts.get(customer_id) if ctx.shop_id == self.shop_id else None
+
+
+class FakeLedger(VisitLedgerPort):
+    """VisitLedgerPort 스텁 — 디스패처는 customer_has_upcoming 만 쓴다. upcoming 은 앞으로의 예약이 있는 고객 ID."""
+
+    def __init__(self) -> None:
+        self.upcoming: set[int] = set()
+
+    async def pet_has_visits(self, ctx, pet_id):
+        return False
+
+    async def pet_has_upcoming(self, ctx, pet_id):
+        return False
+
+    async def customer_has_upcoming(self, ctx, customer_id):
+        return customer_id in self.upcoming
+
+    async def no_show_count(self, ctx, customer_id):
+        return 0
+
+    async def upcoming_for_customer(self, ctx, customer_id, limit):
+        return []
+
+    async def clear_customer_memos(self, ctx, customer_id):
+        return None
+
+    async def latest_covers(self, ctx, pet_ids):
+        return {}
+
+
+class SpyGateway(FakeGateway):
+    """FakeGateway 에 journal 과 '던질 예외'·'정해 둔 상태'를 더한 것. journal 에 번호는 남기지 않는다."""
+
+    def __init__(self, journal: Journal | None = None, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.journal = journal if journal is not None else Journal()
+        self.send_error: Exception | None = None            # 있으면 send 가 던진다
+        self.state_error: Exception | None = None           # 있으면 delivery_state 가 던진다
+        self.register_error: Exception | None = None        # 있으면 register_template 이 던진다
+        self.states: dict[str, DeliveryState] = {}          # 업체 메시지 ID → 정해 둔 상태(없으면 번호 규칙)
+
+    async def register_template(self, provider_channel_id, template, text_version):
+        self.journal.append(("register_template", provider_channel_id, template.kind))
+        if self.register_error is not None:
+            raise self.register_error
+        return await super().register_template(provider_channel_id, template, text_version)
+
+    async def template_state(self, provider_template_id):
+        self.journal.append(("template_state", provider_template_id))
+        return await super().template_state(provider_template_id)
+
+    async def send(self, message):
+        self.journal.append(("send", message.provider_template_id))
+        if self.send_error is not None:
+            raise self.send_error
+        return await super().send(message)
+
+    async def delivery_state(self, provider_message_id):
+        self.journal.append(("delivery_state", provider_message_id))
+        if self.state_error is not None:
+            raise self.state_error
+        if provider_message_id in self.states:
+            return self.states[provider_message_id]
+        return await super().delivery_state(provider_message_id)
+
+    async def balance(self):
+        self.journal.append(("balance",))
+        return await super().balance()
