@@ -33,6 +33,10 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 # 알림톡 템플릿 카테고리 코드 — 실계정에서 GET /kakao/v2/templates/categories 로 확인해 맞춘다(T6 보고서 7절).
 TEMPLATE_CATEGORY_CODE = "003001"
 
+# 업체가 준 글자열은 저장 칸 길이로 자른다(error_code String(20), rejected_reason String(500)) — 긴 값 하나가 그 줄의
+# 저장을 영영 막지 않게.
+ERROR_CODE_MAX, REJECTED_REASON_MAX = 20, 500
+
 # 업체 4자리 상태 코드 → (status, channel_used, error_kind). sent 의 channel_used 는 메시지 type 으로 정한다.
 # 표에 없는 실패 코드는 transient(다시 시도하는 쪽이 싸다 — 3회 뒤 멈춘다). 출처: solapi.com/guides/message-status-codes
 _PENDING = ("pending", None, None)
@@ -144,7 +148,7 @@ class SolapiGateway(MessageGatewayPort):
         reason = None
         if status == "rejected":
             admin_comments = [c.get("content") for c in found.get("comments") or [] if c.get("isAdmin")]
-            reason = admin_comments[-1] if admin_comments else "반려됨"
+            reason = (admin_comments[-1] if admin_comments else "반려됨")[:REJECTED_REASON_MAX]
         return TemplateState(status=status, rejected_reason=reason)
 
     async def request_sender_verification(self, phone: str) -> None:
@@ -196,7 +200,7 @@ class SolapiGateway(MessageGatewayPort):
         found = (listed.get("messageList") or {}).get(provider_message_id)
         if found is None:
             return DeliveryState(status="pending", channel_used=None, error_code=None, error_kind=None)
-        code = str(found.get("statusCode") or "")
+        code = str(found.get("statusCode") or "")[:ERROR_CODE_MAX]
         status, channel_used, error_kind = _DELIVERY.get(code, _TRANSIENT)
         if status == "sent":
             message_type = str(found.get("type") or "")
@@ -215,4 +219,4 @@ def _error_code(response: httpx.Response) -> str | None:
     except ValueError:
         return None
     code = body.get("errorCode") if isinstance(body, dict) else None
-    return str(code) if code else None
+    return str(code)[:ERROR_CODE_MAX] if code else None

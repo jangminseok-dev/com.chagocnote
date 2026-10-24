@@ -371,3 +371,17 @@ async def test_큐의_전_매장_조회는_매장을_가리지_않고_모은다(
     assert await repo.list_pending_templates() == [a_next, b_confirm]
     assert await repo.list_templates_for_shops([1, 2, 4]) == {1: [a_confirm, a_next], 2: [b_confirm], 4: []}
     assert await repo.list_templates_for_shops([]) == {}
+
+
+async def test_멈춘_sending_줄이_이미_세_번_시도했으면_되돌리지_않고_failed_로_끝낸다(db_session):
+    """독이 든 줄이 5분마다 업체를 다시 부르며 영영 돌지 않게 — 회수에도 원 시도 1 + 3 의 상한이 있다."""
+    repo = MessagePgRepository(db_session)
+    earliest, later, _, _ = await _due_rows(repo)
+    await repo.save(A, replace(earliest, attempts=3))
+    await repo.claim_due(NOW, 2)
+
+    assert await repo.recover_stuck(NOW + 10 * MINUTE) == 2
+
+    ended, recovered = await repo.get(A, earliest.id), await repo.get(A, later.id)
+    assert (ended.status, ended.attempts, ended.error_kind, ended.error_code) == (FAILED, 4, "transient", "STUCK")
+    assert (recovered.status, recovered.attempts) == (SCHEDULED, 1)

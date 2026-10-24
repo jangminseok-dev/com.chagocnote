@@ -16,6 +16,7 @@ REMINDER_TIME_MIN, REMINDER_TIME_MAX = time(8, 0), time(21, 0)
 NEXT_VISIT_WEEKS_MIN, NEXT_VISIT_WEEKS_MAX = 1, 52
 COOLDOWN_DAYS_MIN, COOLDOWN_DAYS_MAX = 1, 365
 MAX_ATTEMPTS = 3
+STUCK_CODE = "STUCK"           # 회수 상한에 닿은 sending 줄의 error_code
 RETRY_DELAYS = (timedelta(minutes=1), timedelta(minutes=5), timedelta(minutes=30))   # 실패 0·1·2회 뒤
 STUCK_AFTER = timedelta(minutes=5)          # 이보다 오래 sending 이면 다음 루프가 되돌린다
 ACCEPTED_TIMEOUT = timedelta(hours=24)      # accepted 의 최종 상태를 기다리는 최대 시간

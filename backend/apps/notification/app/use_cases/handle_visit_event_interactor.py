@@ -75,7 +75,10 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
             await self._messages.cancel_pending(ctx, "report_revoked", event.visit_id, kinds=(REPORT,))
 
     async def _reserved(self, ctx: ShopContext, settings: NotificationSettings, event: VisitReserved, now: datetime):
-        # 되돌린 예약은 접수 안내를 다시 보내지 않는다 — 리마인드만.
+        # 되돌린 예약은 접수 안내를 다시 보내지 않는다 — 리마인드만. 완료를 되돌렸으면 그 완료가 만든 다음 예약 제안도
+        # 거둔다(다시 완료할 때 같은 방문·종류의 대기 줄 하나 규칙에 막히지 않게).
+        if event.revived:
+            await self._messages.cancel_pending(ctx, "reverted", event.visit_id, kinds=(NEXT_VISIT,))
         if not event.revived and await self._allowed(ctx, settings, CONFIRM, event.visit_id):
             await self._create_for_group(ctx, event, CONFIRM, now)
         at = reminder_at(event.starts_at, settings.reminder_time, ctx.timezone, now)
@@ -110,7 +113,9 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         if weeks is None:
             weeks = interval_weeks(event.previous_completed_at, event.occurred_at, ctx.timezone)
         at = next_visit_at(event.occurred_at, weeks, settings.reminder_time, ctx.timezone)
-        await self._create(ctx, event, NEXT_VISIT, at, completed_at=_iso(event.occurred_at), interval_weeks=str(weeks))
+        # 가족 묶음을 함께 완료하면 제안도 한 통 — 둘째 방문은 묶음의 줄(같은 보호자·시작 시각)이 맡는다.
+        await self._create_for_group(ctx, event, NEXT_VISIT, at, completed_at=_iso(event.occurred_at),
+                                     interval_weeks=str(weeks))
 
     async def _report_issued(
         self, ctx: ShopContext, settings: NotificationSettings, event: VisitReportIssued, now: datetime

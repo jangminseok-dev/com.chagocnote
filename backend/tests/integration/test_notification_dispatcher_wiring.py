@@ -218,3 +218,15 @@ async def test_루프가_부르는_run_once_는_세션을_열어_조립하고_�
 
     [row] = await _rows(wired, shop_id)
     assert (report.sent, row.status, row.provider_message_id) == (1, "accepted", "fake-1")
+
+
+async def test_루프의_run_once_를_두_번_불러도_잔액과_템플릿_상태는_한_번만_본다(wired, monkeypatch):
+    """run_once 가 매번 새 Dispatcher 를 만들어도 주기 시각은 프로세스에 하나다 — 10분·24시간이 루프마다로 줄지 않는다."""
+    gateway = FakeGateway()
+    monkeypatch.setattr(provider, "get_message_gateway", lambda: gateway)
+    provider.reset_periodic()
+
+    await provider.run_once()
+    await provider.run_once()
+
+    assert [c for c in gateway.calls if c[0] == "balance"] == [("balance",)]

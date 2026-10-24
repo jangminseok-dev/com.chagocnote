@@ -434,3 +434,25 @@ async def test_알림장_안내는_설정과_템플릿을_본다(how):
         world.templates.rows[(1, REPORT)] = template(kind=REPORT, status=PENDING)
     await world.handle(_event(VisitReportIssued, url=URL, expires_at=None))
     assert world.pending() == []
+
+
+async def test_되돌리면_대기_중인_next_visit_은_reverted_로_취소되고_다시_완료할_수_있다():
+    """완료 → 되돌리기 → 다시 완료가 부분 유일 색인(같은 방문·종류의 대기 줄 하나)에 막혀 409 가 되지 않는다."""
+    world = _World()
+    await world.handle(_completed())
+    assert world.pending() == [(NEXT_VISIT, kst(11, 11, 18))]
+
+    await world.handle(_event(VisitReserved, revived=True))
+
+    assert [(k, s, r) for k, s, _, r in world.rows()] == [(NEXT_VISIT, CANCELED, "reverted"), (REMINDER, SCHEDULED, None)]
+    await world.handle(_completed())
+    assert [(k, s) for k, s, *_ in world.rows() if k == NEXT_VISIT] == [(NEXT_VISIT, CANCELED), (NEXT_VISIT, SCHEDULED)]
+
+
+async def test_두_마리를_함께_완료하면_next_visit_은_한_통이고_pet_ids_에_둘이_실린다():
+    world = _World()
+    await world.handle(_completed(visit_id=7, pet_id=101, family_pet_ids=(101, 102)))
+    await world.handle(_completed(visit_id=8, pet_id=102, family_pet_ids=(101, 102)))
+
+    rows = [m for m in world.messages.rows.values() if m.kind == NEXT_VISIT]
+    assert len(rows) == 1 and (rows[0].visit_id, rows[0].variables["pet_ids"]) == (7, "101,102")

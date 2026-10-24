@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import NOTIFICATION_DAILY_CAP, SOLAPI_BALANCE_WARN_KRW
 from core.database import session_scope
 from notification.app.ports.output.message_gateway_port import MessageGatewayPort
-from notification.app.services.dispatcher import Dispatcher, DispatchReport
+from notification.app.services.dispatcher import Dispatcher, DispatchReport, PeriodicState
 from notification.app.services.dispatcher_wakeup import wait
 from notification.dependencies.dispatcher_ports import dispatcher_ports
 from notification.dependencies.notification_wiring import (
@@ -27,6 +27,14 @@ logger = logging.getLogger("notification.dispatcher")
 
 WAKE_SETTLE_SECONDS = 0.5      # 깨운 쪽(구독자)의 커밋이 먼저 닿게
 
+_periodic = PeriodicState()    # 템플릿 상태·잔액을 본 시각 — 루프가 run_once 마다 새 Dispatcher 를 만들어도 프로세스에 하나
+
+
+def reset_periodic() -> None:
+    """테스트용 — 주기 시각을 비운다."""
+    global _periodic
+    _periodic = PeriodicState()
+
 
 def build_dispatcher(
     db: AsyncSession, *, gateway: MessageGatewayPort | None = None, now: Callable[[], datetime] | None = None
@@ -38,8 +46,8 @@ def build_dispatcher(
         templates=build_template_repository(db), messages=messages,
         gateway=gateway if gateway is not None else get_message_gateway(),
         shops=ports.shop_profile(db), directory=ports.customer_directory(db), ledger=ports.visit_ledger(db),
-        commit=db.commit, now=now if now is not None else utc_now,
-        daily_cap=NOTIFICATION_DAILY_CAP, balance_warn_krw=SOLAPI_BALANCE_WARN_KRW,
+        commit=db.commit, rollback=db.rollback, now=now if now is not None else utc_now,
+        daily_cap=NOTIFICATION_DAILY_CAP, balance_warn_krw=SOLAPI_BALANCE_WARN_KRW, periodic=_periodic,
     )
 
 

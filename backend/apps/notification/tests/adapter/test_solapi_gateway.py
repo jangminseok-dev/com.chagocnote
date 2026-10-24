@@ -333,3 +333,16 @@ async def test_번호는_예외_메시지와_기록에_남지_않는다(caplog):
     assert PHONE not in str(token_error.value)
     assert PHONE in str(recorder.requests[2].url)     # 경로에는 번호가 있다 — 그래서 기록을 본다
     assert all(PHONE not in record.getMessage() for record in caplog.records)
+
+
+async def test_업체_오류_코드와_반려_사유는_저장_칸_길이로_자른다():
+    """error_code 는 20자, rejected_reason 은 500자 칸이다 — 긴 값 하나가 그 줄의 저장을 영영 막지 않게 어댑터가 자른다."""
+    recorder = _Recorder(httpx.Response(400, json={"errorCode": "E" * 40, "errorMessage": "x"}))
+    with pytest.raises(GatewayPermanentError) as permanent:
+        await _gateway(recorder).balance()
+    assert permanent.value.code == "E" * 20
+    state = await _gateway(_Recorder(_listed("3" * 30))).delivery_state("M1")
+    assert (state.status, len(state.error_code)) == ("failed", 20)
+    rejected = _ok({"status": "REJECTED", "comments": [{"isAdmin": True, "content": "길" * 600}]})
+    state = await _gateway(_Recorder(rejected)).template_state("KA01TP0001")
+    assert len(state.rejected_reason) == 500

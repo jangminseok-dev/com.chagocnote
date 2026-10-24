@@ -46,13 +46,17 @@ class _Session:
     async def commit(self) -> None:
         return None
 
+    async def rollback(self) -> None:
+        return None
+
 
 def test_build_dispatcher_는_넘긴_게이트웨이와_시계를_쓰고_저장소는_세션으로_만든다(stub_ports):
     gateway, session = SpyGateway(), _Session()
     dispatcher = provider.build_dispatcher(session, gateway=gateway, now=lambda: NOW)
     assert isinstance(dispatcher, Dispatcher)
     assert dispatcher._gateway is gateway and dispatcher._now() == NOW
-    assert dispatcher._commit == session.commit
+    assert dispatcher._commit == session.commit and dispatcher._rollback == session.rollback
+    assert dispatcher._periodic is provider._periodic
     assert (dispatcher._daily_cap, dispatcher._balance_warn_krw) == (provider.NOTIFICATION_DAILY_CAP,
                                                                      provider.SOLAPI_BALANCE_WARN_KRW)
 

@@ -15,6 +15,7 @@ from notification.app.ports.output.message_gateway_port import (
     GatewayPermanentError,
     GatewayTransientError,
 )
+from notification.adapter.outbound.strategy.fake_gateway import PERMANENT_CODE, TRANSIENT_CODE
 from notification.app.services.dispatcher import DispatchReport, Dispatcher
 from notification.domain.value_objects.channel_status import UNLINKED
 from notification.domain.value_objects.message_kind import (
@@ -86,12 +87,16 @@ class _World:
         self.dispatcher = Dispatcher(
             queue=self.messages, channels=self.channels, settings=self.settings, templates=self.templates,
             messages=self.messages, gateway=self.gateway, shops=self.shops, directory=self.directory,
-            ledger=self.ledger, commit=self._commit, now=lambda: self.now, daily_cap=daily_cap,
+            ledger=self.ledger, commit=self._commit, rollback=self._rollback, now=lambda: self.now,
+            daily_cap=daily_cap,
             balance_warn_krw=30000,
         )
 
     async def _commit(self) -> None:
         self.journal.append(("commit",))
+
+    async def _rollback(self) -> None:
+        self.journal.append(("rollback",))
 
     def queue(self, kind=CONFIRM, scheduled_at=NOW, starts_at=STARTS, **overrides):
         """시각이 된 줄 하나. variables 는 구독자(T5)가 넣는 모양 그대로."""
@@ -466,17 +471,72 @@ async def test_문자로_대체되어_나갔으면_fallback_sent_다():
     assert (world.row().status, world.row().channel_used) == (FALLBACK_SENT, "sms")
 
 
-async def test_업체가_실패로_답하면_failed_와_업체의_분류를_적는다():
+async def test_업체가_영구_실패로_답하면_failed_와_업체의_분류를_적는다():
     world = _World()
-    world.directory.family(phone="01012349999")
+    world.directory.family(phone="01012340000")
     world.queue()
     await world.run()
 
     report = await world.run_at(NOW + 5 * SEC)
 
     row = world.row()
-    assert (row.status, row.error_code, row.error_kind) == (FAILED, "3040", "transient")
+    assert (row.status, row.error_code, row.error_kind) == (FAILED, PERMANENT_CODE, "permanent")
     assert (report.polled, report.failed) == (1, 1)
+
+
+async def test_접수_뒤_업체가_일시_실패로_답하면_같은_규칙으로_다시_보내고_네_번째_실패에서_failed_다():
+    """설계 5.3-5 — 단말 사정·시간 초과 같은 접수 뒤 일시 실패도 1·5·30분 뒤 다시 보낸다. 접수가 곧 시도라 attempts 는 그대로."""
+    world = _World()
+    world.directory.family(phone="01012349999")
+    world.queue()
+    await world.run()                                        # 접수(attempts 1)
+
+    await world.run_at(NOW + 5 * SEC)                        # 상태 조회 → 일시 실패
+
+    row = world.row()
+    assert (row.status, row.attempts, row.error_kind, row.error_code) == (SCHEDULED, 1, "transient", TRANSIENT_CODE)
+    assert row.scheduled_at == NOW + 5 * SEC + MIN
+    world.queue(id=2, attempts=3, scheduled_at=NOW + 5 * SEC + MIN)   # 이미 세 번 보낸 줄
+    await world.run_at(NOW + 5 * SEC + MIN)                 # 둘 다 다시 접수(attempts 2·4)
+    await world.run_at(NOW + 5 * SEC + MIN + 5 * SEC)       # 상태 조회
+    first, second = world.row(1), world.row(2)
+    assert (first.status, first.attempts, first.scheduled_at) == (SCHEDULED, 2, NOW + 5 * SEC + MIN + 5 * SEC + 5 * MIN)
+    assert (second.status, second.attempts, second.error_kind, second.error_code) == (FAILED, 4, "transient", TRANSIENT_CODE)
+
+
+async def test_한_줄의_저장이_실패하면_롤백하고_그_줄만_failed_로_적고_다음_줄은_간다():
+    """독이 든 줄 — 저장 오류가 세션을 깨뜨려 같은 배치의 뒤 줄까지 막고 5분마다 반복되지 않게 한다."""
+    world = _World()
+    world.queue()
+    world.queue(id=2)
+    original = world.messages.save
+
+    async def flaky(ctx, m):
+        if m.id == 1 and m.status == ACCEPTED:
+            raise ValueError("저장 실패")
+        await original(ctx, m)
+
+    world.messages.save = flaky
+
+    report = await world.run()
+
+    assert ("rollback",) in world.journal
+    first, second = world.row(1), world.row(2)
+    assert (first.status, first.error_kind, first.error_code) == (FAILED, "permanent", "SAVE_ERROR")
+    assert second.status == ACCEPTED
+    assert (report.sent, report.failed) == (1, 1)
+
+
+async def test_무지개다리를_건넌_아이가_있는_묶음의_다음_예약_제안은_passed_away_로_취소한다():
+    world = _World()
+    world.directory.pets[101] = replace(world.directory.pets[101], passed_away=True)
+    world.queue(kind=NEXT_VISIT)
+
+    await world.run()
+
+    row = world.row()
+    assert (row.status, row.canceled_reason) == (CANCELED, "passed_away")
+    assert world.sent() == []
 
 
 async def test_아직_대기면_처음_1분은_5초마다_그_뒤는_1분마다_다시_묻는다():
@@ -635,6 +695,6 @@ async def test_로그에는_메시지_ID_매장_종류_결과만_있고_번호_�
 
     assert any("report" in r.getMessage() and "accepted" in r.getMessage() for r in caplog.records)
     assert any("canceled(anonymized)" in r.getMessage() for r in caplog.records)
-    assert any("failed(3040)" in r.getMessage() for r in caplog.records)
+    assert any("scheduled(3040)" in r.getMessage() for r in caplog.records)   # 접수 뒤 일시 실패 → 재시도
     for secret in (PHONE, "01012349999", NAME, URL, "t" * 43, "콩이"):
         assert secret not in caplog.text

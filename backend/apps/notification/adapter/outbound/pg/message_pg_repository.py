@@ -21,12 +21,14 @@ from notification.domain.entities.notification_channel import NotificationChanne
 from notification.domain.entities.notification_message import NotificationMessage
 from notification.domain.entities.notification_template import NotificationTemplate
 from notification.domain.errors import MessageAlreadyPendingError
+from notification.domain.services.schedule_rules import MAX_ATTEMPTS, STUCK_CODE
 from notification.domain.value_objects.channel_status import LINKED
 from notification.domain.value_objects.message_status import (
     ACCEPTED,
     CANCELED,
     DELIVERED_STATUSES,
     PENDING_STATUSES,
+    FAILED,
     SCHEDULED,
     SENDING,
 )
@@ -167,12 +169,18 @@ class MessagePgRepository(MessageRepository, NotificationQueueRepository):
         return sorted(claimed, key=lambda m: (m.scheduled_at, m.id))
 
     async def recover_stuck(self, before: datetime) -> int:
+        # 원 시도 1 + 재시도 3 의 상한은 회수에도 있다 — 집을 때마다 터지는 줄이 5분마다 되살아나 영영 돌지 않게.
+        ended = await self._session.execute(
+            update(_M)
+            .where(_M.status == SENDING, _M.updated_at < before, _M.attempts >= MAX_ATTEMPTS)
+            .values(status=FAILED, attempts=_M.attempts + 1, error_kind="transient", error_code=STUCK_CODE)
+        )
         recovered = await self._session.execute(
             update(_M)
             .where(_M.status == SENDING, _M.updated_at < before)
             .values(status=SCHEDULED, attempts=_M.attempts + 1)
         )
-        return recovered.rowcount
+        return ended.rowcount + recovered.rowcount
 
     async def list_accepted(self, now: datetime) -> list[NotificationMessage]:
         return await self._rows(

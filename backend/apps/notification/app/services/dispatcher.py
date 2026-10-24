@@ -29,7 +29,7 @@ from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
 from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
-from notification.app.services.message_text import message_target, message_variables
+from notification.app.services.message_text import message_pet_ids, message_target, message_variables
 from notification.app.services.system_context import system_context
 from notification.domain.entities.notification_message import NotificationMessage
 from notification.domain.services.schedule_rules import (
@@ -63,6 +63,14 @@ ALIMTALK = "alimtalk"
 
 
 @dataclass
+class PeriodicState:
+    """템플릿 상태·잔액을 마지막으로 본 시각. 루프는 run_once 마다 새 Dispatcher 를 만들므로 프로세스에 하나를 두고 넘긴다."""
+
+    templates_refreshed_at: datetime | None = None
+    balance_checked_at: datetime | None = None
+
+
+@dataclass
 class DispatchReport:
     recovered: int = 0
     claimed: int = 0
@@ -78,8 +86,9 @@ class Dispatcher:
         self, *, queue: NotificationQueueRepository, channels: ChannelRepository, settings: SettingsRepository,
         templates: TemplateRepository, messages: MessageRepository, gateway: MessageGatewayPort,
         shops: ShopProfilePort, directory: CustomerDirectoryPort, ledger: VisitLedgerPort,
-        commit: Callable[[], Awaitable[None]], now: Callable[[], datetime], daily_cap: int,
-        balance_warn_krw: int, claim_limit: int = 50,
+        commit: Callable[[], Awaitable[None]], rollback: Callable[[], Awaitable[None]],
+        now: Callable[[], datetime], daily_cap: int, balance_warn_krw: int, claim_limit: int = 50,
+        periodic: PeriodicState | None = None,
     ) -> None:
         self._queue = queue
         self._channels = channels
@@ -91,12 +100,12 @@ class Dispatcher:
         self._directory = directory
         self._ledger = ledger
         self._commit = commit
+        self._rollback = rollback
         self._now = now
         self._daily_cap = daily_cap
         self._balance_warn_krw = balance_warn_krw
         self._claim_limit = claim_limit
-        self._templates_refreshed_at: datetime | None = None
-        self._balance_checked_at: datetime | None = None
+        self._periodic = periodic if periodic is not None else PeriodicState()
 
     async def run_once(self) -> DispatchReport:
         report = DispatchReport()
@@ -113,8 +122,7 @@ class Dispatcher:
                 logger.warning("알림 %s(매장 %s, %s) 처리 실패 %s — 일시 오류로 적습니다.",
                                m.id, m.shop_id, m.kind, type(exc).__name__)
                 updated = self._retry(m, now, type(exc).__name__[:20])
-            await self._messages.save(system_context(m.shop_id), updated)
-            await self._commit()
+            updated = await self._save(m, updated)
             logger.info("알림 %s(매장 %s, %s) → %s", m.id, m.shop_id, m.kind, _outcome(updated))
             self._count(report, updated)
         for m in await self._queue.list_accepted(now):
@@ -130,12 +138,30 @@ class Dispatcher:
             report.polled += 1
             if updated.status == FAILED:
                 report.failed += 1
-        if self._templates_refreshed_at is None or now - self._templates_refreshed_at >= TEMPLATE_REFRESH_EVERY:
+        refreshed, checked = self._periodic.templates_refreshed_at, self._periodic.balance_checked_at
+        if refreshed is None or now - refreshed >= TEMPLATE_REFRESH_EVERY:
             await self.refresh_templates()
-        if self._balance_checked_at is None or now - self._balance_checked_at >= BALANCE_CHECK_EVERY:
-            self._balance_checked_at = now
+        if checked is None or now - checked >= BALANCE_CHECK_EVERY:
+            self._periodic.balance_checked_at = now
             await self.check_balance()
         return report
+
+    async def _save(self, before: NotificationMessage, updated: NotificationMessage) -> NotificationMessage:
+        """결과를 적고 커밋한다. 저장이 던지면(업체 값이 칸에 안 맞는 등) 롤백하고 그 줄만 영구 실패로 적는다 — 한 줄이
+        세션을 깨뜨려 같은 배치의 뒤 줄을 막고 5분마다 되살아나 업체를 다시 부르지 않게(독이 든 줄)."""
+        try:
+            await self._messages.save(system_context(before.shop_id), updated)
+            await self._commit()
+            return updated
+        except Exception as exc:
+            await self._rollback()
+            logger.warning("알림 %s(매장 %s, %s) 결과 저장 실패 %s — 영구 실패로 적습니다.",
+                           before.id, before.shop_id, before.kind, type(exc).__name__)
+            failed = replace(before, status=FAILED, attempts=before.attempts + 1, error_kind="permanent",
+                             error_code="SAVE_ERROR", canceled_reason=None)
+            await self._messages.save(system_context(before.shop_id), failed)
+            await self._commit()
+            return failed
 
     @staticmethod
     def _count(report: DispatchReport, updated: NotificationMessage) -> None:
@@ -181,6 +207,9 @@ class Dispatcher:
         if m.kind == NEXT_VISIT:
             if not contact.marketing_consent:
                 return self._cancel(m, "no_consent")
+            pets = (await self._directory.briefs(ctx, [], message_pet_ids(m))).pets
+            if any(p.passed_away for p in pets.values()):
+                return self._cancel(m, "passed_away")
             if await self._ledger.customer_has_upcoming(ctx, m.customer_id):
                 return self._cancel(m, "has_upcoming")
             last = await self._messages.last_delivered_at(ctx, m.customer_id, NEXT_VISIT)
@@ -232,6 +261,10 @@ class Dispatcher:
             status = SENT if state.channel_used == ALIMTALK else FALLBACK_SENT
             return replace(m, status=status, channel_used=state.channel_used, sent_at=now)
         if state.status == "failed":
+            if state.error_kind == "transient":
+                # 접수 뒤 일시 실패(단말 꺼짐·전송 시간 초과)도 같은 1·5·30분 규칙으로 다시 보낸다(설계 5.3-5).
+                # 접수가 곧 시도라 attempts 는 올리지 않는다 — _retry 가 올리는 만큼 미리 뺀다.
+                return self._retry(replace(m, attempts=m.attempts - 1), now, state.error_code or "")
             return replace(m, status=FAILED, error_code=state.error_code, error_kind=state.error_kind)
         return self._still_pending(m, now)
 
@@ -289,7 +322,7 @@ class Dispatcher:
                 await self._templates.upsert(ctx, kind, TEXT_VERSION, provider_id, now)
                 await self._commit()
                 changed += 1
-        self._templates_refreshed_at = now
+        self._periodic.templates_refreshed_at = now
         return changed
 
     async def _profile(self, shop_id: int, cache: dict[int, ShopProfile | None]) -> ShopProfile | None:

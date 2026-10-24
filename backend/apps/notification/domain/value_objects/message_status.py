@@ -9,6 +9,7 @@ CANCEL_REASONS: tuple[str, ...] = (
     "rescheduled", "visit_canceled", "no_show", "setting_off", "channel_unlinked",
     "shop_closed", "template_rejected", "report_revoked", "too_late", "anonymized",
     "has_upcoming", "cooldown", "no_consent", "bad_phone",
+    "reverted", "passed_away",          # 0012 — 되돌린 완료의 다음 예약 제안, 무지개다리를 건넌 아이
 )
 ERROR_KINDS: tuple[str, ...] = ("transient", "permanent")
 CHANNELS_USED: tuple[str, ...] = ("alimtalk", "sms", "lms")

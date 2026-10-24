@@ -30,6 +30,7 @@ from notification.domain.entities.notification_template import NotificationTempl
 from notification.domain.errors import MessageAlreadyPendingError
 from notification.domain.value_objects.channel_status import LINKED
 from notification.domain.value_objects.message_kind import KINDS
+from notification.domain.services.schedule_rules import MAX_ATTEMPTS, STUCK_CODE
 from notification.domain.value_objects.message_status import (
     ACCEPTED,
     CANCELED,
@@ -229,7 +230,11 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
         stuck = [m for m in self.rows.values()
                  if m.status == SENDING and m.id in self.claimed_at and self.claimed_at[m.id] < before]
         for m in stuck:
-            self._put(replace(m, status=SCHEDULED, attempts=m.attempts + 1))
+            if m.attempts >= MAX_ATTEMPTS:
+                self._put(replace(m, status=FAILED, attempts=m.attempts + 1, error_kind="transient",
+                                  error_code=STUCK_CODE))
+            else:
+                self._put(replace(m, status=SCHEDULED, attempts=m.attempts + 1))
             del self.claimed_at[m.id]
         self.journal.append(("recover_stuck", [m.id for m in stuck]))
         return len(stuck)
