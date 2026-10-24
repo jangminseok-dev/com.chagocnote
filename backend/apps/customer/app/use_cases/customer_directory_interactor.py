@@ -11,6 +11,7 @@ from customer.domain.errors import CustomerNotFoundError
 from customer.domain.services.draft_ranking import match_family
 from customer.domain.services.phone_number import mask_phone
 from customer.domain.services.search_terms import parse_query
+from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.shop_context import ShopContext
@@ -91,3 +92,12 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
             )
             for match, c in ranked[:DRAFT_CANDIDATE_LIMIT]
         ]
+
+    async def contact(self, ctx: ShopContext, customer_id: int) -> CustomerContact | None:
+        # 익명화한 고객과 다른 매장의 고객은 저장소가 "없음"으로 본다 — 둘 다 None 이다(N8).
+        try:
+            customer = await self._customers.get_active(ctx, customer_id)
+        except CustomerNotFoundError:
+            return None
+        return CustomerContact(customer_id=customer.id, name=customer.name, phone=customer.phone,
+                               marketing_consent=customer.marketing_consent)

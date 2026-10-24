@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from core.access_log import redact_access_log_queries
 from core.database import dispose_engine, init_engine
+from core.observer.in_process_event_bus import get_event_bus, subscribe
 from core.redis import dispose_redis
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
@@ -46,6 +47,29 @@ from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_ro
 from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
+from notification.adapter.inbound.api.error_map import NOTIFICATION_ERROR_STATUS
+from notification.adapter.inbound.api.v1.confirm_sender_router import confirm_sender_router
+from notification.adapter.inbound.api.v1.get_notification_message_router import get_notification_message_router
+from notification.adapter.inbound.api.v1.get_notification_overview_router import get_notification_overview_router
+from notification.adapter.inbound.api.v1.link_channel_router import link_channel_router
+from notification.adapter.inbound.api.v1.list_visit_notifications_router import list_visit_notifications_router
+from notification.adapter.inbound.api.v1.notification_myself_router import notification_myself_router
+from notification.adapter.inbound.api.v1.request_channel_token_router import request_channel_token_router
+from notification.adapter.inbound.api.v1.request_sender_verification_router import (
+    request_sender_verification_router,
+)
+from notification.adapter.inbound.api.v1.resend_notification_router import resend_notification_router
+from notification.adapter.inbound.api.v1.unlink_channel_router import unlink_channel_router
+from notification.adapter.inbound.api.v1.update_notification_settings_router import (
+    update_notification_settings_router,
+)
+from notification.adapter.inbound.observer.visit_event_subscriber import handle_visit_event
+from notification.app.services.dispatcher_wakeup import wake
+from notification.dependencies.dispatcher_ports import DispatcherPorts, configure_dispatcher_ports
+from notification.dependencies.dispatcher_provider import start_dispatcher
+from notification.dependencies.hub_ports import get_customer_directory as get_notification_customer_directory
+from notification.dependencies.hub_ports import get_shop_profile as get_notification_shop_profile
+from notification.dependencies.notification_wiring import get_message_gateway
 from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_STATUS
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
@@ -97,7 +121,7 @@ from visit.adapter.inbound.api.v1.update_report_settings_router import update_re
 from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
-from visit.dependencies.hub_ports import get_customer_directory
+from visit.dependencies.hub_ports import get_customer_directory, get_domain_events
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
@@ -106,9 +130,16 @@ from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_engine()
+    # 발송 게이트웨이를 기동 때 만든다 — 운영에서 솔라피 키가 비면 첫 발송이 아니라 여기서 멈춘다(설계 6.1).
+    get_message_gateway()
+    # 디스패처 — 프로세스에 asyncio 작업 하나(설계 3.2). 끝낼 때 정지를 알리고 깨워서 기다림을 끊는다.
+    task, stop = start_dispatcher()
     try:
         yield
     finally:
+        stop.set()
+        wake()
+        await task
         await dispose_engine()
         await dispose_redis()
 
@@ -179,6 +210,19 @@ app.include_router(revoke_visit_report_router)
 # 로그인 없이 열리는 경로 — 더할 때는 tests/route_inspection.py 의 허용 목록에도 적는다.
 app.include_router(read_public_report_router)
 app.include_router(mark_report_viewed_router)
+# notification
+app.include_router(notification_myself_router)
+app.include_router(get_notification_overview_router)
+app.include_router(request_channel_token_router)
+app.include_router(link_channel_router)
+app.include_router(unlink_channel_router)
+app.include_router(update_notification_settings_router)
+app.include_router(request_sender_verification_router)
+app.include_router(confirm_sender_router)
+# /visits/{visit_id}/notifications 는 visit 의 /visits/{visit_id} 경로들과 겹치지 않는다(뒤에 붙여도 된다).
+app.include_router(list_visit_notifications_router)
+app.include_router(resend_notification_router)
+app.include_router(get_notification_message_router)
 # media
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
@@ -187,7 +231,7 @@ install_error_handlers(
     app,
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
-        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS,
+        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS, **NOTIFICATION_ERROR_STATUS,
     },
 )
 
@@ -203,6 +247,16 @@ app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
 app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
 app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
+app.dependency_overrides[get_notification_shop_profile] = get_shop_profile_use_case
+app.dependency_overrides[get_notification_customer_directory] = get_customer_directory_use_case
+# 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
+app.dependency_overrides[get_domain_events] = get_event_bus
+subscribe(handle_visit_event)
+# 디스패처는 요청 밖이라 Depends 자리를 못 쓴다 — 같은 세 프로바이더를 세션을 받는 공장으로 꽂는다.
+configure_dispatcher_ports(DispatcherPorts(
+    shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,
+    visit_ledger=get_visit_ledger_use_case,
+))
 
 
 @app.get("/health")

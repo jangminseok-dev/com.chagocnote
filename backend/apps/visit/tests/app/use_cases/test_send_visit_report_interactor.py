@@ -4,6 +4,7 @@ from datetime import timedelta
 import pytest
 
 from hub.app.dtos.shop_profile import ShopProfile
+from hub.app.dtos.visit_events import VisitReportIssued, VisitReportRevoked
 from visit.app.dtos.revoke_visit_report_dto import RevokeVisitReportCommand
 from visit.app.dtos.send_visit_report_dto import SendVisitReportCommand
 from visit.app.use_cases.revoke_visit_report_interactor import RevokeVisitReportInteractor
@@ -21,6 +22,7 @@ from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import (
     FakeDirectory,
+    FakeEvents,
     FakeLibrary,
     FakeMenus,
     FakeRecords,
@@ -43,6 +45,7 @@ class _World:
         self.visits, self.settings = FakeVisits(self.journal), FakeReportSettingsRepository()
         self.records = FakeRecords(self.visits, self.journal)
         self.reports = FakeReportRepository(self.visits, self.journal)
+        self.events = FakeEvents(self.journal)
         directory, library = FakeDirectory(self.journal), FakeLibrary()
         directory.family(1, pets=(101,))
         for media_id in (51, 52):
@@ -50,9 +53,10 @@ class _World:
         self.interactor = SendVisitReportInteractor(
             visits=self.visits, records=self.records, settings=self.settings, reports=self.reports,
             menus=FakeMenus(), directory=directory, library=library, shops=FakeShopProfile({1: SHOP}),
-            now=lambda: self.now, link_key=KEY, web_base_url="https://r.example",
+            events=self.events, now=lambda: self.now, link_key=KEY, web_base_url="https://r.example",
         )
-        self.revoker = RevokeVisitReportInteractor(self.visits, self.reports, directory, now=lambda: self.now)
+        self.revoker = RevokeVisitReportInteractor(self.visits, self.reports, directory, events=self.events,
+                                                   now=lambda: self.now)
 
     def completed(self, status="completed", care_note="눈물 자국", hidden=(), **fields):
         """사진 둘(전 51, 후 52)이 있는 기록이 달린 방문."""
@@ -98,7 +102,7 @@ async def test_처음_보내면_잠근_뒤_링크를_만들고_기간은_매장�
     assert [(m.media_id, m.hidden) for m in sent.report.media] == [(52, True), (51, False)]
     assert (sent.report.cover.url, sent.report.settings.link_days) == ("d/51", link_days)
     assert [e[0] for e in w.journal] == ["lock_family", "lock_visits", "close_expired_reports", "create_report",
-                                         "set_hidden"]
+                                         "set_hidden", "publish"]
 
 
 async def test_다시_보내면_같은_링크이고_뺀_사진만_바뀐다():
@@ -205,3 +209,48 @@ async def test_없는_방문과_다른_매장의_방문에는_보낼_수_없다(
         with pytest.raises(VisitNotFoundError):
             await w.send(visit_id, shop_id=1)
     assert w.journal == []
+
+
+async def test_처음_보내면_주소와_기간을_실은_VisitReportIssued_를_발행한다():
+    w = _World()
+    visit = w.completed()
+    sent = await w.send(visit.id)
+    [event] = w.events.published
+    assert isinstance(event, VisitReportIssued)
+    assert (event.ctx, event.visit_id, event.customer_id, event.pet_id, event.starts_at, event.occurred_at,
+            event.family_pet_ids) == (ctx(), visit.id, 1, 101, kst(9, 23, 14), NOW, (101,))
+    assert (event.url, event.expires_at) == (sent.link.url, w.reports.rows[0].expires_at)
+
+
+async def test_끊으면_VisitReportRevoked_를_끊은_뒤에_발행한다():
+    w = _World()
+    visit = w.completed()
+    await w.send(visit.id)
+    await w.revoke(visit.id)
+    issued, revoked = w.events.published
+    assert isinstance(revoked, VisitReportRevoked)
+    assert (revoked.ctx, revoked.visit_id, revoked.customer_id, revoked.pet_id, revoked.starts_at, revoked.occurred_at,
+            revoked.family_pet_ids) == (ctx(), visit.id, 1, 101, kst(9, 23, 14), NOW, (101,))
+    names = [e[0] for e in w.journal]
+    assert names.index("revoke_report") < len(names) - 1 == names.index("publish", names.index("revoke_report"))
+
+
+async def test_살아_있는_링크로_다시_보내면_발행하지_않고_끊은_뒤_보내면_다시_발행한다():
+    """알림톡은 링크마다 한 번이다."""
+    w = _World()
+    visit_id = w.completed().id
+    first = await w.send(visit_id)
+    await w.send(visit_id, hidden=(52,))
+    assert [e.url for e in w.events.published] == [first.link.url]
+    await w.revoke(visit_id)
+    second = await w.send(visit_id)
+    assert [(type(e).__name__, getattr(e, "url", None)) for e in w.events.published] == [
+        ("VisitReportIssued", first.link.url), ("VisitReportRevoked", None), ("VisitReportIssued", second.link.url)]
+
+
+async def test_빈_알림장이면_발행하지_않는다():
+    w = _World()
+    visit_id = w.completed(care_note=None, hidden=(52,)).id
+    with pytest.raises(ReportEmptyError):
+        await w.send(visit_id, hidden=(51, 52))
+    assert w.events.published == []

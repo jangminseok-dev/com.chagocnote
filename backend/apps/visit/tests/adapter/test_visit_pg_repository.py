@@ -176,6 +176,23 @@ async def test_아이의_지난_완료와_완료_시각들(db_session):
     assert await repo.completed_starts(A, 1, None, limit=2) == [kst(9, 4, 14)]
 
 
+async def test_자기를_뺀_같은_아이의_가장_최근_완료_시작_시각(db_session):
+    repo = VisitPgRepository(db_session)
+    earlier = await insert_visit(db_session, kst(8, 1, 14), "completed")
+    latest = await insert_visit(db_session, kst(9, 2, 14), "completed")
+    await insert_visit(db_session, kst(9, 9, 14), "canceled")
+    await insert_visit(db_session, kst(9, 10, 14), "no_show")
+    await insert_visit(db_session, kst(9, 11, 14), "completed", pet_id=102)
+    await insert_visit(db_session, kst(9, 12, 14), "completed", shop_id=2)
+    alone = await insert_visit(db_session, kst(9, 4, 14), "completed", pet_id=None)
+    assert await repo.latest_completed_start_excluding(A, 1, 101, latest) == kst(8, 1, 14)
+    assert await repo.latest_completed_start_excluding(A, 1, 101, earlier) == kst(9, 2, 14)
+    assert await repo.latest_completed_start_excluding(A, 1, 102, latest) == kst(9, 11, 14)
+    assert await repo.latest_completed_start_excluding(A, 1, None, latest) == kst(9, 4, 14)
+    assert await repo.latest_completed_start_excluding(A, 1, None, alone) is None
+    assert await repo.latest_completed_start_excluding(B, 1, 101, latest) == kst(9, 12, 14)   # 매장별로
+
+
 async def test_장부_질문들(db_session):
     repo = VisitPgRepository(db_session)
     await insert_visit(db_session, kst(9, 1, 14), "canceled", pet_id=101)

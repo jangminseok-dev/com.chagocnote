@@ -1,5 +1,6 @@
 import pytest
 
+from hub.app.dtos.visit_events import VisitRescheduled
 from hub.app.errors import FamilyPetNotFoundError
 from visit.app.dtos.update_visit_dto import UpdateVisitCommand
 from visit.app.use_cases.update_visit_interactor import UpdateVisitInteractor
@@ -13,6 +14,7 @@ from visit.domain.errors import (
 from visit.tests.helpers.builders import ctx, kst
 from visit.tests.helpers.fakes import (
     FakeDirectory,
+    FakeEvents,
     FakeMenus,
     FakeSchedule,
     FakeVisits,
@@ -27,8 +29,10 @@ def _setup():
     visits, menus, directory = FakeVisits(journal), FakeMenus(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102, 103), passed=(103,))
     directory.family(2, pets=(201,))
-    interactor = UpdateVisitInteractor(visits, visits, menus, FakeSchedule(), directory, now=lambda: NOW)
-    return journal, visits, menus, interactor
+    events = FakeEvents(journal)
+    interactor = UpdateVisitInteractor(visits, visits, menus, FakeSchedule(), directory, events=events,
+                                       now=lambda: NOW)
+    return journal, visits, menus, interactor, events
 
 
 def _command(visit, **overrides):
@@ -39,7 +43,7 @@ def _command(visit, **overrides):
 
 
 async def test_예약은_시간과_아이와_메뉴를_바꾼다():
-    journal, visits, menus, interactor = _setup()
+    journal, visits, menus, interactor, _ = _setup()
     bath = menus.seed("목욕")
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
     result = await interactor.update_visit(_command(
@@ -55,7 +59,7 @@ async def test_예약은_시간과_아이와_메뉴를_바꾼다():
 
 async def test_다른_보호자의_아이로는_바꾸지_못한다():
     """V13 — 반려동물은 같은 보호자의 아이로만. 가족 확인이 거절한다."""
-    journal, visits, _, interactor = _setup()
+    journal, visits, _, interactor, _ = _setup()
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
     with pytest.raises(FamilyPetNotFoundError):
         await interactor.update_visit(_command(kong, pet_id=201))
@@ -63,7 +67,7 @@ async def test_다른_보호자의_아이로는_바꾸지_못한다():
 
 
 async def test_완료한_방문은_메모와_메뉴만_고친다():
-    _, visits, menus, interactor = _setup()
+    _, visits, menus, interactor, _ = _setup()
     bath = menus.seed("목욕")
     done = visits.seed(customer_id=1, pet_id=103, starts_at=kst(9, 2, 14), status="completed",
                        started_at=kst(9, 2, 14), completed_at=kst(9, 2, 15))   # 그 뒤 무지개다리를 건넌 아이
@@ -75,7 +79,7 @@ async def test_완료한_방문은_메모와_메뉴만_고친다():
 
 
 async def test_이미_붙은_메뉴는_보관됐어도_둘_수_있다():
-    _, visits, menus, interactor = _setup()
+    _, visits, menus, interactor, _ = _setup()
     old = menus.seed("옛 메뉴", archived=True)
     other_old = menus.seed("다른 옛 메뉴", archived=True)
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14), menu_ids=(old.id,))
@@ -85,7 +89,7 @@ async def test_이미_붙은_메뉴는_보관됐어도_둘_수_있다():
 
 
 async def test_시각_규칙과_중복():
-    _, visits, _, interactor = _setup()
+    _, visits, _, interactor, _ = _setup()
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
     visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 9, 14))
     with pytest.raises(VisitCrossesMidnightError):
@@ -95,15 +99,44 @@ async def test_시각_규칙과_중복():
 
 
 async def test_다른_매장의_방문은_VISIT_NOT_FOUND_다():
-    _, visits, _, interactor = _setup()
+    _, visits, _, interactor, _ = _setup()
     theirs = visits.seed(shop_id=2)
     with pytest.raises(VisitNotFoundError):
         await interactor.update_visit(_command(theirs))
 
 
 async def test_경고를_함께_돌려준다():
-    _, visits, _, interactor = _setup()
+    _, visits, _, interactor, _ = _setup()
     visits.seed(customer_id=2, pet_id=201, starts_at=kst(10, 2, 11))
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
     result = await interactor.update_visit(_command(kong, starts_at=kst(10, 2, 11)))
     assert result.warnings == ["overlap"]
+
+
+async def test_시각을_바꾸면_전후_시각을_실은_VisitRescheduled_를_쓴_뒤에_발행한다():
+    journal, visits, _, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
+    await interactor.update_visit(_command(kong, starts_at=kst(10, 3, 11)))
+    [event] = events.published
+    assert isinstance(event, VisitRescheduled)
+    assert (event.ctx, event.visit_id, event.customer_id, event.pet_id, event.previous_starts_at, event.starts_at,
+            event.occurred_at, event.family_pet_ids) == (ctx(), kong.id, 1, 101, kst(10, 2, 14), kst(10, 3, 11), NOW,
+                                                         (101,))
+    names = [entry[0] for entry in journal]
+    assert names.index("update_visit") < names.index("publish")
+
+
+async def test_메모만_바꾸면_발행하지_않는다():
+    _, visits, _, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
+    await interactor.update_visit(_command(kong, pet_id=102, memo="발톱"))
+    assert events.published == []
+
+
+async def test_수정이_실패하면_발행하지_않는다():
+    _, visits, _, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
+    visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 9, 14))
+    with pytest.raises(VisitDuplicateError):
+        await interactor.update_visit(_command(kong, starts_at=kst(10, 9, 14)))
+    assert events.published == []

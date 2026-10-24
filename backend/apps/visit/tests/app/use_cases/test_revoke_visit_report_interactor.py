@@ -6,7 +6,7 @@ from visit.app.dtos.revoke_visit_report_dto import RevokeVisitReportCommand
 from visit.app.use_cases.revoke_visit_report_interactor import RevokeVisitReportInteractor
 from visit.domain.errors import ReportNotFoundError, VisitNotFoundError
 from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeDirectory, FakeReportRepository, FakeVisits, Journal
+from visit.tests.helpers.fakes import FakeDirectory, FakeEvents, FakeReportRepository, FakeVisits, Journal
 
 NOW = kst(9, 24, 10)
 
@@ -18,7 +18,9 @@ class _World:
         self.reports = FakeReportRepository(self.visits, self.journal)
         directory = FakeDirectory(self.journal)
         directory.family(1, pets=(101,))
-        self.interactor = RevokeVisitReportInteractor(self.visits, self.reports, directory, now=lambda: NOW)
+        self.events = FakeEvents(self.journal)
+        self.interactor = RevokeVisitReportInteractor(self.visits, self.reports, directory, events=self.events,
+                                                      now=lambda: NOW)
 
     async def sent(self, expires_at=None, **fields) -> int:
         """어제 보낸 링크가 달린 완료 방문."""
@@ -37,7 +39,8 @@ async def test_잠근_뒤_살아_있는_링크를_끊는다():
     await w.revoke(visit_id)
     assert [r.revoked_at for r in w.reports.rows] == [NOW]
     assert await w.reports.get_live(ctx(), visit_id, NOW) is None
-    assert [e[0] for e in w.journal] == ["lock_family", "lock_visits", "revoke_report"]
+    assert [e[0] for e in w.journal] == ["lock_family", "lock_visits", "revoke_report", "publish"]
+    assert [(type(e).__name__, e.visit_id) for e in w.events.published] == [("VisitReportRevoked", visit_id)]
 
 
 async def test_보낸_적이_없거나_이미_끊었으면_REPORT_NOT_FOUND_다():
@@ -48,6 +51,7 @@ async def test_보낸_적이_없거나_이미_끊었으면_REPORT_NOT_FOUND_다(
     await w.revoke(visit_id)
     with pytest.raises(ReportNotFoundError):
         await w.revoke(visit_id)
+    assert len(w.events.published) == 1   # 끊지 못하면 발행하지 않는다
 
 
 async def test_기간이_지난_링크는_끊을_것이_없다():

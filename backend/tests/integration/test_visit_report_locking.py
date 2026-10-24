@@ -30,7 +30,7 @@ from visit.app.use_cases.send_visit_report_interactor import SendVisitReportInte
 from visit.app.use_cases.transition_visits_interactor import TransitionVisitsInteractor
 from visit.domain.errors import VisitNotCompletedError, VisitReportSentError
 from visit.tests.helpers.builders import ctx, kst, record
-from visit.tests.helpers.fakes import FakeShopProfile
+from visit.tests.helpers.fakes import FakeEvents, FakeShopProfile
 from visit.tests.helpers.rows import insert_visit
 
 pytestmark = pytest.mark.integration
@@ -58,7 +58,7 @@ def _send(session):
         visits=VisitPgRepository(session), records=VisitRecordPgRepository(session),
         settings=ReportSettingsPgRepository(session), reports=ReportPgRepository(session),
         menus=MenuPgRepository(session), directory=_directory(session), library=_library(session),
-        shops=FakeShopProfile({1: PROFILE}), now=_now, link_key=bytes(range(32)),
+        shops=FakeShopProfile({1: PROFILE}), events=FakeEvents(), now=_now, link_key=bytes(range(32)),
         web_base_url="https://r.example",
     )
 
@@ -66,7 +66,8 @@ def _send(session):
 def _revert(session, visit_id):
     visits = VisitPgRepository(session)
     return TransitionVisitsInteractor(
-        visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session), now=_now,
+        visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session),
+        events=FakeEvents(), now=_now,
     ).transition_visits(TransitionVisitsCommand(ctx=SHOP, visit_ids=(visit_id,), action="revert",
                                                 cancel_reason=None))
 
@@ -80,7 +81,7 @@ def _delete_record(session, visit_id):
 
 def _revoke(session, visit_id):
     return RevokeVisitReportInteractor(
-        VisitPgRepository(session), ReportPgRepository(session), _directory(session), now=_now,
+        VisitPgRepository(session), ReportPgRepository(session), _directory(session), events=FakeEvents(), now=_now,
     ).revoke_visit_report(RevokeVisitReportCommand(ctx=SHOP, visit_id=visit_id))
 
 

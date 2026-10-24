@@ -8,9 +8,11 @@ from __future__ import annotations
 from dataclasses import replace
 from decimal import Decimal
 
+from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.media_urls import MediaUrls
 from hub.app.dtos.shop_profile import ShopProfile
+from hub.app.dtos.visit_events import VisitEvent
 from hub.app.errors import (
     FamilyNotFoundError,
     FamilyPetNotFoundError,
@@ -20,6 +22,7 @@ from hub.app.errors import (
     MediaClaimNotReadyError,
 )
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.report_target_dto import ReportTarget
@@ -152,10 +155,13 @@ class FakeDirectory(CustomerDirectoryPort):
         self.names: dict[int, str | None] = {}
         self.pet_names: dict[int, str | None] = {}   # 없는 아이는 "아이{ID}". 익명화한 가족이면 None 을 넣는다
         self.candidates: list = []
+        self.contacts: dict[int, CustomerContact] = {}   # family() 가 기본값을 넣는다. 익명화를 흉내 내려면 뺀다
 
     def family(self, customer_id=1, pets=(101,), shop_id=1, name="김민지", passed=()) -> None:
         self.families[customer_id] = (shop_id, {p: p in passed for p in pets})
         self.names[customer_id] = name
+        self.contacts[customer_id] = CustomerContact(customer_id=customer_id, name=name, phone="01012345678",
+                                                     marketing_consent=True)
 
     async def lock_family(self, ctx, customer_id, pet_ids):
         """실제 구현(customer)과 같은 허브 오류를 같은 조건에서 던진다 — 포트 계약이 곧 스텁의 계약이다."""
@@ -193,6 +199,11 @@ class FakeDirectory(CustomerDirectoryPort):
         """카톡 초안 후보 — 미리 넣어 둔 후보(self.candidates)를 그대로 준다."""
         self.journal.append(("find_draft_candidates", tuple(words)))
         return list(self.candidates)
+
+    async def contact(self, ctx, customer_id):
+        if self.families.get(customer_id, (None,))[0] != ctx.shop_id:
+            return None
+        return self.contacts.get(customer_id)
 
 
 class FakeVisits(
@@ -288,6 +299,11 @@ class FakeVisits(
 
     async def latest_completed_start(self, ctx, customer_id):
         done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.status == "completed"]
+        return max(done) if done else None
+
+    async def latest_completed_start_excluding(self, ctx, customer_id, pet_id, exclude_visit_id):
+        done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
+                and v.status == "completed" and v.id != exclude_visit_id]
         return max(done) if done else None
 
     async def list_group(self, ctx, customer_id, starts_at):
@@ -564,3 +580,15 @@ class FakeShopProfile(ShopProfilePort):
 
     async def public_profile(self, shop_id):
         return self.shops.get(shop_id)
+
+
+class FakeEvents(DomainEventPort):
+    """DomainEventPort 스텁 — 발행한 이벤트를 published 에 순서대로 모은다. journal 에는 ("publish", 종류, 방문 ID)."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.published: list[VisitEvent] = []
+
+    async def publish(self, event):
+        self.published.append(event)
+        self.journal.append(("publish", type(event).__name__, event.visit_id))

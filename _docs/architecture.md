@@ -61,17 +61,21 @@
 | `auth/adapter/outbound/strategy/` | Strategy | 제공자별 `SocialProviderPort` 구현 |
 | `auth/adapter/outbound/factory/` | Factory | 설정에 따라 제공자 구현을 만들어 담아 두고 이름으로 골라 준다 |
 | `visit/domain/state/` | State | 방문 상태 전이(예약됨·미용 중·완료·취소·노쇼) |
-| `core/observer/`, `<app>/adapter/inbound/observer/` (예정) | Observer | 도메인 이벤트 발행과 구독 |
+| `core/observer/`, `notification/adapter/inbound/observer/` | Observer | 도메인 이벤트 발행과 구독 — `core/observer/in_process_event_bus.py`가 허브 포트 `DomainEventPort`의 구현(같은 프로세스·같은 세션의 동기 버스, 구독자 목록은 `main.py`가 기동 때 채운다), notification 의 `visit_event_subscriber.py`가 구독자 |
 | `visit/domain/chain/` (예정) | Chain of Responsibility | 예약 체크리스트 규칙 |
 | `search/adapter/outbound/decorator/` (예정) | Decorator | LLM 포트를 감싼 개인정보 마스킹 |
 | `visit/app/template/` (예정) | Template Method | 말로 기록하기 절차의 뼈대 |
 | `search/app/facade/` (예정) | Facade | RAG 단일 입구 |
-| `notification/adapter/outbound/strategy/` (예정) | Strategy | 알림 발송 수단 |
+| `notification/adapter/outbound/strategy/` | Strategy | 발송 업체별 `MessageGatewayPort` 구현 — `solapi_gateway.py`(실제), `fake_gateway.py`(dev·흐름 확인). 키 유무와 `APP_ENV`로 하나를 고른다 |
 | `app/lib/core/proxy/` (예정) | Proxy | 토큰 자동 첨부·갱신 API 클라이언트 |
 | `app/lib/design/bridge/` (예정) | Bridge | 글래스 구현 교체 지점 |
 
 새 패턴 폴더를 만들면 이 표에 한 줄을 더한다.
 
-## 도메인 이벤트 도입 계획
+## 도메인 이벤트
 
-이벤트 발행 포트는 첫 구독자가 생길 때(미용 완료 → 통계·검색·알림) 허브에 도입한다. 처음에는 같은 프로세스 안의 단순한 구현으로 시작하고, 신뢰성이 필요해지면 아웃박스 방식으로 어댑터만 바꾼다. 그 전에는 포트를 만들지 않는다.
+첫 구독자(⑥ 알림톡)가 생기면서 허브에 `DomainEventPort`(`hub/app/ports/domain_event_port.py`)와 이벤트 DTO(`hub/app/dtos/visit_events.py`)를 두었다. 구현은 `core/observer/`의 **같은 프로세스·같은 세션의 동기 버스**다 — 발행한 인터랙터의 트랜잭션 안에서 구독자가 차례로 돌고, 구독자가 던지면 발행한 요청이 실패한다. 별도 이벤트 저장소는 없다. 구독자(notification)가 같은 트랜잭션에 쓰는 `notification_messages` 큐가 아웃박스 역할을 하고, 요청 밖의 디스패처가 그 큐를 집어 외부를 부른다. 메시지 브로커·다른 프로세스로 나갈 일이 생기면 버스 어댑터만 바꾼다.
+
+- 발행은 `dependencies/hub_ports.py`의 자리(`get_domain_events`)로 받고 `main.py`가 `get_event_bus`를 꽂는다. 구독은 `main.py`가 기동 때 `subscribe(handler)`로 등록한다 — 구독자는 `(AsyncSession, VisitEvent)`를 받는 어댑터(`<app>/adapter/inbound/observer/`)이고 `app` 층에 두지 않는다(프레임워크 격리).
+- 구독자는 외부(HTTP)를 부르지 않는다. 외부 호출은 요청 밖(디스패처)에서 잠금 없이 한다.
+- 요청 밖에서 `ShopContext`가 필요하면 `notification/app/services/system_context.py` 하나로 만든다(권한 빔). 전 매장 질의는 `ShopContext`를 받지 않는 별도 포트(`NotificationQueueRepository`)에 둔다.
