@@ -3,6 +3,7 @@ from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
+from visit.tests.helpers.builders import ctx
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
 from visit.app.ports.output.public_report_repository import PublicReportRepository
@@ -51,3 +52,13 @@ async def test_매장_공개_정보_스텁은_넣어_둔_매장만_돌려준다(
     profile = ShopProfile(shop_id=1, name="Hiss Haus", phone=None, address=None, timezone="Asia/Seoul", open=True)
     shops = FakeShopProfile({1: profile})
     assert (await shops.public_profile(1), await shops.public_profile(2)) == (profile, None)
+
+
+async def test_고객_연락처_스텁은_넣어_둔_가족의_것만_준다():
+    directory = FakeDirectory()
+    directory.family(customer_id=1, shop_id=1, name="박서준")
+    contact = await directory.contact(ctx(), 1)
+    assert (contact.customer_id, contact.name, contact.phone, contact.marketing_consent) == (
+        1, "박서준", "01012345678", True,
+    )
+    assert (await directory.contact(ctx(shop_id=2), 1), await directory.contact(ctx(), 2)) == (None, None)

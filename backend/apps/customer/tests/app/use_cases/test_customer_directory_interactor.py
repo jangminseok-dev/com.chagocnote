@@ -6,6 +6,7 @@ import pytest
 from customer.app.use_cases.customer_directory_interactor import CustomerDirectoryInteractor
 from customer.tests.helpers.fakes import family
 from customer.tests.helpers.profiles import ctx
+from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.family_brief import CustomerBrief, PetBrief
 from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
 
@@ -177,3 +178,29 @@ async def test_몸무게는_반려동물_저장소로_넘긴다():
     pet = pets.seed(customer.id)
     await directory.set_pet_weight(ctx(), pet.id, Decimal("4.1"))
     assert (pets.rows[pet.id].weight_kg, journal[-1]) == (Decimal("4.1"), ("set_weight", pet.id, Decimal("4.1")))
+
+
+# --- 보호자 연락처(contact) — notification 만 부른다 ---
+
+
+async def test_연락처는_살아_있는_고객의_이름_번호_동의를_그대로_주고_잠그지_않는다():
+    journal, customers, _, _, directory = _directory()
+    customer = customers.seed(name="박서준", phone="01098765432", consent=True)
+    assert await directory.contact(ctx(), customer.id) == CustomerContact(
+        customer_id=customer.id, name="박서준", phone="01098765432", marketing_consent=True,
+    )
+    assert journal == []
+
+
+async def test_익명화한_고객의_연락처는_None_이다():
+    """N8 — 보내는 순간 연락처가 None 이면 notification 이 취소한다."""
+    _, customers, _, _, directory = _directory()
+    customer = customers.seed()
+    await customers.anonymize(ctx(), customer.id)
+    assert await directory.contact(ctx(), customer.id) is None
+
+
+async def test_다른_매장_고객의_연락처는_None_이다():
+    _, customers, _, _, directory = _directory()
+    customer = customers.seed(shop_id=2)
+    assert await directory.contact(ctx(shop_id=1), customer.id) is None

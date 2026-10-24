@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from decimal import Decimal
 
+from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import FamilyBriefs
 from hub.app.dtos.shop_context import ShopContext
@@ -11,7 +12,7 @@ from hub.app.dtos.shop_context import ShopContext
 
 class CustomerDirectoryPort(ABC):
     """구현: customer. 사용: visit (예약 등록·수정·상태 전이, 목록의 이름 표시, 최근 방문순, 카톡 초안 후보,
-    미용 기록의 몸무게)."""
+    미용 기록의 몸무게), notification (보낼 때의 연락처)."""
 
     @abstractmethod
     async def lock_family(self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...]) -> None:
@@ -49,3 +50,8 @@ class CustomerDirectoryPort(ABC):
         같은 순위면 고객 ID 오름차순. 익명화한 고객은 후보가 아니고, 무지개다리를 건넌 아이는 pets 에서 뺀다.
         낱말은 저장하지도 로그에 남기지도 않는다(설계 10절 V9).
         """
+
+    @abstractmethod
+    async def contact(self, ctx: ShopContext, customer_id: int) -> CustomerContact | None:
+        """이 매장의 살아 있는 고객이면 연락처. 익명화했거나 다른 매장이면 None. 잠그지 않는다.
+        가린 번호가 아니라 실제 번호다 — notification 만 부른다. 로그에 남기지 않는다."""
