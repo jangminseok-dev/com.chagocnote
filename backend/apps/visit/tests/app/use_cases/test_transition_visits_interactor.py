@@ -3,6 +3,7 @@ from datetime import timedelta
 
 import pytest
 
+from hub.app.dtos.visit_events import VisitCanceled, VisitClosed, VisitReserved
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
 from visit.app.use_cases.transition_visits_interactor import TransitionVisitsInteractor
 from visit.domain.errors import (
@@ -15,7 +16,14 @@ from visit.domain.errors import (
 )
 from visit.tests.helpers.builders import ctx, kst
 from hub.app.errors import FamilyPetPassedAwayError
-from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeReportRepository, FakeVisits, Journal
+from visit.tests.helpers.fakes import (
+    FakeDirectory,
+    FakeEvents,
+    FakeMenus,
+    FakeReportRepository,
+    FakeVisits,
+    Journal,
+)
 
 NOW = kst(9, 23, 15)
 
@@ -26,13 +34,15 @@ def _with_reports(visits=None):
     directory.family(1, pets=(101, 102, 103), passed=(103,))
     directory.family(2, pets=(201,))
     reports = FakeReportRepository(visits)
-    interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), reports, directory, now=lambda: NOW)
-    return journal, visits, reports, interactor
+    events = FakeEvents(journal)
+    interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), reports, directory, events=events,
+                                            now=lambda: NOW)
+    return journal, visits, reports, interactor, events
 
 
 def _setup():
-    journal, visits, _, interactor = _with_reports()
-    return journal, visits, interactor
+    journal, visits, _, interactor, events = _with_reports()
+    return journal, visits, interactor, events
 
 
 def _act(ids, action, reason=None, member_id=11):
@@ -41,20 +51,21 @@ def _act(ids, action, reason=None, member_id=11):
 
 
 async def test_가족_묶음을_한_번에_완료하고_최근_방문을_알린다():
-    journal, visits, interactor = _setup()
+    journal, visits, interactor, _ = _setup()
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
     bori = visits.seed(customer_id=1, pet_id=102, starts_at=kst(9, 23, 13))
     result = await interactor.transition_visits(_act([kong.id, bori.id], "complete", member_id=12))
     assert [(v.status, v.status_changed_by_member_id) for v in result.visits] == [("completed", 12)] * 2
     assert visits.rows[kong.id].completed_at == NOW
     names = [entry[0] for entry in journal]
-    assert names == ["lock_family", "lock_visits", "apply_changes", "set_last_visit"]
+    assert names == ["lock_family", "lock_visits", "apply_changes", "set_last_visit", "publish", "publish"]
     assert journal[0] == ("lock_family", 1, ())   # 되돌리기가 아니면 보호자만 잠근다
-    assert journal[-1] == ("set_last_visit", 1, kst(9, 23, 13))
+    assert journal[3:] == [("set_last_visit", 1, kst(9, 23, 13)), ("publish", "VisitClosed", kong.id),
+                           ("publish", "VisitClosed", bori.id)]
 
 
 async def test_완료를_되돌리면_최근_방문을_다시_계산한다():
-    journal, visits, interactor = _setup()
+    journal, visits, interactor, _ = _setup()
     visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 2, 14), status="completed",
                 started_at=kst(9, 2, 14), completed_at=kst(9, 2, 15))
     today = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13), status="completed",
@@ -62,11 +73,11 @@ async def test_완료를_되돌리면_최근_방문을_다시_계산한다():
     await interactor.transition_visits(_act([today.id], "revert"))
     assert visits.rows[today.id].status == "reserved"
     assert journal[0] == ("lock_family", 1, (101,))   # 되돌리기는 아이도 확인한다
-    assert journal[-1] == ("set_last_visit", 1, kst(9, 2, 14))
+    assert journal[-2:] == [("set_last_visit", 1, kst(9, 2, 14)), ("publish", "VisitReserved", today.id)]
 
 
 async def test_완료와_상관없는_전이는_최근_방문을_건드리지_않는다():
-    journal, visits, interactor = _setup()
+    journal, visits, interactor, _ = _setup()
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
     await interactor.transition_visits(_act([kong.id], "cancel", "customer_request"))
     assert "set_last_visit" not in [entry[0] for entry in journal]
@@ -75,7 +86,7 @@ async def test_완료와_상관없는_전이는_최근_방문을_건드리지_�
 
 async def test_하나라도_안_되면_아무것도_바꾸지_않는다():
     """V6 — 미용 중과 예약됨이 섞인 묶음에 '시작'을 누르면 둘 다 그대로다."""
-    journal, visits, interactor = _setup()
+    journal, visits, interactor, events = _setup()
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
     bori = visits.seed(customer_id=1, pet_id=102, starts_at=kst(9, 23, 13), status="in_progress",
                        started_at=kst(9, 23, 13))
@@ -83,10 +94,11 @@ async def test_하나라도_안_되면_아무것도_바꾸지_않는다():
         await interactor.transition_visits(_act([kong.id, bori.id], "start"))
     assert (visits.rows[kong.id].status, visits.rows[bori.id].status) == ("reserved", "in_progress")
     assert "apply_changes" not in [entry[0] for entry in journal]
+    assert events.published == []
 
 
 async def test_상태_규칙은_도메인이_정한다():
-    _, visits, interactor = _setup()
+    _, visits, interactor, _ = _setup()
     tomorrow = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 24, 10))
     with pytest.raises(VisitNotYetError):
         await interactor.transition_visits(_act([tomorrow.id], "start"))
@@ -99,7 +111,7 @@ async def test_상태_규칙은_도메인이_정한다():
 
 async def test_무지개다리_아이의_방문은_되돌리지_못한다():
     """V7 — 되돌리면 다시 앞으로의 예약이 된다."""
-    _, visits, interactor = _setup()
+    _, visits, interactor, _ = _setup()
     canceled = visits.seed(customer_id=1, pet_id=103, starts_at=kst(9, 30, 14), status="canceled",
                            canceled_at=NOW, cancel_reason="shop_reason")
     with pytest.raises(FamilyPetPassedAwayError):
@@ -107,7 +119,7 @@ async def test_무지개다리_아이의_방문은_되돌리지_못한다():
 
 
 async def test_되돌린_자리에_이미_새_예약이_있으면_VISIT_DUPLICATE_다():
-    _, visits, interactor = _setup()
+    _, visits, interactor, _ = _setup()
     canceled = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 30, 14), status="canceled",
                            canceled_at=NOW, cancel_reason="customer_request")
     visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 30, 14))
@@ -116,7 +128,7 @@ async def test_되돌린_자리에_이미_새_예약이_있으면_VISIT_DUPLICAT
 
 
 async def test_다른_보호자의_방문을_섞으면_VISIT_GROUP_MISMATCH_다():
-    journal, visits, interactor = _setup()
+    journal, visits, interactor, _ = _setup()
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
     other = visits.seed(customer_id=2, pet_id=201, starts_at=kst(9, 23, 13))
     with pytest.raises(VisitGroupMismatchError):
@@ -147,7 +159,7 @@ async def test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_�
                            canceled_at=NOW, cancel_reason="customer_request")
     visits._swap_visit_id = canceled.id
     interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), FakeReportRepository(visits), directory,
-                                            now=lambda: NOW)
+                                            events=FakeEvents(journal), now=lambda: NOW)
     with pytest.raises(VisitStateConflictError):
         await interactor.transition_visits(_act([canceled.id], "revert"))
 
@@ -163,7 +175,7 @@ async def _send(reports, visit_id, expires_at=NOW + timedelta(days=7)):
 
 
 async def test_알림장을_보낸_완료_방문은_되돌릴_수_없다():
-    journal, visits, reports, interactor = _with_reports()
+    journal, visits, reports, interactor, _ = _with_reports()
     sent = _done(visits)
     await _send(reports, sent.id)
     with pytest.raises(VisitReportSentError):
@@ -173,7 +185,7 @@ async def test_알림장을_보낸_완료_방문은_되돌릴_수_없다():
 
 
 async def test_링크를_끊으면_되돌려진다():
-    _, visits, reports, interactor = _with_reports()
+    _, visits, reports, interactor, _ = _with_reports()
     sent = _done(visits)
     await _send(reports, sent.id)
     await reports.revoke(ctx(), sent.id, NOW)
@@ -182,7 +194,7 @@ async def test_링크를_끊으면_되돌려진다():
 
 
 async def test_링크의_기간이_지나면_되돌려진다():
-    _, visits, reports, interactor = _with_reports()
+    _, visits, reports, interactor, _ = _with_reports()
     sent = _done(visits)
     await _send(reports, sent.id, expires_at=NOW)   # 지금 끝난다
     await interactor.transition_visits(_act([sent.id], "revert"))
@@ -190,7 +202,7 @@ async def test_링크의_기간이_지나면_되돌려진다():
 
 
 async def test_함께_되돌리는_방문_하나에_알림장이_있으면_둘_다_그대로다():
-    journal, visits, reports, interactor = _with_reports()
+    journal, visits, reports, interactor, _ = _with_reports()
     kong, bori = _done(visits), _done(visits, pet_id=102)
     await _send(reports, bori.id)
     with pytest.raises(VisitReportSentError):
@@ -212,9 +224,68 @@ class _SentWhileLocking(FakeVisits):
 
 async def test_알림장을_보냈는지는_잠근_뒤에_읽는다():
     """R9 — 잠그기 전에 읽으면 '링크 없음'을 보고 되돌려 버린다."""
-    _, visits, reports, interactor = _with_reports(_SentWhileLocking())
+    _, visits, reports, interactor, _ = _with_reports(_SentWhileLocking())
     visits.reports = reports
     sent = _done(visits)
     with pytest.raises(VisitReportSentError):
         await interactor.transition_visits(_act([sent.id], "revert"))
     assert visits.rows[sent.id].status == "completed"
+
+
+def _completed(visits, pet_id, month, day, customer_id=1):
+    return visits.seed(customer_id=customer_id, pet_id=pet_id, starts_at=kst(month, day, 14), status="completed",
+                       started_at=kst(month, day, 14), completed_at=kst(month, day, 15))
+
+
+async def test_취소는_사유를_실은_VisitCanceled_를_발행한다():
+    _, visits, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
+    await interactor.transition_visits(_act([kong.id], "cancel", "shop_reason"))
+    [event] = events.published
+    assert isinstance(event, VisitCanceled)
+    assert (event.ctx, event.visit_id, event.customer_id, event.pet_id, event.starts_at, event.occurred_at,
+            event.reason) == (ctx(), kong.id, 1, 101, kst(9, 23, 13), NOW, "shop_reason")
+
+
+async def test_완료는_같은_아이의_앞선_완료_시작_시각을_실은_VisitClosed_를_발행한다():
+    """자기 자신은 빼고, 다른 아이·취소는 세지 않고, 보호자만 방문은 보호자만 방문끼리."""
+    _, visits, interactor, events = _setup()
+    _completed(visits, 101, 8, 1)
+    _completed(visits, 101, 9, 2)
+    _completed(visits, 102, 9, 10)
+    _completed(visits, None, 9, 12)
+    visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 20, 14), status="canceled", canceled_at=NOW,
+                cancel_reason="shop_reason")
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
+    alone = visits.seed(customer_id=1, pet_id=None, starts_at=kst(9, 23, 13))
+    first = visits.seed(customer_id=2, pet_id=201, starts_at=kst(9, 23, 13))
+    await interactor.transition_visits(_act([kong.id, alone.id], "complete"))
+    await interactor.transition_visits(_act([first.id], "complete"))
+    assert [(type(e), e.visit_id, e.customer_id, e.pet_id, e.outcome, e.previous_completed_at, e.occurred_at)
+            for e in events.published] == [
+        (VisitClosed, kong.id, 1, 101, "completed", kst(9, 2, 14), NOW),
+        (VisitClosed, alone.id, 1, None, "completed", kst(9, 12, 14), NOW),
+        (VisitClosed, first.id, 2, 201, "completed", None, NOW)]
+
+
+async def test_노쇼는_앞선_완료_없이_VisitClosed_를_발행한다():
+    _, visits, interactor, events = _setup()
+    _completed(visits, 101, 9, 2)
+    past = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 10))
+    await interactor.transition_visits(_act([past.id], "no_show"))
+    [event] = events.published
+    assert (type(event), event.visit_id, event.outcome, event.previous_completed_at) == (
+        VisitClosed, past.id, "no_show", None)
+
+
+async def test_되돌리기는_revived_인_VisitReserved_를_발행하고_시작은_발행하지_않는다():
+    _, visits, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
+    await interactor.transition_visits(_act([kong.id], "start"))
+    assert events.published == []
+    canceled = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 30, 14), status="canceled", canceled_at=NOW,
+                           cancel_reason="customer_request")
+    await interactor.transition_visits(_act([canceled.id], "revert"))
+    [event] = events.published
+    assert (type(event), event.visit_id, event.starts_at, event.revived) == (
+        VisitReserved, canceled.id, kst(9, 30, 14), True)

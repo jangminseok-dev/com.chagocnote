@@ -12,6 +12,7 @@ from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.media_urls import MediaUrls
 from hub.app.dtos.shop_profile import ShopProfile
+from hub.app.dtos.visit_events import VisitEvent
 from hub.app.errors import (
     FamilyNotFoundError,
     FamilyPetNotFoundError,
@@ -21,6 +22,7 @@ from hub.app.errors import (
     MediaClaimNotReadyError,
 )
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.report_target_dto import ReportTarget
@@ -299,6 +301,11 @@ class FakeVisits(
         done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.status == "completed"]
         return max(done) if done else None
 
+    async def latest_completed_start_excluding(self, ctx, customer_id, pet_id, exclude_visit_id):
+        done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
+                and v.status == "completed" and v.id != exclude_visit_id]
+        return max(done) if done else None
+
     async def list_group(self, ctx, customer_id, starts_at):
         return [v for v in self._mine(ctx) if v.customer_id == customer_id and v.starts_at == starts_at]
 
@@ -573,3 +580,15 @@ class FakeShopProfile(ShopProfilePort):
 
     async def public_profile(self, shop_id):
         return self.shops.get(shop_id)
+
+
+class FakeEvents(DomainEventPort):
+    """DomainEventPort 스텁 — 발행한 이벤트를 published 에 순서대로 모은다. journal 에는 ("publish", 종류, 방문 ID)."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.published: list[VisitEvent] = []
+
+    async def publish(self, event):
+        self.published.append(event)
+        self.journal.append(("publish", type(event).__name__, event.visit_id))

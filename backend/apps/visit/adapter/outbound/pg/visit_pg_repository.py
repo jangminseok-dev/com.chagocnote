@@ -153,6 +153,19 @@ class VisitPgRepository(
             )
         ).scalar_one()
 
+    async def latest_completed_start_excluding(
+        self, ctx: ShopContext, customer_id: int, pet_id: int | None, exclude_visit_id: int
+    ) -> datetime | None:
+        whose = VisitOrm.pet_id == pet_id if pet_id is not None else VisitOrm.pet_id.is_(None)
+        return (
+            await self._session.execute(
+                select(func.max(VisitOrm.starts_at)).where(
+                    VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id, whose,
+                    VisitOrm.status == COMPLETED, VisitOrm.id != exclude_visit_id,
+                )
+            )
+        ).scalar_one()
+
     async def list_group(self, ctx: ShopContext, customer_id: int, starts_at: datetime) -> list[Visit]:
         return await self._read(
             ctx, select(VisitOrm).where(VisitOrm.customer_id == customer_id, VisitOrm.starts_at == starts_at)

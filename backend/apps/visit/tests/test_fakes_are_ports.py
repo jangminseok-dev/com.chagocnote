@@ -1,6 +1,7 @@
 """공용 스텁이 포트 ABC 를 상속하고 추상 메서드를 다 채웠는지 — 인스턴스를 만드는 것으로 확인한다."""
 from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.tests.helpers.builders import ctx
@@ -19,6 +20,7 @@ from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.tests.helpers.fakes import (
     FakeDirectory,
+    FakeEvents,
     FakeLibrary,
     FakeMenus,
     FakePublicReportLimiter,
@@ -37,6 +39,7 @@ def test_스텁은_포트를_상속하고_추상_메서드가_남아_있지_않�
     assert isinstance(FakeDirectory(), CustomerDirectoryPort)
     assert isinstance(FakeLibrary(), MediaLibraryPort)
     assert isinstance(FakeShopProfile(), ShopProfilePort)
+    assert isinstance(FakeEvents(), DomainEventPort)
     visits = FakeVisits()
     for port in (VisitLookupRepository, VisitWriteRepository, VisitHistoryRepository, VisitLedgerRepository,
                  VisitBoardRepository, VisitFeedRepository):

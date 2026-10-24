@@ -36,6 +36,7 @@ class VisitCanceled(VisitEvent):
 @dataclass(frozen=True)
 class VisitClosed(VisitEvent):
     outcome: str              # "completed" | "no_show"
+    previous_completed_at: datetime | None   # 완료일 때 같은 아이(보호자만이면 보호자만 방문)의 앞선 완료 방문 시작 시각. 노쇼는 None
 
 
 @dataclass(frozen=True)

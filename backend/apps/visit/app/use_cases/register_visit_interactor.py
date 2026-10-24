@@ -3,7 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
+from hub.app.dtos.visit_events import VisitReserved
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.domain_event_port import DomainEventPort
 from visit.app.dtos.register_visit_dto import RegisteredVisitsView, RegisterVisitCommand
 from visit.app.ports.input.register_visit_use_case import RegisterVisitUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
@@ -27,13 +29,15 @@ from visit.domain.value_objects.new_visit import NewVisit
 class RegisterVisitInteractor(RegisterVisitUseCase):
     def __init__(
         self, visits: VisitWriteRepository, board: VisitBoardRepository, menus: MenuRepository,
-        schedule: ScheduleRepository, directory: CustomerDirectoryPort, now: Callable[[], datetime],
+        schedule: ScheduleRepository, directory: CustomerDirectoryPort, events: DomainEventPort,
+        now: Callable[[], datetime],
     ) -> None:
         self._visits = visits
         self._board = board
         self._menus = menus
         self._schedule = schedule
         self._directory = directory
+        self._events = events
         self._now = now
 
     async def register_visit(self, command: RegisterVisitCommand) -> RegisteredVisitsView:
@@ -66,6 +70,12 @@ class RegisterVisitInteractor(RegisterVisitUseCase):
                 for pet_id in (command.pet_ids or (None,))
             ],
         )
+        # 예약만 알린다 — '지금 시작'은 미용 중으로 시작하니 예약이 아니다.
+        if status == RESERVED:
+            for visit in created:
+                await self._events.publish(VisitReserved(
+                    ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
+                    starts_at=visit.starts_at, occurred_at=now))
 
         warnings = await warnings_after_save(
             ctx, command.customer_id, starts_at, duration, settings, self._board, self._schedule

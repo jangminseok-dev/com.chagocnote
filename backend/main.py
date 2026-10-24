@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from core.access_log import redact_access_log_queries
 from core.database import dispose_engine, init_engine
+from core.observer.in_process_event_bus import get_event_bus
 from core.redis import dispose_redis
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
@@ -97,7 +98,7 @@ from visit.adapter.inbound.api.v1.update_report_settings_router import update_re
 from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
-from visit.dependencies.hub_ports import get_customer_directory
+from visit.dependencies.hub_ports import get_customer_directory, get_domain_events
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
@@ -203,6 +204,8 @@ app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
 app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
 app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
+# 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자(main.py 가 기동 때 subscribe 로 꽂는다)에 넘긴다.
+app.dependency_overrides[get_domain_events] = get_event_bus
 
 
 @app.get("/health")

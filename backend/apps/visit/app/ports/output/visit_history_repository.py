@@ -18,6 +18,13 @@ class VisitHistoryRepository(ABC):
         """그 보호자의 마지막 완료 방문의 시작 시각 — 고객 목록 '최근 방문순'의 원본."""
 
     @abstractmethod
+    async def latest_completed_start_excluding(
+        self, ctx: ShopContext, customer_id: int, pet_id: int | None, exclude_visit_id: int
+    ) -> datetime | None:
+        """exclude_visit_id 를 뺀, 그 아이(pet_id 가 None 이면 보호자만의 방문)의 가장 최근 완료 방문 시작 시각 —
+        완료 이벤트의 '지난 방문 간격'의 원본."""
+
+    @abstractmethod
     async def list_group(self, ctx: ShopContext, customer_id: int, starts_at: datetime) -> list[Visit]:
         """같은 가족 묶음(같은 보호자 + 같은 시작 시각)의 방문 — 상태와 상관없이."""
 

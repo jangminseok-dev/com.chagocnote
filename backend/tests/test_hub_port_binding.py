@@ -3,13 +3,14 @@ import pytest
 from fastapi import Depends, FastAPI
 
 import main
+from core.observer.in_process_event_bus import get_event_bus
 from core.shop_guard import get_shop_access_port
 from tenancy.dependencies.hub_ports import get_user_directory
 from tenancy.dependencies.get_shop_profile_provider import get_shop_profile_use_case
 from core.security import get_current_user_id
 from core.shop_guard import get_shop_context
 from tests.route_inspection import find_route_violations, routes_without_login
-from visit.dependencies.hub_ports import get_shop_profile
+from visit.dependencies.hub_ports import get_domain_events, get_shop_profile
 
 
 def test_API_프로세스에는_빈_자리도_빠진_가드도_없다():
@@ -30,6 +31,12 @@ def test_매장_공개_정보_자리는_tenancy_의_구현으로_채운다():
     assert main.app.dependency_overrides[get_shop_profile] is get_shop_profile_use_case
     with pytest.raises(RuntimeError):
         get_shop_profile()
+
+
+def test_도메인_이벤트_자리는_core_의_버스로_채운다():
+    assert main.app.dependency_overrides[get_domain_events] is get_event_bus
+    with pytest.raises(RuntimeError):
+        get_domain_events()
 
 
 def _app_with(path, dependency=None):
