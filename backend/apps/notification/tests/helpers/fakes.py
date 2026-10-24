@@ -182,6 +182,10 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
             for m in self._mine(ctx, visit_id=visit_id, kind=kind)
         )
 
+    async def has_pending_for_group(self, ctx, customer_id, kind, starts_at_iso):
+        return any(m.status in PENDING_STATUSES and m.variables.get("starts_at") == starts_at_iso
+                   for m in self._mine(ctx, customer_id=customer_id, kind=kind))
+
     async def last_delivered_at(self, ctx, customer_id, kind):
         sent = [m.sent_at for m in self._mine(ctx, customer_id=customer_id, kind=kind)
                 if m.status in DELIVERED_STATUSES and m.sent_at is not None]

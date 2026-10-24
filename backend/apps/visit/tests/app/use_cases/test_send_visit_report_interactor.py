@@ -4,7 +4,7 @@ from datetime import timedelta
 import pytest
 
 from hub.app.dtos.shop_profile import ShopProfile
-from hub.app.dtos.visit_events import VisitReportIssued
+from hub.app.dtos.visit_events import VisitReportIssued, VisitReportRevoked
 from visit.app.dtos.revoke_visit_report_dto import RevokeVisitReportCommand
 from visit.app.dtos.send_visit_report_dto import SendVisitReportCommand
 from visit.app.use_cases.revoke_visit_report_interactor import RevokeVisitReportInteractor
@@ -55,7 +55,8 @@ class _World:
             menus=FakeMenus(), directory=directory, library=library, shops=FakeShopProfile({1: SHOP}),
             events=self.events, now=lambda: self.now, link_key=KEY, web_base_url="https://r.example",
         )
-        self.revoker = RevokeVisitReportInteractor(self.visits, self.reports, directory, now=lambda: self.now)
+        self.revoker = RevokeVisitReportInteractor(self.visits, self.reports, directory, events=self.events,
+                                                   now=lambda: self.now)
 
     def completed(self, status="completed", care_note="눈물 자국", hidden=(), **fields):
         """사진 둘(전 51, 후 52)이 있는 기록이 달린 방문."""
@@ -216,9 +217,22 @@ async def test_처음_보내면_주소와_기간을_실은_VisitReportIssued_를
     sent = await w.send(visit.id)
     [event] = w.events.published
     assert isinstance(event, VisitReportIssued)
-    assert (event.ctx, event.visit_id, event.customer_id, event.pet_id, event.starts_at, event.occurred_at) == (
-        ctx(), visit.id, 1, 101, kst(9, 23, 14), NOW)
+    assert (event.ctx, event.visit_id, event.customer_id, event.pet_id, event.starts_at, event.occurred_at,
+            event.family_pet_ids) == (ctx(), visit.id, 1, 101, kst(9, 23, 14), NOW, (101,))
     assert (event.url, event.expires_at) == (sent.link.url, w.reports.rows[0].expires_at)
+
+
+async def test_끊으면_VisitReportRevoked_를_끊은_뒤에_발행한다():
+    w = _World()
+    visit = w.completed()
+    await w.send(visit.id)
+    await w.revoke(visit.id)
+    issued, revoked = w.events.published
+    assert isinstance(revoked, VisitReportRevoked)
+    assert (revoked.ctx, revoked.visit_id, revoked.customer_id, revoked.pet_id, revoked.starts_at, revoked.occurred_at,
+            revoked.family_pet_ids) == (ctx(), visit.id, 1, 101, kst(9, 23, 14), NOW, (101,))
+    names = [e[0] for e in w.journal]
+    assert names.index("revoke_report") < len(names) - 1 == names.index("publish", names.index("revoke_report"))
 
 
 async def test_살아_있는_링크로_다시_보내면_발행하지_않고_끊은_뒤_보내면_다시_발행한다():
@@ -230,7 +244,8 @@ async def test_살아_있는_링크로_다시_보내면_발행하지_않고_끊�
     assert [e.url for e in w.events.published] == [first.link.url]
     await w.revoke(visit_id)
     second = await w.send(visit_id)
-    assert [e.url for e in w.events.published] == [first.link.url, second.link.url]
+    assert [(type(e).__name__, getattr(e, "url", None)) for e in w.events.published] == [
+        ("VisitReportIssued", first.link.url), ("VisitReportRevoked", None), ("VisitReportIssued", second.link.url)]
 
 
 async def test_빈_알림장이면_발행하지_않는다():

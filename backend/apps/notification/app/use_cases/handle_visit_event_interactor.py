@@ -9,6 +9,7 @@ from hub.app.dtos.visit_events import (
     VisitClosed,
     VisitEvent,
     VisitReportIssued,
+    VisitReportRevoked,
     VisitRescheduled,
     VisitReserved,
 )
@@ -34,7 +35,11 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
 
     연동되지 않은 매장(채널이 linked 가 아니거나 설정이 없음)은 아무것도 하지 않는다 — 취소도 하지 않는다, 줄이 없다.
     업체를 부르지 않으므로 외부 장애로 방문 저장이 막히지 않는다(N13·N14). 같은 방문·종류의 대기 줄이 이미 있으면
-    저장소의 MessageAlreadyPendingError 를 그대로 올린다 — 발행 쪽의 중복 호출이 500 으로 드러나게 둔다.
+    저장소의 MessageAlreadyPendingError 를 그대로 올린다(report·next_visit) — 발행 쪽의 중복 호출이 드러나게 둔다.
+
+    가족 묶음(같은 보호자·같은 시작 시각의 방문들)은 한 통이다 — confirm·reminder·change·cancel 은 같은 보호자·시각·종류의
+    대기 줄이 이미 있으면 만들지 않고, 만들 때 variables 의 pet_ids 에 묶음의 아이들을 싣는다(디스패처가 `#{대상}` 에
+    이름을 나열한다). 취소는 방문 ID 로 하므로 한 마리만 취소하면 그 방문의 줄만 거둔다.
     """
 
     def __init__(
@@ -66,14 +71,16 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
             await self._closed(ctx, settings, event)
         elif isinstance(event, VisitReportIssued):
             await self._report_issued(ctx, settings, event, now)
+        elif isinstance(event, VisitReportRevoked):
+            await self._messages.cancel_pending(ctx, "report_revoked", event.visit_id, kinds=(REPORT,))
 
     async def _reserved(self, ctx: ShopContext, settings: NotificationSettings, event: VisitReserved, now: datetime):
         # 되돌린 예약은 접수 안내를 다시 보내지 않는다 — 리마인드만.
         if not event.revived and await self._allowed(ctx, settings, CONFIRM, event.visit_id):
-            await self._create(ctx, event, CONFIRM, now)
+            await self._create_for_group(ctx, event, CONFIRM, now)
         at = reminder_at(event.starts_at, settings.reminder_time, ctx.timezone, now)
         if at is not None and await self._allowed(ctx, settings, REMINDER, event.visit_id):
-            await self._create(ctx, event, REMINDER, at)
+            await self._create_for_group(ctx, event, REMINDER, at)
 
     async def _rescheduled(
         self, ctx: ShopContext, settings: NotificationSettings, event: VisitRescheduled, now: datetime
@@ -83,14 +90,14 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         await self._messages.cancel_pending(ctx, "rescheduled", event.visit_id, kinds=(REMINDER, CHANGE))
         at = reminder_at(event.starts_at, settings.reminder_time, ctx.timezone, now)
         if at is not None and await self._allowed(ctx, settings, REMINDER):
-            await self._create(ctx, event, REMINDER, at)
+            await self._create_for_group(ctx, event, REMINDER, at)
         if await self._allowed(ctx, settings, CHANGE):
-            await self._create(ctx, event, CHANGE, now, previous_starts_at=_iso(event.previous_starts_at))
+            await self._create_for_group(ctx, event, CHANGE, now, previous_starts_at=_iso(event.previous_starts_at))
 
     async def _canceled(self, ctx: ShopContext, settings: NotificationSettings, event: VisitCanceled, now: datetime):
         await self._messages.cancel_pending(ctx, "visit_canceled", event.visit_id)   # N17
         if event.reason == "shop_reason" and await self._allowed(ctx, settings, CANCEL, event.visit_id):
-            await self._create(ctx, event, CANCEL, now)
+            await self._create_for_group(ctx, event, CANCEL, now)
 
     async def _closed(self, ctx: ShopContext, settings: NotificationSettings, event: VisitClosed) -> None:
         if event.outcome == "no_show":
@@ -127,11 +134,22 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
             return True
         return not await self._messages.has_delivered(ctx, delivered_visit_id, kind, url=url)
 
+    async def _create_for_group(
+        self, ctx: ShopContext, event: VisitEvent, kind: str, scheduled_at: datetime, **variables: str
+    ) -> None:
+        """가족 묶음의 둘째 방문이면 만들지 않는다 — 같은 보호자·같은 시작 시각·같은 종류의 대기 줄이 한 통을 맡는다."""
+        if await self._messages.has_pending_for_group(ctx, event.customer_id, kind, _iso(event.starts_at)):
+            return
+        await self._create(ctx, event, kind, scheduled_at, **variables)
+
     async def _create(
         self, ctx: ShopContext, event: VisitEvent, kind: str, scheduled_at: datetime, **variables: str
     ) -> None:
-        # starts_at 은 모든 종류에 넣는다 — 디스패처가 #{일시} 와 too_late 판정에 쓴다.
+        # starts_at 은 모든 종류에 넣는다 — 디스패처가 #{일시} 와 too_late 판정에 쓴다. pet_ids 는 #{대상} 의 아이들
+        # (묶음이 비면 자기 아이, 보호자만의 방문이면 빈 문자열).
+        pet_ids = event.family_pet_ids or ((event.pet_id,) if event.pet_id is not None else ())
         await self._messages.create(ctx, NewMessage(
             shop_id=ctx.shop_id, visit_id=event.visit_id, customer_id=event.customer_id, pet_id=event.pet_id,
-            kind=kind, scheduled_at=scheduled_at, variables={"starts_at": _iso(event.starts_at), **variables},
+            kind=kind, scheduled_at=scheduled_at,
+            variables={"starts_at": _iso(event.starts_at), **variables, "pet_ids": ",".join(map(str, pet_ids))},
         ))

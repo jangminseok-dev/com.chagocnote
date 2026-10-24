@@ -81,7 +81,7 @@ def _delete_record(session, visit_id):
 
 def _revoke(session, visit_id):
     return RevokeVisitReportInteractor(
-        VisitPgRepository(session), ReportPgRepository(session), _directory(session), now=_now,
+        VisitPgRepository(session), ReportPgRepository(session), _directory(session), events=FakeEvents(), now=_now,
     ).revoke_visit_report(RevokeVisitReportCommand(ctx=SHOP, visit_id=visit_id))
 
 

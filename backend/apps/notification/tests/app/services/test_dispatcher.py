@@ -172,6 +172,17 @@ async def test_반려동물이_없거나_이름이_없으면_보호자_이름님
     assert [m.variables["대상"] for m in world.sent()] == [f"{NAME}님", f"{NAME}님"]
 
 
+async def test_가족_묶음은_pet_ids_의_아이_이름을_가운뎃점으로_잇고_이름_없는_아이는_뺀다():
+    world = _World()
+    world.directory.family(pet_id=102, pet_name="두부")
+    for pet_ids in ("101,102", "102,101", "101,999", "999", ""):
+        world.queue(id=len(world.messages.rows) + 1, variables={"starts_at": _iso(STARTS), "pet_ids": pet_ids})
+
+    await world.run()
+
+    assert [m.variables["대상"] for m in world.sent()] == ["콩이·두부", "두부·콩이", "콩이", f"{NAME}님", f"{NAME}님"]
+
+
 async def test_알림장은_주소가_버튼에_가고_다음_예약_제안은_지난일과_간격을_넣는다():
     world = _World()
     world.queue(kind=REPORT)

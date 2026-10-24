@@ -36,12 +36,16 @@ def message_text(kind: str, *, shop_name: str, target: str, tz: str, variables: 
 async def message_target(
     ctx: ShopContext, directory: CustomerDirectoryPort, message: NotificationMessage, contact: CustomerContact,
 ) -> str:
-    """`#{대상}` — 반려동물 이름이 있으면 그것, 없으면 보호자 이름에 '님'. 보낼 때와 share_text 가 같은 재료로 만든다."""
-    pet_name = None
-    if message.pet_id is not None:
-        pet = (await directory.briefs(ctx, [], [message.pet_id])).pets.get(message.pet_id)
-        pet_name = pet.name if pet is not None else None
-    return target_label(pet_name, contact.name)
+    """`#{대상}` — variables 의 pet_ids(가족 묶음)의 아이 이름을 '·' 로 잇는다(이름 없는 아이는 뺀다). 하나도 없으면
+    보호자 이름에 '님'. pet_ids 가 없는 줄(이 칸이 생기기 전 것)은 자기 pet_id 로. 보낼 때와 share_text 가 같은 재료다."""
+    listed = message.variables.get("pet_ids")
+    if listed is None:
+        pet_ids = [message.pet_id] if message.pet_id is not None else []
+    else:
+        pet_ids = [int(p) for p in listed.split(",") if p]
+    pets = (await directory.briefs(ctx, [], pet_ids)).pets if pet_ids else {}
+    names = [pets[p].name for p in pet_ids if p in pets and pets[p].name]
+    return target_label("·".join(names), contact.name)
 
 
 async def message_views(

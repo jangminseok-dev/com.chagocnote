@@ -268,6 +268,22 @@ async def test_완료는_같은_아이의_앞선_완료_시작_시각을_실은_
         (VisitClosed, first.id, 2, 201, "completed", None, NOW)]
 
 
+async def test_가족_묶음은_같은_시작_시각끼리_pet_id_를_함께_싣고_한_마리만_취소하면_그_아이뿐이다():
+    _, visits, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
+    bori = visits.seed(customer_id=1, pet_id=102, starts_at=kst(9, 23, 13))
+    later = visits.seed(customer_id=1, pet_id=103, starts_at=kst(9, 23, 16))   # 같은 명령이지만 다른 시각
+    await interactor.transition_visits(_act([kong.id, bori.id, later.id], "cancel", "shop_reason"))
+    assert [(e.visit_id, e.family_pet_ids) for e in events.published] == [
+        (kong.id, (101, 102)), (bori.id, (101, 102)), (later.id, (103,))]
+
+    _, visits, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
+    visits.seed(customer_id=1, pet_id=102, starts_at=kst(9, 23, 13))
+    await interactor.transition_visits(_act([kong.id], "cancel", "shop_reason"))
+    assert [(e.visit_id, e.family_pet_ids) for e in events.published] == [(kong.id, (101,))]
+
+
 async def test_노쇼는_앞선_완료_없이_VisitClosed_를_발행한다():
     _, visits, interactor, events = _setup()
     _completed(visits, 101, 9, 2)

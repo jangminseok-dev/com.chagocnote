@@ -100,6 +100,15 @@ class MessagePgRepository(MessageRepository, NotificationQueueRepository):
         found = await self._session.execute(select(_M.id).where(*conditions).limit(1))
         return found.first() is not None
 
+    async def has_pending_for_group(self, ctx: ShopContext, customer_id: int, kind: str, starts_at_iso: str) -> bool:
+        found = await self._session.execute(
+            select(_M.id).where(
+                _M.shop_id == ctx.shop_id, _M.customer_id == customer_id, _M.kind == kind,
+                _M.status.in_(PENDING_STATUSES), _M.variables["starts_at"].astext == starts_at_iso,
+            ).limit(1)
+        )
+        return found.first() is not None
+
     async def last_delivered_at(self, ctx: ShopContext, customer_id: int, kind: str) -> datetime | None:
         return (
             await self._session.execute(

@@ -159,12 +159,20 @@ async def test_임시_휴무일도_closed_day():
 async def test_예약마다_VisitReserved_를_넣은_뒤에_발행한다():
     journal, _, _, _, _, interactor, events = _setup()
     result = await interactor.register_visit(_command(pet_ids=(101, 102)))
-    assert [(type(e), e.ctx, e.visit_id, e.customer_id, e.pet_id, e.starts_at, e.occurred_at, e.revived)
+    assert [(type(e), e.ctx, e.visit_id, e.customer_id, e.pet_id, e.starts_at, e.occurred_at, e.revived,
+             e.family_pet_ids)
             for e in events.published] == [
-        (VisitReserved, ctx(), v.visit_id, 1, pet_id, kst(10, 2, 14), NOW, False)
+        (VisitReserved, ctx(), v.visit_id, 1, pet_id, kst(10, 2, 14), NOW, False, (101, 102))
         for v, pet_id in zip(result.visits, (101, 102))]
     names = [entry[0] for entry in journal]
     assert names.index("create_visits") < names.index("publish")
+
+
+async def test_보호자만의_방문은_가족_묶음이_비어_있다():
+    *_, interactor, events = _setup()
+    await interactor.register_visit(_command(pet_ids=()))
+    [event] = events.published
+    assert (event.pet_id, event.family_pet_ids) == (None, ())
 
 
 async def test_지금_시작한_손님은_예약이_아니라_발행하지_않는다():

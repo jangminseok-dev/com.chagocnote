@@ -120,7 +120,8 @@ async def test_시각을_바꾸면_전후_시각을_실은_VisitRescheduled_를_
     [event] = events.published
     assert isinstance(event, VisitRescheduled)
     assert (event.ctx, event.visit_id, event.customer_id, event.pet_id, event.previous_starts_at, event.starts_at,
-            event.occurred_at) == (ctx(), kong.id, 1, 101, kst(10, 2, 14), kst(10, 3, 11), NOW)
+            event.occurred_at, event.family_pet_ids) == (ctx(), kong.id, 1, 101, kst(10, 2, 14), kst(10, 3, 11), NOW,
+                                                         (101,))
     names = [entry[0] for entry in journal]
     assert names.index("update_visit") < names.index("publish")
 

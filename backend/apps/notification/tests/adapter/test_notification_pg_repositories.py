@@ -195,6 +195,22 @@ async def test_보낸_줄_판정은_보낸_상태만_세고_주소를_주면_같
     assert await repo.has_delivered(A, 2, CONFIRM) is True
 
 
+async def test_묶음_대기_줄_판정은_같은_고객_종류_시작_시각의_대기_줄만_본다(db_session):
+    repo = MessagePgRepository(db_session)
+    starts = "2026-10-16T05:00:00+00:00"
+    assert await repo.has_pending_for_group(A, 1, CONFIRM, starts) is False
+    confirm = await repo.create(A, new_message(customer_id=1, variables={"starts_at": starts, "pet_ids": "101,102"}))
+    assert await repo.has_pending_for_group(A, 1, CONFIRM, starts) is True
+    assert await repo.has_pending_for_group(A, 1, CONFIRM, "2026-10-17T05:00:00+00:00") is False
+    assert await repo.has_pending_for_group(A, 1, REMINDER, starts) is False
+    assert await repo.has_pending_for_group(A, 2, CONFIRM, starts) is False
+    assert await repo.has_pending_for_group(B, 1, CONFIRM, starts) is False
+    await repo.save(A, replace(confirm, status=SENDING))
+    assert await repo.has_pending_for_group(A, 1, CONFIRM, starts) is True   # sending 도 대기다
+    await repo.save(A, replace(confirm, status=CANCELED, canceled_reason="rescheduled"))
+    assert await repo.has_pending_for_group(A, 1, CONFIRM, starts) is False
+
+
 async def test_마지막으로_보낸_시각은_고객_종류별로_가장_최근이다(db_session):
     repo = MessagePgRepository(db_session)
     assert await repo.last_delivered_at(A, 1, NEXT_VISIT) is None

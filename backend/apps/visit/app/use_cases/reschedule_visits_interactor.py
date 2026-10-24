@@ -44,10 +44,12 @@ class RescheduleVisitsInteractor(RescheduleVisitsUseCase):
         check_same_day(command.starts_at, longest, tz)
         moved = await self._visits.reschedule(ctx, [v.id for v in locked], command.starts_at)
         previous = {v.id: v.starts_at for v in locked}
+        family = tuple(sorted(v.pet_id for v in moved if v.pet_id is not None))   # 한 시각으로 옮긴 같은 보호자의 묶음
         for visit in moved:
             await self._events.publish(VisitRescheduled(
                 ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
-                starts_at=visit.starts_at, occurred_at=now, previous_starts_at=previous[visit.id]))
+                starts_at=visit.starts_at, occurred_at=now, previous_starts_at=previous[visit.id],
+                family_pet_ids=family))
         settings = await self._schedule.ensure(ctx)
         warnings = await warnings_after_save(
             ctx, locked[0].customer_id, command.starts_at, longest, settings, self._board, self._schedule

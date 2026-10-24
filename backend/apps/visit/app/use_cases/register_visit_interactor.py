@@ -70,12 +70,13 @@ class RegisterVisitInteractor(RegisterVisitUseCase):
                 for pet_id in (command.pet_ids or (None,))
             ],
         )
-        # 예약만 알린다 — '지금 시작'은 미용 중으로 시작하니 예약이 아니다.
+        # 예약만 알린다 — '지금 시작'은 미용 중으로 시작하니 예약이 아니다. 한 명령의 방문은 전부 같은 가족 묶음이다.
         if status == RESERVED:
+            family = tuple(sorted(v.pet_id for v in created if v.pet_id is not None))
             for visit in created:
                 await self._events.publish(VisitReserved(
                     ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
-                    starts_at=visit.starts_at, occurred_at=now))
+                    starts_at=visit.starts_at, occurred_at=now, family_pet_ids=family))
 
         warnings = await warnings_after_save(
             ctx, command.customer_id, starts_at, duration, settings, self._board, self._schedule

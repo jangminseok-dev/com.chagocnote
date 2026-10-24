@@ -76,5 +76,6 @@ class SendVisitReportInteractor(SendVisitReportUseCase):
         if issued:
             await self._events.publish(VisitReportIssued(
                 ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
-                starts_at=visit.starts_at, occurred_at=now, url=link.url, expires_at=live.expires_at))
+                starts_at=visit.starts_at, occurred_at=now, url=link.url, expires_at=live.expires_at,
+                family_pet_ids=(visit.pet_id,) if visit.pet_id is not None else ()))
         return VisitReportPreview(report=report, link=link.in_zone(ZoneInfo(ctx.timezone)))

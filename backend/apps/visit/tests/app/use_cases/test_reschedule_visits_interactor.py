@@ -93,9 +93,10 @@ async def test_옮긴_방문마다_VisitRescheduled_를_옮긴_뒤에_발행한�
     kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
     bori = visits.seed(customer_id=1, pet_id=102, starts_at=kst(10, 2, 14))
     await interactor.reschedule_visits(_move([bori.id, kong.id]))
-    assert [(type(e), e.ctx, e.visit_id, e.customer_id, e.pet_id, e.previous_starts_at, e.starts_at, e.occurred_at)
+    assert [(type(e), e.ctx, e.visit_id, e.customer_id, e.pet_id, e.previous_starts_at, e.starts_at, e.occurred_at,
+             e.family_pet_ids)
             for e in events.published] == [
-        (VisitRescheduled, ctx(), kong.id, 1, 101, kst(10, 2, 14), kst(10, 3, 15), NOW),
-        (VisitRescheduled, ctx(), bori.id, 1, 102, kst(10, 2, 14), kst(10, 3, 15), NOW)]
+        (VisitRescheduled, ctx(), kong.id, 1, 101, kst(10, 2, 14), kst(10, 3, 15), NOW, (101, 102)),
+        (VisitRescheduled, ctx(), bori.id, 1, 102, kst(10, 2, 14), kst(10, 3, 15), NOW, (101, 102))]
     names = [entry[0] for entry in journal]
     assert names.index("reschedule") < names.index("publish")

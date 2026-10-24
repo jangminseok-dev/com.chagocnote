@@ -66,7 +66,8 @@ class UpdateVisitInteractor(UpdateVisitUseCase):
         if updated.starts_at != current.starts_at:
             await self._events.publish(VisitRescheduled(
                 ctx=ctx, visit_id=updated.id, customer_id=updated.customer_id, pet_id=updated.pet_id,
-                starts_at=updated.starts_at, occurred_at=now, previous_starts_at=current.starts_at))
+                starts_at=updated.starts_at, occurred_at=now, previous_starts_at=current.starts_at,
+                family_pet_ids=(updated.pet_id,) if updated.pet_id is not None else ()))
         warnings = []
         if updated.is_active:
             settings = await self._schedule.ensure(ctx)

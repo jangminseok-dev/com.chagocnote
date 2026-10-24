@@ -57,8 +57,10 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
         changed = await self._visits.apply_changes(ctx, changes, ctx.member_id)
         await apply_completion_effects(ctx, locked, changed, self._history, self._directory)
         # 쓰기가 다 끝난 뒤에 알린다 — 구독자가 던지면 전이도 함께 롤백된다(설계 5.1, N13).
+        # 가족 묶음은 같은 보호자(잠금이 보장)·같은 시작 시각인 것끼리다.
         for visit in changed:
-            event = await self._event_for(ctx, command.action, command.cancel_reason, visit, now)
+            family = tuple(sorted(v.pet_id for v in changed if v.starts_at == visit.starts_at and v.pet_id is not None))
+            event = await self._event_for(ctx, command.action, command.cancel_reason, visit, now, family)
             if event is not None:
                 await self._events.publish(event)
         return TransitionedVisitsView(
@@ -66,11 +68,12 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
         )
 
     async def _event_for(
-        self, ctx: ShopContext, action: str, cancel_reason: str | None, visit: Visit, now: datetime
+        self, ctx: ShopContext, action: str, cancel_reason: str | None, visit: Visit, now: datetime,
+        family: tuple[int, ...],
     ) -> VisitEvent | None:
         """행동마다 알릴 사실. 시작은 알릴 것이 없다. 되돌리기의 결과는 늘 예약됨이다(`VisitState.revert`)."""
         common = dict(ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
-                      starts_at=visit.starts_at, occurred_at=now)
+                      starts_at=visit.starts_at, occurred_at=now, family_pet_ids=family)
         if action == "cancel":
             return VisitCanceled(**common, reason=cancel_reason)
         if action == "complete":

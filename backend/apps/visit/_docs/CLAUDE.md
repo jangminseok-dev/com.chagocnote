@@ -18,7 +18,7 @@
 - 기록의 사진·영상은 media 의 허브 포트 `MediaLibraryPort`로 가져가고(claim) 놓는다(release) — 둘 다 조건부 UPDATE 라 잠금 안에서 부른다. 놓인 미디어는 media 의 정리 스크립트가 하루 뒤 지운다. `visit_record_media.kind`는 가져가기가 알려 준 값(바뀌지 않는 사실)이다 — 대표 사진(후 → 전 → 영상 포스터, `cover_media_id`)과 한도(사진 30·영상 3)를 이 표만으로 계산한다. 읽기 URL 은 `read_urls`로 받는다(`app/services/record_reader.py`·`cover_reader.py`).
 - 기록에 몸무게를 처음 적거나 바꾸면 그 방문이 그 아이의 가장 최근 시작한 방문일 때만 `CustomerDirectoryPort.set_pet_weight`로 현재 몸무게를 넘긴다(`completion_effects.sync_pet_weight`). 같은 몸무게로 메모만 고쳐 저장하거나 옛 기록을 고쳐도 현재 값은 그대로다. 전이는 몸무게를 넘기지 않는다.
 - 방문 상세는 기록 전체와 대표 사진, 하루 목록은 `has_record`·`cover`, 달력은 날마다 완료 방문의 `cover`·`covers`(최대 4), 피드(`GET /visits/feed`)는 완료 방문을 완료 시각 역순 커서로 준다. 기록 여러 개는 `VisitRecordRepository.list_many`로 방문 수와 상관없이 한 번에 읽는다.
-- **도메인 이벤트를 발행한다**(⑥). 허브 포트 `DomainEventPort`(`dependencies/hub_ports.get_domain_events` 자리, `main.py` 가 core 의 같은 세션 동기 버스를 꽂는다)로 방문의 사실을 알리고 notification 을 모른다. 구독자는 같은 트랜잭션에서 돌고 던지면 요청이 실패한다. 발행 규칙은 아래 표이고, 공통 칸(`ctx`·`visit_id`·`customer_id`·`pet_id`·`starts_at`)은 쓰기 뒤 행의 값, `occurred_at` 은 인터랙터가 한 번 읽은 `now` 다. 되돌리기는 `VisitReserved(revived=True)`(접수 안내 없이 리마인드만), `start` 는 발행하지 않는다. `pet_id` 만 바뀐 수정도 발행하지 않는다.
+- **도메인 이벤트를 발행한다**(⑥). 허브 포트 `DomainEventPort`(`dependencies/hub_ports.get_domain_events` 자리, `main.py` 가 core 의 같은 세션 동기 버스를 꽂는다)로 방문의 사실을 알리고 notification 을 모른다. 구독자는 같은 트랜잭션에서 돌고 던지면 요청이 실패한다. 발행 규칙은 아래 표이고, 공통 칸(`ctx`·`visit_id`·`customer_id`·`pet_id`·`starts_at`)은 쓰기 뒤 행의 값, `occurred_at` 은 인터랙터가 한 번 읽은 `now` 다. 되돌리기는 `VisitReserved(revived=True)`(접수 안내 없이 리마인드만), `start` 는 발행하지 않는다. `pet_id` 만 바뀐 수정도 발행하지 않는다. `family_pet_ids` 는 그 명령이 함께 다룬 같은 보호자·같은 `starts_at` 방문들의 `pet_id`(None 제외, 오름차순) — 등록·일정 변경은 명령의 방문 전부, 전이는 같은 `starts_at` 끼리, 수정·알림장은 방문 하나라 자기 아이뿐이다.
 
 | 인터랙터 | 발행 | 위치 |
 |---|---|---|
@@ -27,6 +27,7 @@
 | `RescheduleVisitsInteractor` | 옮긴 방문마다 `VisitRescheduled(previous_starts_at=잠근 행의 starts_at)` | `reschedule` 뒤, `ensure`·경고 앞 |
 | `TransitionVisitsInteractor` | `cancel` → `VisitCanceled(reason)`, `complete` → `VisitClosed("completed", previous_completed_at=latest_completed_start_excluding(…))`, `no_show` → `VisitClosed("no_show", None)`, `revert` → `VisitReserved(revived=True)` | `apply_changes`·`apply_completion_effects` 뒤, 응답 앞 |
 | `SendVisitReportInteractor` | 새 링크를 만들었을 때만 `VisitReportIssued(url, expires_at)` — 살아 있는 링크의 다시 공유는 발행하지 않는다 | `describe_link` 뒤, 응답 앞 |
+| `RevokeVisitReportInteractor` | 살아 있는 링크를 끊었을 때 `VisitReportRevoked` — 끊을 것이 없으면(404) 발행하지 않는다. 익명화가 끊는 링크는 이벤트 없음 | `revoke` 뒤 |
 
 - customer 에 `VisitLedgerPort.latest_covers`(사진이 붙은 가장 최근 완료 방문의 대표 — 반려동물 프로필 사진)를 준다. 익명화(`clear_customer_memos`)는 방문 메모와 기록의 두 메모를 비우고 사진은 남긴다.
 - 매장 일정 설정 행은 매장을 처음 쓸 때(조회에서도) 기본값으로 만들고 같은 트랜잭션에서 기본 메뉴를 넣는다. 메뉴는 지우지 않고 보관한다.

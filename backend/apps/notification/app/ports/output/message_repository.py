@@ -35,6 +35,11 @@ class MessageRepository(ABC):
         """보낸 줄(sent·fallback_sent)이 있는가. url 을 주면 variables 의 url 이 같은 줄만(알림장)."""
 
     @abstractmethod
+    async def has_pending_for_group(self, ctx: ShopContext, customer_id: int, kind: str, starts_at_iso: str) -> bool:
+        """같은 보호자·같은 종류·같은 시작 시각(variables 의 starts_at)의 대기 줄(scheduled·sending)이 있는가 —
+        가족 묶음(두 마리)을 한 통으로 보내려고 둘째 방문의 줄을 만들지 않는 데 쓴다."""
+
+    @abstractmethod
     async def last_delivered_at(self, ctx: ShopContext, customer_id: int, kind: str) -> datetime | None:
         """그 고객에게 그 종류를 마지막으로 보낸 시각(쿨다운)."""
 
