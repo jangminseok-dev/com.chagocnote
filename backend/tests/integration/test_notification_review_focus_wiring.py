@@ -3,6 +3,7 @@
 
 채널·설정·템플릿은 SQL 로 넣고 디스패처는 FakeGateway 로 run_once 를 직접 돈다. 번호는 끝 네 자리만 비교하고 찍지 않는다.
 """
+import json
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from notification.adapter.outbound.strategy.fake_gateway import FakeGateway
 from notification.dependencies.dispatcher_provider import build_dispatcher
+from notification.domain.services.templates import format_when
 from notification.domain.value_objects.message_kind import KINDS
 from tests.integration.support import bearer, make_operator, shop_with_owner
 
@@ -28,9 +30,9 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _at(days: int, hour: int) -> datetime:
+def _at(days: int, hour: int, minute: int = 0) -> datetime:
     day = datetime.now(SEOUL).date() + timedelta(days=days)
-    return datetime(day.year, day.month, day.day, hour, tzinfo=SEOUL)
+    return datetime(day.year, day.month, day.day, hour, minute, tzinfo=SEOUL)
 
 
 def _utc_iso(at: datetime) -> str:
@@ -163,3 +165,115 @@ async def test_디스패처가_돌기_전에_링크를_끊으면_report_는_repo
         ("report", "canceled", "report_revoked"), ("report", "scheduled", None)]
     await _run_once(wired, gateway)
     assert _targets(gateway, "report") == ["콩이"]
+
+
+# --- 3. 바뀐 번호로 간다 ------------------------------------------------------------------------------------------------
+
+async def test_예약_뒤에_보호자_번호를_바꾸면_접수_안내는_바뀐_번호로_간다(wired):
+    shop_id, headers, customer_id, pet_ids = await _shop(wired)
+    await _booked(wired, shop_id, headers, customer_id, pet_ids[:1], _at(3, 14))
+    changed = await wired.api.put(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers,
+                                  json={**CUSTOMER, "phone": "010-1234-4321"})
+    assert changed.status_code == 200, changed.text
+    gateway = FakeGateway()
+
+    report = await _run_once(wired, gateway)
+
+    assert report.sent == 1
+    assert gateway.sent_messages[-1].to[-4:] == "4321"   # 끝 네 자리만 비교한다 — 번호를 찍지 않는다
+
+
+# --- 4. 멈췄다 돌아온 디스패처 -----------------------------------------------------------------------------------------
+
+async def _insert(wired, shop_id, customer_id, pet_id, visit_id, kind, scheduled_at, **variables) -> None:
+    """줄을 직접 넣는다 — 시각을 마음대로 두려고 구독자를 거치지 않는다."""
+    await wired.execute(
+        "INSERT INTO notification_messages (shop_id, customer_id, pet_id, visit_id, kind, status, scheduled_at, variables) "
+        "VALUES (:shop_id, :customer_id, :pet_id, :visit_id, :kind, 'scheduled', :scheduled_at, CAST(:variables AS jsonb))",
+        shop_id=shop_id, customer_id=customer_id, pet_id=pet_id, visit_id=visit_id, kind=kind, scheduled_at=scheduled_at,
+        variables=json.dumps({"pet_ids": str(pet_id), **variables}))
+
+
+async def _status(wired, shop_id: int) -> list[tuple]:
+    """(종류, 상태, 취소 이유, scheduled_at) — id 순."""
+    async with wired.engine.connect() as conn:
+        rows = await conn.execute(text(
+            "SELECT kind, status, canceled_reason, scheduled_at FROM notification_messages "
+            "WHERE shop_id = :shop_id ORDER BY id"), {"shop_id": shop_id})
+        return [tuple(row) for row in rows]
+
+
+async def _paused_queue(wired):
+    """내일 14:00 예약의 reminder(오늘 18:00)와 완료 방문의 next_visit(4주 뒤 18:00)이 대기 중인 매장."""
+    shop_id, _, customer_id, pet_ids = await _shop(wired)
+    await _insert(wired, shop_id, customer_id, pet_ids[0], 1, "reminder", _at(0, 18), starts_at=_utc_iso(_at(1, 14)))
+    await _insert(wired, shop_id, customer_id, pet_ids[0], 2, "next_visit", _at(28, 18),
+                  starts_at=_utc_iso(_at(-1, 14)), completed_at=_utc_iso(_at(0, 11)), interval_weeks="4")
+    return shop_id
+
+
+async def test_멈췄다가_예약_1시간_전을_넘겨_돌아오면_reminder_는_too_late_다(wired):
+    shop_id = await _paused_queue(wired)
+    gateway = FakeGateway()
+
+    await _run_once(wired, gateway, _at(1, 13, 30))
+
+    assert await _status(wired, shop_id) == [
+        ("reminder", "canceled", "too_late", _at(0, 18)), ("next_visit", "scheduled", None, _at(28, 18))]
+    assert gateway.sent_messages == []
+
+
+async def test_멈췄다가_밤에_돌아오면_reminder_는_다음_날_08시로_미루고_next_visit_은_그대로이며_아침에_나간다(wired):
+    shop_id = await _paused_queue(wired)
+    gateway = FakeGateway()
+
+    night = await _run_once(wired, gateway, _at(0, 23))
+    assert (night.claimed, night.deferred) == (1, 1)
+    assert await _status(wired, shop_id) == [
+        ("reminder", "scheduled", None, _at(1, 8)), ("next_visit", "scheduled", None, _at(28, 18))]
+
+    morning = await _run_once(wired, gateway, _at(1, 8))
+    assert (morning.claimed, morning.sent) == (1, 1)
+    assert [r[:2] for r in await _status(wired, shop_id)] == [("reminder", "accepted"), ("next_visit", "scheduled")]
+    [outgoing] = gateway.sent_messages
+    assert (outgoing.provider_template_id, outgoing.variables["대상"], outgoing.variables["시각"]) == (
+        TEMPLATE["reminder"], "콩이", "14:00")
+
+
+# --- 5. 연달아 두 번 바꾼 예약 -----------------------------------------------------------------------------------------
+
+async def test_연달아_두_번_바꾸면_change_는_마지막_한_통만_대기하고_이전_시각은_첫_변경_뒤_시각이다(wired):
+    shop_id, headers, customer_id, pet_ids = await _shop(wired)
+    first, second, third = _at(3, 14), _at(4, 15), _at(5, 16)
+    booked = await wired.api.post(f"/v1/shops/{shop_id}/visits", headers=headers,
+                                  json={"customer_id": customer_id, "pet_ids": pet_ids[:1], "starts_at": first.isoformat()})
+    assert booked.status_code == 201, booked.text
+    visit = booked.json()["visits"][0]
+    for starts_at in (second, third):
+        moved = await wired.api.put(
+            f"/v1/shops/{shop_id}/visits/{visit['visit_id']}", headers=headers,
+            json={"starts_at": starts_at.isoformat(), "pet_id": pet_ids[0], "duration_minutes": visit["duration_minutes"],
+                  "menu_ids": [], "memo": None})
+        assert moved.status_code == 200, moved.text
+
+    async with wired.engine.connect() as conn:
+        rows = await conn.execute(text(
+            "SELECT kind, status, canceled_reason, scheduled_at, variables->>'starts_at' AS starts_at, "
+            "variables->>'previous_starts_at' AS previous_starts_at "
+            "FROM notification_messages WHERE visit_id = :visit_id ORDER BY id"), {"visit_id": visit["visit_id"]})
+        rows = [dict(r._mapping) for r in rows]
+    assert [(r["kind"], r["status"], r["canceled_reason"]) for r in rows] == [
+        ("confirm", "scheduled", None),
+        ("reminder", "canceled", "rescheduled"), ("reminder", "canceled", "rescheduled"), ("change", "canceled", "rescheduled"),
+        ("reminder", "scheduled", None), ("change", "scheduled", None),
+    ]
+    reminder, change = rows[4], rows[5]
+    assert (reminder["scheduled_at"], reminder["starts_at"]) == (_at(4, 18), _utc_iso(third))
+    assert (change["previous_starts_at"], change["starts_at"]) == (_utc_iso(second), _utc_iso(third))
+
+    gateway = FakeGateway()
+    await _run_once(wired, gateway)
+
+    [change_sent] = [m for m in gateway.sent_messages if m.provider_template_id == TEMPLATE["change"]]
+    assert (change_sent.variables["이전일시"], change_sent.variables["일시"]) == (
+        format_when(second, "Asia/Seoul"), format_when(third, "Asia/Seoul"))
