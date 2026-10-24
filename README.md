@@ -21,6 +21,7 @@
     bash ../backend/scripts/check_account_flow.sh                                   # 회원 탈퇴 흐름 확인
     bash ../backend/scripts/check_customer_flow.sh                                  # 고객·반려동물 흐름 확인
     bash ../backend/scripts/check_report_flow.sh                                    # 알림장 흐름 확인 (버킷 준비 뒤 — _docs/harness.md)
+    bash ../backend/scripts/check_notification_flow.sh                              # 알림톡 흐름 확인 (가짜 게이트웨이, 실제 발송 없음)
 
 `REPORT_LINK_KEY_B64`(알림장 링크의 서명 키, 32바이트 이상을 base64 로)는 필수다. 없으면 API 프로세스와 인증 프로세스가 둘 다 기동하지 않는다. `generate_dev_env.py`는 `.env`가 이미 있으면 아무것도 하지 않으므로, ⑤ 이전에 만든 개발 환경은 한 줄을 직접 더한다. 먼저 `.env`가 줄바꿈으로 끝나는지 본다(끝나지 않으면 앞 줄에 붙는다). 아래 명령은 값을 출력하지 않고, 이미 있으면 아무것도 하지 않는다. 키를 바꾸면 보낸 링크가 모두 닫힌다.
 
@@ -46,6 +47,8 @@
             text += '\n'
         env.write_text(text + 'REPORT_WEB_SECRET=' + secrets.token_urlsafe(32) + '\n')
     "
+
+`SOLAPI_API_KEY`·`SOLAPI_API_SECRET`(알림톡 발송 업체 솔라피의 API 키)은 개발 환경에서 비워 둔다 — 둘 다 비어 있고 `APP_ENV=dev`면 가짜 게이트웨이가 붙어 실제 발송 없이 흐름을 확인할 수 있다(토큰·인증번호 `000000`, 번호 끝 `0000`은 실패). 운영은 둘 다 필수이고, 하나만 있거나 비어 있으면 API 프로세스가 기동하지 않는다. 함께 쓰는 키 둘은 없어도 된다 — `SOLAPI_BALANCE_WARN_KRW`(잔액 경고 기준, 기본 30000원 — 디스패처가 하루 한 번 잔액을 보고 아래면 WARNING 로그)와 `NOTIFICATION_DAILY_CAP`(매장별 하루 발송 상한, 기본 300 — 넘으면 보내지 않고 1시간 뒤로 미룬다). 알림톡은 건당 과금(솔라피 13원, 문자 대체 18~45원)이라 실제 키는 운영에만 둔다.
 
 개발 환경에서는 제공자 `dev`로 이름만 넣어 로그인한다. 운영자는 `docker compose run --rm backend python scripts/grant_operator.py <user_id>`로 지정한다.
 

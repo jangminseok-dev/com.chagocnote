@@ -18,6 +18,9 @@
 | 미디어 버킷 준비 | `docker compose run --rm backend python scripts/ensure_media_bucket.py` (버킷 생성 + 원본 수명주기 규칙. MinIO 는 계층 이동을 받지 않아 규칙을 건너뛴다) |
 | 사진·기록 흐름 (게이트웨이·MinIO 경유) | `bash ../backend/scripts/check_media_flow.sh` — 버킷 준비 뒤. 서명 URL 로 저장소에 바로 올리고 읽는다. 개발 DB·버킷에 확인용 매장·사진이 남는다 |
 | 알림장 흐름 (게이트웨이·MinIO 경유) | `bash ../backend/scripts/check_report_flow.sh` — 버킷 준비 뒤. 설정 → 보내기 → 공개 조회(헤더 `X-Report-Token`) → 열람 신호 → 끊기 → 410 → 다시 보내기 → 내려받기. 토큰과 서명 URL 은 화면에 찍지 않는다. 개발 DB·버킷에 확인용 매장·사진·알림장 링크가 남는다 |
+| 알림톡 흐름 (게이트웨이 경유) | `bash ../backend/scripts/check_notification_flow.sh` — 채널 연동(토큰 `000000`) → 템플릿 승인(`reregister_templates.py --refresh`) → 발신번호 인증·문자 대체 → 예약 접수·리마인드 → 일정 변경 → 끝 `0000` 번호의 실패와 다시 보내기 → 취소 → 완료와 다음 예약 제안 → 알림장 → 연동 해제. dev 는 가짜 게이트웨이라 실제 발송이 없다. 디스패처가 서버 안에서 돌므로 상태를 몇 초 기다린다(`wait_status`). 번호·알림장 주소·업체 ID 는 화면에 찍지 않는다. 개발 DB 에 확인용 매장·유저·고객·방문·알림 줄이 남는다 |
+| 알림톡 템플릿 재등록·심사 상태 조회 | `docker compose run --rm backend python scripts/reregister_templates.py [--shop <id>] [--refresh]` — 기본은 연동된 매장(또는 하나)에서 코드의 `TEXT_VERSION` 과 다르거나 반려된 종류(없는 종류 포함, `next_visit` 은 켠 매장만)를 새 판으로 등록·검수 요청. `--refresh` 는 등록 없이 `pending` 템플릿의 업체 상태만 적는다(디스패처의 10분 주기를 바로 당긴다). 출력은 매장 ID·종류·결과만 |
+| 알림 표 ↔ DB CHECK·부분 색인·유일 제약 대조 | 통합 테스트 안(`tests/integration/test_notification_schema.py`) — 0011 의 CHECK 13개·유일 제약·부분 유일 색인(`uq_notification_messages_pending`)을 실제 DB 와 대조한다 |
 | 미디어 정리 | `docker compose run --rm backend python scripts/purge_stale_media.py` (하루 넘게 어느 기록도 가져가지 않은 사진·영상 — 운영은 주기적으로) |
 | 최근 방문순 키 복구 | `docker compose run --rm backend python scripts/rebuild_last_visit.py` (고객 목록 '최근 방문순'이 방문 기록과 어긋났을 때) |
 | 플랫폼 운영자 지정 | `docker compose run --rm backend python scripts/grant_operator.py <user_id>` |
@@ -45,7 +48,11 @@
 - 앱의 구조 위반은 `test/design/feature_imports_test.dart`(기능 폴더 사이 import 는 `auth` 공용·`home` 껍데기·`visit → customer`만)와 `test/core/router/app_router_test.dart`(열린 경로 목록 밖의 모든 경로는 매장 선택이 없으면 막힌다)가 잡는다. 기능 폴더나 경로를 더한 변경은 이 둘을 돌린다.
 - 유스케이스는 스텁 포트로 검증한다. mock 프레임워크보다 스텁 구현을 쓴다. 공용 스텁(`apps/*/tests/helpers/fakes.py`)은 포트 ABC를 상속한다 — 포트에 메서드를 더하고 스텁을 빠뜨리면 인스턴스를 만드는 순간 잡힌다(`apps/*/tests/test_fakes_are_ports.py`). 테스트 파일 안의 부분 스텁(`_Stub*`)은 그 테스트가 부르는 메서드만 가지므로 상속하지 않는다.
 - `tests/integration/`은 두 프로세스의 실제 앱 객체에 붙어 프로바이더·DB 커밋·Redis까지 통과한다. 인증 프로세스의 개인키는 테스트마다 새로 만든 키로 바꿔 넣는다.
-- 스포크를 새로 만들면 첫 통합 테스트로 "A매장 멤버가 B매장의 경로를 부르면 403"(테넌트 격리)을 둔다.
+- 스포크를 새로 만들면 첫 통합 테스트로 "A매장 멤버가 B매장의 경로를 부르면 403"(테넌트 격리)을 둔다. notification 도 그렇게 시작했다(`tests/integration/test_notification_onboarding_wiring.py`·`test_notification_messages_wiring.py`의 첫 테스트).
+- 요청 밖(디스패처·운영자 스크립트)에서 `ShopContext`를 만드는 곳은 `notification/app/services/system_context.py` 하나다(권한 빔). 테스트가 요청 밖 코드를 돌릴 때도 이것을 쓴다 — 가드를 흉내 내는 다른 생성자를 만들지 않는다.
+- 디스패처는 테스트에서 루프를 띄우지 않고 `build_dispatcher(session, gateway=FakeGateway(), now=lambda: fixed).run_once()`로 한 번씩 돌린다(`tests/integration/test_notification_dispatcher_wiring.py`). 상한은 `monkeypatch.setattr(dispatcher_provider, "NOTIFICATION_DAILY_CAP", 1)`, 요청 쪽 게이트웨이는 `main.app.dependency_overrides[get_message_gateway] = lambda: fake`(끝나면 pop). `dispatcher_wakeup._event`는 처음 `wait()`한 이벤트 루프에 묶이므로 `wait`를 부르는 테스트 파일은 autouse 픽스처로 새 `asyncio.Event`를 넣는다.
+- 통합 테스트 두 세션을 **동시에** 돌리면(전체 + 파일 하나) 같은 테스트 DB 를 TRUNCATE 해 서로 깨진다 — 차례로 돌린다. 대역 서버(테스트 DB 로 흐름 스크립트를 돌리는 임시 서버)도 통합 테스트와 같이 띄우지 않는다.
+- 실제 발송 업체(`api.solapi.com`)는 테스트에서 부르지 않는다 — 어댑터 테스트는 `httpx.MockTransport`, 나머지는 `FakeGateway`/`SpyGateway`(`notification/tests/helpers/fakes.py`)다. `.env`의 `SOLAPI_*`가 비어 있으면 dev 는 가짜 게이트웨이다.
 - 허브 포트 자리를 새로 만들어도 더할 목록은 없다. `tests/route_inspection.py`가 두 앱의 라우트 의존성 트리를 훑어 ① 채우지 않은 허브 포트 자리 ② `{shop_id}` 경로인데 `get_shop_context`를 거치지 않는 라우트 ③ `/v1/platform/` 경로인데 `require_operator`를 거치지 않는 라우트를 잡는다. API 프로세스는 `tests/test_hub_port_binding.py`가, 인증 프로세스는 `tests/integration/test_route_wiring.py`가 돌린다.
 - 권한이나 불변식이 걸린 슬라이스를 계획할 때는 악의적이거나 운 나쁜 시나리오(내보내진 사람이 쥔 것, 같은 요청이 동시에 두 번, 읽기와 쓰기 사이)를 먼저 표로 적고, 각각을 막는 코드와 테스트를 작업에 넣는다. 작업별 검토는 계획서와의 일치가 아니라 그 표를 기준으로 한다.
 - 통합 테스트에서 두 번째 로그인 수단이 필요하면 `fake_kakao` 픽스처를 쓴다.

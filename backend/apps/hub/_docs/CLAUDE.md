@@ -18,9 +18,13 @@
 | `ActiveUserGuardPort.lock_active(user_id) → bool` | auth `guard_active_user` | tenancy `accept_invite` |
 | `MembershipLifecyclePort.apply_withdrawal(user_id, close_sole_owned)` | tenancy `apply_withdrawal` | auth `withdraw` (인증 프로세스) |
 | `CustomerDirectoryPort.lock_family · briefs · set_last_visit · set_pet_weight · find_draft_candidates(ctx, words) → list[DraftCandidate]` | customer `customer_directory` | visit (방문 쓰기의 가족 잠금, 이름 표시, 최근 방문순, 기록의 몸무게, 카톡 초안 후보) |
+| `CustomerDirectoryPort.contact(ctx, customer_id) → CustomerContact \| None` (이름·번호(숫자만)·마케팅 동의, 익명화면 None) | customer `customer_directory` | notification 만 (보내는 순간의 연락처 — `briefs` 는 가린 번호라 못 쓴다) |
+| `DomainEventPort.publish(event)` | core `observer/in_process_event_bus.py` (같은 프로세스·같은 세션의 동기 버스, 구독자 목록은 `main.py` 가 기동 때 채운다) | 발행 visit (등록·수정·일정 변경·전이·알림장 보내기), 구독 notification (`adapter/inbound/observer/`) |
 | `VisitLedgerPort` (방문 유무·앞으로의 예약·노쇼 횟수·메모 비우기(`clear_customer_memos` — 알림장 링크도 끊는다)·`latest_covers`) | visit `visit_ledger` | customer (삭제·익명화·무지개다리 규칙, 고객 상세, 반려동물 프로필 사진) |
 | `MediaLibraryPort.claim(ctx, ids) → {id: kind} · release · read_urls(ctx, ids) → {id: MediaUrls}` | media `media_library` | visit (기록의 사진·영상, 알림장), customer (프로필 사진) |
-| `ShopProfilePort.public_profile(shop_id) → ShopProfile \| None` (이름·전화·주소·시간대·영업 중 여부) | tenancy `get_shop_profile` | visit (알림장의 매장 정보, 공개 조회의 시간대와 정지·폐업 판정) |
+| `ShopProfilePort.public_profile(shop_id) → ShopProfile \| None` (이름·전화·주소·시간대·영업 중 여부) | tenancy `get_shop_profile` | visit (알림장의 매장 정보, 공개 조회의 시간대와 정지·폐업 판정), notification (보낼 때의 매장 이름·시간대·`shop_closed` 판정, 실패 줄의 `share_text`) |
 
 - `MediaUrls`에는 `download_url`이 있다 — 원본을 첨부 파일로 내려받는 서명 주소다. 칸이 `original_url` 바로 뒤라 `MediaUrls`는 이름 인자로 만든다.
-- `ShopProfilePort.public_profile`은 권한을 보지 않고 정지·폐업한 매장도 돌려준다(`None`은 없는 매장뿐). 로그인한 사용자가 없는 경로가 서명을 확인한 링크에서 읽은 매장 ID 로만 부른다.
+- `ShopProfilePort.public_profile`은 권한을 보지 않고 정지·폐업한 매장도 돌려준다(`None`은 없는 매장뿐). 로그인한 사용자가 없는 경로가 서명을 확인한 링크에서 읽은 매장 ID 로만 부른다. notification 의 디스패처도 요청 밖에서 집은 줄의 매장 ID 로 부른다.
+- 이벤트 DTO 는 `app/dtos/visit_events.py`의 다섯 — `VisitReserved(revived)`, `VisitRescheduled(previous_starts_at)`, `VisitCanceled(reason)`, `VisitClosed(outcome, previous_completed_at)`, `VisitReportIssued(url, expires_at)`. 공통 칸은 `ctx`(발행한 요청의 `ShopContext`)·`visit_id`·`customer_id`·`pet_id`·`starts_at`·`occurred_at`(UTC). 구독자는 발행한 인터랙터와 같은 세션·같은 트랜잭션에서 돌고, **구독자가 던지면 발행한 요청이 실패한다**(의도 — 둘이 어긋나지 않게). `VisitReportIssued.url` 에는 토큰이 든다 — 이벤트를 `%r` 로 로그에 찍지 않는다.
+- notification 은 요청 안에서도 `ShopProfilePort`·`CustomerDirectoryPort` 를 쓴다(`dependencies/hub_ports.py` 의 자리, `share_text`). 요청 밖의 디스패처는 `Depends` 자리를 못 쓰므로 같은 세 프로바이더(tenancy·customer·visit)를 `dependencies/dispatcher_ports.py` 의 공장 자리로 받고 `main.py` 가 꽂는다.
