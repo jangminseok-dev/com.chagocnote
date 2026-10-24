@@ -6,6 +6,7 @@ from notification.app.ports.output.channel_repository import ChannelRepository
 from notification.app.ports.output.message_gateway_port import MessageGatewayPort
 from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
+from notification.app.ports.output.onboarding_limiter_port import OnboardingLimiterPort
 from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
 from notification.tests.helpers.fakes import (
@@ -13,6 +14,7 @@ from notification.tests.helpers.fakes import (
     FakeDirectory,
     FakeLedger,
     FakeMessages,
+    FakeOnboardingLimiter,
     FakeSettings,
     FakeShopProfile,
     FakeTemplates,
@@ -33,3 +35,7 @@ def test_디스패처가_쓰는_허브_포트_스텁과_게이트웨이_스텁�
     assert isinstance(FakeDirectory(), CustomerDirectoryPort)
     assert isinstance(FakeLedger(), VisitLedgerPort)
     assert isinstance(SpyGateway(), MessageGatewayPort)
+
+
+def test_온보딩_제한기_스텁도_포트를_상속한다():
+    assert isinstance(FakeOnboardingLimiter(), OnboardingLimiterPort)

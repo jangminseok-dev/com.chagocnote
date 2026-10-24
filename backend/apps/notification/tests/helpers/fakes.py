@@ -20,6 +20,7 @@ from notification.app.ports.output.channel_repository import ChannelRepository
 from notification.app.ports.output.message_gateway_port import DeliveryState
 from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
+from notification.app.ports.output.onboarding_limiter_port import OnboardingLimiterPort
 from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
 from notification.domain.entities.notification_channel import NotificationChannel
@@ -367,3 +368,15 @@ class SpyGateway(FakeGateway):
     async def balance(self):
         self.journal.append(("balance",))
         return await super().balance()
+
+
+class FakeOnboardingLimiter(OnboardingLimiterPort):
+    """온보딩 횟수 제한 스텁 — allowed 를 False 로 두면 한도가 찬 것으로 친다. 센 (매장, 동작)이 calls 에 남는다."""
+
+    def __init__(self, allowed: bool = True) -> None:
+        self.allowed = allowed
+        self.calls: list[tuple[int, str]] = []
+
+    async def allow(self, shop_id, action):
+        self.calls.append((shop_id, action))
+        return self.allowed

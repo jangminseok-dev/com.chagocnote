@@ -47,6 +47,19 @@ from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_ro
 from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
+from notification.adapter.inbound.api.error_map import NOTIFICATION_ERROR_STATUS
+from notification.adapter.inbound.api.v1.confirm_sender_router import confirm_sender_router
+from notification.adapter.inbound.api.v1.get_notification_overview_router import get_notification_overview_router
+from notification.adapter.inbound.api.v1.link_channel_router import link_channel_router
+from notification.adapter.inbound.api.v1.notification_myself_router import notification_myself_router
+from notification.adapter.inbound.api.v1.request_channel_token_router import request_channel_token_router
+from notification.adapter.inbound.api.v1.request_sender_verification_router import (
+    request_sender_verification_router,
+)
+from notification.adapter.inbound.api.v1.unlink_channel_router import unlink_channel_router
+from notification.adapter.inbound.api.v1.update_notification_settings_router import (
+    update_notification_settings_router,
+)
 from notification.adapter.inbound.observer.visit_event_subscriber import handle_visit_event
 from notification.app.services.dispatcher_wakeup import wake
 from notification.dependencies.dispatcher_ports import DispatcherPorts, configure_dispatcher_ports
@@ -192,6 +205,15 @@ app.include_router(revoke_visit_report_router)
 # 로그인 없이 열리는 경로 — 더할 때는 tests/route_inspection.py 의 허용 목록에도 적는다.
 app.include_router(read_public_report_router)
 app.include_router(mark_report_viewed_router)
+# notification
+app.include_router(notification_myself_router)
+app.include_router(get_notification_overview_router)
+app.include_router(request_channel_token_router)
+app.include_router(link_channel_router)
+app.include_router(unlink_channel_router)
+app.include_router(update_notification_settings_router)
+app.include_router(request_sender_verification_router)
+app.include_router(confirm_sender_router)
 # media
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
@@ -200,7 +222,7 @@ install_error_handlers(
     app,
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
-        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS,
+        **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS, **NOTIFICATION_ERROR_STATUS,
     },
 )
 
