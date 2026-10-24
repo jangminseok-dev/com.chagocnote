@@ -12,6 +12,7 @@ class NewMessage:
     shop_id: int
     visit_id: int
     customer_id: int
+    pet_id: int | None
     kind: str
     scheduled_at: datetime            # UTC
     variables: Mapping[str, str]      # 이벤트에서만 알 수 있는 값(알림장 주소·기간, 바뀌기 전 시각 …)

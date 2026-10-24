@@ -13,6 +13,7 @@ class NotificationMessage:
     shop_id: int
     visit_id: int
     customer_id: int
+    pet_id: int | None              # 보내는 순간 반려동물 이름(#{대상})을 읽는 데 쓴다. 보호자만의 방문이면 None
     kind: str
     scheduled_at: datetime            # UTC. 즉시면 만든 시각
     status: str

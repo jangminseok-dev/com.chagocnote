@@ -11,6 +11,7 @@ from notification.domain.entities.notification_template import NotificationTempl
 from notification.domain.value_objects.channel_status import LINKED
 from notification.domain.value_objects.message_kind import CONFIRM
 from notification.domain.value_objects.message_status import SCHEDULED
+from notification.domain.value_objects.new_message import NewMessage
 from notification.domain.value_objects.template_status import APPROVED
 
 STAFF_PERMISSIONS = frozenset({"reservation:write", "customer:write", "record:write", "sales:write"})
@@ -64,10 +65,19 @@ def template(**overrides) -> NotificationTemplate:
 
 def message(**overrides) -> NotificationMessage:
     fields = dict(
-        id=1, shop_id=1, visit_id=1, customer_id=1, kind=CONFIRM, scheduled_at=kst(10, 14, 11),
+        id=1, shop_id=1, visit_id=1, customer_id=1, pet_id=None, kind=CONFIRM, scheduled_at=kst(10, 14, 11),
         status=SCHEDULED, attempts=0, next_attempt_at=None, channel_used=None, provider_message_id=None,
         error_code=None, error_kind=None, variables={}, requested_by_member_id=None,
         created_at=kst(10, 14, 11), sent_at=None, canceled_reason=None,
     )
     fields.update(overrides)
     return NotificationMessage(**fields)
+
+
+def new_message(**overrides) -> NewMessage:
+    fields = dict(
+        shop_id=1, visit_id=1, customer_id=1, pet_id=None, kind=CONFIRM, scheduled_at=kst(10, 14, 11), variables={},
+        requested_by_member_id=None,
+    )
+    fields.update(overrides)
+    return NewMessage(**fields)
