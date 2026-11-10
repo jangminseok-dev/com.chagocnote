@@ -21,7 +21,7 @@ from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
 from notification.domain.entities.notification_settings import NotificationSettings
 from notification.domain.errors import MessageAlreadyPendingError
-from notification.domain.services.family_group import PET_IDS, PET_VISITS, with_pets, without_pets
+from notification.domain.services.family_group import PET_IDS, PET_VISITS, pet_visits_of, with_pets, without_pets
 from notification.domain.services.schedule_rules import interval_weeks, next_visit_at, reminder_at
 from notification.domain.value_objects.message_kind import CANCEL, CHANGE, CONFIRM, NEXT_VISIT, REMINDER, REPORT
 from notification.domain.value_objects.new_message import NewMessage
@@ -161,12 +161,17 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         """이 명령이 함께 다룬 아이들을 그 시각의 scheduled 묶음 줄에서 뺀다. 남는 아이가 없는 줄은 취소하고, 줄이 달린
         아이가 빠졌으면 남은 아이의 방문으로 옮긴다. 옮길 수 없으면(방문 짝을 모르는 옛 줄, 옮길 방문에 같은 종류의 대기
         줄이 있음) keep_stranded 일 때 이름만 빼고 제자리에 두고, 아니면 취소한다. 이 이벤트의 방문에 남긴 줄의 id 를
-        돌려준다 — 뒤따르는 방문 단위 취소가 건드리지 않게."""
-        leaving = self._pets(event)
-        if not leaving:
-            return []
+        돌려준다 — 뒤따르는 방문 단위 취소가 건드리지 않게.
+
+        떠나는 아이는 이벤트의 아이들에 더해 그 줄이 이 방문의 것으로 적어 둔 아이다(pet_visits 의 짝, 줄이 이 방문에
+        달려 있으면 줄의 pet_id) — 수정 화면에서 반려동물을 바꾼 방문은 이벤트가 새 아이를 싣고 오므로 이벤트만 보면
+        원래 아이가 줄에 남는다."""
+        pets = self._pets(event)
         kept = []
         for m in await self._messages.list_scheduled_for_group(ctx, event.customer_id, _iso(starts_at), kinds):
+            leaving = set(pets) | {p for p, v in pet_visits_of(m.variables).items() if v == event.visit_id}
+            if m.visit_id == event.visit_id and m.pet_id is not None:
+                leaving.add(m.pet_id)
             edit = without_pets(m, leaving)
             if edit is None:
                 continue

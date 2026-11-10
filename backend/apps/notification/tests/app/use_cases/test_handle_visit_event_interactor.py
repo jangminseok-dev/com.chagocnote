@@ -663,6 +663,28 @@ async def test_보호자만의_방문을_취소하면_지금처럼_그_방문의
         (CONFIRM, CANCELED, "visit_canceled"), (REMINDER, CANCELED, "visit_canceled")]
 
 
+async def test_반려동물과_시각을_함께_바꾼_방문은_옛_시각_묶음에서_원래_아이가_빠진다():
+    """수정 화면에서 아이와 시각을 한 번에 바꾸면 이벤트의 pet_id 는 새 아이다 — 떠나는 아이는 줄의 방문 짝으로 찾는다."""
+    world = await _booked_pair()
+    await world.handle(_one(VisitRescheduled, 8, 103, starts_at=MOVED, previous_starts_at=STARTS))
+    assert [(m.visit_id, m.variables["pet_ids"], m.variables["starts_at"]) for m in _scheduled(world, REMINDER)] == [
+        (7, "101", _iso(STARTS)), (8, "103", _iso(MOVED))]
+
+
+async def test_줄이_달린_방문의_반려동물과_시각을_함께_바꾸면_묶음_줄은_남은_아이의_방문으로_간다():
+    world = await _booked_pair()
+    await world.handle(_one(VisitRescheduled, 7, 103, starts_at=MOVED, previous_starts_at=STARTS))
+    assert [(m.visit_id, m.pet_id, m.variables["pet_ids"], m.variables["starts_at"])
+            for m in _scheduled(world, REMINDER)] == [(7, 103, "103", _iso(MOVED)), (8, 102, "102", _iso(STARTS))]
+
+
+async def test_반려동물만_바꾼_뒤_취소해도_묶음에서_그_방문의_원래_아이가_빠진다():
+    world = await _booked_pair()
+    await world.handle(_one(VisitCanceled, 8, 103, reason="customer_request"))   # 방문 8 의 아이가 그사이 103 으로 바뀌었다
+    reminder = world.only(REMINDER)
+    assert (reminder.visit_id, reminder.variables["pet_ids"]) == (7, "101")
+
+
 async def test_노쇼도_묶음에서_그_아이만_뺀다():
     world = await _booked_pair()
     await world.handle(_one(VisitClosed, 7, 101, outcome="no_show", previous_completed_at=None))
