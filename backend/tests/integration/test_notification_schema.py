@@ -7,6 +7,7 @@ import re
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from notification.domain.value_objects.channel_status import CHANNEL_STATUSES
 from notification.domain.value_objects.message_kind import KINDS
@@ -65,3 +66,15 @@ async def test_취소_이유는_취소_상태에만_있다(db_engine):
 async def test_문자_대체는_발신번호_인증이_있어야_켤_수_있다(db_engine):
     definition = await _constraint_def(db_engine, "ck_notification_channels_fallback")
     assert "sms_fallback_enabled" in definition and "sender_number_verified_at IS NOT NULL" in definition
+
+
+async def test_템플릿_대기_칸은_둘이_함께_있거나_함께_없다(db_engine):
+    definition = await _constraint_def(db_engine, "ck_notification_templates_pending_pair")
+    assert "pending_text_version" in definition and "pending_provider_template_id" in definition
+    insert = text(
+        "INSERT INTO notification_templates (shop_id, kind, text_version, provider_template_id, status, requested_at, "
+        "pending_text_version, pending_provider_template_id) VALUES (1, 'confirm', 1, 'TP', 'approved', now(), :v, :p)")
+    for half in ({"v": 2, "p": None}, {"v": None, "p": "TP2"}):
+        with pytest.raises(IntegrityError):
+            async with db_engine.begin() as conn:
+                await conn.execute(insert, half)

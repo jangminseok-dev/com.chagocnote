@@ -10,6 +10,7 @@ from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from notification.app.dtos.notification_message_dto import NotificationMessageView
 from notification.domain.entities.notification_message import NotificationMessage
+from notification.domain.services.family_group import pet_ids_of
 from notification.domain.services.templates import RenderedMessage, render, target_label, variables_for
 from notification.domain.value_objects.message_status import FAILED
 
@@ -35,10 +36,7 @@ def message_text(kind: str, *, shop_name: str, target: str, tz: str, variables: 
 
 def message_pet_ids(message: NotificationMessage) -> list[int]:
     """줄이 다루는 아이들 — variables 의 pet_ids(가족 묶음). 그 칸이 없는 줄(칸이 생기기 전 것)은 자기 pet_id 로."""
-    listed = message.variables.get("pet_ids")
-    if listed is None:
-        return [message.pet_id] if message.pet_id is not None else []
-    return [int(p) for p in listed.split(",") if p]
+    return pet_ids_of(message.variables, message.pet_id)
 
 
 async def message_target(

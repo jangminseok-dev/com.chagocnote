@@ -17,7 +17,7 @@ from hub.app.ports.shop_profile_port import ShopProfilePort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 from notification.adapter.outbound.strategy.fake_gateway import FakeGateway
 from notification.app.ports.output.channel_repository import ChannelRepository
-from notification.app.ports.output.message_gateway_port import DeliveryState
+from notification.app.ports.output.message_gateway_port import DeliveryState, TemplateState
 from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
 from notification.app.ports.output.onboarding_limiter_port import OnboardingLimiterPort
@@ -39,7 +39,7 @@ from notification.domain.value_objects.message_status import (
     SCHEDULED,
     SENDING,
 )
-from notification.domain.value_objects.template_status import PENDING
+from notification.domain.value_objects.template_status import APPROVED, PENDING
 
 
 class Journal(list):
@@ -93,11 +93,15 @@ class FakeTemplates(TemplateRepository):
 
     async def upsert(self, ctx, kind, text_version, provider_template_id, requested_at):
         current = self.rows.get((ctx.shop_id, kind))
-        template = NotificationTemplate(
-            id=current.id if current is not None else len(self.rows) + 1, shop_id=ctx.shop_id, kind=kind,
-            text_version=text_version, provider_template_id=provider_template_id, status=PENDING,
-            rejected_reason=None, requested_at=requested_at, decided_at=None,
-        )
+        if current is not None and current.status == APPROVED:
+            template = replace(current, pending_text_version=text_version,
+                               pending_provider_template_id=provider_template_id)
+        else:
+            template = NotificationTemplate(
+                id=current.id if current is not None else len(self.rows) + 1, shop_id=ctx.shop_id, kind=kind,
+                text_version=text_version, provider_template_id=provider_template_id, status=PENDING,
+                rejected_reason=None, requested_at=requested_at, decided_at=None,
+            )
         self.rows[(ctx.shop_id, kind)] = template
         self.journal.append(("upsert_template", ctx.shop_id, kind))
         return template
@@ -108,6 +112,19 @@ class FakeTemplates(TemplateRepository):
             self.rows[(ctx.shop_id, kind)] = replace(
                 current, status=status, rejected_reason=rejected_reason, decided_at=decided_at)
         self.journal.append(("set_template_status", ctx.shop_id, kind, status))
+
+    async def decide_pending(self, ctx, kind, approved, rejected_reason, decided_at):
+        current = self.rows.get((ctx.shop_id, kind))
+        if current is None or current.pending_provider_template_id is None:
+            return
+        cleared = replace(current, pending_text_version=None, pending_provider_template_id=None,
+                          rejected_reason=rejected_reason)
+        if approved:
+            cleared = replace(cleared, text_version=current.pending_text_version,
+                              provider_template_id=current.pending_provider_template_id, decided_at=decided_at,
+                              rejected_reason=None)
+        self.rows[(ctx.shop_id, kind)] = cleared
+        self.journal.append(("decide_pending_template", ctx.shop_id, kind, approved))
 
     async def delete_all(self, ctx):
         mine = [key for key in self.rows if key[0] == ctx.shop_id]
@@ -162,17 +179,42 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
         self.journal.append(("create_message", new.visit_id, new.kind))
         return message
 
-    async def cancel_pending(self, ctx, reason, visit_id=None, kinds=None):
+    async def cancel_pending(self, ctx, reason, visit_id=None, kinds=None, except_ids=()):
         kinds = None if kinds is None else set(kinds)
+        kept = set(except_ids)
         targets = [
             m for m in self._mine(ctx)
             if m.status in PENDING_STATUSES and (visit_id is None or m.visit_id == visit_id)
-            and (kinds is None or m.kind in kinds)
+            and (kinds is None or m.kind in kinds) and m.id not in kept
         ]
         for m in targets:
             self._put(replace(m, status=CANCELED, canceled_reason=reason))
         self.journal.append(("cancel_pending", visit_id, reason))
         return len(targets)
+
+    async def list_scheduled_for_group(self, ctx, customer_id, starts_at_iso, kinds):
+        kinds = set(kinds)
+        return sorted((m for m in self._mine(ctx, customer_id=customer_id, status=SCHEDULED)
+                       if m.kind in kinds and m.variables.get("starts_at") == starts_at_iso), key=lambda m: m.id)
+
+    async def rewrite_scheduled(self, ctx, message_id, variables, visit_id, pet_id):
+        current = await self.get(ctx, message_id)
+        if current is None or current.status != SCHEDULED:
+            return False
+        if any(m.id != message_id and m.status in PENDING_STATUSES and (m.visit_id, m.kind) == (visit_id, current.kind)
+               for m in self.rows.values()):
+            raise MessageAlreadyPendingError("옮길 방문에 같은 종류의 알림이 이미 대기 중입니다.")
+        self._put(replace(current, variables=dict(variables), visit_id=visit_id, pet_id=pet_id))
+        self.journal.append(("rewrite_scheduled", message_id))
+        return True
+
+    async def cancel_scheduled(self, ctx, message_id, reason):
+        current = await self.get(ctx, message_id)
+        if current is None or current.status != SCHEDULED:
+            return False
+        self._put(replace(current, status=CANCELED, canceled_reason=reason))
+        self.journal.append(("cancel_scheduled", message_id, reason))
+        return True
 
     async def list_pending(self, ctx, kind):
         return sorted(self._mine(ctx, kind=kind, status=SCHEDULED), key=lambda m: (m.scheduled_at, m.id))
@@ -245,7 +287,7 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
                       key=lambda m: (m.next_attempt_at, m.id))
 
     async def list_pending_templates(self):
-        return sorted((t for t in self.templates.rows.values() if t.status == PENDING), key=lambda t: t.id)
+        return sorted((t for t in self.templates.rows.values() if t.under_review), key=lambda t: t.id)
 
     async def list_linked_channels(self):
         return sorted((c for c in self.channels.rows.values() if c.status == LINKED), key=lambda c: c.shop_id)
@@ -349,6 +391,8 @@ class SpyGateway(FakeGateway):
         self.state_error: Exception | None = None           # 있으면 delivery_state 가 던진다
         self.register_error: Exception | None = None        # 있으면 register_template 이 던진다
         self.states: dict[str, DeliveryState] = {}          # 업체 메시지 ID → 정해 둔 상태(없으면 번호 규칙)
+        self.template_states: dict[str, TemplateState] = {}  # 업체 템플릿 ID → 정해 둔 심사 상태(없으면 가짜 규칙)
+        self.template_error: Exception | None = None        # 있으면 template_state 가 던진다
 
     async def register_template(self, provider_channel_id, template, text_version):
         self.journal.append(("register_template", provider_channel_id, template.kind))
@@ -358,6 +402,10 @@ class SpyGateway(FakeGateway):
 
     async def template_state(self, provider_template_id):
         self.journal.append(("template_state", provider_template_id))
+        if self.template_error is not None:
+            raise self.template_error
+        if provider_template_id in self.template_states:
+            return self.template_states[provider_template_id]
         return await super().template_state(provider_template_id)
 
     async def send(self, message):

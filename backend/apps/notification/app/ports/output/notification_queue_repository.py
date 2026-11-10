@@ -30,7 +30,7 @@ class NotificationQueueRepository(ABC):
 
     @abstractmethod
     async def list_pending_templates(self) -> list[NotificationTemplate]:
-        """심사 중인 템플릿 전부(매장 불문), id 순."""
+        """심사 중인 템플릿 전부(매장 불문), id 순 — 첫 판이 pending 이거나 승인된 줄에 대기 판이 걸린 것."""
 
     @abstractmethod
     async def list_linked_channels(self) -> list[NotificationChannel]:

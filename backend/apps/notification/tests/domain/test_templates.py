@@ -207,3 +207,17 @@ def test_일시_표기는_월_일_한글_요일_시각():
 def test_기간_안내_둘():
     assert expiry_label(kst(11, 2, 14), TZ) == "11월 2일까지 열려요."
     assert expiry_label(None, TZ) == "언제든 열 수 있어요."
+
+
+def test_문안의_변수_이름은_판을_올려도_바꾸지_않는다():
+    """새 판 심사 중에는 업체에 있는 옛 문안에 지금 코드의 변수 값을 채워 보낸다 — 이름이 달라지면 그 발송이 깨진다."""
+    from notification.domain.services.templates import PLACEHOLDER, URL_VARIABLE
+
+    pinned = {
+        CONFIRM: {"매장명", "대상", "일시"}, REMINDER: {"매장명", "대상", "일시"},
+        REPORT: {"매장명", "대상", "기간안내", "링크"}, CHANGE: {"매장명", "대상", "이전일시", "일시"},
+        CANCEL: {"매장명", "대상", "일시"}, NEXT_VISIT: {"매장명", "대상", "지난일", "간격"},
+    }
+    for kind, text in TEMPLATES.items():
+        names = set(PLACEHOLDER.findall(text.body)) | ({URL_VARIABLE} if text.button_label is not None else set())
+        assert names == pinned[kind], "변수 이름을 바꾸면 심사 중 옛 판 발송이 깨진다 — 설계 2026-11-10 3.2"

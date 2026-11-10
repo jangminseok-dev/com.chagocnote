@@ -64,3 +64,19 @@ def test_종류마다_켜짐을_정하는_칸이_있고_취소는_변경_칸을_
         "confirm_enabled", "reminder_enabled", "report_enabled", "change_enabled", "next_visit_enabled")}
     assert settings(**everything_on).enabled_for(kind) is True
     assert settings(**{**everything_on, field: False}).enabled_for(kind) is False
+
+
+@pytest.mark.parametrize("fields, under_review, asks", [
+    (dict(status="pending", provider_template_id="TP-V1"), True, "TP-V1"),
+    (dict(status="approved", provider_template_id="TP-V1"), False, "TP-V1"),
+    (dict(status="approved", provider_template_id="TP-V1", pending_text_version=2,
+          pending_provider_template_id="TP-V2"), True, "TP-V2"),
+    (dict(status="rejected", provider_template_id="TP-V1"), False, "TP-V1"),
+])
+def test_템플릿은_첫_판이_pending_이거나_대기_판이_있으면_심사_중이고_물을_업체_ID_는_심사_중인_판의_것이다(
+    fields, under_review, asks,
+):
+    from notification.tests.helpers.builders import template
+
+    found = template(**fields)
+    assert (found.under_review, found.review_provider_template_id) == (under_review, asks)

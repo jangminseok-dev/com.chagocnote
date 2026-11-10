@@ -103,6 +103,95 @@ async def test_템플릿_upsert_는_같은_종류를_한_줄로_두고_pending_�
     assert (await repo.get(A, CONFIRM)).status == APPROVED
 
 
+def _review(t):
+    return (t.status, t.text_version, t.provider_template_id, t.pending_text_version, t.pending_provider_template_id)
+
+
+async def _approved(repo, ctx=A):
+    await repo.upsert(ctx, CONFIRM, 1, "TP-V1", NOW)
+    await repo.set_status(ctx, CONFIRM, APPROVED, None, NOW + HOUR)
+    return await repo.get(ctx, CONFIRM)
+
+
+async def test_승인된_템플릿을_다시_upsert_하면_대기_칸에만_적힌다(db_session):
+    repo = TemplatePgRepository(db_session)
+    approved = await _approved(repo)
+    returned = await repo.upsert(A, CONFIRM, 2, "TP-V2", NOW + 2 * HOUR)
+    after = await repo.get(A, CONFIRM)
+    assert returned == after
+    assert _review(after) == (APPROVED, 1, "TP-V1", 2, "TP-V2")
+    assert (after.id, after.requested_at, after.decided_at) == (approved.id, NOW, NOW + HOUR)
+
+
+@pytest.mark.parametrize("status", [PENDING, REJECTED])
+async def test_pending_이나_rejected_인_템플릿을_다시_upsert_하면_덮고_대기_칸은_빈다(db_session, status):
+    repo = TemplatePgRepository(db_session)
+    await repo.upsert(A, CONFIRM, 1, "TP-V1", NOW)
+    if status == REJECTED:
+        await repo.set_status(A, CONFIRM, REJECTED, "사유", NOW + HOUR)
+    after = await repo.upsert(A, CONFIRM, 2, "TP-V2", NOW + 2 * HOUR)
+    assert _review(after) == (PENDING, 2, "TP-V2", None, None)
+    assert (after.rejected_reason, after.requested_at, after.decided_at) == (None, NOW + 2 * HOUR, None)
+
+
+async def test_대기_판이_승인되면_본_칸으로_올라간다(db_session):
+    repo = TemplatePgRepository(db_session)
+    await _approved(repo)
+    await repo.upsert(A, CONFIRM, 2, "TP-V2", NOW + 2 * HOUR)
+    await repo.decide_pending(A, CONFIRM, True, None, NOW + 3 * HOUR)
+    after = await repo.get(A, CONFIRM)
+    assert _review(after) == (APPROVED, 2, "TP-V2", None, None)
+    assert (after.decided_at, after.rejected_reason) == (NOW + 3 * HOUR, None)
+
+
+async def test_대기_판이_반려되면_옛_판이_남고_사유만_적힌다(db_session):
+    repo = TemplatePgRepository(db_session)
+    await _approved(repo)
+    await repo.upsert(A, CONFIRM, 2, "TP-V2", NOW + 2 * HOUR)
+    await repo.decide_pending(A, CONFIRM, False, "사유", NOW + 3 * HOUR)
+    after = await repo.get(A, CONFIRM)
+    assert _review(after) == (APPROVED, 1, "TP-V1", None, None)
+    assert (after.decided_at, after.rejected_reason) == (NOW + HOUR, "사유")
+
+
+async def test_대기_판이_걸린_채_다시_upsert_하면_대기_칸을_덮는다(db_session):
+    repo = TemplatePgRepository(db_session)
+    await _approved(repo)
+    await repo.upsert(A, CONFIRM, 2, "TP-V2", NOW + 2 * HOUR)
+    after = await repo.upsert(A, CONFIRM, 3, "TP-V3", NOW + 3 * HOUR)
+    assert _review(after) == (APPROVED, 1, "TP-V1", 3, "TP-V3")
+
+
+async def test_대기_칸이_빈_줄과_다른_매장에_decide_pending_은_아무것도_하지_않는다(db_session):
+    repo = TemplatePgRepository(db_session)
+    approved = await _approved(repo)
+    await repo.decide_pending(A, CONFIRM, True, None, NOW + 3 * HOUR)
+    await repo.decide_pending(A, CONFIRM, False, "사유", NOW + 3 * HOUR)
+    assert await repo.get(A, CONFIRM) == approved
+    await repo.upsert(A, CONFIRM, 2, "TP-V2", NOW + 2 * HOUR)
+    await repo.decide_pending(B, CONFIRM, True, None, NOW + 3 * HOUR)
+    assert _review(await repo.get(A, CONFIRM)) == (APPROVED, 1, "TP-V1", 2, "TP-V2")
+
+
+async def test_해제_뒤_다시_등록하면_pending_이고_대기_칸은_비어_있다(db_session):
+    repo = TemplatePgRepository(db_session)
+    await _approved(repo)
+    await repo.upsert(A, CONFIRM, 2, "TP-V2", NOW + 2 * HOUR)
+    assert await repo.delete_all(A) == 1
+    assert _review(await repo.upsert(A, CONFIRM, 2, "TP-V2B", NOW + 3 * HOUR)) == (PENDING, 2, "TP-V2B", None, None)
+
+
+async def test_심사_중_목록은_pending_과_대기_칸이_찬_줄이다(db_session):
+    templates, queue = TemplatePgRepository(db_session), MessagePgRepository(db_session)
+    await _approved(templates)                                    # 승인만 — 빠진다
+    await templates.upsert(A, REMINDER, 1, "TP-R1", NOW)          # 첫 판 심사 중
+    await _approved(templates, B)
+    await templates.upsert(B, CONFIRM, 2, "TP-V2", NOW)           # 승인 + 새 판 심사 중
+    found = await queue.list_pending_templates()
+    assert [(t.shop_id, t.kind, t.review_provider_template_id) for t in found] == [
+        (1, REMINDER, "TP-R1"), (2, CONFIRM, "TP-V2")]
+
+
 async def test_템플릿_목록은_종류_순이고_매장을_거르며_delete_all_은_그_매장만_지운다(db_session):
     repo = TemplatePgRepository(db_session)
     for kind, provider_id in ((NEXT_VISIT, "KA01TP0006"), (CONFIRM, "KA01TP0001"), (REPORT, "KA01TP0003")):
@@ -209,6 +298,90 @@ async def test_묶음_대기_줄_판정은_같은_고객_종류_시작_시각의
     assert await repo.has_pending_for_group(A, 1, CONFIRM, starts) is True   # sending 도 대기다
     await repo.save(A, replace(confirm, status=CANCELED, canceled_reason="rescheduled"))
     assert await repo.has_pending_for_group(A, 1, CONFIRM, starts) is False
+
+
+GROUP_STARTS = "2026-10-16T05:00:00+00:00"
+
+
+def _grouped(**overrides):
+    fields = dict(kind=REMINDER, customer_id=1, pet_id=101,
+                  variables={"starts_at": GROUP_STARTS, "pet_ids": "101,102", "pet_visits": "101:7,102:8"})
+    fields.update(overrides)
+    return new_message(**fields)
+
+
+async def test_묶음의_scheduled_줄은_같은_고객_시각_종류만_id_순으로_준다(db_session):
+    repo = MessagePgRepository(db_session)
+    first = await repo.create(A, _grouped(visit_id=7))
+    second = await repo.create(A, _grouped(visit_id=8))
+    await repo.create(A, _grouped(visit_id=7, kind=CONFIRM))
+    await repo.create(A, _grouped(visit_id=9, customer_id=2))
+    await repo.create(A, _grouped(visit_id=10, variables={"starts_at": "2026-10-17T05:00:00+00:00"}))
+    sending = await repo.create(A, _grouped(visit_id=11))
+    await repo.save(A, replace(sending, status=SENDING))
+    await repo.create(B, _grouped(shop_id=2, visit_id=12))
+    found = await repo.list_scheduled_for_group(A, 1, GROUP_STARTS, (REMINDER,))
+    assert [m.id for m in found] == [first.id, second.id]
+    both = await repo.list_scheduled_for_group(A, 1, GROUP_STARTS, (REMINDER, CONFIRM))
+    assert len(both) == 3
+
+
+async def test_rewrite_scheduled_는_variables_방문_아이를_바꾸고_다른_칸은_그대로다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7, scheduled_at=NOW + HOUR))
+    changed = {"starts_at": GROUP_STARTS, "pet_ids": "102", "pet_visits": "102:8"}
+    assert await repo.rewrite_scheduled(A, row.id, changed, visit_id=8, pet_id=102) is True
+    after = await repo.get(A, row.id)
+    assert (after.variables, after.visit_id, after.pet_id) == (changed, 8, 102)
+    assert (after.scheduled_at, after.kind, after.status, after.customer_id) == (NOW + HOUR, REMINDER, SCHEDULED, 1)
+
+
+async def test_집힌_줄은_rewrite_도_cancel_scheduled_도_건드리지_않는다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    await repo.claim_due(NOW, 10)
+    assert await repo.rewrite_scheduled(A, row.id, {"pet_ids": "102"}, visit_id=8, pet_id=102) is False
+    assert await repo.cancel_scheduled(A, row.id, "visit_canceled") is False
+    after = await repo.get(A, row.id)
+    assert (after.status, after.visit_id, after.variables["pet_ids"], after.canceled_reason) == (
+        SENDING, 7, "101,102", None)
+
+
+async def test_cancel_scheduled_는_그_줄만_canceled_로_바꾼다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    other = await repo.create(A, _grouped(visit_id=8))
+    assert await repo.cancel_scheduled(A, row.id, "visit_canceled") is True
+    assert ((await repo.get(A, row.id)).status, (await repo.get(A, row.id)).canceled_reason) == (
+        CANCELED, "visit_canceled")
+    assert (await repo.get(A, other.id)).status == SCHEDULED
+
+
+async def test_옮길_방문에_같은_종류_대기_줄이_있으면_MessageAlreadyPendingError_이고_트랜잭션은_계속_쓸_수_있다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    await repo.create(A, _grouped(visit_id=8))
+    with pytest.raises(MessageAlreadyPendingError):
+        await repo.rewrite_scheduled(A, row.id, dict(row.variables), visit_id=8, pet_id=102)
+    assert (await repo.get(A, row.id)).visit_id == 7
+    await repo.create(A, _grouped(visit_id=7, kind=CONFIRM))   # 같은 트랜잭션에서 다른 INSERT 가 된다
+
+
+async def test_다른_매장_컨텍스트로는_rewrite_도_cancel_scheduled_도_False_다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    assert await repo.rewrite_scheduled(B, row.id, {"pet_ids": "102"}, visit_id=8, pet_id=102) is False
+    assert await repo.cancel_scheduled(B, row.id, "visit_canceled") is False
+    assert await repo.list_scheduled_for_group(B, 1, GROUP_STARTS, (REMINDER,)) == []
+    assert (await repo.get(A, row.id)).status == SCHEDULED
+
+
+async def test_cancel_pending_은_except_ids_의_줄을_남긴다(db_session):
+    repo = MessagePgRepository(db_session)
+    kept = await repo.create(A, _grouped(visit_id=7))
+    gone = await repo.create(A, _grouped(visit_id=7, kind=CONFIRM))
+    assert await repo.cancel_pending(A, "visit_canceled", visit_id=7, except_ids=[kept.id]) == 1
+    assert ((await repo.get(A, kept.id)).status, (await repo.get(A, gone.id)).status) == (SCHEDULED, CANCELED)
 
 
 async def test_마지막으로_보낸_시각은_고객_종류별로_가장_최근이다(db_session):

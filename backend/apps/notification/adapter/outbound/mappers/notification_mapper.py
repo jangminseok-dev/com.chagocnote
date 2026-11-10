@@ -53,6 +53,8 @@ def to_template(orm: NotificationTemplateOrm) -> NotificationTemplate:
         id=orm.id, shop_id=orm.shop_id, kind=orm.kind, text_version=orm.text_version,
         provider_template_id=orm.provider_template_id, status=orm.status, rejected_reason=orm.rejected_reason,
         requested_at=orm.requested_at, decided_at=orm.decided_at,
+        pending_text_version=orm.pending_text_version,
+        pending_provider_template_id=orm.pending_provider_template_id,
     )
 
 
