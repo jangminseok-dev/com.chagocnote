@@ -211,6 +211,90 @@ async def test_묶음_대기_줄_판정은_같은_고객_종류_시작_시각의
     assert await repo.has_pending_for_group(A, 1, CONFIRM, starts) is False
 
 
+GROUP_STARTS = "2026-10-16T05:00:00+00:00"
+
+
+def _grouped(**overrides):
+    fields = dict(kind=REMINDER, customer_id=1, pet_id=101,
+                  variables={"starts_at": GROUP_STARTS, "pet_ids": "101,102", "pet_visits": "101:7,102:8"})
+    fields.update(overrides)
+    return new_message(**fields)
+
+
+async def test_묶음의_scheduled_줄은_같은_고객_시각_종류만_id_순으로_준다(db_session):
+    repo = MessagePgRepository(db_session)
+    first = await repo.create(A, _grouped(visit_id=7))
+    second = await repo.create(A, _grouped(visit_id=8))
+    await repo.create(A, _grouped(visit_id=7, kind=CONFIRM))
+    await repo.create(A, _grouped(visit_id=9, customer_id=2))
+    await repo.create(A, _grouped(visit_id=10, variables={"starts_at": "2026-10-17T05:00:00+00:00"}))
+    sending = await repo.create(A, _grouped(visit_id=11))
+    await repo.save(A, replace(sending, status=SENDING))
+    await repo.create(B, _grouped(shop_id=2, visit_id=12))
+    found = await repo.list_scheduled_for_group(A, 1, GROUP_STARTS, (REMINDER,))
+    assert [m.id for m in found] == [first.id, second.id]
+    both = await repo.list_scheduled_for_group(A, 1, GROUP_STARTS, (REMINDER, CONFIRM))
+    assert len(both) == 3
+
+
+async def test_rewrite_scheduled_는_variables_방문_아이를_바꾸고_다른_칸은_그대로다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7, scheduled_at=NOW + HOUR))
+    changed = {"starts_at": GROUP_STARTS, "pet_ids": "102", "pet_visits": "102:8"}
+    assert await repo.rewrite_scheduled(A, row.id, changed, visit_id=8, pet_id=102) is True
+    after = await repo.get(A, row.id)
+    assert (after.variables, after.visit_id, after.pet_id) == (changed, 8, 102)
+    assert (after.scheduled_at, after.kind, after.status, after.customer_id) == (NOW + HOUR, REMINDER, SCHEDULED, 1)
+
+
+async def test_집힌_줄은_rewrite_도_cancel_scheduled_도_건드리지_않는다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    await repo.claim_due(NOW, 10)
+    assert await repo.rewrite_scheduled(A, row.id, {"pet_ids": "102"}, visit_id=8, pet_id=102) is False
+    assert await repo.cancel_scheduled(A, row.id, "visit_canceled") is False
+    after = await repo.get(A, row.id)
+    assert (after.status, after.visit_id, after.variables["pet_ids"], after.canceled_reason) == (
+        SENDING, 7, "101,102", None)
+
+
+async def test_cancel_scheduled_는_그_줄만_canceled_로_바꾼다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    other = await repo.create(A, _grouped(visit_id=8))
+    assert await repo.cancel_scheduled(A, row.id, "visit_canceled") is True
+    assert ((await repo.get(A, row.id)).status, (await repo.get(A, row.id)).canceled_reason) == (
+        CANCELED, "visit_canceled")
+    assert (await repo.get(A, other.id)).status == SCHEDULED
+
+
+async def test_옮길_방문에_같은_종류_대기_줄이_있으면_MessageAlreadyPendingError_이고_트랜잭션은_계속_쓸_수_있다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    await repo.create(A, _grouped(visit_id=8))
+    with pytest.raises(MessageAlreadyPendingError):
+        await repo.rewrite_scheduled(A, row.id, dict(row.variables), visit_id=8, pet_id=102)
+    assert (await repo.get(A, row.id)).visit_id == 7
+    await repo.create(A, _grouped(visit_id=7, kind=CONFIRM))   # 같은 트랜잭션에서 다른 INSERT 가 된다
+
+
+async def test_다른_매장_컨텍스트로는_rewrite_도_cancel_scheduled_도_False_다(db_session):
+    repo = MessagePgRepository(db_session)
+    row = await repo.create(A, _grouped(visit_id=7))
+    assert await repo.rewrite_scheduled(B, row.id, {"pet_ids": "102"}, visit_id=8, pet_id=102) is False
+    assert await repo.cancel_scheduled(B, row.id, "visit_canceled") is False
+    assert await repo.list_scheduled_for_group(B, 1, GROUP_STARTS, (REMINDER,)) == []
+    assert (await repo.get(A, row.id)).status == SCHEDULED
+
+
+async def test_cancel_pending_은_except_ids_의_줄을_남긴다(db_session):
+    repo = MessagePgRepository(db_session)
+    kept = await repo.create(A, _grouped(visit_id=7))
+    gone = await repo.create(A, _grouped(visit_id=7, kind=CONFIRM))
+    assert await repo.cancel_pending(A, "visit_canceled", visit_id=7, except_ids=[kept.id]) == 1
+    assert ((await repo.get(A, kept.id)).status, (await repo.get(A, gone.id)).status) == (SCHEDULED, CANCELED)
+
+
 async def test_마지막으로_보낸_시각은_고객_종류별로_가장_최근이다(db_session):
     repo = MessagePgRepository(db_session)
     assert await repo.last_delivered_at(A, 1, NEXT_VISIT) is None

@@ -162,17 +162,42 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
         self.journal.append(("create_message", new.visit_id, new.kind))
         return message
 
-    async def cancel_pending(self, ctx, reason, visit_id=None, kinds=None):
+    async def cancel_pending(self, ctx, reason, visit_id=None, kinds=None, except_ids=()):
         kinds = None if kinds is None else set(kinds)
+        kept = set(except_ids)
         targets = [
             m for m in self._mine(ctx)
             if m.status in PENDING_STATUSES and (visit_id is None or m.visit_id == visit_id)
-            and (kinds is None or m.kind in kinds)
+            and (kinds is None or m.kind in kinds) and m.id not in kept
         ]
         for m in targets:
             self._put(replace(m, status=CANCELED, canceled_reason=reason))
         self.journal.append(("cancel_pending", visit_id, reason))
         return len(targets)
+
+    async def list_scheduled_for_group(self, ctx, customer_id, starts_at_iso, kinds):
+        kinds = set(kinds)
+        return sorted((m for m in self._mine(ctx, customer_id=customer_id, status=SCHEDULED)
+                       if m.kind in kinds and m.variables.get("starts_at") == starts_at_iso), key=lambda m: m.id)
+
+    async def rewrite_scheduled(self, ctx, message_id, variables, visit_id, pet_id):
+        current = await self.get(ctx, message_id)
+        if current is None or current.status != SCHEDULED:
+            return False
+        if any(m.id != message_id and m.status in PENDING_STATUSES and (m.visit_id, m.kind) == (visit_id, current.kind)
+               for m in self.rows.values()):
+            raise MessageAlreadyPendingError("옮길 방문에 같은 종류의 알림이 이미 대기 중입니다.")
+        self._put(replace(current, variables=dict(variables), visit_id=visit_id, pet_id=pet_id))
+        self.journal.append(("rewrite_scheduled", message_id))
+        return True
+
+    async def cancel_scheduled(self, ctx, message_id, reason):
+        current = await self.get(ctx, message_id)
+        if current is None or current.status != SCHEDULED:
+            return False
+        self._put(replace(current, status=CANCELED, canceled_reason=reason))
+        self.journal.append(("cancel_scheduled", message_id, reason))
+        return True
 
     async def list_pending(self, ctx, kind):
         return sorted(self._mine(ctx, kind=kind, status=SCHEDULED), key=lambda m: (m.scheduled_at, m.id))

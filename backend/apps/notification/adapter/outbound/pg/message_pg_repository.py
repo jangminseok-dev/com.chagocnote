@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 
 from sqlalchemy import func, insert, select, update
@@ -75,17 +75,58 @@ class MessagePgRepository(MessageRepository, NotificationQueueRepository):
         return to_message(row)
 
     async def cancel_pending(
-        self, ctx: ShopContext, reason: str, visit_id: int | None = None, kinds: Iterable[str] | None = None
+        self, ctx: ShopContext, reason: str, visit_id: int | None = None, kinds: Iterable[str] | None = None,
+        except_ids: Iterable[int] = (),
     ) -> int:
         conditions = [_M.shop_id == ctx.shop_id, _M.status.in_(PENDING_STATUSES)]
         if visit_id is not None:
             conditions.append(_M.visit_id == visit_id)
         if kinds is not None:
             conditions.append(_M.kind.in_(list(kinds)))
+        if kept := list(except_ids):
+            conditions.append(_M.id.not_in(kept))
         canceled = await self._session.execute(
             update(_M).where(*conditions).values(status=CANCELED, canceled_reason=reason)
         )
         return canceled.rowcount
+
+    async def list_scheduled_for_group(
+        self, ctx: ShopContext, customer_id: int, starts_at_iso: str, kinds: Iterable[str]
+    ) -> list[NotificationMessage]:
+        return await self._rows(
+            select(_M)
+            .where(
+                _M.shop_id == ctx.shop_id, _M.customer_id == customer_id, _M.kind.in_(list(kinds)),
+                _M.status == SCHEDULED, _M.variables["starts_at"].astext == starts_at_iso,
+            )
+            .order_by(_M.id)
+            .with_for_update()
+        )
+
+    async def rewrite_scheduled(
+        self, ctx: ShopContext, message_id: int, variables: Mapping[str, str], visit_id: int, pet_id: int | None
+    ) -> bool:
+        statement = (
+            update(_M)
+            .where(_M.shop_id == ctx.shop_id, _M.id == message_id, _M.status == SCHEDULED)
+            .values(variables=dict(variables), visit_id=visit_id, pet_id=pet_id)
+        )
+        try:
+            async with self._session.begin_nested():
+                rewritten = await self._session.execute(statement)
+        except IntegrityError as exc:
+            if getattr(exc.orig.__cause__, "constraint_name", None) == _PENDING_INDEX:
+                raise MessageAlreadyPendingError("옮길 방문에 같은 종류의 알림이 이미 대기 중입니다.") from exc
+            raise
+        return rewritten.rowcount == 1
+
+    async def cancel_scheduled(self, ctx: ShopContext, message_id: int, reason: str) -> bool:
+        canceled = await self._session.execute(
+            update(_M)
+            .where(_M.shop_id == ctx.shop_id, _M.id == message_id, _M.status == SCHEDULED)
+            .values(status=CANCELED, canceled_reason=reason)
+        )
+        return canceled.rowcount == 1
 
     async def list_pending(self, ctx: ShopContext, kind: str) -> list[NotificationMessage]:
         return await self._rows(

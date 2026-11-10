@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 
 from hub.app.dtos.shop_context import ShopContext
@@ -22,9 +22,29 @@ class MessageRepository(ABC):
 
     @abstractmethod
     async def cancel_pending(
-        self, ctx: ShopContext, reason: str, visit_id: int | None = None, kinds: Iterable[str] | None = None
+        self, ctx: ShopContext, reason: str, visit_id: int | None = None, kinds: Iterable[str] | None = None,
+        except_ids: Iterable[int] = (),
     ) -> int:
-        """대기 줄(scheduled·sending)을 canceled 로. visit_id 가 없으면 매장 전체, kinds 가 없으면 전 종류. 바꾼 수."""
+        """대기 줄(scheduled·sending)을 canceled 로. visit_id 가 없으면 매장 전체, kinds 가 없으면 전 종류. 바꾼 수.
+        except_ids 의 줄은 건드리지 않는다(묶음에서 한 마리가 빠진 뒤 제자리에 남긴 줄)."""
+
+    @abstractmethod
+    async def list_scheduled_for_group(
+        self, ctx: ShopContext, customer_id: int, starts_at_iso: str, kinds: Iterable[str]
+    ) -> list[NotificationMessage]:
+        """같은 보호자·같은 시작 시각(variables 의 starts_at)·넘긴 종류의 scheduled 줄, id 순. 행을 잠근다(FOR UPDATE) —
+        가족 묶음의 줄에서 아이를 빼거나 더하려고 읽는다. sending 줄은 지금 나가는 줄이라 주지 않는다."""
+
+    @abstractmethod
+    async def rewrite_scheduled(
+        self, ctx: ShopContext, message_id: int, variables: Mapping[str, str], visit_id: int, pet_id: int | None
+    ) -> bool:
+        """scheduled 일 때만 variables·visit_id·pet_id 를 바꾼다. 바꿨으면 True. 옮길 방문에 같은 종류의 대기 줄이 있으면
+        MessageAlreadyPendingError — create 처럼 세이브포인트 안이라 트랜잭션은 계속 쓸 수 있다."""
+
+    @abstractmethod
+    async def cancel_scheduled(self, ctx: ShopContext, message_id: int, reason: str) -> bool:
+        """scheduled 일 때만 canceled 로. 바꿨으면 True."""
 
     @abstractmethod
     async def list_pending(self, ctx: ShopContext, kind: str) -> list[NotificationMessage]:

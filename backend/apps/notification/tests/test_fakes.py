@@ -109,3 +109,31 @@ async def test_큐의_전_매장_조회는_같이_넘긴_채널_템플릿_스텁
     assert await messages.list_pending_templates() == [pending]
     assert {s: [t.kind for t in ts] for s, ts in (await messages.list_templates_for_shops([1, 2, 3])).items()} == {
         1: [CONFIRM], 2: [CONFIRM], 3: []}
+
+
+async def test_묶음_줄_고치기는_scheduled_줄만_건드리고_다른_매장은_False_다():
+    messages = FakeMessages()
+    starts = {"starts_at": "S", "pet_ids": "101,102"}
+    row = await messages.create(A, new_message(visit_id=7, kind=REMINDER, variables=starts))
+    sending = await messages.create(A, new_message(visit_id=8, kind=REMINDER, variables=starts))
+    await messages.save(A, replace(sending, status=SENDING))
+    assert [m.id for m in await messages.list_scheduled_for_group(A, 1, "S", (REMINDER,))] == [row.id]
+    assert await messages.list_scheduled_for_group(A, 1, "S", (CONFIRM,)) == []
+    assert await messages.rewrite_scheduled(B, row.id, {"pet_ids": "102"}, 9, 102) is False
+    assert await messages.rewrite_scheduled(A, sending.id, {"pet_ids": "102"}, 9, 102) is False
+    assert await messages.cancel_scheduled(A, sending.id, "visit_canceled") is False
+    assert await messages.rewrite_scheduled(A, row.id, {"starts_at": "S", "pet_ids": "102"}, 9, 102) is True
+    after = await messages.get(A, row.id)
+    assert (after.visit_id, after.pet_id, after.variables["pet_ids"], after.status) == (9, 102, "102", SCHEDULED)
+    assert await messages.cancel_pending(A, "no_show", except_ids=[row.id]) == 1
+    assert await messages.cancel_scheduled(A, row.id, "visit_canceled") is True
+    assert (await messages.get(A, row.id)).canceled_reason == "visit_canceled"
+
+
+async def test_옮길_방문에_같은_종류의_대기_줄이_있으면_스텁도_예외다():
+    messages = FakeMessages()
+    row = await messages.create(A, new_message(visit_id=7, kind=REMINDER))
+    await messages.create(A, new_message(visit_id=8, kind=REMINDER))
+    with pytest.raises(MessageAlreadyPendingError):
+        await messages.rewrite_scheduled(A, row.id, {}, 8, 102)
+    assert await messages.rewrite_scheduled(A, row.id, {"pet_ids": "101"}, 7, 101) is True   # 제자리는 된다
