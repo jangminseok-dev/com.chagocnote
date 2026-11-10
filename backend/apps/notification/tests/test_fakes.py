@@ -137,3 +137,32 @@ async def test_옮길_방문에_같은_종류의_대기_줄이_있으면_스텁�
     with pytest.raises(MessageAlreadyPendingError):
         await messages.rewrite_scheduled(A, row.id, {}, 8, 102)
     assert await messages.rewrite_scheduled(A, row.id, {"pet_ids": "101"}, 7, 101) is True   # 제자리는 된다
+
+
+async def test_템플릿_스텁도_승인된_줄은_덮지_않고_대기_칸에_적는다():
+    templates = FakeTemplates()
+    messages = FakeMessages(templates=templates)
+    await templates.upsert(A, CONFIRM, 1, "TP-V1", NOW)
+    await templates.set_status(A, CONFIRM, "approved", None, NOW)
+    waiting = await templates.upsert(A, CONFIRM, 2, "TP-V2", NOW)
+    assert (waiting.status, waiting.text_version, waiting.provider_template_id, waiting.pending_text_version,
+            waiting.pending_provider_template_id) == ("approved", 1, "TP-V1", 2, "TP-V2")
+    assert await messages.list_pending_templates() == [waiting]
+    await templates.decide_pending(A, CONFIRM, False, "사유", NOW)
+    rejected = await templates.get(A, CONFIRM)
+    assert (rejected.status, rejected.text_version, rejected.pending_text_version, rejected.rejected_reason) == (
+        "approved", 1, None, "사유")
+    assert await messages.list_pending_templates() == []
+
+
+async def test_템플릿_스텁의_대기_판이_승인되면_본_칸으로_올라간다():
+    templates = FakeTemplates()
+    await templates.upsert(A, CONFIRM, 1, "TP-V1", NOW)
+    await templates.set_status(A, CONFIRM, "approved", None, NOW)
+    await templates.decide_pending(A, CONFIRM, True, None, NOW)        # 대기 칸이 비었다 — 아무것도 하지 않는다
+    await templates.upsert(A, CONFIRM, 2, "TP-V2", NOW)
+    await templates.decide_pending(A, CONFIRM, True, None, NOW + timedelta(hours=1))
+    after = await templates.get(A, CONFIRM)
+    assert (after.status, after.text_version, after.provider_template_id, after.pending_text_version,
+            after.pending_provider_template_id, after.decided_at) == (
+        "approved", 2, "TP-V2", None, None, NOW + timedelta(hours=1))

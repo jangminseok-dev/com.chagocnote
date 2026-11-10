@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -231,7 +231,8 @@ class MessagePgRepository(MessageRepository, NotificationQueueRepository):
     async def list_pending_templates(self) -> list[NotificationTemplate]:
         rows = await self._session.execute(
             select(NotificationTemplateOrm)
-            .where(NotificationTemplateOrm.status == PENDING)
+            .where(or_(NotificationTemplateOrm.status == PENDING,
+                       NotificationTemplateOrm.pending_provider_template_id.is_not(None)))
             .order_by(NotificationTemplateOrm.id)
             .execution_options(populate_existing=True)
         )

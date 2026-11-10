@@ -39,7 +39,7 @@ from notification.domain.value_objects.message_status import (
     SCHEDULED,
     SENDING,
 )
-from notification.domain.value_objects.template_status import PENDING
+from notification.domain.value_objects.template_status import APPROVED, PENDING
 
 
 class Journal(list):
@@ -93,11 +93,15 @@ class FakeTemplates(TemplateRepository):
 
     async def upsert(self, ctx, kind, text_version, provider_template_id, requested_at):
         current = self.rows.get((ctx.shop_id, kind))
-        template = NotificationTemplate(
-            id=current.id if current is not None else len(self.rows) + 1, shop_id=ctx.shop_id, kind=kind,
-            text_version=text_version, provider_template_id=provider_template_id, status=PENDING,
-            rejected_reason=None, requested_at=requested_at, decided_at=None,
-        )
+        if current is not None and current.status == APPROVED:
+            template = replace(current, pending_text_version=text_version,
+                               pending_provider_template_id=provider_template_id)
+        else:
+            template = NotificationTemplate(
+                id=current.id if current is not None else len(self.rows) + 1, shop_id=ctx.shop_id, kind=kind,
+                text_version=text_version, provider_template_id=provider_template_id, status=PENDING,
+                rejected_reason=None, requested_at=requested_at, decided_at=None,
+            )
         self.rows[(ctx.shop_id, kind)] = template
         self.journal.append(("upsert_template", ctx.shop_id, kind))
         return template
@@ -108,6 +112,19 @@ class FakeTemplates(TemplateRepository):
             self.rows[(ctx.shop_id, kind)] = replace(
                 current, status=status, rejected_reason=rejected_reason, decided_at=decided_at)
         self.journal.append(("set_template_status", ctx.shop_id, kind, status))
+
+    async def decide_pending(self, ctx, kind, approved, rejected_reason, decided_at):
+        current = self.rows.get((ctx.shop_id, kind))
+        if current is None or current.pending_provider_template_id is None:
+            return
+        cleared = replace(current, pending_text_version=None, pending_provider_template_id=None,
+                          rejected_reason=rejected_reason)
+        if approved:
+            cleared = replace(cleared, text_version=current.pending_text_version,
+                              provider_template_id=current.pending_provider_template_id, decided_at=decided_at,
+                              rejected_reason=None)
+        self.rows[(ctx.shop_id, kind)] = cleared
+        self.journal.append(("decide_pending_template", ctx.shop_id, kind, approved))
 
     async def delete_all(self, ctx):
         mine = [key for key in self.rows if key[0] == ctx.shop_id]
@@ -270,7 +287,7 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
                       key=lambda m: (m.next_attempt_at, m.id))
 
     async def list_pending_templates(self):
-        return sorted((t for t in self.templates.rows.values() if t.status == PENDING), key=lambda t: t.id)
+        return sorted((t for t in self.templates.rows.values() if t.under_review), key=lambda t: t.id)
 
     async def list_linked_channels(self):
         return sorted((c for c in self.channels.rows.values() if c.status == LINKED), key=lambda c: c.shop_id)

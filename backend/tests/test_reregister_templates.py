@@ -58,8 +58,11 @@ async def test_판이_다르거나_반려됐거나_없는_종류만_새_판으�
 
     assert results == [(1, REMINDER, "registered"), (1, REPORT, "registered"), (1, CANCEL, "registered"),
                        (2, NEXT_VISIT, "registered")]
-    assert world.rows(1) == {CONFIRM: (1, APPROVED), REMINDER: (1, PENDING), REPORT: (1, PENDING),
+    # 승인된 옛 판(reminder)은 덮지 않는다 — 심사가 끝날 때까지 옛 판으로 보내고 새 판은 대기 칸에 든다.
+    assert world.rows(1) == {CONFIRM: (1, APPROVED), REMINDER: (0, APPROVED), REPORT: (1, PENDING),
                              CHANGE: (1, PENDING), CANCEL: (1, PENDING)}
+    waiting = world.templates.rows[(1, REMINDER)]
+    assert (waiting.pending_text_version, waiting.pending_provider_template_id) == (1, "tpl-pf-1-reminder-v1")
     assert world.rows(2)[NEXT_VISIT] == (1, PENDING)
     assert world.rows(3) == {CONFIRM: (1, REJECTED)}      # 해제한 매장은 건드리지 않는다
     assert world.templates.rows[(1, REPORT)].rejected_reason is None

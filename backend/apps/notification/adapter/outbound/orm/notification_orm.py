@@ -106,6 +106,11 @@ class NotificationTemplateOrm(Base):
         CheckConstraint(_in("kind", KINDS), name="ck_notification_templates_kind"),
         CheckConstraint(_in("status", TEMPLATE_STATUSES), name="ck_notification_templates_status"),
         UniqueConstraint("shop_id", "kind", name="uq_notification_templates_shop_kind"),
+        # 승인 전 판 — 둘은 함께 있거나 함께 없다(0013).
+        CheckConstraint(
+            "(pending_text_version IS NULL) = (pending_provider_template_id IS NULL)",
+            name="ck_notification_templates_pending_pair",
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -117,6 +122,8 @@ class NotificationTemplateOrm(Base):
     rejected_reason: Mapped[str | None] = mapped_column(String(500))
     requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pending_text_version: Mapped[int | None] = mapped_column(SmallInteger)
+    pending_provider_template_id: Mapped[str | None] = mapped_column(String(100))
 
 
 class NotificationMessageOrm(Base):

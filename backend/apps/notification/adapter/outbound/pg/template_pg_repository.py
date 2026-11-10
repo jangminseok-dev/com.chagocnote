@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import case, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,7 @@ from notification.adapter.outbound.orm.notification_orm import NotificationTempl
 from notification.app.ports.output.template_repository import TemplateRepository
 from notification.domain.entities.notification_template import NotificationTemplate
 from notification.domain.value_objects.message_kind import KINDS
-from notification.domain.value_objects.template_status import PENDING
+from notification.domain.value_objects.template_status import APPROVED, PENDING
 
 
 def by_kind(templates: list[NotificationTemplate]) -> list[NotificationTemplate]:
@@ -49,11 +49,17 @@ class TemplatePgRepository(TemplateRepository):
             text_version=text_version, provider_template_id=provider_template_id, status=PENDING,
             rejected_reason=None, requested_at=requested_at, decided_at=None,
         )
+        # 승인된 줄은 덮지 않는다 — 본 칸은 지금 값 그대로 두고 대기 칸에만 새 판을 적는다. SET 의 식은 모두 바뀌기 전
+        # 행을 본다.
+        T, live = NotificationTemplateOrm, NotificationTemplateOrm.status == APPROVED
+        on_conflict = {name: case((live, getattr(T, name)), else_=value) for name, value in fresh.items()}
+        on_conflict["pending_text_version"] = case((live, text_version), else_=None)
+        on_conflict["pending_provider_template_id"] = case((live, provider_template_id), else_=None)
         row = (
             await self._session.execute(
                 pg_insert(NotificationTemplateOrm)
                 .values(shop_id=ctx.shop_id, kind=kind, **fresh)
-                .on_conflict_do_update(constraint="uq_notification_templates_shop_kind", set_=fresh)
+                .on_conflict_do_update(constraint="uq_notification_templates_shop_kind", set_=on_conflict)
                 .returning(NotificationTemplateOrm)
                 .execution_options(populate_existing=True)
             )
@@ -67,6 +73,20 @@ class TemplatePgRepository(TemplateRepository):
             update(NotificationTemplateOrm)
             .where(NotificationTemplateOrm.shop_id == ctx.shop_id, NotificationTemplateOrm.kind == kind)
             .values(status=status, rejected_reason=rejected_reason, decided_at=decided_at)
+        )
+
+    async def decide_pending(
+        self, ctx: ShopContext, kind: str, approved: bool, rejected_reason: str | None, decided_at: datetime
+    ) -> None:
+        T = NotificationTemplateOrm
+        values = dict(pending_text_version=None, pending_provider_template_id=None, rejected_reason=rejected_reason)
+        if approved:
+            values.update(text_version=T.pending_text_version, provider_template_id=T.pending_provider_template_id,
+                          decided_at=decided_at, rejected_reason=None)
+        await self._session.execute(
+            update(T)
+            .where(T.shop_id == ctx.shop_id, T.kind == kind, T.pending_provider_template_id.is_not(None))
+            .values(**values)
         )
 
     async def delete_all(self, ctx: ShopContext) -> int:
