@@ -14,6 +14,7 @@ from notification.app.ports.output.message_gateway_port import (
     FallbackText,
     GatewayPermanentError,
     GatewayTransientError,
+    TemplateState,
 )
 from notification.adapter.outbound.strategy.fake_gateway import PERMANENT_CODE, TRANSIENT_CODE
 from notification.app.services.dispatcher import DispatchReport, Dispatcher
@@ -629,6 +630,75 @@ async def test_검수_중인_템플릿은_업체_상태대로_approved_나_rejec
     assert (confirm.status, confirm.decided_at) == (APPROVED, NOW)
     assert (next_visit.status, next_visit.rejected_reason, next_visit.decided_at) == (REJECTED, "가짜 반려", NOW)
     assert changed == 2
+
+
+def _waiting(world):
+    """승인된 confirm 에 새 판(2)이 심사 중으로 걸려 있다."""
+    world.templates.rows[(1, CONFIRM)] = template(
+        provider_template_id="TP-V1", pending_text_version=2, pending_provider_template_id="TP-V2")
+
+
+async def test_새_판이_심사_중이어도_옛_판의_업체_ID_로_보낸다():
+    world = _World()
+    _waiting(world)
+    world.gateway.template_states["TP-V2"] = TemplateState(status=PENDING, rejected_reason=None)
+    world.queue()
+
+    await world.run()
+
+    assert ("send", "TP-V1") in world.journal and ("template_state", "TP-V2") in world.journal
+    assert (world.row().status, world.row().scheduled_at) == (ACCEPTED, NOW)   # 미뤄지지 않았다
+    assert world.templates.rows[(1, CONFIRM)].pending_provider_template_id == "TP-V2"
+
+
+async def test_대기_판은_대기_칸의_업체_ID_로_묻고_승인되면_다음_발송부터_새_ID_다():
+    world = _World()
+    _waiting(world)
+
+    changed = await world.dispatcher.refresh_templates()
+
+    assert changed == 1
+    assert [e for e in world.journal if e[0] == "template_state"] == [("template_state", "TP-V2")]
+    after = world.templates.rows[(1, CONFIRM)]
+    assert (after.status, after.text_version, after.provider_template_id, after.pending_provider_template_id,
+            after.decided_at) == (APPROVED, 2, "TP-V2", None, NOW)
+    world.queue()
+    await world.run()
+    assert ("send", "TP-V2") in world.journal
+
+
+async def test_대기_판이_반려되면_옛_판으로_계속_보내고_WARNING_에_매장_종류_판만_남긴다(caplog):
+    world = _World()
+    _waiting(world)
+    world.gateway.template_states["TP-V2"] = TemplateState(status=REJECTED, rejected_reason="비밀 사유")
+
+    with caplog.at_level(logging.WARNING, logger="notification.dispatcher"):
+        changed = await world.dispatcher.refresh_templates()
+
+    after = world.templates.rows[(1, CONFIRM)]
+    assert changed == 1
+    assert (after.status, after.text_version, after.provider_template_id, after.pending_provider_template_id,
+            after.rejected_reason) == (APPROVED, 1, "TP-V1", None, "비밀 사유")
+    [record] = caplog.records
+    assert "confirm" in record.getMessage() and "새 판(2)" in record.getMessage()
+    for secret in ("비밀 사유", "TP-V1", "TP-V2"):
+        assert secret not in caplog.text
+    world.queue()
+    await world.run()
+    assert ("send", "TP-V1") in world.journal
+
+
+async def test_대기_판_조회가_실패하면_그대로_두고_다음_주기에_다시_묻는다(caplog):
+    world = _World()
+    _waiting(world)
+    world.gateway.template_error = GatewayTransientError("503")
+
+    with caplog.at_level(logging.WARNING, logger="notification.dispatcher"):
+        changed = await world.dispatcher.refresh_templates()
+
+    assert changed == 0 and world.templates.rows[(1, CONFIRM)].pending_provider_template_id == "TP-V2"
+    world.gateway.template_error = None
+    assert await world.dispatcher.refresh_templates() == 1
 
 
 async def test_연동한_매장의_빠진_종류를_다시_등록하고_다음_예약_제안은_켜진_매장만():

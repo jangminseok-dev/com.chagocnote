@@ -31,6 +31,7 @@ from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
 from notification.app.services.message_text import message_pet_ids, message_target, message_variables
 from notification.app.services.system_context import system_context
+from notification.app.services.template_registration import REJECTED_NEW_VERSION, record_template_state
 from notification.domain.entities.notification_message import NotificationMessage
 from notification.domain.services.schedule_rules import (
     ACCEPTED_TIMEOUT,
@@ -50,7 +51,7 @@ from notification.domain.value_objects.message_status import (
     SCHEDULED,
     SENT,
 )
-from notification.domain.value_objects.template_status import APPROVED, PENDING, REJECTED
+from notification.domain.value_objects.template_status import PENDING, REJECTED
 
 logger = logging.getLogger("notification.dispatcher")
 
@@ -289,15 +290,19 @@ class Dispatcher:
             if profile is None:
                 continue
             try:
-                state = await self._gateway.template_state(t.provider_template_id)
+                state = await self._gateway.template_state(t.review_provider_template_id)
             except GatewayError as exc:
                 logger.warning("매장 %s 의 %s 템플릿 상태 조회 실패 (%s)", t.shop_id, t.kind, exc.code)
                 continue
-            if state.status in (APPROVED, REJECTED):
-                await self._templates.set_status(system_context(t.shop_id, profile.timezone), t.kind, state.status,
-                                                 state.rejected_reason, now)
-                await self._commit()
-                changed += 1
+            recorded = await record_template_state(self._templates, system_context(t.shop_id, profile.timezone), t,
+                                                   state, now)
+            if recorded is None:
+                continue
+            await self._commit()
+            changed += 1
+            if recorded == REJECTED_NEW_VERSION:
+                logger.warning("매장 %s 의 %s 템플릿 새 판(%s)이 반려됐습니다 — 옛 판으로 계속 보냅니다.",
+                               t.shop_id, t.kind, t.pending_text_version)
         channels = await self._queue.list_linked_channels()
         existing = await self._queue.list_templates_for_shops([c.shop_id for c in channels])
         for c in channels:

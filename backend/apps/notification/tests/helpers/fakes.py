@@ -17,7 +17,7 @@ from hub.app.ports.shop_profile_port import ShopProfilePort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 from notification.adapter.outbound.strategy.fake_gateway import FakeGateway
 from notification.app.ports.output.channel_repository import ChannelRepository
-from notification.app.ports.output.message_gateway_port import DeliveryState
+from notification.app.ports.output.message_gateway_port import DeliveryState, TemplateState
 from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
 from notification.app.ports.output.onboarding_limiter_port import OnboardingLimiterPort
@@ -391,6 +391,8 @@ class SpyGateway(FakeGateway):
         self.state_error: Exception | None = None           # 있으면 delivery_state 가 던진다
         self.register_error: Exception | None = None        # 있으면 register_template 이 던진다
         self.states: dict[str, DeliveryState] = {}          # 업체 메시지 ID → 정해 둔 상태(없으면 번호 규칙)
+        self.template_states: dict[str, TemplateState] = {}  # 업체 템플릿 ID → 정해 둔 심사 상태(없으면 가짜 규칙)
+        self.template_error: Exception | None = None        # 있으면 template_state 가 던진다
 
     async def register_template(self, provider_channel_id, template, text_version):
         self.journal.append(("register_template", provider_channel_id, template.kind))
@@ -400,6 +402,10 @@ class SpyGateway(FakeGateway):
 
     async def template_state(self, provider_template_id):
         self.journal.append(("template_state", provider_template_id))
+        if self.template_error is not None:
+            raise self.template_error
+        if provider_template_id in self.template_states:
+            return self.template_states[provider_template_id]
         return await super().template_state(provider_template_id)
 
     async def send(self, message):

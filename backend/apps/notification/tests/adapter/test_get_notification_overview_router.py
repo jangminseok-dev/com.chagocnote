@@ -53,3 +53,14 @@ async def test_발신번호를_인증했으면_번호와_인증_여부가_보인
         body = (await c.get("/v1/shops/3/notification")).json()
     assert body["channel"] == {**CHANNEL, "sender_number": "0212345678", "sender_verified": True,
                                "sms_fallback_enabled": True}
+
+
+async def test_overview_에_대기_칸은_나가지_않는다():
+    waiting = template(pending_text_version=2, pending_provider_template_id="KA01TP0099")
+    view = NotificationOverviewView(channel=channel(), settings=settings(), templates=[waiting])
+    async with client(_app(view)) as c:
+        response = await c.get("/v1/shops/3/notification")
+    [item] = response.json()["templates"]
+    assert set(item) == {"kind", "status", "rejected_reason", "requested_at", "decided_at"}
+    assert item["status"] == "approved"
+    assert "KA01TP0099" not in response.text and "pending_" not in response.text
