@@ -103,7 +103,7 @@
 
 ### 알려진 동작 — 막지 않기로 했다
 
-- 가족 묶음의 줄은 이벤트가 먼저 온 방문(보통 첫 아이)에 달린다. 그 방문 하나만 취소·노쇼·시각 변경하면 묶음의 `reminder` 도 함께 거둬져 남은 아이의 리마인드가 없고, 다른 아이 하나만 취소·변경하면 묶음의 `reminder` 는 두 이름 그대로 간다(옮긴 아이는 별도 리마인드) — 묶음의 줄을 남은 아이로 다시 쓰는 규칙은 두지 않았다. 묶음을 통째로 취소·변경하는 명령이 보통이다. **최종 검토(I6)가 받아들이기 어렵다고 봤다 — 사용자 판정 대기**(고치려면 취소·이동 때 묶음 대기 줄의 `pet_ids` 에서 그 아이를 빼고 비면 취소).
+- 가족 묶음의 줄은 이벤트가 먼저 온 방문(보통 첫 아이)에 달린다. **아직 안 나간(`scheduled`) 묶음 줄은 지금 그 시각에 오는 아이들을 따라간다(⑥-1b, 아래 "⑥-1b 에서 정한 것")** — 한 마리만 취소·노쇼·시각 변경·완료 되돌리기를 하면 그 아이 이름이 빠지고, 줄이 달린 아이가 빠지면 남은 아이의 방문으로 옮겨진다. 남는 예외: 보호자만의 방문(`pet_id` 없음)과 아이 방문이 같은 시각에 섞이면 먼저 온 방문의 이름으로 한 통이고 그 방문을 취소하면 함께 거둔다(이름을 더하지 않는다). 지금 나가는(`sending`) 줄은 고치지 않는다 — 빠진 아이 이름이 실린 채 나갈 수 있다(몇 초의 창).
 - `UpdateVisitInteractor` 는 `pet_id` 만 바뀐 경우 발행하지 않는다 — 보호자에게 "아이가 바뀜"을 알리지 않는다.
 - 예약 등록 한 번에 템플릿 질의가 둘(confirm·reminder)이고, `share_text` 는 요청마다 `public_profile`·`contact`·`briefs` 를 읽는다(실패 줄이 있을 때만).
 - 재발송의 `wake()` 는 커밋 전에 불린다(구독자와 같다). 루프가 0.5초 뒤에 돌므로 보통 그 안에 커밋되지만, 늦으면 다음 주기(2초)에 집는다.
@@ -149,11 +149,33 @@
 - `MessageNotRetryableError`(409 `NOTIFICATION_NOT_RETRYABLE`)는 오류 표에만 있고 던지는 곳이 없다.
 - 통합 테스트 두 세션을 동시에 돌리면 같은 테스트 DB 를 TRUNCATE 해 서로 깨진다(하네스 문서에 적었다).
 - 흐름 스크립트는 호스트의 `python3`·`curl`·bash 에 기댄다(기존 스크립트와 같다). 게이트웨이 경유는 2026-10-24 실행에서 확인했다(아래 '흐름 확인').
-- **문안 판을 올려 재등록하면 심사 기간(1~3일) 동안 그 종류가 멈춘다 — 설계 6.3("그사이에는 옛 판으로 계속 보낸다") 위반.** `upsert` 가 approved 줄을 pending·새 업체 ID 로 덮어 구독자가 줄을 만들지 않고 대기 줄은 10분씩 미뤄진다. 고치려면 승인 전 판을 따로 두는 칸(`pending_provider_template_id`·`pending_text_version`)이 필요하다. 지금은 `TEXT_VERSION` 이 1 이라 일어나지 않는다 — 문안을 고치기 전에 고친다(최종 검토 I7, 사용자 판정 대기).
+- 문안 판을 올려 재등록할 때 심사 기간 동안 그 종류가 멈추던 문제(최종 검토 I7)는 ⑥-1b 에서 고쳤다(아래). 남는 제약: **판을 올릴 때 변수 이름 집합은 바꾸지 않는다**(심사 중에는 옛 문안에 지금 코드의 변수 값을 채워 보낸다 — `test_templates.py` 가 못 박는다). 변수까지 바꾸는 개정은 옛 문안을 코드에 함께 두는 장치가 필요하다. 옛 판이 모르는 변수가 더 가도 업체가 받는지는 실계정에서만 알 수 있다.
 - **최종 검토가 미룬 Minor**(한 줄씩): 하루 상한이 오늘 만든 줄만 세어 어제 생긴 리마인드 더미는 걸리지 않는다(M1, `accepted_at` 칸으로 M2 와 함께 풀 수 있다) · 24시간 시간 초과가 `scheduled_at` 기준(M2) · `save` 가 상태를 조건 없이 덮어써 취소된 `sending` 줄이 미룸 경로로 되살아날 수 있다(M3, `WHERE status='sending'` 권고) · 반려동물만 바뀐 수정은 발행하지 않아 대기 줄이 옛 아이 이름으로 간다(M4) · 재발송이 끊은 링크의 `variables` 를 그대로 써 죽은 주소가 갈 수 있다(M5) · 리마인드 시각 재계산이 재발송 줄(`requested_by_member_id`)도 `too_late` 로 취소할 수 있다(M6) · 발신번호 인증의 `_mfa_transactions` 가 프로세스 메모리(M7) · N4 의 "5회 틀리면 처음부터"가 실제로는 10분 창(M8).
 - `reregister_templates.py` 의 엔진이 `hide_parameters=True` 인지는 `purge_stale_media.py` 처럼 통합 테스트로 못 박지 않았다(단위 테스트만 있다).
 - 지난 기록(008)에서 넘어온 것 그대로: `.env`·`.env.example` 의 인증 전용 비밀값 분리, `REPORT_LINK_KEY`·`SOLAPI_*` 를 API 프로세스에만 두기(인증 프로세스도 `core/config.py` 를 읽는다), `core/redis.py` 소켓 타임아웃 없음, 운영 OpenAPI 문서 노출.
 - 미룬 것(설계 10절): 발송 결과 웹훅(공개 경로), 매장 전체 발송 목록·월별 집계·과금(⑧), 보호자 차단 플래그·수신 설정(⑦), 직원에게 설정 열기, 브랜드 메시지·홍보(⑩), NHN Cloud 어댑터, 운영자 잔액 API(⑧), 매장 시간대 변경 시 재계산.
+
+### ⑥-1b 에서 정한 것 (2026-11-10)
+
+설계 `docs/superpowers/specs/2026-11-10-notification-6-1b-design.md`, 계획 `docs/superpowers/plans/2026-11-10-notification-6-1b-backend.md`. 최종 검토의 I6·I7 을 사용자가 "⑥-2 앱 전에 둘 다 고친다"로 정했다.
+
+**I6 — 묶음 줄의 아이 빼기·더하기·옮기기** (`domain/services/family_group.py`, `handle_visit_event_interactor.py` 의 `_leave_group`·`_create_for_group`)
+
+- 줄의 `variables` 에 `pet_visits`(`"101:7,102:8"`, pet_id:visit_id)를 더했다. 줄을 만들 때 자기 짝을 적고, 묶음의 다른 방문은 각자의 이벤트가 채운다. notification 은 여전히 visit 을 조회하지 않는다. 응답에는 나가지 않는다(N12).
+- **빼기**: 취소·노쇼는 `(confirm, reminder, change, next_visit)`, 시각 변경은 옛 시각의 `(reminder, change)`, 완료 되돌리기는 `(next_visit)` 에서 그 명령이 함께 다룬 아이들(`family_pet_ids`)을 한 번에 뺀다. 남는 아이가 없으면 지금과 같은 이유로 취소, 줄이 달린 아이가 빠지면 남은 아이(짝이 있는 가장 작은 pet_id)의 방문으로 `visit_id`·`pet_id` 를 옮긴다. `cancel` 은 훑지 않는다 — 통째 취소에서 첫 이벤트가 만든 취소 안내를 둘째가 지우면 안 된다.
+- **더하기**: 같은 묶음의 `scheduled` 줄이 있으면 이벤트의 아이들과 방문 짝을 그 줄에 더한다(나중에 같은 시각에 따로 예약, 다른 시각에서 옮겨 옴, 취소한 아이를 되돌림). `change` 는 옛 시각(`previous_starts_at`)까지 같은 줄에만 더하고, 다르면 그 아이의 변경 안내를 따로 한 통 만든다.
+- **옮길 수 없을 때**(짝을 모르는 옛 줄, 옮길 방문에 같은 종류의 대기 줄 — 재발송): 취소·노쇼·되돌리기는 이름만 빼고 제자리에 둔다. **시각 변경은 지금처럼 취소한다**(설계는 "제자리"였다 — 옮긴 방문에 새 시각의 같은 종류 줄을 달 자리가 필요하다. 방문·종류당 대기 줄은 하나).
+- 묶음을 통째로 예약·변경·취소·완료하는 경로의 결과(줄 수·문안·시각·줄이 달린 방문)는 바뀌지 않았다.
+- 저장소: `list_scheduled_for_group`(FOR UPDATE)·`rewrite_scheduled`·`cancel_scheduled` 는 `status = 'scheduled'` 일 때만 듣는다. `cancel_pending` 에 `except_ids`.
+
+**I7 — 승인 전 판을 따로 둔다** (마이그레이션 0013: `pending_text_version`·`pending_provider_template_id`, CHECK `ck_notification_templates_pending_pair`)
+
+- `upsert` 는 기존 줄이 `approved` 면 대기 칸에만 적는다(본 칸·`status`·`decided_at` 그대로). 그 밖은 지금처럼 덮고 대기 칸을 비운다. 발송·구독자·재발송은 `status` 와 본 칸만 보므로 옛 판으로 계속 나간다.
+- 디스패처의 10분 주기와 스크립트 `--refresh` 는 심사 중인 줄(첫 판 `pending` + 대기 칸이 찬 줄)을 `review_provider_template_id` 로 묻고 `record_template_state` 로 적는다. 대기 판 승인 → 본 칸으로 올림. 대기 판 반려 → 대기 칸만 비우고 옛 판 유지, `rejected_reason` 에 사유, 디스패처는 WARNING(매장·종류·판만), 스크립트 결과는 `rejected_new_version`.
+- 재등록 스크립트는 코드의 판이 본 칸에도 대기 칸에도 없거나 `rejected` 인 종류만 고른다 — 심사 중인 새 판을 또 등록하지 않는다. 새 판이 반려된 종류는 다시 고른다(문안을 고친 뒤 돌린다 — 같은 문안으로 다시 돌리면 같은 문안이 또 심사에 들어간다).
+- overview 응답은 그대로다. 재심사 중에도 `approved` 로 보이고, 새 판이 반려되면 `status: approved` 에 `rejected_reason` 이 차 있을 수 있다.
+
+**검증** (2026-11-10): 단위 1938 · 통합 507 · import-linter 6 kept · 라우트 80줄 그대로. 변이 — 보호자만의 방문 조건 제거, 시각 변경의 제자리 두기, 빼기 종류에 `cancel` 더하기, 대기 칸 대신 본 칸으로 묻기, 빼기 끔·더하기 끔·승인된 줄 덮기(통합) — 각각 해당 테스트가 떨어지는 것을 확인했다.
 
 ### ⑥-2 앱이 기댈 API 계약
 
@@ -202,6 +224,8 @@ templates: [{kind, status: "pending"|"approved"|"rejected", rejected_reason: str
 ```
 
 연동 직후: `channel.status "linked"`, `settings` 기본값(`true,true,true,true,false,"18:00",null,30`), `templates` 다섯 `pending`(`next_visit` 은 설정에서 켤 때 등록). 심사는 영업일 1~3일 — 앱은 "심사 중이에요(보통 1~3일)"·"승인됨"·"반려됐어요 · 운영자가 확인 중" 으로 보인다. dev(가짜 게이트웨이)에서는 디스패처가 기동 뒤 10분 안에 승인으로 바꾸고, 바로 보려면 `reregister_templates.py --refresh`.
+
+템플릿의 `rejected_reason` 은 `status` 가 `approved` 일 때도 차 있을 수 있다(승인된 종류의 새 판이 반려됨, ⑥-1b) — **앱은 `status` 로만 문구를 고른다.**
 
 **MessageItem**(`MessageItemSchema`) — 칸 열 개, 이것뿐. 시각은 매장 시간대.
 
@@ -259,7 +283,7 @@ next_visit  [매장명] 콩이 미용한 지 4주가 지났어요.
 
 **가짜 게이트웨이 규칙**(dev, `SOLAPI_*` 가 비었을 때 — 앱 흐름 테스트가 기댄다): 토큰·인증번호는 `000000` 만 통과(다른 값은 400). 템플릿은 디스패처의 다음 조회에서 바로 `approved`. 발송은 늘 접수되고 결과는 보호자 번호 끝 네 자리로 — `0000` 영구 실패(문자 대체가 켜져 있으면 `fallback_sent`), `9999` 일시 실패(1분·5분·30분 재시도 뒤 `failed`), `8888` 두 번 대기 뒤 성공, 그 밖은 `sent`(알림톡). 실제 발송은 없다.
 
-가족 묶음(두 마리, 작업 11): 한 번에 예약한 두 방문의 `confirm`·`reminder`·`change`·`cancel` 은 **첫 방문의 내역에만** 한 줄씩 있고 둘째 방문의 `GET /visits/{visit_id}/notifications` 는 그 종류가 비어 있다(한 통이다). 문안의 `#{대상}` 은 "콩이·두부". 한 마리만 취소하면 그 방문에 `cancel` 줄이 생기고 그 아이 이름으로 간다. 알림장 링크를 끊으면(`DELETE /visits/{visit_id}/report`) 아직 안 나간 `report` 줄이 `canceled`/`report_revoked` 가 되고, 다시 보내면 새 `report` 줄이 생긴다.
+가족 묶음(두 마리, 작업 11): 한 번에 예약한 두 방문의 `confirm`·`reminder`·`change`·`cancel` 은 **첫 방문의 내역에만** 한 줄씩 있고 둘째 방문의 `GET /visits/{visit_id}/notifications` 는 그 종류가 비어 있다(한 통이다). 문안의 `#{대상}` 은 "콩이·두부". 한 마리만 취소하면 그 방문에 `cancel` 줄이 생기고 그 아이 이름으로 간다. **그때 대기 중인 묶음 줄(`reminder` 등)은 남은 아이 이름으로 바뀌고, 취소한 아이의 방문에 달려 있었으면 남은 아이의 방문 내역으로 옮겨진다**(⑥-1b) — 앱은 방문 상세를 새로 읽을 때 블록의 줄이 다른 방문으로 옮겨 가 있을 수 있다고 본다. 나중에 같은 시각에 따로 예약한 아이는 먼저 있던 방문의 `reminder` 한 통에 이름이 더해지고 자기 방문의 내역에는 `confirm` 만 있다. 알림장 링크를 끊으면(`DELETE /visits/{visit_id}/report`) 아직 안 나간 `report` 줄이 `canceled`/`report_revoked` 가 되고, 다시 보내면 새 `report` 줄이 생긴다.
 
 ### 흐름 확인 (2026-10-24, 게이트웨이 경유)
 
