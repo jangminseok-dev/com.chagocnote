@@ -20,6 +20,7 @@ from notification.app.ports.output.message_repository import MessageRepository
 from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
 from notification.domain.entities.notification_settings import NotificationSettings
+from notification.domain.services.family_group import PET_IDS, PET_VISITS, with_pets
 from notification.domain.services.schedule_rules import interval_weeks, next_visit_at, reminder_at
 from notification.domain.value_objects.message_kind import CANCEL, CHANGE, CONFIRM, NEXT_VISIT, REMINDER, REPORT
 from notification.domain.value_objects.new_message import NewMessage
@@ -142,19 +143,41 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
     async def _create_for_group(
         self, ctx: ShopContext, event: VisitEvent, kind: str, scheduled_at: datetime, **variables: str
     ) -> None:
-        """가족 묶음의 둘째 방문이면 만들지 않는다 — 같은 보호자·같은 시작 시각·같은 종류의 대기 줄이 한 통을 맡는다."""
-        if await self._messages.has_pending_for_group(ctx, event.customer_id, kind, _iso(event.starts_at)):
+        """가족 묶음은 한 통이다 — 같은 보호자·같은 시작 시각·같은 종류의 scheduled 줄이 있으면 새로 만들지 않고 그 줄에
+        이 이벤트의 아이들과 방문 짝을 더한다(설계 2026-11-10 3.1). 변경 안내는 옛 시각까지 같은 줄에만 더한다 — 다른
+        시각에서 옮겨 온 아이는 "변경 전" 이 달라 자기 줄을 만든다. 보호자만의 방문에 달린 줄과 지금 나가는(sending)
+        줄에는 더하지 않고 건너뛴다."""
+        starts_at = _iso(event.starts_at)
+        rows = await self._messages.list_scheduled_for_group(ctx, event.customer_id, starts_at, (kind,))
+        if kind == CHANGE:
+            rows = [m for m in rows if m.variables.get("previous_starts_at") == variables["previous_starts_at"]]
+        if not rows:
+            if kind != CHANGE and await self._messages.has_pending_for_group(ctx, event.customer_id, kind, starts_at):
+                return
+            await self._create(ctx, event, kind, scheduled_at, **variables)
             return
-        await self._create(ctx, event, kind, scheduled_at, **variables)
+        host = next((m for m in rows if m.pet_id is not None), None)
+        if host is None:
+            return
+        joined = with_pets(host, self._pets(event), event.pet_id, event.visit_id)
+        if joined is not None:
+            await self._messages.rewrite_scheduled(ctx, host.id, joined, host.visit_id, host.pet_id)
+
+    @staticmethod
+    def _pets(event: VisitEvent) -> tuple[int, ...]:
+        """이 명령이 함께 다룬 아이들 — 묶음이 비면 자기 아이, 보호자만의 방문이면 없음."""
+        return event.family_pet_ids or ((event.pet_id,) if event.pet_id is not None else ())
 
     async def _create(
         self, ctx: ShopContext, event: VisitEvent, kind: str, scheduled_at: datetime, **variables: str
     ) -> None:
         # starts_at 은 모든 종류에 넣는다 — 디스패처가 #{일시} 와 too_late 판정에 쓴다. pet_ids 는 #{대상} 의 아이들
-        # (묶음이 비면 자기 아이, 보호자만의 방문이면 빈 문자열).
-        pet_ids = event.family_pet_ids or ((event.pet_id,) if event.pet_id is not None else ())
+        # (묶음이 비면 자기 아이, 보호자만의 방문이면 빈 문자열), pet_visits 는 아이별 방문(자기 짝만 — 묶음의 다른
+        # 방문은 각자의 이벤트가 채운다).
+        own = f"{event.pet_id}:{event.visit_id}" if event.pet_id is not None else ""
         await self._messages.create(ctx, NewMessage(
             shop_id=ctx.shop_id, visit_id=event.visit_id, customer_id=event.customer_id, pet_id=event.pet_id,
             kind=kind, scheduled_at=scheduled_at,
-            variables={"starts_at": _iso(event.starts_at), **variables, "pet_ids": ",".join(map(str, pet_ids))},
+            variables={"starts_at": _iso(event.starts_at), **variables,
+                       PET_IDS: ",".join(map(str, self._pets(event))), PET_VISITS: own},
         ))

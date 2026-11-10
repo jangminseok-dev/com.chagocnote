@@ -1,4 +1,5 @@
 """구독자 인터랙터 — visit 이벤트마다 설계 5.2 표의 줄을 만들고 취소한다(스텁). 시각은 모두 kst() 로 만든다."""
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
@@ -24,7 +25,7 @@ from notification.domain.value_objects.message_kind import (
     REMINDER,
     REPORT,
 )
-from notification.domain.value_objects.message_status import CANCELED, SCHEDULED, SENT
+from notification.domain.value_objects.message_status import CANCELED, SCHEDULED, SENDING, SENT
 from notification.domain.value_objects.template_status import PENDING, REJECTED
 from notification.tests.helpers.builders import channel, ctx, kst, message, settings, template
 from notification.tests.helpers.fakes import FakeChannels, FakeMessages, FakeSettings, FakeTemplates, Journal
@@ -126,8 +127,8 @@ async def test_예약되면_confirm_은_지금_reminder_는_전날_설정_시각
     confirm = world.only(CONFIRM)
     assert (confirm.shop_id, confirm.visit_id, confirm.customer_id, confirm.pet_id) == (1, 7, 1, 101)
     assert confirm.requested_by_member_id is None
-    assert confirm.variables == {"starts_at": _iso(STARTS), "pet_ids": "101"}
-    assert world.only(REMINDER).variables == {"starts_at": _iso(STARTS), "pet_ids": "101"}
+    assert confirm.variables == {"starts_at": _iso(STARTS), "pet_ids": "101", "pet_visits": "101:7"}
+    assert world.only(REMINDER).variables == {"starts_at": _iso(STARTS), "pet_ids": "101", "pet_visits": "101:7"}
 
 
 async def test_매장의_리마인드_시각을_따른다():
@@ -214,8 +215,8 @@ async def test_일정이_바뀌면_옛_reminder_는_rescheduled_로_취소되고
         (CHANGE, SCHEDULED, NOW, None),
     ]
     assert world.only(CHANGE).variables == {"starts_at": _iso(MOVED), "previous_starts_at": _iso(STARTS),
-                                            "pet_ids": "101"}
-    assert world.only(REMINDER).variables == {"starts_at": _iso(MOVED), "pet_ids": "101"}
+                                            "pet_ids": "101", "pet_visits": "101:7"}
+    assert world.only(REMINDER).variables == {"starts_at": _iso(MOVED), "pet_ids": "101", "pet_visits": "101:7"}
     assert ("cancel_pending", 7, "rescheduled") in world.journal
 
 
@@ -261,7 +262,7 @@ async def test_매장_사정_취소는_대기_줄을_전부_취소하고_cancel_
         (REMINDER, CANCELED, kst(10, 15, 18), "visit_canceled"),
         (CANCEL, SCHEDULED, NOW, None),
     ]
-    assert world.only(CANCEL).variables == {"starts_at": _iso(STARTS), "pet_ids": "101"}
+    assert world.only(CANCEL).variables == {"starts_at": _iso(STARTS), "pet_ids": "101", "pet_visits": "101:7"}
 
 
 async def test_고객_요청_취소는_대기_줄만_취소하고_cancel_줄은_없다():
@@ -302,7 +303,7 @@ async def test_완료는_대기_줄을_건드리지_않고_앞선_완료가_없�
     await world.handle(_completed())
     assert world.pending() == [(CONFIRM, NOW), (NEXT_VISIT, kst(11, 11, 18))]
     assert world.only(NEXT_VISIT).variables == {
-        "starts_at": _iso(kst(10, 14, 9)), "completed_at": _iso(NOW), "interval_weeks": "4", "pet_ids": "101"}
+        "starts_at": _iso(kst(10, 14, 9)), "completed_at": _iso(NOW), "interval_weeks": "4", "pet_ids": "101", "pet_visits": "101:7"}
 
 
 async def test_앞선_완료가_있으면_그_간격을_주로_반올림한_뒤다():
@@ -381,6 +382,88 @@ async def test_같은_보호자라도_시각이_다르면_따로_만든다():
     assert [k for k, _ in world.pending(7)] == [CONFIRM, REMINDER] == [k for k, _ in world.pending(8)]
 
 
+# --- 가족 묶음: 뒤늦게 온 아이를 더한다 (설계 2026-11-10 3.1) ---------------------------------------------------------
+
+def _set_status(world, row, status):
+    world.messages.rows[row.id] = replace(row, status=status)
+
+
+def _scheduled(world, kind):
+    return sorted((m for m in world.messages.rows.values() if m.kind == kind and m.status == SCHEDULED),
+                  key=lambda m: m.visit_id)
+
+
+async def test_묶음의_둘째_이벤트는_방문_짝을_채운다():
+    world = _World()
+    for event in _pair(VisitReserved):
+        await world.handle(event)
+    reminder = world.only(REMINDER)
+    assert (reminder.visit_id, reminder.variables["pet_ids"], reminder.variables["pet_visits"]) == (
+        7, "101,102", "101:7,102:8")
+    assert world.only(CONFIRM).variables["pet_visits"] == "101:7,102:8"
+
+
+async def test_나중에_같은_시각에_따로_예약한_아이는_대기_중인_reminder_에_이름이_더해진다():
+    world = _World()
+    await world.handle(_event(VisitReserved, visit_id=7, pet_id=101))
+    _set_status(world, world.only(CONFIRM), SENT)
+    await world.handle(_event(VisitReserved, visit_id=8, pet_id=102))
+    reminder = world.only(REMINDER)
+    assert (reminder.visit_id, reminder.pet_id, reminder.variables["pet_ids"], reminder.variables["pet_visits"]) == (
+        7, 101, "101,102", "101:7,102:8")
+    assert world.pending(8) == [(CONFIRM, NOW)]   # 자기 접수 안내는 따로 간다
+
+
+async def test_다른_시각에서_옮겨_온_아이는_reminder_에_더해지고_change_는_따로_한_통이다():
+    world = _World()
+    for event in _pair(VisitRescheduled, previous_starts_at=kst(10, 15, 14)):
+        await world.handle(event)
+    await world.handle(_event(VisitRescheduled, visit_id=9, pet_id=103, previous_starts_at=kst(10, 17, 14)))
+    assert world.only(REMINDER).variables["pet_ids"] == "101,102,103"
+    assert [(m.visit_id, m.variables["pet_ids"], m.variables["previous_starts_at"]) for m in _scheduled(world, CHANGE)] == [
+        (7, "101,102", _iso(kst(10, 15, 14))), (9, "103", _iso(kst(10, 17, 14)))]
+
+
+async def test_옛_시각이_같은_change_에는_더한다():
+    world = _World()
+    for event in _pair(VisitRescheduled, previous_starts_at=kst(10, 15, 14)):
+        await world.handle(event)
+    await world.handle(_event(VisitRescheduled, visit_id=9, pet_id=103, previous_starts_at=kst(10, 15, 14)))
+    assert [(m.visit_id, m.variables["pet_ids"]) for m in _scheduled(world, CHANGE)] == [(7, "101,102,103")]
+
+
+async def test_보호자만의_방문에_달린_줄에는_더하지_않는다():
+    world = _World()
+    await world.handle(_event(VisitReserved, visit_id=7, pet_id=None))
+    await world.handle(_event(VisitReserved, visit_id=8, pet_id=101))
+    reminder = world.only(REMINDER)
+    assert (reminder.visit_id, reminder.variables["pet_ids"], reminder.variables["pet_visits"]) == (7, "", "")
+
+
+async def test_보호자만의_방문이_아이_묶음에_오면_아무것도_바꾸지_않는다():
+    world = _World()
+    await world.handle(_event(VisitReserved, visit_id=7, pet_id=101))
+    await world.handle(_event(VisitReserved, visit_id=8, pet_id=None))
+    reminder = world.only(REMINDER)
+    assert (reminder.visit_id, reminder.variables["pet_ids"], reminder.variables["pet_visits"]) == (7, "101", "101:7")
+
+
+async def test_sending_중인_묶음_줄에는_더하지_않고_건너뛴다():
+    world = _World()
+    await world.handle(_event(VisitReserved, visit_id=7, pet_id=101))
+    _set_status(world, world.only(REMINDER), SENDING)
+    await world.handle(_event(VisitReserved, visit_id=8, pet_id=102))
+    [reminder] = [m for m in world.messages.rows.values() if m.kind == REMINDER]
+    assert (reminder.status, reminder.variables["pet_ids"]) == (SENDING, "101")
+
+
+async def test_다른_시각에서_온_아이는_그_시각의_reminder_에_들어간다():
+    world = _World()
+    await world.handle(_event(VisitReserved, visit_id=7, pet_id=101))
+    await world.handle(_event(VisitRescheduled, visit_id=8, pet_id=102, previous_starts_at=MOVED))
+    assert [(m.visit_id, m.variables["pet_ids"]) for m in _scheduled(world, REMINDER)] == [(7, "101,102")]
+
+
 # --- 알림장 발급 ----------------------------------------------------------------------------------------------------
 
 async def test_알림장을_보내면_report_줄에_주소와_기간이_든다():
@@ -388,7 +471,7 @@ async def test_알림장을_보내면_report_줄에_주소와_기간이_든다()
     await world.handle(_event(VisitReportIssued, url=URL, expires_at=kst(11, 13, 0)))
     assert world.pending() == [(REPORT, NOW)]
     assert world.only(REPORT).variables == {"starts_at": _iso(STARTS), "url": URL, "expires_at": _iso(kst(11, 13, 0)),
-                                            "pet_ids": "101"}
+                                            "pet_ids": "101", "pet_visits": "101:7"}
 
 
 async def test_무기한_링크의_expires_at_은_빈_문자열이다():
