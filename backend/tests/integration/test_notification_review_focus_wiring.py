@@ -11,7 +11,10 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from notification.adapter.outbound.pg.template_pg_repository import TemplatePgRepository
 from notification.adapter.outbound.strategy.fake_gateway import FakeGateway
+from notification.app.ports.output.message_gateway_port import TemplateState
+from notification.app.services.system_context import system_context
 from notification.dependencies.dispatcher_provider import build_dispatcher
 from notification.domain.services.templates import format_when
 from notification.domain.value_objects.message_kind import KINDS
@@ -277,3 +280,80 @@ async def test_연달아_두_번_바꾸면_change_는_마지막_한_통만_대�
     [change_sent] = [m for m in gateway.sent_messages if m.provider_template_id == TEMPLATE["change"]]
     assert (change_sent.variables["이전일시"], change_sent.variables["일시"]) == (
         format_when(second, "Asia/Seoul"), format_when(third, "Asia/Seoul"))
+
+
+# --- 6. 묶음의 아직 안 나간 알림톡은 지금 그 시각에 오는 아이들을 따라간다 (설계 2026-11-10 3.1) ---------------------
+
+async def _listed(wired, shop_id, headers, visit_id) -> list[tuple]:
+    response = await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}/notifications", headers=headers)
+    assert response.status_code == 200, response.text
+    return [(item["kind"], item["status"]) for item in response.json()["items"]]
+
+
+async def test_묶음에서_줄이_달린_아이만_취소하면_reminder_는_남은_아이_이름으로_그_아이_방문의_내역에_있다(wired):
+    shop_id, headers, customer_id, pet_ids = await _shop(wired)
+    kong, dubu = await _booked(wired, shop_id, headers, customer_id, pet_ids, _at(3, 14))
+    gateway = FakeGateway()
+    await _run_once(wired, gateway)                                   # 접수 안내가 나간다
+    assert ("reminder", "scheduled") in await _listed(wired, shop_id, headers, kong)
+
+    await _transition(wired, shop_id, headers, [kong], "cancel", cancel_reason="customer_request")
+
+    assert ("reminder", "scheduled") in await _listed(wired, shop_id, headers, dubu)
+    assert not [row for row in await _listed(wired, shop_id, headers, kong) if row[0] == "reminder"]
+    assert [r for r in await _rows(wired, dubu) if r[0] == "reminder"] == [
+        ("reminder", "scheduled", None, str(pet_ids[1]))]
+    await _run_once(wired, gateway, now=_at(2, 18, 1))                # 전날 18:00 이 지났다
+    assert _targets(gateway, "reminder") == ["두부"]
+
+
+async def test_나중에_같은_시각에_따로_예약한_아이도_reminder_한_통에_실린다(wired):
+    shop_id, headers, customer_id, pet_ids = await _shop(wired)
+    [kong] = await _booked(wired, shop_id, headers, customer_id, pet_ids[:1], _at(3, 14))
+    gateway = FakeGateway()
+    await _run_once(wired, gateway)
+    [dubu] = await _booked(wired, shop_id, headers, customer_id, pet_ids[1:], _at(3, 14))
+
+    assert [r for v in (kong, dubu) for r in await _rows(wired, v) if r[0] == "reminder"] == [
+        ("reminder", "scheduled", None, ",".join(str(p) for p in sorted(pet_ids)))]
+    await _run_once(wired, gateway)                                   # 두부의 접수 안내
+    await _run_once(wired, gateway, now=_at(2, 18, 1))
+    assert _targets(gateway, "confirm") == ["콩이", "두부"]
+    assert _targets(gateway, "reminder") == ["콩이·두부"]
+
+
+# --- 7. 새 판 심사 중에는 옛 판으로 계속 나간다 (설계 2026-11-10 3.2) ----------------------------------------------
+
+class _ReviewingGateway(FakeGateway):
+    """새 판(tpl-new)의 심사를 테스트가 끝낼 때까지 '심사 중'으로 답한다."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.decided = False
+
+    async def template_state(self, provider_template_id: str) -> TemplateState:
+        if provider_template_id == "tpl-new" and not self.decided:
+            return TemplateState(status="pending", rejected_reason=None)
+        return await super().template_state(provider_template_id)
+
+
+async def test_승인된_종류를_새_판으로_재등록해도_심사_중에는_옛_판으로_나가고_승인_뒤에는_새_판으로_나간다(wired):
+    shop_id, headers, customer_id, pet_ids = await _shop(wired)
+    sessions = async_sessionmaker(wired.engine, expire_on_commit=False, autoflush=False)
+    async with sessions() as session:
+        await TemplatePgRepository(session).upsert(system_context(shop_id), "confirm", 2, "tpl-new", _now())
+        await session.commit()
+    gateway = _ReviewingGateway()
+
+    await _booked(wired, shop_id, headers, customer_id, pet_ids[:1], _at(3, 14))
+    async with sessions() as session:
+        await build_dispatcher(session, gateway=gateway, now=_now).refresh_templates()   # 아직 심사 중
+    await _run_once(wired, gateway)
+    assert [m.provider_template_id for m in gateway.sent_messages] == [TEMPLATE["confirm"]]
+
+    gateway.decided = True
+    async with sessions() as session:
+        await build_dispatcher(session, gateway=gateway, now=_now).refresh_templates()
+    await _booked(wired, shop_id, headers, customer_id, pet_ids[:1], _at(4, 14))
+    await _run_once(wired, gateway)
+    assert [m.provider_template_id for m in gateway.sent_messages] == [TEMPLATE["confirm"], "tpl-new"]
