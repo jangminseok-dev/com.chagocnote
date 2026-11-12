@@ -23,6 +23,7 @@ import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../api/record_models.dart';
 import '../api/report_models.dart';
+import '../state/notification_commands.dart';
 import '../state/report_commands.dart';
 import '../state/report_providers.dart';
 import '../state/report_rules.dart';
@@ -64,6 +65,9 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
   final _buttonKey = GlobalKey();
 
   bool _busy = false;
+
+  /// 링크를 만든 뒤 알림톡 결과를 기다리는 중 — 단추는 돌지만 뒤로 갈 수 있다.
+  bool _awaiting = false;
   String? _errorText;
 
   int? get _shopId => ref.read(selectedShopIdProvider);
@@ -96,6 +100,12 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
       _busy = true;
       _errorText = null;
     });
+    final notifications = ref.read(notificationCommandsProvider);
+    // 알림톡으로 나가는지 보려면 보내기 전에 있던 알림장 알림톡 줄을 알아야 한다 — 이번 보내기가 만든
+    // 줄만 결과로 친다(끊고 다시 보낼 때 옛 '보냄' 줄을 새 발송으로 알리지 않게). 고르기는 보지 않는다.
+    final before = widget.picking
+        ? null
+        : await notifications.reportRowIds(shopId, widget.visitId);
     final VisitReportPreview sent;
     try {
       sent = await ref
@@ -124,20 +134,41 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
     }
     if (!mounted) return;
     if (!widget.picking) {
-      final box = _buttonKey.currentContext!.findRenderObject()! as RenderBox;
-      try {
-        await ref
-            .read(shareSheetProvider)
-            .shareText(
-              sent.link.url!,
-              origin: box.localToGlobal(Offset.zero) & box.size,
-            );
-      } on Exception {
-        // 링크는 이미 만들어졌다('보냄') — 닫고, 방문 상세의 [다시 공유]로 다시 낼 수 있다고 알린다.
-        if (mounted) AppSnackBar.show(context, AppStrings.reportShareFailed);
+      // 링크는 만들어졌다('보냄'). 알림톡이 나가는지 최대 10초 본다 — 그동안 단추는 돌지만 뒤로 가기는
+      // 막지 않는다. 닫고 나갔으면 아무것도 띄우지 않는다(방문 상세의 알림톡 블록이 결과를 보인다).
+      setState(() => _awaiting = true);
+      final delivery = await notifications.awaitReport(
+        shopId,
+        widget.visitId,
+        before: before,
+      );
+      if (!mounted) return;
+      switch (delivery) {
+        case ReportDelivered():
+          AppSnackBar.show(context, AppStrings.reportSentByAlimtalk);
+        case ReportPending():
+          AppSnackBar.show(context, AppStrings.reportAlimtalkPending);
+        case ReportFailed(:final shareText):
+          AppSnackBar.show(context, AppStrings.reportAlimtalkFailed);
+          await _share(shareText ?? sent.link.url!);
+        case ReportNotSent():
+          await _share(sent.link.url!);
       }
     }
     if (mounted) context.pop(true);
+  }
+
+  /// 공유 시트에 [text](링크 주소 또는 문자용 문안 — 둘 다 토큰이 들 수 있다)를 넘긴다.
+  Future<void> _share(String text) async {
+    final box = _buttonKey.currentContext!.findRenderObject()! as RenderBox;
+    try {
+      await ref
+          .read(shareSheetProvider)
+          .shareText(text, origin: box.localToGlobal(Offset.zero) & box.size);
+    } on Exception {
+      // 링크는 이미 만들어졌다('보냄') — 닫고, 방문 상세의 [다시 공유]로 다시 낼 수 있다고 알린다.
+      if (mounted) AppSnackBar.show(context, AppStrings.reportShareFailed);
+    }
   }
 
   /// 기간 안내 — 이미 보낸 링크는 그 링크의 기한, 새로 보내면 오늘에서 설정의 일수 뒤.
@@ -181,9 +212,10 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                 child: Row(
                   children: [
                     // 보내는 중에는 닫기도 시스템 뒤로 가기도 닫지 않는다 — 닫히면 만든 링크를 공유 시트에
-                    // 넘기지 못한다. PopScope 는 경로 안 어디에 있어도 경로 전체에 걸린다.
+                    // 넘기지 못한다. PopScope 는 경로 안 어디에 있어도 경로 전체에 걸린다. 링크를 만든 뒤
+                    // 알림톡 결과를 기다리는 동안은 닫을 수 있다(⑥ 설계 8.3).
                     PopScope(
-                      canPop: !_busy,
+                      canPop: !_busy || _awaiting,
                       child: Pressable(
                         semanticLabel: AppStrings.close,
                         onTap: () => Navigator.of(context).maybePop(),
@@ -283,9 +315,18 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                 runSpacing: AppSpacing.sm,
                 children: [
                   _ItemChip(AppStrings.reportItemMenus, on: settings.showMenus),
-                  _ItemChip(AppStrings.reportItemShopInfo, on: settings.showShopInfo),
-                  _ItemChip(AppStrings.reportItemAmount, on: settings.showAmount),
-                  _ItemChip(AppStrings.reportItemWeight, on: settings.showWeight),
+                  _ItemChip(
+                    AppStrings.reportItemShopInfo,
+                    on: settings.showShopInfo,
+                  ),
+                  _ItemChip(
+                    AppStrings.reportItemAmount,
+                    on: settings.showAmount,
+                  ),
+                  _ItemChip(
+                    AppStrings.reportItemWeight,
+                    on: settings.showWeight,
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
