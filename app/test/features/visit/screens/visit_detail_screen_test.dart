@@ -551,15 +551,16 @@ void main() {
 
     fail = true;
     // '두부'는 오버레이 이름 카드(IgnorePointer) 안이라 히트테스트 경고가 난다 — 카드 밖 글자를 당긴다.
-    await tester.fling(find.text(AppStrings.menuLabel), const Offset(0, 400), 1000);
+    await tester.fling(
+      find.text(AppStrings.menuLabel),
+      const Offset(0, 400),
+      1000,
+    );
     await tester.pumpAndSettle();
 
     expect(reads, 2);
     expect(find.text('두부'), findsOneWidget);
-    expect(
-      find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'),
-      findsOneWidget,
-    );
+    expect(find.text('서버에 잠시 문제가 있어요. 잠시 뒤 다시 시도해 주세요.'), findsOneWidget);
   });
 
   testWidgets('방문 상세 골든', (tester) async {
@@ -612,11 +613,7 @@ void main() {
       ],
     );
 
-    ({
-      CustomerTestSetup setup,
-      FakeMediaImages images,
-      FakeUploadQueue queue,
-    })
+    ({CustomerTestSetup setup, FakeMediaImages images, FakeUploadQueue queue})
     build(
       _Server server, {
       String role = 'owner',
@@ -711,39 +708,44 @@ void main() {
       expect(app.queue.added.single.sources, ['/camera/c.jpg']);
     });
 
-    testWidgets('사진 30장(붙은 것과 대기열)과 영상 3편이 다 차면 사진 추가는 시트 없이 한도 문구만 보인다(카메라도 막힌다)', (
-      tester,
-    ) async {
-      final server = _Server(status: 'in_progress')
-        ..record = recordJson(
-          media: [
-            for (var i = 0; i < 29; i++)
-              recordMediaJson(mediaId: 100 + i, sortOrder: i),
-            for (var i = 0; i < 3; i++)
-              recordMediaJson(mediaId: 200 + i, sortOrder: 29 + i, kind: 'video'),
+    testWidgets(
+      '사진 30장(붙은 것과 대기열)과 영상 3편이 다 차면 사진 추가는 시트 없이 한도 문구만 보인다(카메라도 막힌다)',
+      (tester) async {
+        final server = _Server(status: 'in_progress')
+          ..record = recordJson(
+            media: [
+              for (var i = 0; i < 29; i++)
+                recordMediaJson(mediaId: 100 + i, sortOrder: i),
+              for (var i = 0; i < 3; i++)
+                recordMediaJson(
+                  mediaId: 200 + i,
+                  sortOrder: 29 + i,
+                  kind: 'video',
+                ),
+            ],
+          );
+        final app = build(
+          server,
+          uploads: [
+            const UploadJob(
+              id: 'j1',
+              userId: 1,
+              shopId: 3,
+              visitId: 101,
+              phase: MediaPhase.before,
+              stage: UploadStage.prepared,
+            ),
           ],
         );
-      final app = build(
-        server,
-        uploads: [
-          const UploadJob(
-            id: 'j1',
-            userId: 1,
-            shopId: 3,
-            visitId: 101,
-            phase: MediaPhase.before,
-            stage: UploadStage.prepared,
-          ),
-        ],
-      );
-      await _open(tester, app.setup);
+        await _open(tester, app.setup);
 
-      await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
+        await _tap(tester, find.bySemanticsLabel(AppStrings.addPhoto));
 
-      expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
-      expect(_button(AppStrings.takePhoto), findsNothing);
-      expect(app.queue.added, isEmpty);
-    });
+        expect(find.text('방문 하나에 사진은 30장, 영상은 3편까지 붙일 수 있어요.'), findsOneWidget);
+        expect(_button(AppStrings.takePhoto), findsNothing);
+        expect(app.queue.added, isEmpty);
+      },
+    );
 
     testWidgets('사진만 붙은 기록(대기열이 만든 것)은 케어 카드 없이 [기록 쓰기]다', (tester) async {
       final server = _Server(status: 'in_progress')
@@ -774,10 +776,7 @@ void main() {
       expect(find.text(AppStrings.deleteRecordConfirm), findsOneWidget);
       await _tap(tester, _button(AppStrings.deleteRecord));
 
-      expect(
-        app.setup.calls,
-        contains('DELETE /v1/shops/3/visits/101/record'),
-      );
+      expect(app.setup.calls, contains('DELETE /v1/shops/3/visits/101/record'));
       expect(find.text('발바닥 각질'), findsNothing);
       expect(_button(AppStrings.writeRecord), findsOneWidget);
     });
@@ -867,22 +866,21 @@ void main() {
       });
     }
 
-    testWidgets(
-      '보낸 방문은 꼬리표가 "완료 · 알림장 보냄"이고, 아직 안 열었으면 "아직 안 열었어요"와 기간을 보인다',
-      (tester) async {
-        await open(tester, sent());
+    testWidgets('보낸 방문은 꼬리표가 "완료 · 알림장 보냄"이고, 아직 안 열었으면 "아직 안 열었어요"와 기간을 보인다', (
+      tester,
+    ) async {
+      await open(tester, sent());
 
-        expect(find.text('완료 · 알림장 보냄'), findsOneWidget);
-        expect(find.text(AppStrings.statusCompleted), findsNothing);
-        expect(find.text('아직 안 열었어요'), findsOneWidget);
-        expect(find.text('11월 1일까지 열려요.'), findsOneWidget);
-        expect(find.byIcon(Icons.check), findsNothing);
-        // "알림장" 줄과 [알림장 보내기] 대신 확인 카드와 [다시 공유]다.
-        expect(find.text('알림장'), findsNothing);
-        expect(_button(AppStrings.reportStart), findsNothing);
-        expect(_button(AppStrings.reportShareAgain), findsOneWidget);
-      },
-    );
+      expect(find.text('완료 · 알림장 보냄'), findsOneWidget);
+      expect(find.text(AppStrings.statusCompleted), findsNothing);
+      expect(find.text('아직 안 열었어요'), findsOneWidget);
+      expect(find.text('11월 1일까지 열려요.'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsNothing);
+      // "알림장" 줄과 [알림장 보내기] 대신 확인 카드와 [다시 공유]다.
+      expect(find.text('알림장'), findsNothing);
+      expect(_button(AppStrings.reportStart), findsNothing);
+      expect(_button(AppStrings.reportShareAgain), findsOneWidget);
+    });
 
     testWidgets('보호자가 열었으면 "보호자가 확인했어요"와 처음 연 시각을 보인다', (tester) async {
       await open(tester, sent(firstViewedAt: '2026-10-02T15:20:00+09:00'));
@@ -959,7 +957,10 @@ void main() {
       expect(setup.calls, isNot(contains('DELETE $_reportPath')));
       await _tap(tester, _button(AppStrings.reportRevoke));
 
-      expect(setup.calls.where((c) => c == 'DELETE $_reportPath'), hasLength(1));
+      expect(
+        setup.calls.where((c) => c == 'DELETE $_reportPath'),
+        hasLength(1),
+      );
       expect(find.text('아직 안 보냄'), findsOneWidget);
       expect(find.text(AppStrings.statusCompleted), findsOneWidget);
       expect(_button(AppStrings.reportStart), findsOneWidget);
@@ -1000,7 +1001,10 @@ void main() {
       gate.complete(const FakeResponse(statusCode: 204));
       await settle(tester);
 
-      expect(setup.calls.where((c) => c == 'DELETE $_reportPath'), hasLength(1));
+      expect(
+        setup.calls.where((c) => c == 'DELETE $_reportPath'),
+        hasLength(1),
+      );
       expect(find.text('아직 안 보냄'), findsOneWidget);
     });
 
@@ -1088,6 +1092,338 @@ void main() {
       await expectLater(
         find.byKey(ScreenKeys.visitDetail),
         matchesGoldenFile('goldens/visit_detail_report_sent.png'),
+      );
+    });
+  });
+
+  group('알림톡 내역(⑥-2)', () {
+    const listPath = '/v1/shops/3/visits/101/notifications';
+    const resendPath = '$listPath/confirm/resend';
+
+    FakeResponse error(int status, String code) =>
+        FakeResponse(statusCode: status, data: {'code': code, 'message': 'x'});
+
+    /// 내역을 [rows]로 답하는 서버를 열고 방문 상세를 띄운다. [rows]를 바꾸면 다음 조회에 반영된다.
+    Future<(CustomerTestSetup, _Server, List<Map<String, dynamic>>)> open(
+      WidgetTester tester,
+      List<Map<String, dynamic>> rows, {
+      String role = 'owner',
+      Map<String, FakeHandler> routes = const {},
+    }) async {
+      final server = _Server();
+      server.backend.routes.addAll({
+        'GET $listPath': (o, b) =>
+            FakeResponse(statusCode: 200, data: {'items': rows}),
+        ...routes,
+      });
+      final setup = CustomerTestSetup(
+        server.backend.call,
+        overrides: _today,
+        role: role,
+      );
+      addTearDown(setup.container.dispose);
+      await _open(tester, setup);
+      return (setup, server, rows);
+    }
+
+    int reads(CustomerTestSetup setup) =>
+        setup.calls.where((call) => call == 'GET $listPath').length;
+
+    Map<String, dynamic> failed(
+      int id, {
+      String errorKind = 'transient',
+      String? shareText,
+    }) => notificationMessageJson(
+      messageId: id,
+      status: 'failed',
+      errorKind: errorKind,
+      shareText: shareText,
+    );
+
+    testWidgets('내역이 없으면 알림톡 블록이 없다', (tester) async {
+      await open(tester, []);
+
+      expect(find.text('알림톡'), findsNothing);
+      expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+    });
+
+    testWidgets('줄마다 종류와 상태를 한 줄로 보인다', (tester) async {
+      await open(tester, [
+        notificationMessageJson(
+          messageId: 5,
+          kind: 'reminder',
+          status: 'scheduled',
+          scheduledAt: '2026-10-03T18:00:00+09:00',
+        ),
+        notificationMessageJson(
+          messageId: 4,
+          kind: 'report',
+          status: 'accepted',
+        ),
+        notificationMessageJson(
+          messageId: 3,
+          kind: 'change',
+          status: 'sending',
+        ),
+        notificationMessageJson(
+          messageId: 2,
+          kind: 'cancel',
+          status: 'fallback_sent',
+          sentAt: '2026-10-01T09:05:00+09:00',
+        ),
+        notificationMessageJson(
+          messageId: 1,
+          status: 'sent',
+          sentAt: '2026-10-02T14:02:00+09:00',
+        ),
+      ]);
+
+      expect(find.text('알림톡'), findsOneWidget);
+      expect(find.text('전날 리마인드 · 10월 3일 토 18:00 예정'), findsOneWidget);
+      expect(find.text('알림장 · 보내는 중'), findsOneWidget);
+      expect(find.text('예약 변경 · 보내는 중'), findsOneWidget);
+      expect(find.text('예약 취소 · 문자로 보냄 · 10월 1일 목 09:05'), findsOneWidget);
+      expect(find.text('예약 접수 · 보냄 · 14:02'), findsOneWidget);
+    });
+
+    testWidgets('실패한 줄은 일시·영구에 따라 사유가 다르다', (tester) async {
+      await open(tester, [
+        notificationMessageJson(
+          messageId: 2,
+          kind: 'next_visit',
+          status: 'failed',
+          errorKind: 'permanent',
+        ),
+        failed(1),
+      ]);
+
+      expect(
+        find.text('다음 예약 제안 · 못 보냈어요 · 알림톡을 받을 수 없는 번호예요'),
+        findsOneWidget,
+      );
+      expect(find.text('예약 접수 · 못 보냈어요 · 잠시 문제가 있었어요'), findsOneWidget);
+    });
+
+    testWidgets('취소된 줄은 보이지 않고 그것뿐이면 블록도 없다', (tester) async {
+      await open(tester, [
+        notificationMessageJson(
+          messageId: 1,
+          kind: 'reminder',
+          status: 'canceled',
+        ),
+      ]);
+
+      expect(find.text('알림톡'), findsNothing);
+      expect(find.textContaining('전날 리마인드'), findsNothing);
+    });
+
+    testWidgets('내역을 읽지 못해도 방문 상세는 보이고 블록만 없다', (tester) async {
+      await open(
+        tester,
+        [],
+        routes: {'GET $listPath': (o, b) => error(500, 'INTERNAL')},
+      );
+
+      expect(find.text('두부'), findsOneWidget);
+      expect(find.text('알림톡'), findsNothing);
+    });
+
+    testWidgets('모르는 종류의 줄만 빠지고 상세는 보인다', (tester) async {
+      await open(tester, [
+        notificationMessageJson(messageId: 2, kind: 'brand_new'),
+        notificationMessageJson(
+          messageId: 1,
+          sentAt: '2026-10-02T14:02:00+09:00',
+        ),
+      ]);
+
+      expect(find.text('두부'), findsOneWidget);
+      expect(find.text('예약 접수 · 보냄 · 14:02'), findsOneWidget);
+      expect(find.textContaining('brand_new'), findsNothing);
+    });
+
+    testWidgets('일시 실패의 가장 최근 줄에만 다시 보내기가 있다', (tester) async {
+      await open(tester, [failed(2), failed(1)]);
+
+      expect(find.textContaining('못 보냈어요'), findsNWidgets(2));
+      expect(_button(AppStrings.notificationResend), findsOneWidget);
+    });
+
+    testWidgets('다시 보내기는 재발송하고 보내는 중을 거쳐 보냄으로 바뀐다', (tester) async {
+      late List<Map<String, dynamic>> rows;
+      final (setup, _, shown) = await open(
+        tester,
+        [failed(1)],
+        routes: {
+          'POST $resendPath': (o, b) {
+            rows.insert(
+              0,
+              notificationMessageJson(messageId: 9, status: 'sending'),
+            );
+            return FakeResponse(statusCode: 201, data: {'message_id': 9});
+          },
+          'GET /v1/shops/3/notifications/9': (o, b) {
+            rows[0] = notificationMessageJson(
+              messageId: 9,
+              status: 'sent',
+              sentAt: '2026-10-02T14:10:00+09:00',
+            );
+            return FakeResponse(statusCode: 200, data: rows[0]);
+          },
+        },
+      );
+      rows = shown;
+
+      await _tap(tester, _button(AppStrings.notificationResend));
+
+      expect(setup.calls.where((c) => c == 'POST $resendPath').length, 1);
+      expect(find.text('예약 접수 · 보내는 중'), findsOneWidget);
+      // 옛 실패 줄은 더는 가장 최근 줄이 아니다 — 단추가 없다.
+      expect(_button(AppStrings.notificationResend), findsNothing);
+
+      await tester.pump(const Duration(seconds: 1));
+      await settle(tester);
+
+      expect(find.text('예약 접수 · 보냄 · 14:10'), findsOneWidget);
+    });
+
+    testWidgets('직원도 다시 보내기를 누를 수 있다', (tester) async {
+      final (setup, _, _) = await open(
+        tester,
+        [failed(1)],
+        role: 'staff',
+        routes: {
+          'POST $resendPath': (o, b) =>
+              FakeResponse(statusCode: 201, data: {'message_id': 9}),
+          'GET /v1/shops/3/notifications/9': (o, b) => FakeResponse(
+            statusCode: 200,
+            data: notificationMessageJson(messageId: 9, status: 'sent'),
+          ),
+        },
+      );
+
+      await _tap(tester, _button(AppStrings.notificationResend));
+      await tester.pump(const Duration(seconds: 1));
+      await settle(tester);
+
+      expect(setup.calls, contains('POST $resendPath'));
+    });
+
+    testWidgets('재발송이 404 면 문구를 알리고 블록을 다시 읽는다', (tester) async {
+      final (setup, _, _) = await open(
+        tester,
+        [failed(1)],
+        routes: {
+          'POST $resendPath': (o, b) =>
+              error(404, 'NOTIFICATION_MESSAGE_NOT_FOUND'),
+        },
+      );
+      final before = reads(setup);
+
+      await _tap(tester, _button(AppStrings.notificationResend));
+
+      expect(find.text('다시 보낼 알림을 찾지 못했어요. 화면을 새로 불러왔어요.'), findsOneWidget);
+      expect(reads(setup), before + 1);
+    });
+
+    testWidgets('재발송이 409 면 이미 보내는 중이에요를 알린다', (tester) async {
+      await open(
+        tester,
+        [failed(1)],
+        routes: {
+          'POST $resendPath': (o, b) =>
+              error(409, 'NOTIFICATION_ALREADY_PENDING'),
+        },
+      );
+
+      await _tap(tester, _button(AppStrings.notificationResend));
+
+      expect(find.text('이미 보내는 중이에요.'), findsOneWidget);
+    });
+
+    testWidgets('영구 실패는 다른 방법으로 보내기가 문안을 공유 시트에 넘긴다', (tester) async {
+      final (setup, _, _) = await open(tester, [
+        failed(1, errorKind: 'permanent', shareText: '[Hiss Haus] 가짜 문안'),
+      ]);
+      final before = [...setup.calls];
+      final button = _button(AppStrings.notificationShareInstead);
+
+      expect(_button(AppStrings.notificationResend), findsNothing);
+      await _tap(tester, button);
+
+      expect(setup.shareSheet.shared.single, '[Hiss Haus] 가짜 문안');
+      expect(setup.shareSheet.origins.single, tester.getRect(button));
+      expect(setup.calls, before);
+    });
+
+    testWidgets('문안이 없는 영구 실패에는 단추가 없다', (tester) async {
+      await open(tester, [failed(1, errorKind: 'permanent')]);
+
+      expect(find.textContaining('못 보냈어요'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is AppButton &&
+              (w.label == AppStrings.notificationShareInstead ||
+                  w.label == AppStrings.notificationResend),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('공유 시트가 실패하면 안내를 보인다', (tester) async {
+      final (setup, _, _) = await open(tester, [
+        failed(1, errorKind: 'permanent', shareText: '가짜 문안'),
+      ]);
+      setup.shareSheet.error = PlatformException(code: 'NO_VIEW');
+
+      await _tap(tester, _button(AppStrings.notificationShareInstead));
+
+      expect(find.text(AppStrings.reportShareAgainFailed), findsOneWidget);
+    });
+
+    testWidgets('당겨 새로고침하면 상세와 내역을 둘 다 다시 읽는다', (tester) async {
+      final (setup, _, _) = await open(tester, [
+        notificationMessageJson(
+          messageId: 1,
+          sentAt: '2026-10-02T14:02:00+09:00',
+        ),
+      ]);
+      final before = reads(setup);
+      final detailBefore = setup.calls
+          .where((c) => c == 'GET /v1/shops/3/visits/101')
+          .length;
+
+      await tester.fling(find.text('두부'), const Offset(0, 400), 1000);
+      await settle(tester);
+
+      expect(
+        setup.calls.where((c) => c == 'GET /v1/shops/3/visits/101').length,
+        detailBefore + 1,
+      );
+      expect(reads(setup), before + 1);
+    });
+
+    testWidgets('알림톡 내역 골든', (tester) async {
+      await open(tester, [
+        notificationMessageJson(
+          messageId: 4,
+          kind: 'reminder',
+          status: 'scheduled',
+          scheduledAt: '2026-10-03T18:00:00+09:00',
+        ),
+        failed(3, errorKind: 'permanent', shareText: '가짜 문안'),
+        notificationMessageJson(
+          messageId: 2,
+          kind: 'change',
+          status: 'fallback_sent',
+          sentAt: '2026-10-01T09:05:00+09:00',
+        ),
+      ]);
+
+      await expectLater(
+        find.byKey(ScreenKeys.visitDetail),
+        matchesGoldenFile('goldens/visit_detail_notifications.png'),
       );
     });
   });

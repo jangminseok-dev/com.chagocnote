@@ -35,6 +35,7 @@ import '../state/visit_providers.dart';
 import 'record_photos.dart';
 import 'visit_actions.dart';
 import 'visit_labels.dart';
+import 'visit_notifications_block.dart';
 
 /// 방문 하나 — 기울어진 사진 넘기기(누르면 크게 보기)와 그 위 이름 카드(이름·품종·몸무게·상태), 보호자, 사진 줄과 [사진 추가](미용 중·완료),
 /// "오늘의 케어"(기록)와 [기록 수정], 날짜·메뉴·메모·지난 방문·노쇼 횟수, 상태에 맞는 버튼
@@ -433,6 +434,13 @@ class _Body extends ConsumerWidget {
               // 보낸 알림장의 확인 카드는 정보 카드 맨 위다(목업 ④).
               if (report.live)
                 _ReportCard(report: report, today: ref.watch(todayProvider)),
+              // 알림톡 내역(⑥-2) — 따로 읽는다. 줄이 없으면(연동 안 된 매장) 아무것도 그리지 않는다.
+              VisitNotificationsBlock(
+                visitKey: (
+                  shopId: ref.watch(selectedShopIdProvider)!,
+                  visitId: visit.visitId,
+                ),
+              ),
               _InfoCard(
                 label: AppStrings.visitDateLabel,
                 value:
