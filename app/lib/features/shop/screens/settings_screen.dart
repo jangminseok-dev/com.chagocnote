@@ -77,6 +77,11 @@ class SettingsScreen extends ConsumerWidget {
                 label: AppStrings.settingsReport,
                 onTap: () => context.push('/settings/report'),
               ),
+              // 알림톡도 같다 — 연동·설정은 사장만, 직원에게는 읽기 전용으로 열린다(⑥ 설계 8.1).
+              _SettingsRow(
+                label: AppStrings.settingsNotification,
+                onTap: () => context.push('/settings/notification'),
+              ),
               const SizedBox(height: AppSpacing.xl),
               const _SectionLabel(AppStrings.settingsSectionOtherShops),
               if (shopCount >= 2)
