@@ -14,6 +14,8 @@ import 'visit_fixtures.dart';
 
 /// 예약 화면 테스트의 가짜 서버. 기본 응답을 두고, 테스트가 `METHOD path`
 /// 단위로 바꿔 끼운다. 모르는 요청은 실패시킨다.
+final _notificationsPath = RegExp(r'^/v1/shops/3/visits/\d+/notifications$');
+
 class VisitTestBackend {
   VisitTestBackend([Map<String, FakeHandler> overrides = const {}]) {
     routes.addAll(overrides);
@@ -74,6 +76,12 @@ class VisitTestBackend {
 
   FutureOr<FakeResponse> call(RequestOptions options, Uint8List? body) {
     final handler = routes['${options.method} ${options.path}'];
+    // 방문 상세는 알림톡 내역을 함께 읽는다 — 따로 정하지 않은 테스트에는 빈 내역(연동 안 된 매장)이다.
+    if (handler == null &&
+        options.method == 'GET' &&
+        _notificationsPath.hasMatch(options.path)) {
+      return FakeResponse(statusCode: 200, data: {'items': <Object>[]});
+    }
     if (handler == null) {
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     }

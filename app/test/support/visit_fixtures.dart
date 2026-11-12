@@ -367,6 +367,98 @@ Map<String, dynamic> visitReportJson({
   'settings': settings ?? reportSettingsJson(),
 };
 
+/// 알림톡 설정 여덟 칸(overview 의 `settings`). 기본값은 서버가 연동할 때 만드는 값이다.
+Map<String, dynamic> notificationSettingsJson({
+  bool confirmEnabled = true,
+  bool reminderEnabled = true,
+  bool reportEnabled = true,
+  bool changeEnabled = true,
+  bool nextVisitEnabled = false,
+  String reminderTime = '18:00',
+  int? nextVisitAfterWeeks,
+  int nextVisitCooldownDays = 30,
+}) => {
+  'confirm_enabled': confirmEnabled,
+  'reminder_enabled': reminderEnabled,
+  'report_enabled': reportEnabled,
+  'change_enabled': changeEnabled,
+  'next_visit_enabled': nextVisitEnabled,
+  'reminder_time': reminderTime,
+  'next_visit_after_weeks': nextVisitAfterWeeks,
+  'next_visit_cooldown_days': nextVisitCooldownDays,
+};
+
+Map<String, dynamic> notificationTemplateJson({
+  String kind = 'confirm',
+  String status = 'approved',
+  String? rejectedReason,
+}) => {
+  'kind': kind,
+  'status': status,
+  'rejected_reason': rejectedReason,
+  'requested_at': '2026-10-14T10:00:00+09:00',
+  'decided_at': status == 'pending' ? null : '2026-10-15T10:00:00+09:00',
+};
+
+/// 알림톡 한눈에 보기. 기본은 연동된 매장(설정 기본값, 기본 다섯 종류 승인). 연동되지 않은
+/// [channel](none·token_requested·unlinked)이면 설정은 null, 템플릿은 빈 목록이다.
+Map<String, dynamic> notificationOverviewJson({
+  String channel = 'linked',
+  bool senderVerified = false,
+  bool smsFallback = false,
+  String? senderNumber,
+  Map<String, dynamic>? settings,
+  List<Map<String, dynamic>>? templates,
+}) {
+  final linked = channel == 'linked';
+  return {
+    'channel': {
+      'status': channel,
+      'linked_at': linked ? '2026-10-14T10:00:00+09:00' : null,
+      'sender_number': senderVerified ? (senderNumber ?? '0212345678') : null,
+      'sender_verified': senderVerified,
+      'sms_fallback_enabled': smsFallback,
+    },
+    'settings': linked ? (settings ?? notificationSettingsJson()) : null,
+    'templates': linked
+        ? (templates ??
+              [
+                for (final kind in const [
+                  'confirm',
+                  'reminder',
+                  'report',
+                  'change',
+                  'cancel',
+                ])
+                  notificationTemplateJson(kind: kind),
+              ])
+        : <Map<String, dynamic>>[],
+  };
+}
+
+/// 방문의 알림 줄 하나(칸 열 개). `share_text` 는 실패한 줄에만 온다 — 테스트의 글은 가짜다.
+Map<String, dynamic> notificationMessageJson({
+  int messageId = 1,
+  String kind = 'confirm',
+  String status = 'sent',
+  String? errorKind,
+  String? shareText,
+  String scheduledAt = '2026-10-02T14:02:00+09:00',
+  String? sentAt,
+  String? channelUsed,
+}) => {
+  'message_id': messageId,
+  'kind': kind,
+  'status': status,
+  'channel_used': channelUsed,
+  'scheduled_at': scheduledAt,
+  'sent_at': sentAt,
+  'error_kind': errorKind,
+  'canceled_reason': status == 'canceled' ? 'visit_canceled' : null,
+  'requested_by_member_id': null,
+  'share_text': shareText,
+};
+
 /// 사진 발급 응답(설계 7.1).
 Map<String, dynamic> issuedUploadJson({int mediaId = 51}) => {
   'media_id': mediaId,
