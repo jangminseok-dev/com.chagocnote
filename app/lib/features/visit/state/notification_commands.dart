@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/error/api_exception.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/notification_api.dart';
 import '../api/notification_models.dart';
@@ -110,7 +109,8 @@ class NotificationCommands {
         for (final row in rows)
           if (row.kind == NotificationKind.report) row.messageId,
       };
-    } on ApiException {
+    } catch (_) {
+      // 통신 오류든 응답 모양이 어긋났든 — 보조 조회가 알림장 보내기를 막아서는 안 된다.
       return null;
     }
   }
@@ -132,8 +132,8 @@ class NotificationCommands {
             _ref,
             () => _api.forVisit(shopId, visitId),
           );
-        } on ApiException {
-          continue; // 이번 한 번은 건너뛴다 — 다음에 다시 본다.
+        } catch (_) {
+          continue; // 통신 오류든 응답 모양이 어긋났든 이번 한 번은 건너뛴다 — 다음에 다시 본다.
         }
         final row = rows
             .where(
@@ -183,7 +183,7 @@ class NotificationCommands {
             () => _api.message(shopId, messageId),
           );
           if (row == null || !row.status.pending) return;
-        } on ApiException {
+        } catch (_) {
           // 상태를 못 읽어도 재발송은 됐다 — 다음에 다시 본다.
         }
       }

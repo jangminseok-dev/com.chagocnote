@@ -121,13 +121,18 @@ class _NotificationSettingsScreenState
     return error == null;
   }
 
-  Future<void> _set(NotificationOverview shown, String field, Object? value) =>
-      _run(
-        (commands, shopId) => commands.updateSettings(
-          shopId,
-          shown.settingsBody(field: field, value: value),
-        ),
-      );
+  /// [field] 한 칸만 바꿔 아홉 칸 전체를 보낸다. 본문은 **지금 읽혀 있는 값**으로 만든다 — 화면이 그릴 때
+  /// 잡아 둔 값으로 만들면, 고르기 시트가 열려 있던 사이 바뀐 다른 칸을 옛 값으로 되돌린다. `_run`의 문지기를
+  /// 지난 뒤라 그 값은 방금 읽은 것이다.
+  Future<void> _set(String field, Object? value) => _run(
+    (commands, shopId) => commands.updateSettings(
+      shopId,
+      ref
+          .read(notificationOverviewProvider(shopId))
+          .requireValue
+          .settingsBody(field: field, value: value),
+    ),
+  );
 
   bool get _inputsReady =>
       _searchId.text.trim().isNotEmpty &&
@@ -209,13 +214,14 @@ class _NotificationSettingsScreenState
   }
 
   /// 고르기 — 목록에서 하나를 누르면 닫히고 그때 한 번 보낸다. 지금 값을 다시 고르면 보내지 않는다.
-  Future<void> _pick<T>(
-    NotificationOverview shown, {
+  Future<void> _pick<T>({
     required String field,
     required List<T> choices,
     required T current,
     required String Function(T) label,
   }) async {
+    // 보내는 중에는 열지 않는다 — 닫힐 때 보낼 수 없고, 열 때의 값이 곧 낡는다.
+    if (_busy) return;
     final options = withCurrent(choices, current);
     final index = await AppSheet.show<int>(
       context,
@@ -238,13 +244,13 @@ class _NotificationSettingsScreenState
       ),
     );
     if (index == null || !mounted || options[index] == current) return;
-    await _set(shown, field, options[index]);
+    await _set(field, options[index]);
   }
 
   /// 문자 대체 — 켜려는데 발신번호 인증이 없으면 인증 시트부터. 인증을 마치면 곧바로 켠다.
   Future<void> _setFallback(NotificationOverview shown, bool on) async {
     if (!on || shown.channel.senderVerified) {
-      await _set(shown, 'sms_fallback_enabled', on);
+      await _set('sms_fallback_enabled', on);
       return;
     }
     final shopId = _shopId;
@@ -256,14 +262,13 @@ class _NotificationSettingsScreenState
     if (verified != true || !mounted) return;
     // 인증으로 채널이 바뀌어 한눈에 보기를 다시 읽는 중이다 — 다 읽은 값 위에 켠다(읽는 중에는 누름을
     // 받지 않는다). 읽지 못했으면 켜지 않는다 — 화면이 실패를 보이고, 다시 읽은 뒤 스위치를 누르면 된다.
-    final NotificationOverview fresh;
     try {
-      fresh = await ref.read(notificationOverviewProvider(shopId).future);
+      await ref.read(notificationOverviewProvider(shopId).future);
     } on Exception {
       return;
     }
     if (!mounted) return;
-    await _set(fresh, 'sms_fallback_enabled', true);
+    await _set('sms_fallback_enabled', true);
   }
 
   @override
@@ -492,7 +497,7 @@ class _NotificationSettingsScreenState
                 label: label,
                 hint: _templateText(shown, kinds),
                 value: body[field] as bool,
-                onChanged: canEdit ? (on) => _set(shown, field, on) : null,
+                onChanged: canEdit ? (on) => _set(field, on) : null,
               ),
               if (field == 'reminder_enabled' && settings.reminderEnabled)
                 _ChoiceRow(
@@ -500,7 +505,6 @@ class _NotificationSettingsScreenState
                   value: settings.reminderTime,
                   onTap: canEdit
                       ? () => _pick<String>(
-                          shown,
                           field: 'reminder_time',
                           choices: reminderTimeChoices,
                           current: settings.reminderTime,
@@ -515,7 +519,6 @@ class _NotificationSettingsScreenState
                   value: _weeks(settings.nextVisitAfterWeeks),
                   onTap: canEdit
                       ? () => _pick<int?>(
-                          shown,
                           field: 'next_visit_after_weeks',
                           choices: nextVisitWeekChoices,
                           current: settings.nextVisitAfterWeeks,
@@ -530,7 +533,6 @@ class _NotificationSettingsScreenState
                   ),
                   onTap: canEdit
                       ? () => _pick<int>(
-                          shown,
                           field: 'next_visit_cooldown_days',
                           choices: cooldownDayChoices,
                           current: settings.nextVisitCooldownDays,

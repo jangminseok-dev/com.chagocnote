@@ -206,6 +206,31 @@ void main() {
       expect(world.count('GET $_listPath'), 3);
     });
 
+    test('보내기 전 내역의 모양이 어긋나도 예외를 올리지 않고 null 이다', () async {
+      final world = _World(
+        lists: [
+          {'items': 'x'},
+        ],
+      );
+
+      expect(await world.commands.reportRowIds(_shop, 101), isNull);
+    });
+
+    test('기다리는 중 내역의 모양이 어긋나도 건너뛰고 다음에 다시 읽는다', () async {
+      final world = _World(
+        lists: [
+          _items([_report(5, 'accepted')]),
+          {'items': 'x'},
+          _items([_report(5, 'sent')]),
+        ],
+      );
+
+      final result = await world.commands.awaitReport(_shop, 101, before: {});
+
+      expect(result, isA<ReportDelivered>());
+      expect(world.count('GET $_listPath'), 3);
+    });
+
     test('끝나면 방문의 내역을 다시 읽게 한다', () async {
       final world = _World(
         lists: [

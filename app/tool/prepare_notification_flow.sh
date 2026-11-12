@@ -6,7 +6,7 @@
 #   매장 B(SHOP_NEW): 사장만. 연동하지 않는다 — 흐름이 앱에서 연동 화면을 밟는다.
 # infra/ 에서 실행(bash ../app/tool/prepare_notification_flow.sh). 개발 스택이 떠 있어야 한다(운영자 지정과
 # 템플릿 승인을 backend 컨테이너에서 한다). dev 는 가짜 게이트웨이라 실제 발송이 없다.
-# 마지막 줄에 flutter drive 의 --dart-define 들을 찍는다. 토큰·번호·알림장 주소는 찍지 않는다.
+# 마지막 줄에 flutter drive 의 --dart-define 들을 찍는다. 토큰·보호자 번호·알림장 주소는 찍지 않는다(ADMIN_PHONE 은 실행 시각으로 만든 가짜 번호다).
 # 개발 DB 에 확인용 매장·유저·고객·방문·알림 줄이 남는다. zsh 에서 변수로 받으면 ${=D} 로 펼친다.
 set -euo pipefail
 BASE="${BASE:-http://127.0.0.1:8080}"

@@ -4,6 +4,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_sheet_action.dart';
 import 'package:chagocnote/design/widgets/app_switch.dart';
+import 'package:chagocnote/features/visit/state/notification_providers.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -496,6 +497,45 @@ void main() {
 
       await _tap(tester, _switch('전날 리마인드'));
       expect(find.text('보내는 시각'), findsNothing);
+    });
+
+    testWidgets('보내는 중에는 고르기 시트가 열리지 않는다', (tester) async {
+      final server = _Server()..putGate = Completer<void>();
+      await _open(tester, server);
+
+      await tester.tap(_switch('예약 접수'));
+      await tester.pump();
+      await tester.tap(find.text('18:00'));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byType(AppSheetAction), findsNothing);
+      server.putGate!.complete();
+      await settle(tester);
+      expect(server.puts, hasLength(1));
+    });
+
+    testWidgets('시트를 연 뒤 화면의 값이 바뀌었으면 고른 칸만 바꿔 지금 값 위에 보낸다', (tester) async {
+      final server = _Server();
+      final setup = await _open(tester, server);
+      await _tap(tester, find.text('18:00'));
+
+      // 시트가 열린 사이 다른 기기에서 예약 접수를 껐고, 화면이 그것을 다시 읽었다.
+      server.overview = notificationOverviewJson(
+        settings: notificationSettingsJson(confirmEnabled: false),
+      );
+      setup.container.invalidate(notificationOverviewProvider);
+      await settle(tester);
+      await _tap(
+        tester,
+        find.byWidgetPredicate(
+          (w) => w is AppSheetAction && w.label == '09:30',
+        ),
+      );
+
+      expect(server.puts.single['reminder_time'], '09:30');
+      // 시트를 열 때의 값(켜짐)으로 덮어 되살리지 않는다.
+      expect(server.puts.single['confirm_enabled'], isFalse);
+      expect(_on(tester, '예약 접수'), isFalse);
     });
 
     testWidgets('주 고르기의 지난 방문 간격대로는 null 을, 쿨다운은 일수를 보낸다', (tester) async {
