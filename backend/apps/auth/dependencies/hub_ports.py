@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from hub.app.ports.membership_directory_port import MembershipDirectoryPort
+from hub.app.ports.guardian_lifecycle_port import GuardianLifecyclePort
 from hub.app.ports.membership_lifecycle_port import MembershipLifecyclePort
 
 
@@ -14,3 +15,7 @@ def get_membership_directory() -> MembershipDirectoryPort:
 
 def get_membership_lifecycle() -> MembershipLifecyclePort:
     raise RuntimeError("MembershipLifecyclePort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
+
+
+def get_guardian_lifecycle() -> GuardianLifecyclePort:
+    raise RuntimeError("GuardianLifecyclePort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")

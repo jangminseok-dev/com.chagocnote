@@ -6,6 +6,7 @@ from auth.app.ports.output.operator_repository import OperatorRepository
 from auth.app.ports.output.refresh_token_store_port import RefreshTokenStorePort
 from auth.app.ports.output.user_repository import UserRepository
 from auth.domain.errors import AccountSuspendedError
+from hub.app.ports.guardian_lifecycle_port import GuardianLifecyclePort
 from hub.app.ports.membership_lifecycle_port import MembershipLifecyclePort
 
 
@@ -15,12 +16,13 @@ class WithdrawInteractor(WithdrawUseCase):
 
     def __init__(
         self, users: UserRepository, operators: OperatorRepository,
-        lifecycle: MembershipLifecyclePort, store: RefreshTokenStorePort,
+        lifecycle: MembershipLifecyclePort, store: RefreshTokenStorePort, guardians: GuardianLifecyclePort,
     ) -> None:
         self._users = users
         self._operators = operators
         self._lifecycle = lifecycle
         self._store = store
+        self._guardians = guardians
 
     async def withdraw(self, command: WithdrawCommand) -> WithdrawResult:
         # 같은 유저의 연결·해제·다른 탈퇴 요청과 겹치지 않게 잠그고 다시 읽는다.
@@ -34,6 +36,9 @@ class WithdrawInteractor(WithdrawUseCase):
             raise AccountSuspendedError("정지된 계정입니다.")
         # 소속을 먼저 정리한다. 혼자 사장인 매장 때문에 막히면 여기서 오류로 끝나고 아무것도 바뀌지 않는다.
         await self._lifecycle.apply_withdrawal(user.id, command.confirm_close_shops)
+        # 보호자로서 이어 둔 고객 카드를 놓는다 — 그 카드가 다른 계정으로 다시 이어질 수 있게(⑦ 설계 G8).
+        # 유저 행을 잠근 채다(잠금 순서: 유저 행 → … → 보호자 연결 행).
+        await self._guardians.end_for_user(user.id)
         # 신원을 지우기 전에, 제공자 쪽 연결을 끊는 데 필요한 것을 읽어 둔다.
         revocations = await self._users.list_revocations(user.id)
         await self._operators.revoke(user.id)

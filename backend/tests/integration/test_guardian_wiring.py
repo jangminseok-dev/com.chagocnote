@@ -141,3 +141,33 @@ async def test_다른_매장의_멤버는_403_이고_다른_매장의_고객_번
     assert (await wired.api.get(crossed, headers=other_headers)).json() == {"linked": False, "linked_at": None}
     assert error_of(await wired.api.delete(crossed, headers=other_headers)) == (404, "GUARDIAN_LINK_NOT_FOUND")
     assert (await wired.api.get(path, headers=headers)).json()["linked"] is True
+
+
+async def test_탈퇴하면_연결이_끝나고_다른_계정이_같은_링크로_이을_수_있다(wired):
+    mine, link_id, _, _, _, token = await linked(wired)
+    # 탈퇴는 최근 로그인이 필요하다 — 같은 사람이 매장 앱으로 로그인해 탈퇴한다(같은 계정이다).
+    app_login = await wired.login("두부보호자")
+    gone = await wired.auth.request(
+        "DELETE", "/v1/auth/account", headers=bearer(app_login["access_token"]), json={"confirm_close_shops": False})
+    assert gone.status_code in (200, 204), gone.text
+
+    async with wired.engine.connect() as conn:
+        from sqlalchemy import text
+        row = (await conn.execute(text("SELECT ended_by FROM guardian_links WHERE id = :id"), {"id": link_id})).one()
+    assert row.ended_by == "withdrawn"
+    other = await web_login(wired, "새보호자")
+    assert (await claim(wired, other, token)).status_code == 201
+
+
+async def test_고객을_삭제하면_연결이_끝나고_보호자_목록에서_사라진다(wired):
+    mine, link_id, shop_id, headers, visit, _ = await linked(wired)
+    customer_id = _customer_id((await wired.api.get(visit, headers=headers)).json())
+
+    deleted = await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)
+    assert deleted.status_code == 204, deleted.text
+
+    assert (await wired.api.get(LINKS, headers=mine)).json() == {"items": []}
+    async with wired.engine.connect() as conn:
+        from sqlalchemy import text
+        row = (await conn.execute(text("SELECT ended_by FROM guardian_links WHERE id = :id"), {"id": link_id})).one()
+    assert row.ended_by == "anonymized"

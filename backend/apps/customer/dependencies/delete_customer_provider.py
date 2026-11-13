@@ -9,13 +9,16 @@ from customer.dependencies.customer_wiring import (
     build_customer_repository,
     build_customer_search,
 )
-from customer.dependencies.hub_ports import get_visit_ledger
+from customer.dependencies.hub_ports import get_guardian_lifecycle, get_visit_ledger
+from hub.app.ports.guardian_lifecycle_port import GuardianLifecyclePort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 
 def get_delete_customer_use_case(
-    db: DbSession, ledger: VisitLedgerPort = Depends(get_visit_ledger)
+    db: DbSession, ledger: VisitLedgerPort = Depends(get_visit_ledger),
+    guardians: GuardianLifecyclePort = Depends(get_guardian_lifecycle),
 ) -> DeleteCustomerUseCase:
     return DeleteCustomerInteractor(
         customers=build_customer_repository(db), search=build_customer_search(db), ledger=ledger,
+        guardians=guardians,
     )

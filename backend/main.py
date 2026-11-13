@@ -41,6 +41,7 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.hub_ports import get_guardian_lifecycle as get_customer_guardian_lifecycle
 from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
 from customer.dependencies.hub_ports import get_visit_ledger
 from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
@@ -55,6 +56,7 @@ from guardian.adapter.inbound.api.v1.end_guardian_link_router import end_guardia
 from guardian.adapter.inbound.api.v1.get_customer_guardian_link_router import get_customer_guardian_link_router
 from guardian.adapter.inbound.api.v1.guardian_myself_router import guardian_myself_router
 from guardian.adapter.inbound.api.v1.list_guardian_links_router import list_guardian_links_router
+from guardian.dependencies.end_guardian_links_provider import get_end_guardian_links_use_case
 from guardian.dependencies.hub_ports import get_active_user_guard as get_guardian_active_user_guard
 from guardian.dependencies.hub_ports import get_report_link as get_guardian_report_link
 from guardian.dependencies.hub_ports import get_shop_profile as get_guardian_shop_profile
@@ -269,6 +271,8 @@ app.dependency_overrides[get_guardian_report_link] = get_resolve_report_link_use
 app.dependency_overrides[get_guardian_shop_profile] = get_shop_profile_use_case
 # 보호자 가드(core/guardian_guard)의 접근 확인은 guardian 이 구현한다.
 app.dependency_overrides[get_guardian_access_port] = get_resolve_guardian_access_use_case
+# 고객 익명화가 보호자 연결을 끝낸다.
+app.dependency_overrides[get_customer_guardian_lifecycle] = get_end_guardian_links_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case

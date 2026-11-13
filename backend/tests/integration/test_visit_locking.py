@@ -32,6 +32,7 @@ from visit.tests.helpers.fakes import FakeEvents
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
 from visit.domain.errors import VisitDuplicateError, VisitStateConflictError
 from visit.tests.helpers.builders import ctx, kst
+from tests.integration.support import NoGuardians
 
 pytestmark = pytest.mark.integration
 
@@ -73,7 +74,7 @@ def _transition(session, visit_ids, action, reason=None):
 def _anonymize(session, customer_id):
     ledger = VisitLedgerInteractor(VisitPgRepository(session), VisitRecordPgRepository(session),
                                    ReportPgRepository(session), now=lambda: NOW)
-    return DeleteCustomerInteractor(CustomerPgRepository(session), CustomerSearchPgAdapter(session), ledger) \
+    return DeleteCustomerInteractor(CustomerPgRepository(session), CustomerSearchPgAdapter(session), ledger, NoGuardians()) \
         .delete_customer(DeleteCustomerCommand(ctx=SHOP, customer_id=customer_id))
 
 

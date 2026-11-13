@@ -115,3 +115,15 @@ async def test_연결이_없는_고객과_다른_매장의_고객은_끊을_것�
         with pytest.raises(GuardianLinkNotFoundError):
             await interactor.end_link(EndCustomerGuardianLinkCommand(ctx=CTX, customer_id=customer_id))
     assert links.rows[2].is_live       # 매장 4 의 연결은 그대로다
+
+
+async def test_탈퇴는_그_계정의_연결을_withdrawn_으로_익명화는_그_카드의_연결을_anonymized_로_끝낸다():
+    from guardian.app.use_cases.end_guardian_links_interactor import EndGuardianLinksInteractor
+
+    links = await _links()
+    lifecycle = EndGuardianLinksInteractor(links, now=lambda: LATER)
+    assert await lifecycle.end_for_customer(3, 8) == 1
+    assert (links.rows[3].ended_by, links.rows[3].ended_at) == ("anonymized", LATER)
+    assert await lifecycle.end_for_user(5) == 2
+    assert [links.rows[i].ended_by for i in (1, 2)] == ["withdrawn", "withdrawn"]
+    assert await lifecycle.end_for_user(5) == 0
