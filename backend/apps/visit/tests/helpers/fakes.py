@@ -34,6 +34,7 @@ from visit.app.ports.output.public_report_repository import PublicReportReposito
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
+from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
@@ -41,6 +42,15 @@ from visit.app.ports.output.visit_history_repository import VisitHistoryReposito
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
+from visit.domain.value_objects.sales import (
+    DaySales,
+    DuePet,
+    MenuSales,
+    PetVisits,
+    RemainingBookings,
+    SalesTotals,
+    SalesVisitRow,
+)
 from visit.domain.entities.menu import Menu
 from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
 from visit.domain.entities.visit_record import VisitRecord
@@ -636,3 +646,65 @@ class FakeSalesGoalRepository(SalesGoalRepository):
         self.journal.append(("put_sales_goal", ctx.shop_id))
         self.rows[ctx.shop_id] = monthly_amount
         return monthly_amount
+
+
+class FakeSalesRepository(SalesRepository):
+    """SalesRepository 스텁 — 기간(start, until)마다 넣어 둔 값을 돌려준다. 넣지 않은 기간은 비어 있다.
+
+    calls 에 부른 메서드 이름이 차례로 남는다(질의 수를 고정하는 테스트가 본다).
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.totals_by: dict[tuple, SalesTotals] = {}
+        self.days_by: dict[tuple, list[DaySales]] = {}
+        self.payments_by: dict[tuple, dict] = {}
+        self.menus_by: dict[tuple, list[MenuSales]] = {}
+        self.pets_by: dict[tuple, list[PetVisits]] = {}
+        self.reports_by: dict[tuple, tuple[int, int]] = {}
+        self.remaining = RemainingBookings(count=0, expected_amount=None)
+        self.remaining_args: tuple | None = None
+        self.visit_rows: list[SalesVisitRow] = []
+        self.visit_args: tuple | None = None
+        self.due: list[DuePet] = []
+        self.due_args: tuple | None = None
+
+    async def totals(self, ctx, start, until):
+        self.calls.append("totals")
+        return self.totals_by.get((start, until), SalesTotals(0, 0, 0, 0, 0, 0))
+
+    async def by_day(self, ctx, start, until):
+        self.calls.append("by_day")
+        return self.days_by.get((start, until), [])
+
+    async def by_payment(self, ctx, start, until):
+        self.calls.append("by_payment")
+        return self.payments_by.get((start, until), {})
+
+    async def by_menu(self, ctx, start, until):
+        self.calls.append("by_menu")
+        return self.menus_by.get((start, until), [])
+
+    async def pets(self, ctx, start, until):
+        self.calls.append("pets")
+        return self.pets_by.get((start, until), [])
+
+    async def remaining_reserved(self, ctx, now, until):
+        self.calls.append("remaining_reserved")
+        self.remaining_args = (now, until)
+        return self.remaining
+
+    async def report_counts(self, ctx, start, until):
+        self.calls.append("report_counts")
+        return self.reports_by.get((start, until), (0, 0))
+
+    async def list_visits(self, ctx, start, until, kind, menu_id, before, limit):
+        self.calls.append("list_visits")
+        self.visit_args = (start, until, kind, menu_id, before, limit)
+        rows = [r for r in self.visit_rows if before is None or (r.starts_at, r.visit_id) < before]
+        return rows[:limit]
+
+    async def due_candidates(self, ctx, today, now):
+        self.calls.append("due_candidates")
+        self.due_args = (today, now)
+        return list(self.due)

@@ -110,3 +110,12 @@ def bucket_keys(period: Period) -> list[date]:
     if period.span == "year":
         return [date(period.start.year, month, 1) for month in range(1, 13)]
     return [period.start + timedelta(days=i) for i in range((period.end - period.start).days + 1)]
+
+
+def check_anchor(anchor: date) -> date:
+    """받는 범위 안의 날짜인가. 밖이면 422."""
+    from visit.domain.errors import VisitInputError
+
+    if not MIN_ANCHOR <= anchor <= MAX_ANCHOR:
+        raise VisitInputError("볼 수 있는 기간을 벗어난 날짜입니다.")
+    return anchor
