@@ -30,6 +30,8 @@ REDIS_URL: str = _m.get("REDIS_URL", "redis://redis:6379/0") or "redis://redis:6
 JWT_PUBLIC_KEY: str = base64.b64decode(_m.require("JWT_PUBLIC_KEY_B64")).decode()
 
 ACCESS_TOKEN_TTL_SECONDS = 15 * 60
+# 보호자 웹 세션 — 30분짜리 액세스 토큰 하나뿐이고 리프레시 토큰을 내주지 않는다(⑦ 설계 4.4).
+WEB_ACCESS_TOKEN_TTL_SECONDS = 30 * 60
 REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 
 KAKAO_APP_ID: str = _m.get("KAKAO_APP_ID", "") or ""

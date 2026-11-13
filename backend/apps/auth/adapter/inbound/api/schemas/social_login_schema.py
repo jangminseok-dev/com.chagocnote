@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -9,11 +11,14 @@ class SocialLoginRequestSchema(BaseModel):
     display_name: str | None = Field(
         None, max_length=50, description="Apple 첫 로그인 때 앱이 받은 이름"
     )
+    session: Literal["web"] | None = Field(
+        None, description="web 이면 보호자 웹 세션 — 액세스 토큰 30분, 리프레시 토큰 없음"
+    )
 
 
 class TokenResponseSchema(BaseModel):
     access_token: str
-    refresh_token: str
+    refresh_token: str | None = Field(description="웹 세션(session=web)이면 null")
     token_type: str = "Bearer"
     expires_in: int
     user_id: int

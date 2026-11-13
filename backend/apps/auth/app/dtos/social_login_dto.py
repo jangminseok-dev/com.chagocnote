@@ -12,6 +12,7 @@ class SocialLoginCommand:
     authorization_code: str | None = field(repr=False)
     nonce: str | None
     display_name: str | None
+    session: str | None = None   # "web" 이면 보호자 웹 세션(30분, 리프레시 없음). 없으면 매장 앱의 세션
 
 
 @dataclass(frozen=True)

@@ -62,3 +62,35 @@ async def test_token_이_없으면_422이다():
         response = await client.post("/v1/auth/social", json={"provider": "dev"})
     assert response.status_code == 422
     assert response.json() == {"code": "VALIDATION_ERROR", "message": "요청 형식이 올바르지 않습니다."}
+
+
+class _WebUseCase(_StubUseCase):
+    async def login(self, command):
+        self.commands.append(command)
+        return SocialLoginResult(user_id=7, is_new_user=False, tokens=TokenPair("access", None, 1800))
+
+
+async def test_웹_세션_로그인은_리프레시_토큰_없이_30분짜리_액세스_토큰을_돌려준다():
+    stub = _WebUseCase()
+    async with _client(stub) as client:
+        response = await client.post("/v1/auth/social", json={"provider": "dev", "token": "보호자", "session": "web"})
+    assert response.status_code == 200
+    assert response.json() == {
+        "access_token": "access", "refresh_token": None, "token_type": "Bearer",
+        "expires_in": 1800, "user_id": 7, "is_new_user": False,
+    }
+    assert stub.commands[0].session == "web"
+
+
+async def test_세션_표시가_없으면_매장_앱의_로그인_그대로다():
+    stub = _StubUseCase()
+    async with _client(stub) as client:
+        response = await client.post("/v1/auth/social", json={"provider": "dev", "token": "owner"})
+    assert stub.commands[0].session is None
+    assert (response.json()["refresh_token"], response.json()["expires_in"]) == ("refresh", 900)
+
+
+async def test_모르는_세션_표시는_422이다():
+    async with _client(_StubUseCase()) as client:
+        response = await client.post("/v1/auth/social", json={"provider": "dev", "token": "x", "session": "app"})
+    assert response.status_code == 422

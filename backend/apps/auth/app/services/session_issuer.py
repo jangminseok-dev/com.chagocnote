@@ -4,6 +4,7 @@ from auth.app.dtos.token_dto import TokenPair
 from auth.app.ports.output.refresh_token_store_port import RefreshTokenStorePort
 from auth.app.ports.output.token_issuer_port import TokenIssuerPort
 from auth.domain.services.refresh_token_factory import new_refresh_token
+from core.config import WEB_ACCESS_TOKEN_TTL_SECONDS
 
 
 class SessionIssuer:
@@ -34,3 +35,13 @@ class SessionIssuer:
         return TokenPair(
             access_token=access.token, refresh_token=refresh, expires_in=access.expires_in
         )
+
+    async def issue_web(self, user_id: int) -> TokenPair:
+        """보호자 웹 세션 — 30분짜리 액세스 토큰 하나만 내준다. 리프레시 토큰을 만들지도 저장하지도 않는다.
+
+        웹은 탭 둘·뒤로 가기로 갱신이 겹치기 쉽고, 재사용이 감지되면 그 계정의 모든 세션(매장 앱 포함)이 끊긴다.
+        그래서 웹에는 갱신할 것을 주지 않는다 — 30분이 지나면 다시 로그인한다(⑦ 설계 4.4)."""
+        access = self._token_issuer.issue_access(
+            user_id, fresh_login=True, ttl_seconds=WEB_ACCESS_TOKEN_TTL_SECONDS
+        )
+        return TokenPair(access_token=access.token, refresh_token=None, expires_in=access.expires_in)

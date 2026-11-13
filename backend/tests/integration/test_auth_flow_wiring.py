@@ -72,3 +72,19 @@ async def test_정지된_유저는_갱신도_내_정보도_403_이다(wired):
     assert (refreshed.status_code, refreshed.json()["code"]) == (403, "ACCOUNT_SUSPENDED")
     me = await wired.api.get("/v1/me", headers=bearer(login["access_token"]))
     assert (me.status_code, me.json()["code"]) == (403, "ACCOUNT_SUSPENDED")
+
+
+async def test_웹_세션_로그인은_리프레시_없이_30분짜리_토큰으로_내_정보를_읽는다(wired):
+    response = await wired.auth.post(
+        "/v1/auth/social", json={"provider": "dev", "token": "웹보호자", "session": "web"})
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["refresh_token"], body["expires_in"]) == (None, 1800)
+
+    me = await wired.api.get("/v1/me", headers=bearer(body["access_token"]))
+    assert (me.status_code, me.json()["display_name"]) == (200, "웹보호자")
+
+    # 같은 사람이 매장 앱으로 로그인하면 지금처럼 리프레시 토큰을 받는다 — 같은 계정이다.
+    app = await wired.login("웹보호자")
+    assert (app["user_id"], app["expires_in"]) == (body["user_id"], 900)
+    assert isinstance(app["refresh_token"], str)
