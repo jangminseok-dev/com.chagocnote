@@ -80,6 +80,7 @@ class _GoalFormState extends ConsumerState<_GoalForm> {
         const Text(AppStrings.salesGoalTitle, style: AppTypography.titleKo),
         const SizedBox(height: AppSpacing.md),
         TextField(
+          key: const ValueKey('sales-goal-amount'),
           controller: _amount,
           autofocus: true,
           enabled: !_busy,

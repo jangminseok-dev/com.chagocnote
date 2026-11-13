@@ -1,5 +1,6 @@
-// ⑧-2 완료 기준 — 실제 백엔드에 붙은 앱을 시뮬레이터에서 조작해 홈의 [매출] 탭이 서버의 숫자를 그대로
-// 보이는지 확인한다. 도구는 `flow_kit.dart`.
+// ⑧-2·⑧-3 완료 기준 — 실제 백엔드에 붙은 앱을 시뮬레이터에서 조작해 홈의 [매출] 탭이 서버의 숫자를 그대로
+// 보이고, 숫자를 누르면 그 방문들·아이들로 이어지고, 목표를 정하고 요약을 공유하는지 확인한다. 도구는 `flow_kit.dart`.
+// 공유 시트는 받은 글을 적어 두는 대역이다(OS 시트를 띄우지 않는다).
 //
 // 준비(infra/ 에서): bash ../app/tool/prepare_sales_flow.sh → 마지막 줄의 --dart-define 들(실행마다 새로).
 //   에뮬레이터는 `adb reverse tcp:8080 tcp:8080`·`tcp:9010`(사진).
@@ -9,6 +10,7 @@
 //     --dart-define=APP_ENV=dev --dart-define=API_BASE_URL=http://127.0.0.1:8080 <준비의 --dart-define 들>
 
 import 'package:chagocnote/app.dart';
+import 'package:chagocnote/core/proxy/share_sheet.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/bridge/glass_setup.dart';
 import 'package:chagocnote/features/sales/screens/sales_tab.dart';
@@ -27,6 +29,42 @@ const staffName = String.fromEnvironment('STAFF');
 const back = int.fromEnvironment('BACK');
 const monthRevenue = int.fromEnvironment('MONTH_REVENUE');
 const yearRevenue = int.fromEnvironment('YEAR_REVENUE');
+
+/// 어제의 두 방문(콩이·두부)이 한 메뉴의 이름 — 기본 메뉴의 첫째라 준비 스크립트가 서버에서 읽어 넘긴다.
+const menuName = String.fromEnvironment('MENU');
+
+/// 받은 글을 적어 두는 공유 시트.
+class RecordingShareSheet implements ShareSheet {
+  final shared = <String>[];
+
+  @override
+  Future<void> shareText(String text, {required Rect origin}) async => shared.add(text);
+}
+
+/// 매출 탭의 이번 달 월 보기를 연다. 탭은 앞 단계가 고른 기간에 머물러 있다 — [월]을 눌러 이번 달로 돌린다.
+Future<void> openThisMonth() async {
+  await openSalesTab();
+  await tap(find.text(AppStrings.salesSpanMonth));
+  await pumpFor(const Duration(milliseconds: 500));
+  // 앞 단계가 아래로 내려 둔 본문을 맨 위로 — 목록은 보이는 것만 그려 큰 숫자가 없을 수 있다.
+  final body = find.descendant(of: find.byType(SalesTab), matching: find.byType(Scrollable));
+  if (body.evaluate().isNotEmpty) t.state<ScrollableState>(body.first).position.jumpTo(0);
+  await pumpFor(const Duration(milliseconds: 300));
+}
+
+/// 매출 탭의 월 보기(어제가 든 달)를 연다.
+Future<void> openMonth() async {
+  await openThisMonth();
+  if (back == 1) await tap(p(AppStrings.salesPrev));
+  await waitRevenue(monthRevenue);
+}
+
+/// 이어진 화면에서 매출 탭으로 돌아온다.
+Future<void> backToTab() async {
+  router.pop();
+  await waitFor(find.byType(SalesTab));
+  await pumpFor(const Duration(milliseconds: 500));
+}
 
 final revenue = find.byKey(const Key('sales-revenue'));
 
@@ -55,10 +93,11 @@ Future<void> openSalesTab() async {
 void main() {
   binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('⑧-2 완료 기준', timeout: const Timeout(Duration(minutes: 10)), (tester) async {
+  testWidgets('⑧-2·⑧-3 완료 기준', timeout: const Timeout(Duration(minutes: 10)), (tester) async {
     t = tester;
     await initializeGlass();
-    await t.pumpWidget(buildRoot());
+    final share = RecordingShareSheet();
+    await t.pumpWidget(buildRoot(overrides: [shareSheetProvider.overrideWithValue(share)]));
     final end = DateTime.now().add(const Duration(seconds: 40));
     while (DateTime.now().isBefore(end)) {
       await t.pump(const Duration(milliseconds: 100));
@@ -105,12 +144,105 @@ void main() {
       }
     });
 
-    await step('S3', '[연]으로 바꾸면 올해의 매출이고, 막대를 누르면 그 달로 간다', () async {
+    await step('S3', '[연]으로 바꾸면 올해의 매출이다', () async {
+      // 1월 1일에는 올해의 매출이 아직 없다(어제는 작년) — 빈 기간에는 큰 숫자가 없어 견줄 것이 없다.
+      if (yearRevenue == 0) {
+        note('올해 매출이 0 이라 연 보기 확인을 건너뛴다');
+        return;
+      }
       await openSalesTab();
       await tap(find.text(AppStrings.salesSpanYear));
       await waitRevenue(yearRevenue);
       await shot('S3-year');
       soft(find.byKey(const Key('sales-day-card')).evaluate().isEmpty, '연 보기에 고른 날 카드가 있다');
+    });
+
+    await step('S5', '금액을 적지 않은 방문 — 목록에서 방문 상세로 간다', () async {
+      await openMonth();
+      await tap(find.text(AppStrings.salesUnrecorded(1)));
+      await waitFor(find.byKey(ScreenKeys.salesVisits));
+      await waitFor(find.text('두부'));
+      await shot('S5-unrecorded');
+      soft(find.text(AppStrings.salesVisitsUnrecorded).evaluate().isNotEmpty, '제목이 다르다');
+      soft(find.textContaining('원').evaluate().isEmpty, '금액 없는 줄에 금액이 있다');
+      await tap(find.text('두부'));
+      await waitFor(find.byKey(ScreenKeys.visitDetail));
+      router.pop();
+      await waitFor(find.byKey(ScreenKeys.salesVisits));
+      await backToTab();
+    });
+
+    await step('S6', '노쇼를 누르면 그 달의 노쇼한 방문이다', () async {
+      await openMonth();
+      await tap(find.bySemanticsLabel(AppStrings.salesFactLabel(AppStrings.salesNoShow, 1)));
+      await waitFor(find.byKey(ScreenKeys.salesVisits));
+      await waitFor(find.text('콩이'));
+      await shot('S6-no-show');
+      soft(find.text(AppStrings.salesVisitsNoShow).evaluate().isNotEmpty, '제목이 다르다');
+      soft(find.text('두부').evaluate().isEmpty, '노쇼가 아닌 방문이 있다');
+      await backToTab();
+    });
+
+    await step('S7', '메뉴 줄을 누르면 그 메뉴의 방문 둘이다', () async {
+      await openMonth();
+      await tap(find.bySemanticsLabel(AppStrings.salesMenuRowLabel(menuName)));
+      await waitFor(find.byKey(ScreenKeys.salesVisits));
+      await waitFor(find.text('콩이'));
+      await shot('S7-menu');
+      soft(find.text(AppStrings.salesVisitsOfMenu(menuName)).evaluate().isNotEmpty, '제목이 다르다');
+      soft(find.text('두부').evaluate().isNotEmpty, '두부의 방문이 없다');
+      soft(find.text('30,000원').evaluate().isNotEmpty, '카드 방문의 금액이 없다');
+      soft(find.text('50,000원').evaluate().isNotEmpty, '현금 방문의 금액이 없다');
+      await backToTab();
+    });
+
+    await step('S8', '다시 올 때가 지난 아이 — 목록에서 반려동물 상세로 간다', () async {
+      await openMonth();
+      await tap(find.text(AppStrings.salesDuePets(1)));
+      await waitFor(find.byKey(ScreenKeys.duePets));
+      await waitFor(find.text('보리'));
+      await shot('S8-due-pets');
+      soft(find.text('8주 전').evaluate().isNotEmpty, '마지막 방문이 8주 전이 아니다');
+      await tap(find.text('보리'));
+      await waitFor(find.byKey(ScreenKeys.petDetail));
+      router.pop();
+      await waitFor(find.byKey(ScreenKeys.duePets));
+      await backToTab();
+    });
+
+    await step('S9', '목표를 바꾸면 문장이 바뀌고, 지우면 [이번 달 목표 정하기]가 된다', () async {
+      // 목표는 이번 달의 월 보기에만 있다 — 어제가 지난달이면(오늘이 1일) 이번 달은 빈 기간이지만 목표 줄은 있다.
+      await openThisMonth();
+      await waitFor(find.byKey(const Key('sales-goal')));
+      await tap(find.byKey(const Key('sales-goal')));
+      await waitFor(find.text(AppStrings.salesGoalTitle));
+      soft(fieldText('sales-goal-amount') == '500000', '시트에 지금 목표가 없다');
+      await enter('sales-goal-amount', '1000000');
+      await shot('S9-goal-sheet');
+      await tap(find.text(AppStrings.save));
+      await waitFor(find.textContaining('이번 달 목표 100만 원의'));
+      await shot('S9-goal-changed');
+      await tap(find.byKey(const Key('sales-goal')));
+      await waitFor(find.text(AppStrings.salesGoalTitle));
+      await tap(find.text(AppStrings.salesGoalClear));
+      await waitFor(find.text(AppStrings.salesSetGoal));
+      soft(find.textContaining('이번 달 목표 100만 원의').evaluate().isEmpty, '지운 목표가 남아 있다');
+    });
+
+    await step('S10', '요약 공유 — 받은 글에 매출이 있고 아이 이름이 없다', () async {
+      await openMonth();
+      await tap(find.text(AppStrings.salesShare));
+      await pumpFor(const Duration(seconds: 1));
+      await shot('S10-share');
+      soft(share.shared.length == 1, '공유 시트가 한 번 불리지 않았다(${share.shared.length})');
+      final text = share.shared.isEmpty ? '' : share.shared.first;
+      soft(text.contains('매출 ${won(monthRevenue)}원 · 방문 4건'), '글에 매출·방문 수가 없다');
+      soft(text.contains('${AppStrings.paymentCard} 30,000원'), '글에 결제 수단이 없다');
+      soft(text.contains('조정 25,000원'), '글에 조정 줄이 없다');
+      for (final name in ['콩이', '두부', '보리', '김민지', '박두부', '최보리', '010']) {
+        soft(!text.contains(name), '글에 이름·번호가 있다');
+      }
+      note('공유 글 ${text.split('\n').length}줄');
     });
 
     await step('S4', '직원에게는 안내만 보인다', () async {
