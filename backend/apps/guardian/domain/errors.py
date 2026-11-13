@@ -32,3 +32,9 @@ class ReportLinkClosedError(GuardianError):
     """잇기: 닫힌 알림장(끊음·기간 지남·매장 정지·익명화·기록 없음). 410 — 공개 알림장과 같은 코드다."""
 
     code = "REPORT_CLOSED"
+
+
+class GuardianAccountInactiveError(GuardianError):
+    """탈퇴했거나 정지된 계정이다(유저 행을 잠그고 다시 봤다). 401 — 다시 로그인하라고 한다."""
+
+    code = "UNAUTHENTICATED"

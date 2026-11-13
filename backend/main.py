@@ -48,7 +48,10 @@ from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
 from guardian.adapter.inbound.api.error_map import GUARDIAN_ERROR_STATUS
+from guardian.adapter.inbound.api.v1.claim_guardian_link_router import claim_guardian_link_router
 from guardian.adapter.inbound.api.v1.guardian_myself_router import guardian_myself_router
+from guardian.dependencies.hub_ports import get_active_user_guard as get_guardian_active_user_guard
+from guardian.dependencies.hub_ports import get_report_link as get_guardian_report_link
 from notification.adapter.inbound.api.error_map import NOTIFICATION_ERROR_STATUS
 from notification.adapter.inbound.api.v1.confirm_sender_router import confirm_sender_router
 from notification.adapter.inbound.api.v1.get_notification_message_router import get_notification_message_router
@@ -127,6 +130,7 @@ from visit.dependencies.hub_ports import get_customer_directory, get_domain_even
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
+from visit.dependencies.resolve_report_link_provider import get_resolve_report_link_use_case
 
 
 @asynccontextmanager
@@ -227,6 +231,7 @@ app.include_router(resend_notification_router)
 app.include_router(get_notification_message_router)
 # media
 app.include_router(guardian_myself_router)
+app.include_router(claim_guardian_link_router)
 
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
@@ -247,6 +252,9 @@ app.dependency_overrides[get_shop_provisioning] = get_provision_shop_use_case
 app.dependency_overrides[get_user_directory] = get_get_user_profiles_use_case
 app.dependency_overrides[get_membership_directory] = get_list_memberships_use_case
 app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
+# guardian: 잇기가 유저 행을 잠그고(auth), 알림장 토큰을 매장·고객으로 푼다(visit).
+app.dependency_overrides[get_guardian_active_user_guard] = get_guard_active_user_use_case
+app.dependency_overrides[get_guardian_report_link] = get_resolve_report_link_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case

@@ -3,9 +3,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from guardian.app.ports.output.claim_limiter_port import ClaimLimiterPort
 from guardian.app.ports.output.guardian_link_repository import GuardianLinkRepository
 from guardian.domain.entities.guardian_link import GuardianLink
 from guardian.domain.errors import GuardianAlreadyLinkedError
+from hub.app.dtos.guardian import ReportLinkTarget
+from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
+from hub.app.ports.report_link_port import ReportLinkPort
 
 
 class FakeLinks(GuardianLinkRepository):
@@ -58,3 +62,41 @@ class FakeLinks(GuardianLinkRepository):
         self.journal.append(("end_links_for_customer", shop_id, customer_id))
         return await self._end_many(
             [r for r in self._live() if (r.shop_id, r.customer_id) == (shop_id, customer_id)], "anonymized", now)
+
+
+class FakeReportLinks(ReportLinkPort):
+    """ReportLinkPort 스텁 — 토큰 글자 → 대상. 없는 토큰은 None."""
+
+    def __init__(self, journal: list | None = None) -> None:
+        self.journal = journal if journal is not None else []
+        self.targets: dict[str, ReportLinkTarget] = {}
+
+    async def resolve(self, token):
+        self.journal.append(("resolve_token",))     # 토큰 글자는 남기지 않는다
+        return self.targets.get(token)
+
+
+class FakeActiveUsers(ActiveUserGuardPort):
+    """ActiveUserGuardPort 스텁 — inactive 에 든 유저는 활동할 수 없다(탈퇴·정지)."""
+
+    def __init__(self, journal: list | None = None) -> None:
+        self.journal = journal if journal is not None else []
+        self.inactive: set[int] = set()
+
+    async def lock_active(self, user_id):
+        self.journal.append(("lock_user", user_id))
+        return user_id not in self.inactive
+
+
+class FakeClaimLimiter(ClaimLimiterPort):
+    """잇기 횟수 제한 스텁 — limit 번까지 통과."""
+
+    def __init__(self, limit: int = 10, journal: list | None = None) -> None:
+        self.journal = journal if journal is not None else []
+        self.limit = limit
+        self.counts: dict[int, int] = {}
+
+    async def allow(self, user_id):
+        self.counts[user_id] = self.counts.get(user_id, 0) + 1
+        self.journal.append(("count_claim", user_id))
+        return self.counts[user_id] <= self.limit
