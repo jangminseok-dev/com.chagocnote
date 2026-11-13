@@ -122,6 +122,7 @@ from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_s
 from visit.adapter.inbound.api.v1.get_sales_goal_router import get_sales_goal_router
 from visit.adapter.inbound.api.v1.get_sales_summary_router import get_sales_summary_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
+from visit.adapter.inbound.api.v1.get_visit_checks_router import get_visit_checks_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
 from visit.adapter.inbound.api.v1.get_visit_report_router import get_visit_report_router
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
@@ -236,6 +237,7 @@ app.include_router(get_visit_calendar_router)
 app.include_router(list_visit_feed_router)
 app.include_router(list_visit_slots_router)
 app.include_router(get_visit_defaults_router)
+app.include_router(get_visit_checks_router)
 app.include_router(list_day_visits_router)
 app.include_router(register_visit_router)
 app.include_router(reschedule_visits_router)

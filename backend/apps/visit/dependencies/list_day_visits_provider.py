@@ -9,6 +9,7 @@ from visit.app.ports.input.list_day_visits_use_case import ListDayVisitsUseCase
 from visit.app.use_cases.list_day_visits_interactor import ListDayVisitsInteractor
 from visit.dependencies.hub_ports import get_customer_directory, get_media_library
 from visit.dependencies.visit_wiring import (
+    build_check_repository,
     build_menu_repository,
     build_record_repository,
     build_report_repository,
@@ -27,4 +28,5 @@ def get_list_day_visits_use_case(
         board=build_visit_repository(db), menus=build_menu_repository(db),
         schedule=build_schedule_repository(db), directory=directory, records=build_record_repository(db),
         library=library, reports=build_report_repository(db), now=utc_now,
+        checks=build_check_repository(db),
     )
