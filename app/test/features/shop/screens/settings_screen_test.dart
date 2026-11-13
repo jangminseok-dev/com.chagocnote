@@ -17,7 +17,11 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/fake_session_gateway.dart';
 
-const _hissHaus = ShopMembership(shopId: 3, shopName: 'Hiss Haus', role: 'owner');
+const _hissHaus = ShopMembership(
+  shopId: 3,
+  shopName: 'Hiss Haus',
+  role: 'owner',
+);
 const _staffShop = ShopMembership(shopId: 4, shopName: 'B매장', role: 'staff');
 
 /// 이 화면 자체(설정 허브)는 매장 API를 부르지 않지만, 화면 전환 테스트가
@@ -74,10 +78,8 @@ Widget _appWith(ProviderContainer container) {
         return MaterialApp.router(
           routerConfig: router,
           theme: appTheme(),
-          builder: (context, child) => GlassBridge(
-            factory: const OpaqueSurfaceFactory(),
-            child: child!,
-          ),
+          builder: (context, child) =>
+              GlassBridge(factory: const OpaqueSurfaceFactory(), child: child!),
         );
       },
     ),
@@ -298,6 +300,31 @@ void main() {
     expect(find.byKey(ScreenKeys.reportSettings), findsOneWidget);
   });
 
+  testWidgets('"알림톡" 줄은 직원에게도 보이고 누르면 알림톡 설정이 열린다(읽기 전용 — ⑥ 설계 8.1)', (
+    tester,
+  ) async {
+    final container = _containerWith(
+      const Me(
+        id: 1,
+        displayName: '민석',
+        profileImageUrl: null,
+        identities: ['apple'],
+        shops: [_staffShop],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(_appWith(container));
+    await tester.pumpAndSettle();
+    container.read(routerProvider).go('/settings');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(AppStrings.settingsNotification));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.notificationSettings), findsOneWidget);
+  });
+
   testWidgets('초대 코드로 합류를 누르면 초대 화면으로 간다', (tester) async {
     final container = _containerWith(
       const Me(
@@ -331,7 +358,8 @@ void main() {
     );
 
     void expectLeft(WidgetTester tester) {
-      final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      final width =
+          tester.view.physicalSize.width / tester.view.devicePixelRatio;
       // 버튼 위젯 자체는 늘어나도 왼쪽 끝이 0 근처라, 실제로 그려지는 아이콘의
       // 가운데를 잰다.
       final icon = find.descendant(

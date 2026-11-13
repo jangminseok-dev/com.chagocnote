@@ -171,9 +171,7 @@ void main() {
     expect(_button(AppStrings.save), findsNothing);
   });
 
-  testWidgets('타일을 누르면 빠지고 다시 누르면 되살아난다 — 수와 [보내기] 활성이 따라 바뀐다', (
-    tester,
-  ) async {
+  testWidgets('타일을 누르면 빠지고 다시 누르면 되살아난다 — 수와 [보내기] 활성이 따라 바뀐다', (tester) async {
     final server = _Server(media: [reportMediaJson(mediaId: 51)]);
     await _open(tester, server);
     expect(find.text('1개 중 1개'), findsOneWidget);
@@ -339,26 +337,27 @@ void main() {
     expect(closed.value, isTrue);
   });
 
-  testWidgets('보낼 사진 고르기에서 [저장]을 눌렀는데 그 사이 링크가 닫혔으면 저장하지 않고 닫히며 "이미 닫힌 알림장이에요."를 알린다', (
-    tester,
-  ) async {
-    final server = _Server(
-      media: [reportMediaJson(mediaId: 51), reportMediaJson(mediaId: 52)],
-      live: true,
-    );
-    final (app, closed) = await _open(tester, server, picking: true);
-    // 화면을 열어 둔 사이 다른 기기에서 링크를 끊었다.
-    server.link = reportLinkJson();
-    await _tap(tester, _tile('후 사진 1'));
+  testWidgets(
+    '보낼 사진 고르기에서 [저장]을 눌렀는데 그 사이 링크가 닫혔으면 저장하지 않고 닫히며 "이미 닫힌 알림장이에요."를 알린다',
+    (tester) async {
+      final server = _Server(
+        media: [reportMediaJson(mediaId: 51), reportMediaJson(mediaId: 52)],
+        live: true,
+      );
+      final (app, closed) = await _open(tester, server, picking: true);
+      // 화면을 열어 둔 사이 다른 기기에서 링크를 끊었다.
+      server.link = reportLinkJson();
+      await _tap(tester, _tile('후 사진 1'));
 
-    await _tap(tester, _button(AppStrings.save));
+      await _tap(tester, _button(AppStrings.save));
 
-    expect(server.puts, isEmpty);
-    expect(app.setup.shareSheet.shared, isEmpty);
-    expect(closed.closed, isTrue);
-    expect(closed.value, isNot(isTrue));
-    expect(find.text('이미 닫힌 알림장이에요.'), findsOneWidget);
-  });
+      expect(server.puts, isEmpty);
+      expect(app.setup.shareSheet.shared, isEmpty);
+      expect(closed.closed, isTrue);
+      expect(closed.value, isNot(isTrue));
+      expect(find.text('이미 닫힌 알림장이에요.'), findsOneWidget);
+    },
+  );
 
   testWidgets('서버가 거절하면(422 REPORT_EMPTY) 문구를 보이고 닫지 않는다 — 누른 것은 그대로다', (
     tester,
@@ -387,8 +386,13 @@ void main() {
   });
 
   // 채널 오류(PlatformException)와 네이티브 쪽이 없는 경우(MissingPluginException) 둘 다.
-  for (final error in [PlatformException(code: 'NO_VIEW'), MissingPluginException()]) {
-    testWidgets('공유 시트가 실패해도(${error.runtimeType}) 닫히고 안내를 보인다', (tester) async {
+  for (final error in [
+    PlatformException(code: 'NO_VIEW'),
+    MissingPluginException(),
+  ]) {
+    testWidgets('공유 시트가 실패해도(${error.runtimeType}) 닫히고 안내를 보인다', (
+      tester,
+    ) async {
       final server = _Server(media: [reportMediaJson(mediaId: 51)]);
       final (app, closed) = await _open(tester, server);
       app.setup.shareSheet.error = error;
@@ -406,9 +410,7 @@ void main() {
     });
   }
 
-  testWidgets('[고치기]는 기록 화면을 열고, 돌아오면 케어 메모를 다시 읽되 누른 것은 그대로다', (
-    tester,
-  ) async {
+  testWidgets('[고치기]는 기록 화면을 열고, 돌아오면 케어 메모를 다시 읽되 누른 것은 그대로다', (tester) async {
     final server = _Server(
       media: [reportMediaJson(mediaId: 51), reportMediaJson(mediaId: 52)],
       careNote: '처음 메모',
@@ -496,10 +498,7 @@ void main() {
     final button = tester.getRect(_button('보내기'));
     expect(button.top, greaterThanOrEqualTo(0));
     expect(button.bottom, lessThanOrEqualTo(844));
-    expect(
-      tester.getRect(find.byType(AppPickTile).last).top,
-      greaterThan(844),
-    );
+    expect(tester.getRect(find.byType(AppPickTile).last).top, greaterThan(844));
 
     // 스크롤하지 않고 바로 눌러 보낸다.
     await tester.tap(_button('보내기'));
@@ -526,10 +525,7 @@ void main() {
     final before = tester.getRect(_button(AppStrings.save));
 
     expect(before.bottom, lessThanOrEqualTo(844));
-    expect(
-      tester.getRect(find.byType(AppPickTile).last).top,
-      greaterThan(844),
-    );
+    expect(tester.getRect(find.byType(AppPickTile).last).top, greaterThan(844));
     await tester.drag(find.byType(ListView), const Offset(0, -5000));
     await tester.pumpAndSettle();
     expect(tester.getRect(_button(AppStrings.save)), before);
@@ -551,5 +547,193 @@ void main() {
       find.byKey(ScreenKeys.reportPreview),
       matchesGoldenFile('goldens/report_preview.png'),
     );
+  });
+
+  group('알림톡으로 보내기(⑥-2)', () {
+    const listPath = '/v1/shops/3/visits/101/notifications';
+
+    Map<String, dynamic> row(int id, String status, {String? shareText}) =>
+        notificationMessageJson(
+          messageId: id,
+          kind: 'report',
+          status: status,
+          errorKind: status == 'failed' ? 'permanent' : null,
+          shareText: shareText,
+        );
+
+    /// 보내기 전에는 [before], 보낸 뒤에는 [after]로 내역을 답하는 서버.
+    _Server serverWith({
+      List<Map<String, dynamic>> before = const [],
+      required List<Map<String, dynamic>> after,
+      bool live = false,
+    }) {
+      final server = _Server(media: [reportMediaJson(mediaId: 51)], live: live);
+      server.backend.routes['GET $listPath'] = (o, b) => FakeResponse(
+        statusCode: 200,
+        data: {'items': server.puts.isEmpty ? before : after},
+      );
+      return server;
+    }
+
+    int reads(_App app) =>
+        app.setup.calls.where((call) => call == 'GET $listPath').length;
+
+    /// [보내기]를 누르고 [seconds]초를 1초씩 흘린다(결과를 기다리는 동안 단추가 돌고 있다).
+    Future<void> send(WidgetTester tester, {int seconds = 0}) async {
+      await tester.tap(_button('보내기'));
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+      for (var i = 0; i < seconds; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+
+    testWidgets('알림톡 줄이 없으면 지금처럼 공유 시트가 뜬다', (tester) async {
+      final server = serverWith(after: []);
+      final (app, closed) = await _open(tester, server);
+
+      await send(tester);
+      await settle(tester);
+
+      expect(app.setup.shareSheet.shared, [_url]);
+      expect(closed.value, isTrue);
+      expect(find.text('알림톡으로 보냈어요.'), findsNothing);
+    });
+
+    testWidgets('알림톡이 나가면 닫고 알림톡으로 보냈어요를 알리며 공유 시트는 뜨지 않는다', (tester) async {
+      final server = serverWith(after: [row(5, 'sent')]);
+      final (app, closed) = await _open(tester, server);
+
+      await send(tester);
+      await settle(tester);
+
+      expect(closed.closed, isTrue);
+      expect(closed.value, isTrue);
+      expect(app.setup.shareSheet.shared, isEmpty);
+      expect(find.text('알림톡으로 보냈어요.'), findsOneWidget);
+    });
+
+    testWidgets('알림톡이 실패하면 알리고 문안으로 공유 시트가 뜬다', (tester) async {
+      final server = serverWith(
+        after: [row(5, 'failed', shareText: '[Hiss Haus] 가짜 문안')],
+      );
+      final (app, closed) = await _open(tester, server);
+
+      await send(tester);
+      await settle(tester);
+
+      expect(find.text('알림톡을 못 보내서 다른 방법으로 보내요.'), findsOneWidget);
+      expect(app.setup.shareSheet.shared, ['[Hiss Haus] 가짜 문안']);
+      expect(app.setup.shareSheet.origins.single.isEmpty, isFalse);
+      expect(closed.value, isTrue);
+    });
+
+    testWidgets('실패했는데 문안이 없으면 링크 주소로 공유 시트가 뜬다', (tester) async {
+      final server = serverWith(after: [row(5, 'failed')]);
+      final (app, _) = await _open(tester, server);
+
+      await send(tester);
+      await settle(tester);
+
+      expect(app.setup.shareSheet.shared, [_url]);
+    });
+
+    testWidgets('10초가 지나도 접수 중이면 닫고 보내는 중이에요를 알린다', (tester) async {
+      final server = serverWith(after: [row(5, 'accepted')]);
+      final (app, closed) = await _open(tester, server);
+
+      await send(tester, seconds: 8);
+      expect(closed.closed, isFalse);
+      expect(tester.widget<AppButton>(_button('보내기')).busy, isTrue);
+      await tester.pump(const Duration(seconds: 1));
+      await settle(tester);
+
+      expect(closed.closed, isTrue);
+      expect(closed.value, isTrue);
+      expect(find.text('알림톡을 보내는 중이에요.'), findsOneWidget);
+      expect(app.setup.shareSheet.shared, isEmpty);
+      // 보내기 전 한 번 + 기다리며 열 번.
+      expect(reads(app), 11);
+    });
+
+    testWidgets('끊고 다시 보낼 때 옛 보냄 줄은 새 발송으로 치지 않는다', (tester) async {
+      final old = [row(5, 'sent')];
+      final server = serverWith(before: old, after: old);
+      final (app, _) = await _open(tester, server);
+
+      await send(tester);
+      await settle(tester);
+
+      expect(find.text('알림톡으로 보냈어요.'), findsNothing);
+      expect(app.setup.shareSheet.shared, [_url]);
+    });
+
+    testWidgets('기다리는 중에 뒤로 가면 닫히고 그 뒤에는 아무것도 띄우지 않는다', (tester) async {
+      final server = serverWith(after: [row(5, 'accepted')]);
+      final (app, closed) = await _open(tester, server);
+
+      await send(tester, seconds: 2);
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pumpAndSettle();
+      expect(closed.closed, isTrue);
+      expect(find.byKey(ScreenKeys.reportPreview), findsNothing);
+
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      await tester.pumpAndSettle();
+
+      expect(find.text('알림톡을 보내는 중이에요.'), findsNothing);
+      expect(find.text('알림톡으로 보냈어요.'), findsNothing);
+      expect(app.setup.shareSheet.shared, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('보내는(PUT) 중에는 여전히 뒤로 가기로 닫히지 않는다', (tester) async {
+      final server = serverWith(after: [])..putGate = Completer<void>();
+      final (app, closed) = await _open(tester, server);
+
+      await tester.tap(_button('보내기'));
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(closed.closed, isFalse);
+
+      server.putGate!.complete();
+      await settle(tester);
+      expect(app.setup.shareSheet.shared, [_url]);
+    });
+
+    testWidgets('보내기 전 내역을 읽지 못하면 공유 시트로 간다', (tester) async {
+      final server = _Server(media: [reportMediaJson(mediaId: 51)]);
+      server.backend.routes['GET $listPath'] = (o, b) => const FakeResponse(
+        statusCode: 500,
+        data: {'code': 'INTERNAL', 'message': 'x'},
+      );
+      final (app, closed) = await _open(tester, server);
+
+      await send(tester);
+      await settle(tester);
+
+      expect(server.puts, hasLength(1));
+      expect(app.setup.shareSheet.shared, [_url]);
+      expect(closed.value, isTrue);
+      expect(reads(app), 1);
+    });
+
+    testWidgets('보낼 사진 고르기의 저장은 알림톡을 보지 않는다', (tester) async {
+      final server = serverWith(after: [row(5, 'sent')], live: true);
+      final (app, closed) = await _open(tester, server, picking: true);
+
+      await _tap(tester, _tile('후 사진 1'));
+      await _tap(tester, _button(AppStrings.save));
+
+      expect(closed.value, isTrue);
+      expect(reads(app), 0);
+      expect(find.text('알림톡으로 보냈어요.'), findsNothing);
+    });
   });
 }

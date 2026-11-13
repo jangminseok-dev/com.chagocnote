@@ -116,7 +116,8 @@ class AppStrings {
   static const unmarkPassedAway = '무지개다리 되돌리기';
   static const markPassedAwayConfirm = '무지개다리를 건넜다고 표시할까요? 목록에서 숨겨지고 기록은 남아요.';
   static const deletePet = '반려동물 삭제';
-  static const deletePetConfirm = '잘못 등록한 반려동물을 삭제할까요? 질병 기록도 함께 지워지고 되돌릴 수 없어요.';
+  static const deletePetConfirm =
+      '잘못 등록한 반려동물을 삭제할까요? 질병 기록도 함께 지워지고 되돌릴 수 없어요.';
   static const birthDateLabel = '생일';
   static const birthYearLabel = '태어난 해';
   static const ageUnknown = '모름';
@@ -189,8 +190,24 @@ class AppStrings {
   static const editPetTitle = '반려동물 수정';
 
   /// 품종 입력 칸 아래에 보이는 추천(누르면 채운다).
-  static const dogBreeds = ['말티즈', '푸들', '포메라니안', '비숑', '시츄', '요크셔테리어', '치와와', '믹스'];
-  static const catBreeds = ['코리안 숏헤어', '러시안 블루', '페르시안', '브리티시 숏헤어', '스코티시 폴드', '믹스'];
+  static const dogBreeds = [
+    '말티즈',
+    '푸들',
+    '포메라니안',
+    '비숑',
+    '시츄',
+    '요크셔테리어',
+    '치와와',
+    '믹스',
+  ];
+  static const catBreeds = [
+    '코리안 숏헤어',
+    '러시안 블루',
+    '페르시안',
+    '브리티시 숏헤어',
+    '스코티시 폴드',
+    '믹스',
+  ];
 
   static const ownerNameHint = '예: 김민지, 콩이 보호자';
   static const phoneHint = '예: 010-1234-5678';
@@ -202,7 +219,8 @@ class AppStrings {
   static const consentRequired = '마케팅 수신 동의 여부를 골라 주세요.';
   static const editOwnerTitle = '보호자 수정';
   static const deleteCustomer = '고객 삭제';
-  static const deleteCustomerConfirm = '고객을 삭제할까요? 보호자의 이름·전화번호·메모와 반려동물의 이름·질병 기록이 지워지고 되돌릴 수 없어요.';
+  static const deleteCustomerConfirm =
+      '고객을 삭제할까요? 보호자의 이름·전화번호·메모와 반려동물의 이름·질병 기록이 지워지고 되돌릴 수 없어요.';
 
   static const registerCustomer = '고객 등록';
   static const registerStepPhone = '전화번호';
@@ -212,7 +230,8 @@ class AppStrings {
   static const addPetToExisting = '이 보호자에게 반려동물 추가';
 
   static String registerStepTitle(String step, int index) => '$step $index / 3';
-  static String lookupFound(String name, List<String> petNames) => petNames.isEmpty
+  static String lookupFound(String name, List<String> petNames) =>
+      petNames.isEmpty
       ? '이미 등록된 번호예요 — $name'
       : '이미 등록된 번호예요 — $name (${petNames.join(', ')})';
 
@@ -335,7 +354,8 @@ class AppStrings {
   static String moreGroups(int count) => '외 $count건';
 
   static String unresolvedBanner(int count) => '정리 안 된 예약 $count건';
-  static String dayHeading(int day, int weekday) => '$day일 ${weekdaysLong[weekday - 1]}';
+  static String dayHeading(int day, int weekday) =>
+      '$day일 ${weekdaysLong[weekday - 1]}';
   static String previewCounts(int visits, int completed) =>
       completed > 0 ? '$visits마리 · $completed마리 완료' : '$visits마리';
   static const settingsSchedule = '일정';
@@ -362,7 +382,8 @@ class AppStrings {
   static const menuDefaultDurationLabel = '기본 소요';
   static const useShopDefault = '매장 기본';
   static const archiveMenu = '보관';
-  static const archiveMenuConfirm = '이 메뉴를 보관할까요? 지난 방문에는 남고, 새 예약에서는 고를 수 없어요.';
+  static const archiveMenuConfirm =
+      '이 메뉴를 보관할까요? 지난 방문에는 남고, 새 예약에서는 고를 수 없어요.';
   static const moveUp = '위로';
   static const moveDown = '아래로';
   static const menusEmpty = '메뉴가 없어요. 메뉴 없이도 예약할 수 있어요.';
@@ -407,7 +428,8 @@ class AppStrings {
 
   // 말로 기록하기(④-3b).
   static const micLabel = '말해서 적기';
-  static const dictationUnsupported = '이 기기는 한국어 받아쓰기를 지원하지 않아요. 키보드의 🎤 를 써 보세요.';
+  static const dictationUnsupported =
+      '이 기기는 한국어 받아쓰기를 지원하지 않아요. 키보드의 🎤 를 써 보세요.';
   static const dictationDenied = '마이크와 음성 인식 권한이 필요해요.';
   static const dictationNoSpeech = '못 알아들었어요. 다시 말해 주세요.';
   static const dictationFailed = '받아쓰기를 이어가지 못했어요.';
@@ -417,7 +439,8 @@ class AppStrings {
   static const editRecord = '기록 수정';
   static const writeRecord = '기록 쓰기';
   static const deleteRecord = '기록 삭제';
-  static const deleteRecordConfirm = '이 방문의 미용 기록을 삭제할까요? 사진·메모·금액이 함께 지워지고 되돌릴 수 없어요.';
+  static const deleteRecordConfirm =
+      '이 방문의 미용 기록을 삭제할까요? 사진·메모·금액이 함께 지워지고 되돌릴 수 없어요.';
 
   /// '전 사진 1' — 사진 줄의 타일(접근성 이름).
   static String photoTileLabel(String phase, int index) => '$phase 사진 $index';
@@ -504,14 +527,86 @@ class AppStrings {
   static const reportRevoke = '링크 끊기';
   static const reportRevokeConfirm = '보호자가 받은 링크가 더는 열리지 않아요.';
 
+  // 알림톡(⑥-2) — 설정 화면.
+  /// 설정 허브의 줄.
+  static const settingsNotification = '알림톡';
+  static const notificationSettingsTitle = '알림톡 설정';
+  static const notificationOwnerOnly = '사장만 바꿀 수 있어요.';
+  static const notificationOwnerLinks = '사장님이 연동할 수 있어요.';
+  static const notificationPrepareTitle = '연동하기 전에 준비해 주세요';
+  static const notificationPrepare1 = '카카오톡 채널을 만들어요.';
+  static const notificationPrepare2 = '채널의 비즈니스 인증을 받아요. 며칠 걸려요.';
+  static const notificationPrepare3 = '채널 관리자센터에서 "관리자 추가 인증"을 꺼요.';
+  static const notificationSearchIdLabel = '채널 검색 아이디';
+  static const notificationSearchIdHint = '@로 시작하는 아이디예요.';
+  static const notificationAdminPhoneLabel = '채널 관리자 휴대폰 번호';
+  static const notificationAdminPhoneHint = '이 번호의 카카오톡으로 인증번호가 와요.';
+  static const notificationCategoryLabel = '업종 카테고리 코드';
+  static const notificationCategoryHint = '카카오톡 채널 관리자센터에서 확인해 주세요.';
+  static const notificationRequestToken = '인증번호 받기';
+  static const notificationTokenLabel = '인증번호 6자리';
+  static const notificationTokenHint = '관리자 카카오톡으로 보냈어요.';
+  static const notificationLink = '연동하기';
+  static const notificationEditInputs = '다시 입력';
+  static String notificationLinkedOn(int month, int day) =>
+      '연동됨 · $month월 $day일';
+  static const notificationUnlink = '연동 해제';
+  static const notificationUnlinkConfirm = '예정된 알림톡이 모두 취소돼요. 연동을 해제할까요?';
+  static const notificationKindConfirm = '예약 접수';
+  static const notificationKindReminder = '전날 리마인드';
+  static const notificationKindChangeCancel = '예약 변경·취소';
+  static const notificationKindReport = '알림장';
+  static const notificationKindNextVisit = '다음 예약 제안';
+  static const notificationTemplatePending = '심사 중이에요(보통 1~3일)';
+  static const notificationTemplateApproved = '승인됨';
+  static const notificationTemplateRejected = '반려됐어요 · 운영자가 확인 중';
+  static const notificationReminderTimeLabel = '보내는 시각';
+  static const notificationNextVisitWeeksLabel = '지난 미용 뒤';
+  static String notificationWeeks(int weeks) => '$weeks주';
+  static const notificationWeeksAuto = '지난 방문 간격대로';
+  static const notificationCooldownLabel = '다시 보내지 않는 기간';
+  static String notificationDays(int days) => '$days일';
+  static const notificationNextVisitHint = '마케팅 수신에 동의한 보호자에게만 보내요.';
+  static const notificationSmsFallback = '문자로 대신 보내기';
+  static const notificationSmsFallbackHint =
+      '알림톡을 못 받는 번호에 문자로 보내요. 문자는 알림톡보다 비싸요.';
+  static String notificationSenderNumber(String number) => '발신번호 $number';
+  static const notificationSenderTitle = '발신번호 인증';
+  static const notificationSenderPhoneLabel = '문자를 보낼 매장 번호';
+  static const notificationSenderPhoneHint = '숫자만 적어 주세요.';
+  static const notificationSenderCodeLabel = '인증번호 6자리';
+  static const notificationSenderConfirm = '확인';
+
+  // 알림톡(⑥-2) — 방문 상세의 내역.
+  static const notificationBlockTitle = '알림톡';
+  static const notificationRowConfirm = '예약 접수';
+  static const notificationRowReminder = '전날 리마인드';
+  static const notificationRowReport = '알림장';
+  static const notificationRowChange = '예약 변경';
+  static const notificationRowCancel = '예약 취소';
+  static const notificationRowNextVisit = '다음 예약 제안';
+  static String notificationScheduled(String at) => '$at 예정';
+  static const notificationSending = '보내는 중';
+  static String notificationSent(String at) => '보냄 · $at';
+  static String notificationSentBySms(String at) => '문자로 보냄 · $at';
+  static const notificationFailed = '못 보냈어요';
+  static const notificationFailedTransient = '잠시 문제가 있었어요';
+  static const notificationFailedPermanent = '알림톡을 받을 수 없는 번호예요';
+  static const notificationResend = '다시 보내기';
+  static const notificationShareInstead = '다른 방법으로 보내기';
+
+  // 알림톡(⑥-2) — 알림장 보내기 뒤.
+  static const reportSentByAlimtalk = '알림톡으로 보냈어요.';
+  static const reportAlimtalkFailed = '알림톡을 못 보내서 다른 방법으로 보내요.';
+  static const reportAlimtalkPending = '알림톡을 보내는 중이에요.';
+
   // 미용 알림장 — 설정(⑤-3). 항목 이름은 미리보기의 reportItem… 을 함께 쓴다.
   /// 설정 허브의 줄.
   static const settingsReport = '알림장';
   static const reportSettingsTitle = '알림장 설정';
   static const reportSettingsOwnerOnly = '사장만 바꿀 수 있어요.';
   static const reportLinkDaysLabel = '링크가 열려 있는 기간';
-  static const reportLinkDaysHint =
-      '앞으로 보내는 알림장부터 적용돼요. 이미 보낸 알림장의 기간은 그대로예요.';
+  static const reportLinkDaysHint = '앞으로 보내는 알림장부터 적용돼요. 이미 보낸 알림장의 기간은 그대로예요.';
   static const reportShowItemsLabel = '알림장에 보여 줄 항목';
   static const reportShowItemsHint =
       '바꾸면 이미 보낸 알림장에도 바로 적용돼요. 사진 · 영상과 케어 메모는 늘 보이고, '
@@ -534,8 +629,10 @@ class AppStrings {
     }
     return '$out원';
   }
+
   static String stepOf(int step, int total) => '$step / $total';
-  static String businessHours(String opens, String closes) => '영업 $opens–$closes';
+  static String businessHours(String opens, String closes) =>
+      '영업 $opens–$closes';
   static String saveReservation(String when) => '예약 저장 · $when';
   static String monthLabel(int month) => '$month월';
   static String durationText(int minutes) {
@@ -546,24 +643,24 @@ class AppStrings {
   }
 
   static String speciesLabel(String species) => switch (species) {
-        'dog' => speciesDog,
-        'cat' => speciesCat,
-        _ => species,
-      };
+    'dog' => speciesDog,
+    'cat' => speciesCat,
+    _ => species,
+  };
 
   static String sexLabel(String sex) => switch (sex) {
-        'female' => sexFemale,
-        'male' => sexMale,
-        _ => sex,
-      };
+    'female' => sexFemale,
+    'male' => sexMale,
+    _ => sex,
+  };
 
   /// 로그인 수단 제공자 코드를 화면에 보여줄 라벨로 바꾼다. 계정 화면과
   /// 재인증 시트(Task 16)가 함께 쓴다.
   static String providerLabel(String provider) => switch (provider) {
-        'kakao' => providerKakao,
-        'google' => providerGoogle,
-        'apple' => providerApple,
-        'dev' => providerDev,
-        _ => provider,
-      };
+    'kakao' => providerKakao,
+    'google' => providerGoogle,
+    'apple' => providerApple,
+    'dev' => providerDev,
+    _ => provider,
+  };
 }

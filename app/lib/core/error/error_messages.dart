@@ -64,6 +64,16 @@ const Map<String, String> _messages = {
   'VISIT_NOT_COMPLETED': '완료한 방문만 알림장을 보낼 수 있어요.',
   'REPORT_EMPTY': '보여 줄 사진·영상이나 케어 메모가 있어야 보낼 수 있어요.',
   'REPORT_NOT_FOUND': '이미 닫힌 알림장이에요.',
+  // 알림톡(⑥ 설계 7.3, 결정 기록 009)
+  'NOTIFICATION_CHANNEL_NOT_LINKED': '먼저 카카오톡 채널을 연동해 주세요.',
+  'NOTIFICATION_CHANNEL_LINKED': '이미 연동된 채널이 있어요.',
+  'NOTIFICATION_TOKEN_INVALID': '인증번호가 틀렸거나 시간이 지났어요.',
+  'NOTIFICATION_SENDER_NOT_VERIFIED': '발신번호를 먼저 인증해 주세요.',
+  'NOTIFICATION_TEMPLATE_NOT_APPROVED': '아직 심사가 끝나지 않은 알림이에요.',
+  'NOTIFICATION_ALREADY_PENDING': '이미 보내는 중이에요.',
+  'NOTIFICATION_MESSAGE_NOT_FOUND': '다시 보낼 알림을 찾지 못했어요. 화면을 새로 불러왔어요.',
+  'NOTIFICATION_RATE_LIMITED': '요청이 너무 잦아요. 잠시 뒤에 다시 해 주세요.',
+  'NOTIFICATION_PROVIDER_UNAVAILABLE': '카카오톡 연결이 잠시 원활하지 않아요. 다시 시도해 주세요.',
   // 앱이 만든 코드 — 영상 재생이 서명 URL 만료(403)로 실패했다(④-3a 설계 5.4).
   'MEDIA_URL_EXPIRED': '보기 링크가 만료됐어요. 다시 시도해 주세요.',
 };

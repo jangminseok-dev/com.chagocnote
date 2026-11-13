@@ -14,7 +14,9 @@ class ScreenKeys {
   static const settingsSchedule = Key('screen_settings_schedule');
   static const settingsMenus = Key('screen_settings_menus');
   static const settingsAccount = Key('screen_settings_account');
-  static const settingsAccountWithdraw = Key('screen_settings_account_withdraw');
+  static const settingsAccountWithdraw = Key(
+    'screen_settings_account_withdraw',
+  );
   static const registerCustomer = Key('screen_register_customer');
   static const customerEdit = Key('screen_customer_edit');
   static const petForm = Key('screen_pet_form');
@@ -27,5 +29,6 @@ class ScreenKeys {
   static const photoViewer = Key('screen_photo_viewer');
   static const reportPreview = Key('screen_report_preview');
   static const reportSettings = Key('screen_report_settings');
+  static const notificationSettings = Key('screen_notification_settings');
   static const day = Key('screen_day');
 }
