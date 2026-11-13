@@ -49,6 +49,7 @@
     docker compose run --rm backend python scripts/grant_operator.py <user_id>   # 플랫폼 운영자 지정 (user_id 는 GET /v1/me 의 id)
     bash ../backend/scripts/check_notification_flow.sh                           # 알림톡 흐름 확인 (dev 는 가짜 게이트웨이, 실제 발송 없음)
     bash ../backend/scripts/check_guardian_flow.sh                               # 보호자 회원 흐름 확인 (웹 세션 로그인 → 잇기 → 지난 알림장 → 끊기)
+    bash ../backend/scripts/check_sales_flow.sh                                  # 매출 통계 흐름 확인 (방문 몇 개 → 요약의 숫자를 손계산과 견준다 → 목록 → 목표)
     docker compose run --rm backend python scripts/reregister_templates.py [--shop <id>] [--refresh]   # 알림톡 템플릿 재등록 / 심사 상태 조회
 
 앱은 전부 `app/`에서 실행한다.

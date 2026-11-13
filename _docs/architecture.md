@@ -89,3 +89,8 @@
 - `guardian`은 `ShopContext`를 만들지 않는다. 보호자용 읽기(visit)는 공개 알림장과 같은 읽기 전용 컨텍스트(`public_context`)와 같은 조립(`describe_report`)·같은 응답 스키마를 쓴다 — 내부 메모가 보호자에게 새는 사고를 구조로 막는다.
 - `GuardianLinkRepository`는 `ShopContext`를 받지 않는다(범위가 계정이다) — `PublicReportRepository`·`NotificationQueueRepository`와 같은 예외다.
 
+## 매출 통계 — 읽을 때 센다 (⑧)
+
+- 매출은 새 스포크가 아니다. 방문·기록·메뉴·알림장이 모두 `visit` 의 것이라 집계도 `visit` 의 읽기 슬라이스다(`/v1/shops/{shop_id}/sales/…`, 전부 `sales:read` — 사장만). 아이의 이름은 허브 포트 `CustomerDirectoryPort.briefs` 로, 사진은 아이의 프로필 사진(가장 최근 대표)을 `MediaLibraryPort` 로 읽는다.
+- **미리 계산해 둔 표·캐시·배치가 없다.** 요약은 읽을 때 SQL 로 센다(`SalesRepository` — pg 구현만 `text()` 질의를 쓴다. FILTER·DISTINCT ON 과 여러 표가 얽혀서다. 값은 전부 바인딩한다).
+- 기간·비교 창은 순수 도메인(`domain/services/sales_period.py`)이, 낱말의 뜻(조정·미선택·처음/다시 온 아이·얼굴 거르기)은 인터랙터가, 세기는 저장소가 맡는다. 날짜는 매장 시간대로만 자른다.
