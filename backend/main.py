@@ -111,6 +111,8 @@ from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed
 from visit.adapter.inbound.api.v1.delete_visit_record_router import delete_visit_record_router
 from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_visit_draft_router
 from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_settings_router
+from visit.adapter.inbound.api.v1.get_sales_goal_router import get_sales_goal_router
+from visit.adapter.inbound.api.v1.get_sales_summary_router import get_sales_summary_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
 from visit.adapter.inbound.api.v1.get_visit_report_router import get_visit_report_router
@@ -118,7 +120,9 @@ from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
 from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_router
+from visit.adapter.inbound.api.v1.list_due_pets_router import list_due_pets_router
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
+from visit.adapter.inbound.api.v1.list_sales_visits_router import list_sales_visits_router
 from visit.adapter.inbound.api.v1.list_visit_feed_router import list_visit_feed_router
 from visit.adapter.inbound.api.v1.list_visit_slots_router import list_visit_slots_router
 from visit.adapter.inbound.api.v1.mark_report_viewed_router import mark_report_viewed_router
@@ -132,6 +136,7 @@ from visit.adapter.inbound.api.v1.send_visit_report_router import send_visit_rep
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_report_settings_router import update_report_settings_router
+from visit.adapter.inbound.api.v1.update_sales_goal_router import update_sales_goal_router
 from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
 from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
@@ -200,6 +205,12 @@ app.include_router(get_visit_settings_router)
 app.include_router(update_visit_settings_router)
 app.include_router(get_report_settings_router)
 app.include_router(update_report_settings_router)
+# ⑧ 매출 — 모두 sales:read(사장만)
+app.include_router(get_sales_summary_router)
+app.include_router(list_sales_visits_router)
+app.include_router(list_due_pets_router)
+app.include_router(get_sales_goal_router)
+app.include_router(update_sales_goal_router)
 app.include_router(list_closed_dates_router)
 app.include_router(add_closed_date_router)
 app.include_router(delete_closed_date_router)
