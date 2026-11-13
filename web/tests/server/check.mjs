@@ -38,7 +38,7 @@ const MALFORMED_TOKENS = {
 }
 
 /** 검사에 쓴 토큰 전부 — 웹 서버의 기록에 남으면 안 된다(R18). */
-const USED_TOKENS = [...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow'].map(token), ...Object.values(MALFORMED_TOKENS)]
+const USED_TOKENS = [...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken'].map(token), ...Object.values(MALFORMED_TOKENS)]
 
 /** 첫 HTML 의 <meta> 값. 없으면 null. */
 function meta(html, key) {
@@ -248,6 +248,149 @@ const loginChecks = [
       }
     },
   },
+  {
+    name: '알림장의 첫 HTML 에 잇기 폼이 있고, 닫힌 알림장에는 폼이 없고 내 기록으로 가는 링크가 있다',
+    async run({ get }) {
+      const open = await (await get(`/r/${token('ok')}`)).text()
+      assert.ok(open.includes(`<form action="/r/${token('ok')}/claim" method="post">`), '잇기 폼이 없다')
+      assert.match(open, /<button type="submit">로그인하고 지난 기록 보기<\/button>/)
+      const closed = await (await get(`/r/${token('gone')}`)).text()
+      assert.ok(!closed.includes('<form'), '닫힌 화면에 폼이 있다')
+      assert.match(closed, /<a [^>]*href="\/me"[^>]*>로그인하고 지난 기록 보기<\/a>/)
+    },
+  },
+  {
+    name: '세션 없이 잇기를 누르면 303 /login 이고 잇기 쿠키가 HttpOnly·Secure·SameSite=lax·Max-Age=600 이며 값에 토큰이 없고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      const res = await get(`/r/${token('ok')}/claim`, form({}))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/login')
+      hasHeaderSet(res)
+      const line = setCookie(res, 'cn_claim')
+      assert.ok(line, '잇기 쿠키가 없다')
+      hasAttributes(line, ['HttpOnly', 'Secure', 'SameSite=lax', 'Path=/', 'Max-Age=600'])
+      assert.ok(!line.includes(token('ok')), '쿠키에 토큰이 그대로 있다')
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '잇기 쿠키를 들고 로그인하면 303 /me 이고 잇기를 한 번 부르며 잇기 쿠키를 지운다',
+    async run({ get, stats }) {
+      const claim = pair(setCookie(await get(`/r/${token('ok')}/claim`, form({})), 'cn_claim'))
+      // 돌아갈 경로가 있어도 잇기 뒤에는 내 기록으로 간다.
+      const { res, session } = await loginAs(get, 'ok', { cookie: claim, next: '/me/12' })
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/me')
+      assert.ok(session, '세션 쿠키가 없다')
+      const cleared = res.headers.getSetCookie().find((value) => value.startsWith('cn_claim='))
+      assert.ok(cleared && isDeletion(cleared), '잇기 쿠키를 지우지 않았다')
+      const { auth, claims, count, last } = await stats()
+      assert.deepEqual([auth, claims, count], [1, 1, 2])
+      assert.equal(last.path, '/v1/me/guardian/links')
+      assert.equal(last.report_token, true, '알림장 토큰 헤더가 없다')
+      assert.equal(last.bearer, true, '액세스 토큰이 없다')
+    },
+  },
+  {
+    name: '이미 다른 계정에 이어진 알림장의 잇기 쿠키로 로그인하면 303 /me?notice=taken',
+    async run({ get }) {
+      const claim = pair(setCookie(await get(`/r/${token('taken')}/claim`, form({})), 'cn_claim'))
+      const { res } = await loginAs(get, 'ok', { cookie: claim })
+      assert.equal(res.headers.get('location'), '/me?notice=taken')
+    },
+  },
+  ...['gone', 'rate', 'nf'].map((prefix) => ({
+    name: `잇지 못하는 알림장(${prefix})의 잇기 쿠키로 로그인하면 말없이 303 /me 이고 잇기 쿠키를 지운다`,
+    async run({ get, stats }) {
+      const claim = pair(setCookie(await get(`/r/${token(prefix)}/claim`, form({})), 'cn_claim'))
+      const { res, session } = await loginAs(get, 'ok', { cookie: claim })
+      assert.equal(res.headers.get('location'), '/me')
+      assert.ok(session, '세션 쿠키가 없다')
+      const cleared = res.headers.getSetCookie().find((value) => value.startsWith('cn_claim='))
+      assert.ok(cleared && isDeletion(cleared), '잇기 쿠키를 지우지 않았다')
+      assert.equal((await stats()).claims, 1)
+    },
+  })),
+  {
+    name: '잇기 쿠키를 들고 로그인이 실패하면 잇기를 부르지 않고 잇기 쿠키를 건드리지 않는다',
+    async run({ get, stats }) {
+      const claim = pair(setCookie(await get(`/r/${token('ok')}/claim`, form({})), 'cn_claim'))
+      for (const name of ['bad', 'down', '']) {
+        const { res } = await loginAs(get, name, { cookie: claim })
+        assert.equal(res.headers.get('location'), '/login?error=1', name)
+        assert.equal(res.headers.getSetCookie().length, 0, `${name}: 쿠키를 건드렸다`)
+      }
+      assert.equal((await stats()).claims, 0)
+    },
+  },
+  {
+    name: '깨진 잇기 쿠키를 들고 로그인하면 잇기를 부르지 않고 돌아갈 경로로 간다',
+    async run({ get, stats }) {
+      const { res } = await loginAs(get, 'ok', { cookie: 'cn_claim=garbage', next: '/me/12' })
+      assert.equal(res.headers.get('location'), '/me/12')
+      assert.equal((await stats()).claims, 0)
+    },
+  },
+  {
+    name: '로그인한 채 잇기를 누르면 303 /me 이고 잇기를 한 번 부르며 잇기 쿠키를 쓰지 않는다',
+    async run({ get, stats }) {
+      const { session } = await loginAs(get, 'ok')
+      const res = await get(`/r/${token('ok')}/claim`, form({}, { cookie: session }))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/me')
+      assert.equal(res.headers.getSetCookie().length, 0)
+      const { claims, last } = await stats()
+      assert.equal(claims, 1)
+      assert.equal(last.report_token, true)
+      const taken = await get(`/r/${token('taken')}/claim`, form({}, { cookie: session }))
+      assert.equal(taken.headers.get('location'), '/me?notice=taken')
+      for (const prefix of ['gone', 'rate', 'nf']) {
+        assert.equal((await get(`/r/${token(prefix)}/claim`, form({}, { cookie: session }))).headers.get('location'), '/me', prefix)
+      }
+    },
+  },
+  {
+    name: '끝난 세션으로 잇기를 누르면 303 /login 이고 세션 쿠키를 지우고 잇기 쿠키를 쓴다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'expired')
+      const res = await get(`/r/${token('ok')}/claim`, form({}, { cookie: session }))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/login')
+      const lines = res.headers.getSetCookie()
+      const cleared = lines.find((value) => value.startsWith('cn_session='))
+      assert.ok(cleared && isDeletion(cleared), '세션 쿠키를 지우지 않았다')
+      assert.ok(setCookie(res, 'cn_claim'), '잇기 쿠키가 없다')
+    },
+  },
+  ...Object.entries(MALFORMED_TOKENS).map(([name, value]) => ({
+    name: `형식이 틀린 토큰(${name})의 잇기는 404 이고 쿠키를 쓰지 않으며 백엔드를 부르지 않는다`,
+    async run({ get, stats }) {
+      const res = await get(`/r/${value}/claim`, form({}))
+      assert.equal(res.status, 404)
+      assert.equal(res.headers.getSetCookie().length, 0)
+      assertBackendNotCalled(await stats())
+    },
+  })),
+  {
+    name: '다른 출처의 잇기는 403 이고 쿠키를 쓰지 않으며 백엔드를 부르지 않는다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      for (const cookie of [undefined, session]) {
+        const res = await get(`/r/${token('ok')}/claim`, form({}, { 'Sec-Fetch-Site': 'cross-site', ...(cookie && { cookie }) }))
+        assert.equal(res.status, 403)
+        assert.equal(res.headers.getSetCookie().length, 0)
+      }
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '잇기를 GET 으로 부르면 405 이고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      assert.equal((await get(`/r/${token('ok')}/claim`)).status, 405)
+      assertBackendNotCalled(await stats())
+    },
+  },
   // (보호자 검사는 이 위에 더한다)
 ]
 
@@ -255,6 +398,7 @@ const loginChecks = [
  * 검사 목록. 뒤 작업은 여기에 줄을 더한다.
  * run 은 { web, backend, get, stats, log } 를 받고, 틀리면 던진다.
  *   get(path, init)  웹 서버에 요청한다(리다이렉트를 따라가지 않는다)
+ *   reset()          가짜 백엔드의 요청 수를 0 으로(검사 안에서 준비 요청을 빼고 셀 때)
  *   stats()          가짜 백엔드가 받은 요청 — { count, reports, viewed, last: { method, path, web_secret, client_ip } | null }
  *                    reports 는 알림장 조회, viewed 는 열람 신호의 수다
  *   log()            지금까지 `next start` 가 표준 출력·오류에 쓴 것
@@ -654,6 +798,7 @@ startWeb(webPort, webEnv(backend), ['ignore', 'pipe', 'pipe']),
       backend,
       get: (path, init) => fetch(`${web}${path}`, { redirect: 'manual', ...init }),
       stats: async () => (await fetch(`${backend}/__stats`)).json(),
+      reset: () => fetch(`${backend}/__reset`, { method: 'POST' }),
       log: () => webLog,
     }
     for (const { name, run } of checks) {

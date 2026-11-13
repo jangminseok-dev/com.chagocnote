@@ -31,3 +31,14 @@
   line-height: 1.7;
   word-break: keep-all;
 }
+
+.link {
+  display: inline-block;
+  margin-top: 28px;
+  padding: 13px 22px;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-size: 14px;
+  text-decoration: none;
+  word-break: keep-all;
+}

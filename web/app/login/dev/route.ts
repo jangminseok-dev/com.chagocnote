@@ -1,8 +1,9 @@
 import { webLogin } from '../../../lib/auth'
 import { devLogin } from '../../../lib/config'
+import { claimLink } from '../../../lib/guardian'
 import { safeNext } from '../../../lib/next-path'
 import { isCrossSite, seeOther } from '../../../lib/origin'
-import { writeSession } from '../../../lib/session'
+import { takeClaim, writeSession } from '../../../lib/session'
 
 const text = (value: FormDataEntryValue | null) => (typeof value === 'string' ? value : '')
 
@@ -27,5 +28,10 @@ export async function POST(request: Request) {
   if (result.kind !== 'ok') return seeOther(failed)
 
   await writeSession(result.accessToken, result.expiresIn)
-  return seeOther(next)
+
+  // 알림장의 버튼으로 왔으면 맡겨 둔 토큰으로 잇고 내 기록으로 간다. 로그인이 실패했을 때는 꺼내지 않는다(위에서 돌아갔다).
+  const reportToken = await takeClaim()
+  if (reportToken === null) return seeOther(next)
+  const claimed = await claimLink(result.accessToken, reportToken)
+  return seeOther(claimed === 'taken' ? '/me?notice=taken' : '/me')
 }
