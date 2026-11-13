@@ -14,6 +14,7 @@ from core.redis import dispose_redis
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.get_me_router import get_me_router
+from core.guardian_guard import get_guardian_access_port
 from core.http_errors import install_error_handlers
 from core.shop_guard import get_shop_access_port
 from auth.dependencies.check_operator_provider import get_check_operator_use_case
@@ -49,9 +50,15 @@ from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
 from guardian.adapter.inbound.api.error_map import GUARDIAN_ERROR_STATUS
 from guardian.adapter.inbound.api.v1.claim_guardian_link_router import claim_guardian_link_router
+from guardian.adapter.inbound.api.v1.end_customer_guardian_link_router import end_customer_guardian_link_router
+from guardian.adapter.inbound.api.v1.end_guardian_link_router import end_guardian_link_router
+from guardian.adapter.inbound.api.v1.get_customer_guardian_link_router import get_customer_guardian_link_router
 from guardian.adapter.inbound.api.v1.guardian_myself_router import guardian_myself_router
+from guardian.adapter.inbound.api.v1.list_guardian_links_router import list_guardian_links_router
 from guardian.dependencies.hub_ports import get_active_user_guard as get_guardian_active_user_guard
 from guardian.dependencies.hub_ports import get_report_link as get_guardian_report_link
+from guardian.dependencies.hub_ports import get_shop_profile as get_guardian_shop_profile
+from guardian.dependencies.resolve_guardian_access_provider import get_resolve_guardian_access_use_case
 from notification.adapter.inbound.api.error_map import NOTIFICATION_ERROR_STATUS
 from notification.adapter.inbound.api.v1.confirm_sender_router import confirm_sender_router
 from notification.adapter.inbound.api.v1.get_notification_message_router import get_notification_message_router
@@ -232,6 +239,10 @@ app.include_router(get_notification_message_router)
 # media
 app.include_router(guardian_myself_router)
 app.include_router(claim_guardian_link_router)
+app.include_router(list_guardian_links_router)
+app.include_router(end_guardian_link_router)
+app.include_router(get_customer_guardian_link_router)
+app.include_router(end_customer_guardian_link_router)
 
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
@@ -255,6 +266,9 @@ app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
 # guardian: 잇기가 유저 행을 잠그고(auth), 알림장 토큰을 매장·고객으로 푼다(visit).
 app.dependency_overrides[get_guardian_active_user_guard] = get_guard_active_user_use_case
 app.dependency_overrides[get_guardian_report_link] = get_resolve_report_link_use_case
+app.dependency_overrides[get_guardian_shop_profile] = get_shop_profile_use_case
+# 보호자 가드(core/guardian_guard)의 접근 확인은 guardian 이 구현한다.
+app.dependency_overrides[get_guardian_access_port] = get_resolve_guardian_access_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case

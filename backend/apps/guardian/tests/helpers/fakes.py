@@ -9,7 +9,9 @@ from guardian.domain.entities.guardian_link import GuardianLink
 from guardian.domain.errors import GuardianAlreadyLinkedError
 from hub.app.dtos.guardian import ReportLinkTarget
 from hub.app.ports.active_user_guard_port import ActiveUserGuardPort
+from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.ports.report_link_port import ReportLinkPort
+from hub.app.ports.shop_profile_port import ShopProfilePort
 
 
 class FakeLinks(GuardianLinkRepository):
@@ -100,3 +102,13 @@ class FakeClaimLimiter(ClaimLimiterPort):
         self.counts[user_id] = self.counts.get(user_id, 0) + 1
         self.journal.append(("count_claim", user_id))
         return self.counts[user_id] <= self.limit
+
+
+class FakeShops(ShopProfilePort):
+    """ShopProfilePort 스텁 — 매장 ID → 공개 정보."""
+
+    def __init__(self, shops: dict[int, ShopProfile] | None = None) -> None:
+        self.shops = dict(shops or {})
+
+    async def public_profile(self, shop_id):
+        return self.shops.get(shop_id)
