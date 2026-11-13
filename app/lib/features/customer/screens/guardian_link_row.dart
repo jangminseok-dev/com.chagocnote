@@ -99,11 +99,12 @@ class _GuardianLinkRowState extends ConsumerState<GuardianLinkRow> {
   Widget build(BuildContext context) {
     final shopId = ref.watch(selectedShopIdProvider);
     if (shopId == null) return const SizedBox.shrink();
-    final link = ref
-        .watch(
-          guardianLinkProvider((shopId: shopId, customerId: widget.customerId)),
-        )
-        .value;
+    final async = ref.watch(
+      guardianLinkProvider((shopId: shopId, customerId: widget.customerId)),
+    );
+    // 다시 읽기가 실패하면 앞서 읽은 값이 남아 있다(AsyncValue 는 이전 값을 들고 있는다).
+    // 낡은 "연결됨"을 보이지 않게 실패면 줄을 없앤다.
+    final link = async.hasError ? null : async.value;
     if (link == null || !link.linked) return const SizedBox.shrink();
 
     return Padding(

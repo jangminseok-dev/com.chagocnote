@@ -12,6 +12,7 @@
 import 'package:chagocnote/app.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/bridge/glass_setup.dart';
+import 'package:chagocnote/features/customer/state/customer_providers.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,8 @@ import 'package:integration_test/integration_test.dart';
 
 import 'flow_kit.dart';
 
+const shopId = int.fromEnvironment('SHOP');
+const customerId = int.fromEnvironment('CUSTOMER');
 const petId = int.fromEnvironment('PET');
 const month = int.fromEnvironment('MONTH');
 const day = int.fromEnvironment('DAY');
@@ -71,6 +74,10 @@ void main() {
 
     await step('G1', '사장 — 보호자 탭에 "보호자 계정 연결됨 · 이은 날"', () async {
       await openOwnerTab();
+      final link = await container
+          .read(customerApiProvider)
+          .guardianLink(shopId, customerId);
+      soft(link.linked, '서버에 이어져 있지 않다');
       await waitFor(linkedLine);
       await bring(linkedLine);
       await shot('G1-linked');
@@ -111,11 +118,11 @@ void main() {
       await pumpFor(const Duration(seconds: 3));
       await shot('G4-reopened');
       soft(anyLinkedLine.evaluate().isEmpty, '다시 열었더니 줄이 있다');
-      soft(
-        find.text(AppStrings.upcomingVisitsLabel).evaluate().isNotEmpty ||
-            btn(AppStrings.editOwner).evaluate().isNotEmpty,
-        '보호자 탭의 본문이 없다',
-      );
+      // 줄이 없는 것은 읽지 못했을 때도 같다 — 서버에 직접 물어 끊긴 것을 확인한다.
+      final link = await container
+          .read(customerApiProvider)
+          .guardianLink(shopId, customerId);
+      soft(!link.linked, '서버에는 아직 이어져 있다');
     });
 
     debugPrint('===== 결과 =====');

@@ -388,4 +388,41 @@ void main() {
     expect(find.text(_linkedText), findsOneWidget);
     expect(_count(setup, 'GET $_linkPath'), 1);
   });
+
+  testWidgets('끊은 뒤 다시 읽기가 실패하면 낡은 "연결됨" 줄을 남기지 않는다', (tester) async {
+    final server = _Server();
+    server.onDelete = () {
+      server.link = () => const FakeResponse(statusCode: 503, data: 'x');
+      return const FakeResponse(statusCode: 204);
+    };
+    final setup = await _openOwnerTab(tester, server);
+
+    await _openConfirm(tester);
+    await tester.tap(_button(AppStrings.endGuardianLink));
+    await tester.pumpAndSettle();
+
+    expect(_count(setup, 'DELETE $_linkPath'), 1);
+    expect(find.text('보호자 연결을 끊었어요.'), findsOneWidget);
+    expect(find.textContaining(AppStrings.guardianLinked), findsNothing);
+    expect(_more, findsNothing);
+    _expectOwnerTabIntact();
+  });
+
+  testWidgets('당겨서 새로고침한 연결 읽기가 실패하면 낡은 줄을 남기지 않고, 다시 되면 보인다', (tester) async {
+    final server = _Server();
+    await _openOwnerTab(tester, server);
+    expect(find.text(_linkedText), findsOneWidget);
+
+    server.link = () => const FakeResponse(statusCode: 503, data: 'x');
+    await tester.fling(find.text('콩이'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(find.textContaining(AppStrings.guardianLinked), findsNothing);
+    _expectOwnerTabIntact();
+
+    server.link = () =>
+        FakeResponse(statusCode: 200, data: guardianLinkJson());
+    await tester.fling(find.text('콩이'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text(_linkedText), findsOneWidget);
+  });
 }

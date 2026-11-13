@@ -55,4 +55,4 @@ link=$(call GET "$S/customers/$customer_id/guardian-link" "$owner_token")
 # 이은 날(매장 시간대)의 월·일 — 흐름이 화면의 글자와 견준다.
 linked_at=$(echo "$link" | field "['linked_at']")
 month=$((10#${linked_at:5:2})); day=$((10#${linked_at:8:2}))
-echo "--dart-define=SHOP=$shop_id --dart-define=PET=$pet --dart-define=MONTH=$month --dart-define=DAY=$day --dart-define=OWNER=gapp-owner-$STAMP --dart-define=STAFF=gapp-staff-$STAMP"
+echo "--dart-define=SHOP=$shop_id --dart-define=CUSTOMER=$customer_id --dart-define=PET=$pet --dart-define=MONTH=$month --dart-define=DAY=$day --dart-define=OWNER=gapp-owner-$STAMP --dart-define=STAFF=gapp-staff-$STAMP"
