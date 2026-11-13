@@ -94,11 +94,15 @@ services:
         required: false
     environment:
       API_BASE_URL: http://backend:8000
+      AUTH_BASE_URL: http://auth:9000
+      # 개발용 로그인(이름 한 칸). 운영에는 두지 않는다.
+      DEV_LOGIN: "1"
       NEXT_TELEMETRY_DISABLED: "1"
     ports:
       - "127.0.0.1:3010:3010"
     depends_on:
       - backend
+      - auth
     command: sh -c "corepack enable && pnpm install --frozen-lockfile --store-dir node_modules/.pnpm-store && pnpm exec next dev -p 3010 -H 0.0.0.0"
 
 volumes:

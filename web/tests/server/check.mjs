@@ -11,6 +11,16 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
 // 검사에만 쓰는 값이다. 실제 비밀값이 아니다.
 const WEB_SECRET = 'check-server-secret'
+const SESSION_SECRET = 'check-server-session-secret-0123456789'
+
+/** 웹 서버의 설정. 가짜 백엔드 하나가 API 와 인증을 함께 맡는다. */
+const webEnv = (backend) => ({
+  API_BASE_URL: backend,
+  REPORT_WEB_SECRET: WEB_SECRET,
+  AUTH_BASE_URL: backend,
+  WEB_SESSION_SECRET: SESSION_SECRET,
+  DEV_LOGIN: '1',
+})
 
 /** 앞머리로 시작하는 43글자 토큰. 가짜 백엔드가 앞머리로 응답을 고른다. */
 export const token = (prefix) => prefix.padEnd(43, 'A')
@@ -351,11 +361,11 @@ const checks = [
       assert.equal(res.status, 204)
     },
   },
-  ...['API_BASE_URL', 'REPORT_WEB_SECRET'].map((missing) => ({
+  ...['API_BASE_URL', 'REPORT_WEB_SECRET', 'AUTH_BASE_URL', 'WEB_SESSION_SECRET'].map((missing) => ({
     // 프로세스는 끝나지 않는다. 준비에 실패한 채로 모든 요청에 500 을 낸다.
     name: `${missing} 없이 띄우면 모든 요청이 500 이고 오류가 변수 이름을 말한다`,
     async run({ backend }) {
-      const env = { API_BASE_URL: backend, REPORT_WEB_SECRET: WEB_SECRET }
+      const env = webEnv(backend)
       delete env[missing]
       const port = await freePort()
       const child = startWeb(port, env, ['ignore', 'pipe', 'pipe'])
@@ -370,7 +380,7 @@ const checks = [
           assert.ok(!(await res.text()).includes(missing), `${path} 의 응답에 변수 이름이 있다`)
         }
         assert.match(log, new RegExp(`환경 변수 ${missing} 이 없다`))
-        assert.ok(!log.includes(WEB_SECRET), '기록에 비밀값이 있다')
+        assert.ok(!log.includes(WEB_SECRET) && !log.includes(SESSION_SECRET), '기록에 비밀값이 있다')
       } finally {
         await stop(child)
       }
@@ -384,14 +394,14 @@ const checks = [
       for (const value of [...USED_TOKENS, ...USED_TOKENS.map(decodeURIComponent)]) {
         assert.ok(!text.includes(value), '기록에 검사에 쓴 토큰이 있다')
       }
-      assert.ok(!text.includes(WEB_SECRET), '기록에 비밀값이 있다')
+      assert.ok(!text.includes(WEB_SECRET) && !text.includes(SESSION_SECRET), '기록에 비밀값이 있다')
     },
   },
 ]
 
-/** `next start` 를 띄운다. 설정 둘은 env 에 준 것만 있다(셸의 값은 넘기지 않는다). */
+/** `next start` 를 띄운다. 설정은 env 에 준 것만 있다(셸의 값은 넘기지 않는다). */
 function startWeb(port, env, stdio) {
-  const { API_BASE_URL, REPORT_WEB_SECRET, ...rest } = process.env
+  const { API_BASE_URL, REPORT_WEB_SECRET, AUTH_BASE_URL, WEB_SESSION_SECRET, DEV_LOGIN, ...rest } = process.env
   return spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {
     cwd: root,
     stdio,
@@ -444,7 +454,7 @@ async function main() {
 
   const children = [
     spawn(process.execPath, ['tests/server/fake-backend.mjs', String(backendPort)], { cwd: root, stdio: 'inherit' }),
-    startWeb(webPort, { API_BASE_URL: backend, REPORT_WEB_SECRET: WEB_SECRET }, ['ignore', 'pipe', 'pipe']),
+startWeb(webPort, webEnv(backend), ['ignore', 'pipe', 'pipe']),
   ]
   let webLog = ''
   children[1].stdout.on('data', (chunk) => (webLog += chunk))
