@@ -23,6 +23,8 @@
 
 ### 남는 것 — 알고 미룬다
 
+- **첫 방문은 "이 방문의 시작 시각 앞에 시작한 완료 방문이 없다"는 뜻이다**(설계의 문구는 "완료 방문이 하나도 없다"). 지난 채 남은 예약이나, 같은 날 뒤 시각의 예약을 먼저 끝낸 경우에는 "처음 오는 아이"가 계속 뜬다.
+- 최종 검토의 Minor(미룸): 통합 테스트의 아이 출생 연도가 고정값(2021)이라 2031년에 노령이 된다 · 통합 테스트·흐름 스크립트가 자정을 걸쳐 돌면 날짜가 어긋날 수 있다 · 호출 수 테스트의 단언 하나가 두 경우를 허용한다 · 익명화 PG 테스트가 다른 매장의 칸이 남았는지는 반려동물·고객 읽기로만 본다 · 동의 받은 날에 하한이 없다(아주 옛 날짜는 기한 지남일 뿐이다) · `detail` 은 스키마의 문 없이 도메인의 키가 그대로 나간다 · 적은 멤버·단 시각 칸은 쓰기만 하고 아직 읽지 않는다.
 - 전자 동의서(문안·서명·보호자에게 링크), 예방접종 증명, 예약금·위약금, 기준값을 매장이 바꾸기(설계 2절).
 - 주의 표시·동의의 이력이 없다 — 누가 언제 풀었는지 남지 않는다.
 - 방문 수정 화면에는 미리 보기가 없다(저장 뒤 상세에 보인다).
@@ -46,11 +48,11 @@
 
 - **`GET /visits/{visit_id}`** 에 `checks: [...]` — 예약됨·미용 중인 방문만, 그 밖은 `[]`. 기존 `no_show_count`(전 기간)는 그대로다.
 - **`GET /visits?date=`** 의 항목마다 `customer_check_count`·`pet_check_count`(지병은 세지 않는다). 가족 묶음(같은 `group_key`)에서는 `customer_check_count` 를 한 번만 더한다.
-- **`GET /visit-checks?customer_id=&pet_ids=&pet_ids=&date=`** → `{customer: [...], pets: [{pet_id, checks: [...]}]}`. `pet_ids` 는 같은 이름을 되풀이한다(0~10개, 없으면 보호자만의 예약). `pets` 는 준 순서대로이고 그 보호자의 아이가 아닌 것은 빠진다. 404 `CUSTOMER_NOT_FOUND`(없는·익명화한 고객), 422(11마리, 오늘 앞뒤 366일 밖의 날, 깨진 질의).
-- **`PUT /pets/{pet_id}/grooming-consent`** 본문 `{received_on: date|null}`(없거나 null 이면 오늘, 앞날은 422) · **`DELETE`** 같은 경로 → 둘 다 반려동물 상세(쓰기 응답의 모양 — 사진 없음). 404 `PET_NOT_FOUND`.
-- **`PUT /customers/{customer_id}/caution`** 본문 `{reason: str}`(앞뒤 공백을 뗀 뒤 1~100자, 아니면 422) · **`DELETE`** 같은 경로(없던 것을 풀어도 200) → 둘 다 고객 상세(쓰기 응답의 모양). 404 `CUSTOMER_NOT_FOUND`.
+- **`GET /visit-checks?customer_id=&pet_ids=&pet_ids=&date=`** → `{customer: [...], pets: [{pet_id, checks: [...]}]}`. `pet_ids` 는 같은 이름을 되풀이한다(0~10개, 없으면 보호자만의 예약). `pets` 는 준 순서대로이고 그 보호자의 아이가 아닌 것은 빠진다. 겹쳐 준 `pet_ids` 는 한 번으로 줄고, 무지개다리 아이는 `checks: []` 로 나온다. **미리 보기의 `no_show.count` 는 그 날의 끝까지, 상세·하루 목록은 그 방문의 시작 시각 앞까지 센다** — 같은 날 앞선 노쇼가 있으면 저장 뒤의 수와 다를 수 있다. 404 `CUSTOMER_NOT_FOUND`(없는·익명화한 고객), 422(11마리, 오늘 앞뒤 366일 밖의 날, 깨진 질의).
+- **`PUT /pets/{pet_id}/grooming-consent`** 본문 `{received_on: date|null}`(칸이 없거나 null 이면 오늘, 앞날은 422. **본문 자체는 있어야 한다 — 최소 `{}`**) · **`DELETE`** 같은 경로 → 둘 다 반려동물 상세(쓰기 응답의 모양 — 사진 없음). 404 `PET_NOT_FOUND`.
+- **`PUT /customers/{customer_id}/caution`** 본문 `{reason: str}`(앞뒤 공백을 뗀 뒤 1~100자, 한 줄 — 개행·탭 같은 제어 문자가 있으면 422) · **`DELETE`** 같은 경로(없던 것을 풀어도 200) → 둘 다 고객 상세(쓰기 응답의 모양). 404 `CUSTOMER_NOT_FOUND`.
 - 더해진 칸: 고객 상세 `customer.caution: {reason, until}|null`, **반려동물 상세 `caution: {reason, until}|null`**(보호자의 것)과 `pet.grooming_consent_on: date|null`, 고객 목록의 줄 `caution: bool`. 기한이 지난 주의는 `null`/`false` 다.
 
 ### 검증
 
-2026-11-14 — 단위 2354(기존 2231 + 새 123) · 통합 588(기존 577 + 새 11) · import-linter 6 kept · 라우트 표 94 → 99줄(늘어난 것은 `/caution` 둘·`/grooming-consent` 둘·`/visit-checks` 하나, 없어지거나 바뀐 줄 없음) · 로그인 없는 경로 목록 불변 · 개발 DB 에 0016 올림. `backend/scripts/check_visit_checks_flow.sh` 를 개발 스택(게이트웨이)에서 돌려 32줄 모두 통과했다. 변이 — 기준일을 오늘로, 자기 자신을 이력에 넣기, 기한 지난 주의 거르기 빼기, 지병을 수에 세기, 익명화가 주의를 남기기 — 각각 해당 테스트가 떨어지는 것을 확인했다.
+2026-11-14 — 단위 2359(기존 2231 + 새 128) · 통합 588(기존 577 + 새 11) · import-linter 6 kept · 라우트 표 94 → 99줄(늘어난 것은 `/caution` 둘·`/grooming-consent` 둘·`/visit-checks` 하나, 없어지거나 바뀐 줄 없음) · 로그인 없는 경로 목록 불변 · 개발 DB 에 0016 올림. `backend/scripts/check_visit_checks_flow.sh` 를 개발 스택(게이트웨이)에서 돌려 32줄 모두 통과했다. 변이 — 기준일을 오늘로, 자기 자신을 이력에 넣기, 기한 지난 주의 거르기 빼기, 지병을 수에 세기, 익명화가 주의를 남기기 — 각각 해당 테스트가 떨어지는 것을 확인했다. 최종 검토(Critical 없음)가 짚은 하나 — 주의 사유에 제어 문자 검증이 없어 NUL 은 500 이 되고 개행은 한 줄 문구를 깨뜨리는 것 — 는 테스트를 먼저 쓰고 고쳤다.

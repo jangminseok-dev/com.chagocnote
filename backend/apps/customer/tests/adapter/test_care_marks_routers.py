@@ -97,3 +97,12 @@ async def test_응답에_동의_받은_날과_주의_칸이_있다():
     assert pet["pet"]["grooming_consent_on"] is None and pet["caution"] is None
     customer = (await _call("caution", _Stub())).json()
     assert customer["customer"]["caution"] is None
+
+
+@pytest.mark.parametrize("reason", ["입질\u0000", "노쇼\n\n2번", "노쇼\t2번", "\u0007벨", "줄\r바꿈"])
+async def test_주의_사유의_제어_문자는_422_다(reason):
+    """NUL 은 DB 가 받지 못해 500 이 되고, 개행·탭은 한 줄 문구를 깨뜨린다 — 다른 글자 입력처럼 문 앞에서 막는다."""
+    stub = _Stub()
+    response = await _call("caution", stub, body={"reason": reason})
+    assert response.status_code == 422
+    assert stub.commands == []
