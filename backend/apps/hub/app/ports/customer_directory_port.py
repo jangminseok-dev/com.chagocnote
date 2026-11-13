@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
+from hub.app.dtos.care_facts import CareFacts
 from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import FamilyBriefs
@@ -49,6 +50,17 @@ class CustomerDirectoryPort(ABC):
         순서는 반려동물 이름 정확 일치 → 보호자 이름 정확 일치 → 전화(8자리 이상 포함 / 4자리 뒷자리) → 부분 일치,
         같은 순위면 고객 ID 오름차순. 익명화한 고객은 후보가 아니고, 무지개다리를 건넌 아이는 pets 에서 뺀다.
         낱말은 저장하지도 로그에 남기지도 않는다(설계 10절 V9).
+        """
+
+    @abstractmethod
+    async def care_facts(
+        self, ctx: ShopContext, customer_ids: tuple[int, ...], pet_ids: tuple[int, ...], today: date
+    ) -> CareFacts:
+        """예약 앞에서 확인할 것의 재료(③-B) — 고객의 살아 있는 주의 표시([today] 기준), 아이의 나이·지병·
+        미용 동의·무지개다리. 잠그지 않는다. 고객이 몇이든 읽는 횟수가 같다.
+
+        [pet_ids] 의 아이는 그 보호자가 [customer_ids] 에 있어야 나온다. 익명화한 고객과 그 아이, 다른 매장의
+        것은 빠진다(briefs 와 달리 틀도 주지 않는다). 주의 사유와 지병 메모는 로그에 남기지 않는다.
         """
 
     @abstractmethod

@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import replace
 from decimal import Decimal
 
+from hub.app.dtos.care_facts import CareFacts, PetCareFact
 from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.media_urls import MediaUrls
@@ -37,6 +38,7 @@ from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_check_repository import VisitCheckRepository
 from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
@@ -169,12 +171,32 @@ class FakeDirectory(CustomerDirectoryPort):
         self.pet_names: dict[int, str | None] = {}   # 없는 아이는 "아이{ID}". 익명화한 가족이면 None 을 넣는다
         self.candidates: list = []
         self.contacts: dict[int, CustomerContact] = {}   # family() 가 기본값을 넣는다. 익명화를 흉내 내려면 뺀다
+        self.cautions: dict = {}     # 고객 ID → CautionFact (확인할 것)
+        self.pet_facts: dict = {}    # 반려동물 ID → PetCareFact. 없으면 나이·지병·동의가 없는 아이다
+        self.care_calls: list = []   # care_facts 가 받은 (고객 ID 들, 반려동물 ID 들, 오늘)
 
     def family(self, customer_id=1, pets=(101,), shop_id=1, name="김민지", passed=()) -> None:
         self.families[customer_id] = (shop_id, {p: p in passed for p in pets})
         self.names[customer_id] = name
         self.contacts[customer_id] = CustomerContact(customer_id=customer_id, name=name, phone="01012345678",
                                                      marketing_consent=True)
+
+    async def care_facts(self, ctx, customer_ids, pet_ids, today):
+        self.care_calls.append((tuple(customer_ids), tuple(pet_ids), today))
+        known = frozenset(c for c in customer_ids if self.families.get(c, (None,))[0] == ctx.shop_id)
+        pets = {}
+        for c in known:
+            for p, passed in self.families[c][1].items():
+                if p in pet_ids:
+                    pets[p] = self.pet_facts.get(p) or PetCareFact(
+                        pet_id=p, customer_id=c, birth_date=None, birth_year=None, conditions=(),
+                        consent_on=None, passed_away=passed,
+                    )
+        return CareFacts(
+            known_customers=known,
+            cautions={c: fact for c, fact in self.cautions.items() if c in known},
+            pets=pets,
+        )
 
     async def lock_family(self, ctx, customer_id, pet_ids):
         """실제 구현(customer)과 같은 허브 오류를 같은 조건에서 던진다 — 포트 계약이 곧 스텁의 계약이다."""
@@ -708,3 +730,29 @@ class FakeSalesRepository(SalesRepository):
         self.calls.append("due_candidates")
         self.due_args = (today, since)
         return list(self.due)
+
+
+class FakeChecks(VisitCheckRepository):
+    """확인할 것의 방문 쪽 사실 스텁 — 완료 방문(반려동물 ID → 시작 시각들)과 노쇼(고객 ID → 시작 시각들).
+
+    실제 저장소와 같은 계약으로 답하고, 메서드마다 받은 물음을 calls 에 남긴다(질의 수를 고정하는 테스트).
+    """
+
+    def __init__(self) -> None:
+        self.completed: dict[int, list] = {}
+        self.no_show_starts: dict[int, list] = {}
+        self.calls: list[tuple[str, int]] = []
+
+    async def last_completed(self, ctx, asks):
+        self.calls.append(("last_completed", len(asks)))
+        return {
+            ask.key: max((s for s in self.completed.get(ask.pet_id, ()) if s < ask.before), default=None)
+            for ask in asks
+        }
+
+    async def no_shows(self, ctx, asks):
+        self.calls.append(("no_shows", len(asks)))
+        return {
+            ask.key: sum(1 for s in self.no_show_starts.get(ask.customer_id, ()) if ask.since <= s < ask.until)
+            for ask in asks
+        }
