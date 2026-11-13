@@ -256,7 +256,7 @@ class _SalesBody extends ConsumerWidget {
     // 이어지는 화면에서 금액을 적거나 예약을 잡았을 수 있다 — 돌아오면 요약을 다시 읽는다.
     Future<void> open(String path) async {
       await context.push(path);
-      ref.invalidate(salesSummaryProvider);
+      if (context.mounted) ref.invalidate(salesSummaryProvider);
     }
 
     return ListView(
@@ -368,7 +368,7 @@ class _SalesBody extends ConsumerWidget {
           ),
         if (!empty)
           Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.lg),
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
             child: Align(
               alignment: Alignment.centerLeft,
               // 공유 시트는 누른 버튼 자리에 붙는다(아이패드의 말풍선) — 버튼의 사각형을 넘긴다.
@@ -376,7 +376,7 @@ class _SalesBody extends ConsumerWidget {
                 builder: (button) => Pressable(
                   minSize: 0,
                   onTap: () => _share(button, ref),
-                  child: Text(AppStrings.salesShare, style: salesLinkStyle),
+                  child: SalesTapArea(child: Text(AppStrings.salesShare, style: salesLinkStyle)),
                 ),
               ),
             ),
@@ -416,8 +416,7 @@ class _LinkLine extends StatelessWidget {
       child: Pressable(
         minSize: 0,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+        child: SalesTapArea(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

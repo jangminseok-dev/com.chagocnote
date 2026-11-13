@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/features/sales/api/sales_models.dart';
 import 'package:chagocnote/features/sales/state/sales_paged.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_test_app.dart';
@@ -157,5 +158,66 @@ void main() {
     final state = setup.container.read(salesVisitsProvider(_noShow)).value!;
     expect(state.items.map((i) => i.visitId), [20]);
     expect(state.nextCursor, 'c2');
+  });
+
+  test('다시 읽기는 불러온 만큼을 처음부터 읽어 갈아 끼운다 — 이어 읽은 줄이 줄지 않는다', () async {
+    var round = 1;
+    final setup = CustomerTestSetup((options, body) {
+      final cursor = options.queryParameters['cursor'];
+      // 두 번째 읽기에서는 9 번 방문이 빠졌다(상세에서 금액을 적었다).
+      if (round == 1) {
+        return FakeResponse(
+          statusCode: 200,
+          data: cursor == null
+              ? salesPageJson([salesVisitJson(9), salesVisitJson(8)], nextCursor: 'a')
+              : salesPageJson([salesVisitJson(7), salesVisitJson(6)], nextCursor: 'b'),
+        );
+      }
+      return FakeResponse(
+        statusCode: 200,
+        data: cursor == null
+            ? salesPageJson([salesVisitJson(8), salesVisitJson(7)], nextCursor: 'x')
+            : salesPageJson([salesVisitJson(6), salesVisitJson(5)], nextCursor: 'y'),
+      );
+    });
+    addTearDown(setup.container.dispose);
+    setup.container.listen(salesVisitsProvider(_noShow), (_, _) {});
+    await setup.container.read(salesVisitsProvider(_noShow).future);
+    final notifier = setup.container.read(salesVisitsProvider(_noShow).notifier);
+    await notifier.loadMore();
+    expect(setup.container.read(salesVisitsProvider(_noShow)).value!.items, hasLength(4));
+
+    round = 2;
+    final reloading = notifier.reload();
+    expect(
+      setup.container.read(salesVisitsProvider(_noShow)).isLoading,
+      isFalse,
+      reason: '읽는 동안에도 보이던 줄이 그대로 있다',
+    );
+    await reloading;
+
+    final state = setup.container.read(salesVisitsProvider(_noShow)).value!;
+    expect(state.items.map((i) => i.visitId), [8, 7, 6, 5]);
+    expect(state.nextCursor, 'y');
+    expect(setup.adapter.requests.map((r) => r.queryParameters['cursor']), [null, 'a', null, 'x']);
+  });
+
+  test('다시 읽기가 실패하면 보이던 목록이 그대로다', () async {
+    var fail = false;
+    final setup = CustomerTestSetup((options, body) {
+      if (fail) return const FakeResponse(statusCode: 503, data: {});
+      return FakeResponse(statusCode: 200, data: salesPageJson([salesVisitJson(9)], nextCursor: 'a'));
+    });
+    addTearDown(setup.container.dispose);
+    setup.container.listen(salesVisitsProvider(_noShow), (_, _) {});
+    await setup.container.read(salesVisitsProvider(_noShow).future);
+
+    fail = true;
+    await setup.container.read(salesVisitsProvider(_noShow).notifier).reload();
+
+    final value = setup.container.read(salesVisitsProvider(_noShow));
+    expect(value.hasError, isFalse);
+    expect(value.value!.items.map((i) => i.visitId), [9]);
+    expect(value.value!.nextCursor, 'a');
   });
 }

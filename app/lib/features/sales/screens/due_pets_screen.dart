@@ -38,7 +38,7 @@ class DuePetsScreen extends ConsumerWidget {
           // 상세에서 예약을 잡으면 이 목록에서 빠진다 — 돌아오면 다시 읽는다.
           onTap: () async {
             await context.push('/pets/${item.pet.petId}');
-            ref.invalidate(provider);
+            if (context.mounted) await ref.read(provider.notifier).reload();
           },
           showPhoto: true,
           photo: item.pet.photoUrl == null ? null : images.of(item.pet.photoUrl!),

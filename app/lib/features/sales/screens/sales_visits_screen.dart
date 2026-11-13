@@ -49,10 +49,10 @@ class SalesVisitsScreen extends ConsumerWidget {
         final amount = item.amount;
         return SalesListRow(
           semanticLabel: AppStrings.salesVisitRowLabel(pet?.name ?? '', date).trim(),
-          // 상세에서 금액을 적거나 상태를 되돌렸을 수 있다 — 돌아오면 다시 읽는다.
+          // 상세에서 금액을 적거나 상태를 되돌렸을 수 있다 — 돌아오면 불러온 만큼을 다시 읽는다.
           onTap: () async {
             await context.push('/visits/${item.visitId}');
-            ref.invalidate(provider);
+            if (context.mounted) await ref.read(provider.notifier).reload();
           },
           showPhoto: pet != null,
           photo: pet?.photoUrl == null ? null : images.of(pet!.photoUrl!),

@@ -67,7 +67,10 @@ class SalesHero extends StatelessWidget {
                 ),
                 const Padding(
                   padding: EdgeInsets.only(left: AppSpacing.xs, bottom: 6),
-                  child: Text(AppStrings.salesWonUnit, style: AppTypography.body),
+                  child: Text(
+                    AppStrings.salesWonUnit,
+                    style: AppTypography.body,
+                  ),
                 ),
               ],
             ),
@@ -82,36 +85,47 @@ class SalesHero extends StatelessWidget {
           ],
         ],
         if (goal != null) ...[
-          const SizedBox(height: AppSpacing.md),
           Pressable(
             key: const Key('sales-goal'),
             minSize: 0,
             semanticLabel: goal,
             onTap: onGoal,
             child: ExcludeSemantics(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(goal, style: AppTypography.caption),
-                      if (onGoal != null)
-                        const Icon(Icons.chevron_right, size: 14, color: AppColors.secondary),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  _GoalLine(progress: goalProgress(summary)),
-                ],
+              // 줄은 가늘어도 누름 영역의 높이는 44 다.
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 44),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(goal, style: AppTypography.caption),
+                        ),
+                        if (onGoal != null)
+                          const Icon(
+                            Icons.chevron_right,
+                            size: 14,
+                            color: AppColors.secondary,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    _GoalLine(progress: goalProgress(summary)),
+                  ],
+                ),
               ),
             ),
           ),
         ] else if (onGoal != null) ...[
-          const SizedBox(height: AppSpacing.md),
           Pressable(
             key: const Key('sales-goal'),
             minSize: 0,
             onTap: onGoal,
-            child: Text(AppStrings.salesSetGoal, style: salesLinkStyle),
+            child: SalesTapArea(
+              child: Text(AppStrings.salesSetGoal, style: salesLinkStyle),
+            ),
           ),
         ],
       ],
@@ -161,7 +175,10 @@ class _GoalLine extends StatelessWidget {
           const Positioned.fill(child: ColoredBox(color: AppColors.line)),
           FractionallySizedBox(
             widthFactor: progress,
-            child: const ColoredBox(color: AppColors.ink, child: SizedBox.expand()),
+            child: const ColoredBox(
+              color: AppColors.ink,
+              child: SizedBox.expand(),
+            ),
           ),
         ],
       ),

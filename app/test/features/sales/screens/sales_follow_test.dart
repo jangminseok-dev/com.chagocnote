@@ -8,6 +8,7 @@ import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_back_button.dart';
+import 'package:chagocnote/design/widgets/pressable.dart';
 import 'package:chagocnote/features/sales/screens/sales_tab.dart';
 import 'package:chagocnote/features/visit/screens/register_visit_screen.dart';
 import 'package:chagocnote/features/visit/state/calendar_selection.dart';
@@ -639,5 +640,58 @@ void main() {
     await w.push(tester, '/sales/due-pets');
 
     await expectLater(find.byKey(ScreenKeys.duePets), matchesGoldenFile('goldens/due_pets.png'));
+  });
+
+  testWidgets('[더 보기]로 이어 읽은 뒤 방문에 다녀와도 읽은 줄이 그대로다', (tester) async {
+    final w = _World(
+      visits: (o) => o.queryParameters['cursor'] == null
+          ? _ok(salesPageJson([salesVisitJson(9, pet: petCardJson(102, '코코'))], nextCursor: 'c1'))
+          : _ok(salesPageJson([salesVisitJson(8, pet: petCardJson(101, '보리'))])),
+    );
+    await w.open(tester);
+    await w.push(tester, '/sales/visits?span=month&anchor=2026-11-14&filter=no_show');
+    await tester.tap(find.text(AppStrings.loadMore));
+    await settle(tester);
+    expect(find.text('보리'), findsOneWidget);
+
+    await tester.tap(find.text('보리'));
+    await settle(tester);
+    await tester.tap(find.byType(AppBackButton));
+    await settle(tester);
+
+    expect(find.byKey(ScreenKeys.salesVisits), findsOneWidget);
+    expect(find.text('코코'), findsOneWidget);
+    expect(find.text('보리'), findsOneWidget, reason: '둘째 쪽의 줄이 사라지지 않는다');
+    expect(w.visitQueries.map((q) => q['cursor']), [null, 'c1', null, 'c1']);
+  });
+
+  testWidgets('글자뿐인 누를 것도 누름 영역의 높이는 44 이상이다', (tester) async {
+    final w = _World(
+      summary: (o) => salesSummaryJson(
+        menus: [
+          for (var i = 1; i <= 7; i++)
+            {'menu_id': i, 'name': '메뉴$i', 'amount': 10000 * (8 - i), 'count': 1, 'pet': null},
+        ],
+      ),
+    );
+    await w.open(tester);
+
+    double heightOf(Finder text) =>
+        tester.getSize(find.ancestor(of: text, matching: find.byType(Pressable)).first).height;
+
+    for (final label in [
+      AppStrings.salesSetGoal,
+      AppStrings.salesShowAllMenus,
+      AppStrings.salesShare,
+      '다시 올 때가 지난 아이 7마리',
+      '금액을 적지 않은 완료 방문 3건',
+    ]) {
+      expect(heightOf(find.text(label)), greaterThanOrEqualTo(44), reason: label);
+    }
+
+    w.goal = 5000000;
+    await tester.drag(find.byKey(const Key('sales-revenue')), const Offset(0, 400));
+    await settle(tester);
+    expect(tester.getSize(find.byKey(const Key('sales-goal'))).height, greaterThanOrEqualTo(44), reason: '목표 줄');
   });
 }

@@ -171,8 +171,8 @@ class _SalesMenusState extends State<SalesMenus> {
             minSize: 0,
             onTap: () => setState(() => _all = true),
             child: Padding(
-              padding: const EdgeInsets.only(top: AppSpacing.xs, left: 26 + AppSpacing.sm),
-              child: Text(AppStrings.salesShowAllMenus, style: salesLinkStyle),
+              padding: const EdgeInsets.only(left: 26 + AppSpacing.sm),
+              child: SalesTapArea(child: Text(AppStrings.salesShowAllMenus, style: salesLinkStyle)),
             ),
           ),
       ],
@@ -215,6 +215,21 @@ class _SalesMenusState extends State<SalesMenus> {
       semanticLabel: AppStrings.salesMenuRowLabel(menu.name),
       onTap: () => widget.onMenu(menu),
       child: ExcludeSemantics(child: row),
+    );
+  }
+}
+
+/// 글자뿐인 누를 것의 누름 영역 — 글자는 작아도 손가락이 닿는 높이는 44 다. 폭은 내용만큼이고 왼쪽에 붙는다.
+class SalesTapArea extends StatelessWidget {
+  const SalesTapArea({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Align(alignment: Alignment.centerLeft, widthFactor: 1, heightFactor: 1, child: child),
     );
   }
 }

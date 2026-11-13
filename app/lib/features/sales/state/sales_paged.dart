@@ -62,6 +62,32 @@ abstract class SalesPagedController<T> extends AsyncNotifier<SalesPagedState<T>>
       );
     }
   }
+
+  /// 지금까지 불러온 만큼을 처음부터 다시 읽어 갈아 끼운다 — 상세에 다녀온 뒤에 쓴다.
+  ///
+  /// 무효화(build 를 다시 돌리기)와 달리 [더 보기]로 이어 읽은 줄이 첫 쪽으로 줄지 않고, 읽는 동안에도
+  /// 보이던 줄이 그대로 있다. 실패하면 보이던 목록을 둔다(당겨서 새로고침으로 다시 읽을 수 있다).
+  Future<void> reload() async {
+    final current = state.value;
+    if (state.isLoading || current == null || current.loadingMore) return;
+    final generation = _generation;
+    try {
+      final items = <T>[];
+      String? cursor;
+      do {
+        final at = cursor;
+        final page = await runShopScoped(ref, () => fetch(at));
+        if (!ref.mounted || generation != _generation) return;
+        items.addAll(page.items);
+        cursor = page.nextCursor;
+      } while (cursor != null && items.length < current.items.length);
+      // 읽는 사이 [더 보기]가 줄을 붙였으면 그쪽이 더 새롭다 — 덮지 않는다.
+      if (state.value != current) return;
+      state = AsyncData(SalesPagedState(items: items, nextCursor: cursor));
+    } catch (_) {
+      // 보이던 목록을 그대로 둔다.
+    }
+  }
 }
 
 /// 방문 목록의 조건. [anchor]는 `2026-11-14` 꼴의 글자다.
