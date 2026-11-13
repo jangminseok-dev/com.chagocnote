@@ -92,11 +92,21 @@ String _previousName(SalesSummary s, CompareWindow previous) {
 }
 
 /// 앞 기간과 견준 문장. 견줄 것이 없거나 앞 기간의 매출이 0 이면 없다.
-String? compareSentence(SalesSummary s) {
+/// [today]를 주면 오늘의 일 보기는 "어제보다"로 말한다.
+String? compareSentence(SalesSummary s, {DateTime? today}) {
   final previous = s.previous;
   if (previous == null || previous.revenue == 0) return null;
-  return _versus(_previousName(s, previous), s.revenue, previous.revenue);
+  final name = s.span == SalesSpan.day && today != null && _sameDay(s.start, today)
+      ? '어제'
+      : _previousName(s, previous);
+  return _versus(name, s.revenue, previous.revenue);
 }
+
+bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// 목표를 정하고 보이는 기간인가 — 이번 달의 월 보기뿐이다(설계 3.5).
+bool isGoalPeriod(SalesSummary s, DateTime today) =>
+    s.span == SalesSpan.month && s.start.year == today.year && s.start.month == today.month;
 
 /// 작년 같은 때와 견준 문장.
 String? yearAgoSentence(SalesSummary s) {
@@ -154,3 +164,111 @@ List<double> barRatios(List<int> values) {
   }
   return [for (final v in values) max == 0 || v <= 0 ? 0.0 : v / max];
 }
+
+/// 받을 수 있는 가장 큰 목표(기록의 총액과 같은 범위).
+const maxGoalAmount = 100000000;
+
+/// 목표 칸의 글자를 금액으로. 숫자만 읽는다(쉼표·띄어쓰기·'원'은 버린다). 빈 칸과 0 은 null(목표 없음),
+/// 한도를 넘으면 [FormatException].
+int? parseGoal(String text) {
+  final digits = text.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return null;
+  final amount = digits.length > 12 ? maxGoalAmount + 1 : int.parse(digits);
+  if (amount > maxGoalAmount) throw const FormatException('목표가 한도를 넘는다');
+  return amount == 0 ? null : amount;
+}
+
+/// 마지막으로 다녀간 지 얼마나 됐나 — 이레가 안 됐으면 `3일 전`, 그 밖은 `9주 전`(버림).
+String sinceLabel(DateTime lastVisit, DateTime today) {
+  final days = DateTime(today.year, today.month, today.day)
+      .difference(DateTime(lastVisit.year, lastVisit.month, lastVisit.day))
+      .inDays;
+  if (days <= 0) return AppStrings.salesToday;
+  return days < 7 ? AppStrings.salesDaysAgo(days) : AppStrings.salesWeeksAgo(days ~/ 7);
+}
+
+/// 방문 목록 화면의 제목.
+String visitsTitle(SalesVisitFilter filter, {String? menuName}) => switch (filter) {
+  SalesVisitFilter.unrecorded => AppStrings.salesVisitsUnrecorded,
+  SalesVisitFilter.noShow => AppStrings.salesVisitsNoShow,
+  SalesVisitFilter.canceled => AppStrings.salesVisitsCanceled,
+  SalesVisitFilter.menu =>
+    menuName == null || menuName.isEmpty
+        ? AppStrings.salesVisitsMenu
+        : AppStrings.salesVisitsOfMenu(menuName),
+};
+
+/// 공유 글의 기간 — `2026년 11월 (14일까지)`.
+String _sharePeriod(SalesSummary s) {
+  final ongoing = s.elapsedEnd != null && s.elapsedEnd!.isBefore(s.end);
+  final reached = s.elapsedEnd;
+  return switch (s.span) {
+    SalesSpan.day => '${s.start.year}년 ${s.start.month}월 ${s.start.day}일',
+    SalesSpan.week => s.start.month == s.end.month
+        ? '${s.start.year}년 ${s.start.month}월 ${s.start.day}일~${s.end.day}일'
+        : '${s.start.year}년 ${s.start.month}월 ${s.start.day}일~${s.end.month}월 ${s.end.day}일',
+    SalesSpan.month =>
+      '${s.start.year}년 ${s.start.month}월${ongoing ? ' (${reached!.day}일까지)' : ''}',
+    SalesSpan.year =>
+      '${s.start.year}년${ongoing ? ' (${reached!.month}월 ${reached.day}일까지)' : ''}',
+  };
+}
+
+/// 요약을 글로(설계 ⑧ 3.4). 기간·매출·방문 수·결제 수단별·메뉴별만 담는다 —
+/// 아이와 보호자의 이름·번호는 넣지 않는다.
+String shareText(String shopName, SalesSummary s) => [
+  '$shopName · ${_sharePeriod(s)}',
+  '매출 ${won(s.revenue)}원 · 방문 ${s.visitCount}건',
+  if (s.payments.isNotEmpty)
+    [for (final p in s.payments) '${paymentLabel(p.method)} ${won(p.amount)}원'].join(' / '),
+  if (s.menus.isNotEmpty)
+    [
+      for (final m in s.menus)
+        m.menuId == null ? '${m.name} ${won(m.amount)}원' : '${m.name} ${won(m.amount)}원(${m.count}건)',
+    ].join(' · '),
+].join('\n');
+
+/// 방문 목록 화면의 조건.
+typedef SalesVisitsQuery = ({SalesSpan span, DateTime anchor, SalesVisitFilter filter, int? menuId});
+
+/// 주소의 질의를 조건으로 읽는다. 깨진 값은 기본값이다 — 기간은 월, 날은 [today], 종류는 금액을 적지 않은 방문.
+/// 메뉴의 방문인데 메뉴 ID 가 없으면 그것도 기본 종류로 읽는다(서버가 422 로 거절한다).
+SalesVisitsQuery visitsQueryOf(Map<String, String> query, DateTime today) {
+  var span = SalesSpan.month;
+  for (final candidate in SalesSpan.values) {
+    if (candidate.name == query['span']) span = candidate;
+  }
+  final day = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(query['anchor'] ?? '');
+  var anchor = DateTime(today.year, today.month, today.day);
+  if (day != null) {
+    final y = int.parse(day[1]!), m = int.parse(day[2]!), d = int.parse(day[3]!);
+    final parsed = DateTime(y, m, d);
+    // 2026-02-31 같은 없는 날은 다음 달로 넘어간다 — 그대로 읽지 않는다.
+    if (parsed.year == y && parsed.month == m && parsed.day == d) anchor = parsed;
+  }
+  var filter = SalesVisitFilter.of(query['filter']) ?? SalesVisitFilter.unrecorded;
+  final menuId = int.tryParse(query['menu_id'] ?? '');
+  if (filter == SalesVisitFilter.menu && menuId == null) filter = SalesVisitFilter.unrecorded;
+  return (
+    span: span,
+    anchor: anchor,
+    filter: filter,
+    menuId: filter == SalesVisitFilter.menu ? menuId : null,
+  );
+}
+
+/// 방문 목록 화면의 주소. 그 요약의 기간이 그대로 간다 — 지난 달에서 누르면 지난 달의 목록이다.
+String visitsPath(SalesSummary s, SalesVisitFilter filter, {int? menuId, String? menuName}) => Uri(
+  path: '/sales/visits',
+  queryParameters: {
+    'span': s.span.name,
+    'anchor': isoDay(s.start),
+    'filter': filter.wire,
+    if (menuId != null) 'menu_id': '$menuId',
+    'menu': ?menuName,
+  },
+).toString();
+
+/// 목록 한 줄의 날짜 — `11월 14일 토`.
+String visitDateLabel(DateTime date) =>
+    '${date.month}월 ${date.day}일 ${AppStrings.weekdaysShort[date.weekday - 1]}';

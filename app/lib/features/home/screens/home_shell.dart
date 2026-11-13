@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/screen_keys.dart';
+import '../../../core/time/today_provider.dart';
 import '../../../design/app_theme.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/widgets/app_fab.dart';
@@ -78,17 +79,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         label: AppStrings.tabSales,
       ),
       body: const SalesTab(),
-      // 매출을 보다가도 + 는 예약 등록이다(캘린더와 같다).
+      // 매출을 보다가도 + 는 예약 등록이다. 캘린더에서 고른 날이 아니라 오늘로 연다 — 매출 탭에는 고른 날이 없다.
       fab: _TabFab(
         semanticLabel: AppStrings.addReservation,
-        onPressed: _reserve,
+        onPressed: () => _reserve(ref.read(todayProvider)),
       ),
     ),
   ];
 
   /// 고른 날로 예약 등록을 연다. 저장하면 저장한 날을 고른다.
-  Future<void> _reserve() async {
-    final selected = ref.read(selectedDateProvider);
+  Future<void> _reserve([DateTime? day]) async {
+    final DateTime selected = day ?? ref.read(selectedDateProvider);
     final saved = await context.push<DateTime>(
       '/visits/new?date=${isoDay(selected)}',
     );

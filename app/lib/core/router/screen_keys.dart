@@ -31,4 +31,6 @@ class ScreenKeys {
   static const reportSettings = Key('screen_report_settings');
   static const notificationSettings = Key('screen_notification_settings');
   static const day = Key('screen_day');
+  static const salesVisits = Key('screen_sales_visits');
+  static const duePets = Key('screen_due_pets');
 }

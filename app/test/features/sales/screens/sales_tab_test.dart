@@ -5,7 +5,6 @@ import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/features/sales/screens/sales_sections.dart';
-import 'package:chagocnote/features/sales/screens/sales_tab.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -264,7 +263,7 @@ void main() {
     await settle(tester);
 
     expect(find.text('11월 14일 토요일'), findsOneWidget);
-    expect(find.text('그 전날보다 7만 원 많아요.'), findsOneWidget);
+    expect(find.text('어제보다 7만 원 많아요.'), findsOneWidget);
     expect(find.byKey(const Key('sales-chart')), findsNothing);
     expect(find.byKey(const Key('sales-day-card')), findsNothing);
   });
@@ -446,19 +445,6 @@ void main() {
     await settle(tester);
 
     expect(w.asked, [('month', '2026-11-14'), ('month', '2026-11-14')]);
-  });
-
-  testWidgets('이번에는 메뉴·노쇼·다시 올 때가 지난 아이 줄에 누를 것이 없다', (tester) async {
-    final w = _World();
-    await w.open(tester);
-
-    // 화살표(›)는 고른 날 카드와 기간 이동에만 있다.
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
-    await tester.tap(find.text('전체 미용'), warnIfMissed: false);
-    await tester.tap(find.text('다시 올 때가 지난 아이 7마리'), warnIfMissed: false);
-    await settle(tester);
-    expect(find.byType(SalesTab), findsOneWidget);
-    expect(find.byKey(ScreenKeys.home), findsOneWidget);
   });
 
   testWidgets('매출 탭 골든 — 월 보기 위', (tester) async {

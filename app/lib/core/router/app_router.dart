@@ -15,6 +15,8 @@ import '../../features/customer/screens/pet_form_screen.dart';
 import '../../features/customer/screens/customer_edit_screen.dart';
 import '../../features/customer/screens/register_customer_screen.dart';
 import '../../features/home/screens/home_shell.dart';
+import '../../features/sales/screens/due_pets_screen.dart';
+import '../../features/sales/screens/sales_visits_screen.dart';
 import '../../features/shop/screens/members_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
@@ -175,6 +177,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             prefill: extra is VisitPrefill ? extra : null,
           );
         },
+      ),
+      GoRoute(
+        path: '/sales/visits',
+        builder: (context, state) => SalesVisitsScreen(query: state.uri.queryParameters),
+      ),
+      GoRoute(
+        path: '/sales/due-pets',
+        builder: (context, state) => const DuePetsScreen(),
       ),
       GoRoute(
         path: '/visits/draft',

@@ -224,4 +224,203 @@ void main() {
     expect(barRatios([]), isEmpty);
     expect(barRatios([-10, 20]), [0, 1]);
   });
+
+  group('목표 칸 읽기', () {
+    test('숫자만 읽고 빈 칸과 0 은 목표 없음이다', () {
+      expect(parseGoal('5000000'), 5000000);
+      expect(parseGoal(' 5,000,000원 '), 5000000);
+      expect(parseGoal(''), isNull);
+      expect(parseGoal('   '), isNull);
+      expect(parseGoal('0'), isNull);
+      expect(parseGoal('000'), isNull);
+      expect(parseGoal('원'), isNull);
+      expect(parseGoal('1'), 1);
+    });
+
+    test('1억까지 받고 그 위는 막는다', () {
+      expect(parseGoal('100000000'), 100000000);
+      expect(() => parseGoal('100000001'), throwsFormatException);
+      expect(() => parseGoal('99999999999999999999999999'), throwsFormatException);
+    });
+  });
+
+  test('마지막으로 다녀간 지 — 이레 안은 날, 그 밖은 주(버림)', () {
+    final today = DateTime(2026, 11, 14, 15, 30);
+    expect(sinceLabel(DateTime(2026, 11, 14), today), '오늘');
+    expect(sinceLabel(DateTime(2026, 11, 13), today), '1일 전');
+    expect(sinceLabel(DateTime(2026, 11, 8), today), '6일 전');
+    expect(sinceLabel(DateTime(2026, 11, 7), today), '1주 전');
+    expect(sinceLabel(DateTime(2026, 9, 18), today), '8주 전'); // 57일
+    expect(sinceLabel(DateTime(2026, 9, 12), today), '9주 전'); // 63일
+    expect(sinceLabel(DateTime(2025, 11, 14), today), '52주 전');
+    expect(sinceLabel(DateTime(2026, 11, 20), today), '오늘', reason: '앞날이 와도 죽지 않는다');
+  });
+
+  test('방문 목록의 제목', () {
+    expect(visitsTitle(SalesVisitFilter.unrecorded), '금액을 적지 않은 방문');
+    expect(visitsTitle(SalesVisitFilter.noShow), '노쇼한 방문');
+    expect(visitsTitle(SalesVisitFilter.canceled), '취소한 방문');
+    expect(visitsTitle(SalesVisitFilter.menu, menuName: '전체 미용'), '전체 미용 한 방문');
+    expect(visitsTitle(SalesVisitFilter.menu), '메뉴의 방문');
+    expect(visitsTitle(SalesVisitFilter.menu, menuName: ''), '메뉴의 방문');
+  });
+
+  group('요약 공유 글', () {
+    test('진행 중인 달 — 설계 3.4 의 네 줄', () {
+      expect(
+        shareText('Hiss Haus', _s()),
+        'Hiss Haus · 2026년 11월 (14일까지)\n'
+        '매출 3,250,000원 · 방문 48건\n'
+        '카드 2,400,000원 / 현금 550,000원 / 계좌 300,000원\n'
+        '전체 미용 2,100,000원(30건) · 목욕 750,000원(15건) · 스파 400,000원(8건)',
+      );
+    });
+
+    test('아이의 이름이 한 글자도 없다', () {
+      final text = shareText('Hiss Haus', _s());
+      for (final name in ['보리', '코코', '두부', '몽이']) {
+        expect(text.contains(name), isFalse, reason: name);
+      }
+    });
+
+    test('기간의 머리 — 지난 달, 일, 주, 달을 걸친 주, 연', () {
+      String head(SalesSummary s) => shareText('매장', s).split('\n').first;
+      expect(
+        head(_s(start: '2026-10-01', end: '2026-10-31', elapsedEnd: '2026-10-31')),
+        '매장 · 2026년 10월',
+      );
+      expect(
+        head(_s(asked: SalesSpan.day, span: 'day', start: '2026-11-14', end: '2026-11-14')),
+        '매장 · 2026년 11월 14일',
+      );
+      expect(
+        head(_s(asked: SalesSpan.week, span: 'week', start: '2026-11-09', end: '2026-11-15')),
+        '매장 · 2026년 11월 9일~15일',
+      );
+      expect(
+        head(_s(asked: SalesSpan.week, span: 'week', start: '2026-10-26', end: '2026-11-01', elapsedEnd: '2026-11-01')),
+        '매장 · 2026년 10월 26일~11월 1일',
+      );
+      expect(
+        head(_s(asked: SalesSpan.year, span: 'year', start: '2026-01-01', end: '2026-12-31')),
+        '매장 · 2026년 (11월 14일까지)',
+      );
+      expect(
+        head(_s(asked: SalesSpan.year, span: 'year', start: '2025-01-01', end: '2025-12-31', elapsedEnd: '2025-12-31')),
+        '매장 · 2025년',
+      );
+      expect(
+        head(_s(start: '2026-12-01', end: '2026-12-31', elapsedEnd: null)),
+        '매장 · 2026년 12월',
+        reason: '앞날의 기간',
+      );
+    });
+
+    test('조정·미선택·기타 수단이 든 요약, 결제 수단과 메뉴가 없으면 그 줄이 없다', () {
+      final mixed = SalesSummary.fromJson(
+        salesSummaryJson(
+          revenue: 90000,
+          visitCount: 2,
+          payments: [
+            {'method': 'none', 'amount': 40000},
+            {'method': 'point', 'amount': 50000},
+          ],
+          menus: [
+            {'menu_id': 1, 'name': '목욕', 'amount': 100000, 'count': 2, 'pet': null},
+            {'menu_id': null, 'name': '조정', 'amount': -10000, 'count': 0, 'pet': null},
+          ],
+        ),
+        SalesSpan.month,
+      );
+      expect(shareText('매장', mixed).split('\n').sublist(1), [
+        '매출 90,000원 · 방문 2건',
+        '미선택 40,000원 / 기타 50,000원',
+        '목욕 100,000원(2건) · 조정 -10,000원',
+      ]);
+
+      final empty = SalesSummary.fromJson(
+        salesSummaryJson(revenue: 0, visitCount: 0, payments: [], menus: []),
+        SalesSpan.month,
+      );
+      expect(shareText('매장', empty), '매장 · 2026년 11월 (14일까지)\n매출 0원 · 방문 0건');
+    });
+  });
+
+  test('오늘의 일 보기는 어제와 견준다 — 지난 날은 그 전날', () {
+    final day = _s(
+      asked: SalesSpan.day, span: 'day', start: '2026-11-14', end: '2026-11-14', revenue: 510000,
+      previous: _window('2026-11-13', '2026-11-13', 440000),
+    );
+    expect(compareSentence(day, today: DateTime(2026, 11, 14, 9)), '어제보다 7만 원 많아요.');
+    expect(compareSentence(day, today: DateTime(2026, 11, 15)), '그 전날보다 7만 원 많아요.');
+    expect(compareSentence(day), '그 전날보다 7만 원 많아요.');
+    expect(
+      compareSentence(day.span == SalesSpan.day ? _s(revenue: 3250000) : day, today: DateTime(2026, 11, 14)),
+      '지난달 14일까지보다 42만 원 많아요.',
+      reason: '월 보기는 그대로',
+    );
+  });
+
+  test('목표는 이번 달의 월 보기에서만', () {
+    final today = DateTime(2026, 11, 14);
+    expect(isGoalPeriod(_s(), today), isTrue);
+    expect(isGoalPeriod(_s(start: '2026-10-01', end: '2026-10-31', elapsedEnd: '2026-10-31'), today), isFalse);
+    expect(isGoalPeriod(_s(start: '2025-11-01', end: '2025-11-30', elapsedEnd: '2025-11-30'), today), isFalse);
+    expect(
+      isGoalPeriod(_s(asked: SalesSpan.week, span: 'week', start: '2026-11-09', end: '2026-11-15'), today),
+      isFalse,
+    );
+    expect(
+      isGoalPeriod(_s(asked: SalesSpan.year, span: 'year', start: '2026-01-01', end: '2026-12-31'), today),
+      isFalse,
+    );
+  });
+
+  group('방문 목록의 주소', () {
+    final today = DateTime(2026, 11, 14, 22);
+
+    test('요약의 기간이 그대로 가고 다시 읽으면 같은 조건이다', () {
+      final october = _s(start: '2026-10-01', end: '2026-10-31', elapsedEnd: '2026-10-31');
+      final path = visitsPath(october, SalesVisitFilter.menu, menuId: 2, menuName: '목욕 & 스파');
+      final uri = Uri.parse(path);
+
+      expect(uri.path, '/sales/visits');
+      expect(uri.queryParameters, {
+        'span': 'month', 'anchor': '2026-10-01', 'filter': 'menu', 'menu_id': '2', 'menu': '목욕 & 스파',
+      });
+      expect(visitsQueryOf(uri.queryParameters, today), (
+        span: SalesSpan.month,
+        anchor: DateTime(2026, 10, 1),
+        filter: SalesVisitFilter.menu,
+        menuId: 2,
+      ));
+      expect(Uri.parse(visitsPath(october, SalesVisitFilter.noShow)).queryParameters.containsKey('menu_id'), isFalse);
+    });
+
+    test('깨진 질의는 기본값이다', () {
+      const fallback = (span: SalesSpan.month, filter: SalesVisitFilter.unrecorded, menuId: null);
+      for (final query in <Map<String, String>>[
+        {},
+        {'span': 'decade', 'anchor': 'yesterday', 'filter': 'everything'},
+        {'span': '', 'anchor': '2026-02-31', 'filter': 'menu'},
+        {'anchor': '2026-13-01', 'filter': 'menu', 'menu_id': 'abc'},
+        {'anchor': '20261114'},
+      ]) {
+        final read = visitsQueryOf(query, today);
+        expect((span: read.span, filter: read.filter, menuId: read.menuId), fallback, reason: '$query');
+        expect(read.anchor, DateTime(2026, 11, 14), reason: '$query');
+      }
+    });
+
+    test('메뉴가 아닌 종류에 붙은 메뉴 ID 는 버린다', () {
+      final read = visitsQueryOf({'filter': 'no_show', 'menu_id': '4', 'span': 'year'}, today);
+      expect((read.span, read.filter, read.menuId), (SalesSpan.year, SalesVisitFilter.noShow, null));
+    });
+  });
+
+  test('목록 줄의 날짜', () {
+    expect(visitDateLabel(DateTime(2026, 11, 14)), '11월 14일 토');
+    expect(visitDateLabel(DateTime(2026, 11, 2)), '11월 2일 월');
+    expect(visitDateLabel(DateTime(2026, 11, 15)), '11월 15일 일');
+  });
 }

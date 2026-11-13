@@ -261,3 +261,68 @@ class SalesSummary {
     );
   }
 }
+
+/// 매출 탭에서 이어지는 방문 목록의 종류. 서버에는 [wire]로 보낸다.
+enum SalesVisitFilter {
+  unrecorded('unrecorded'),
+  noShow('no_show'),
+  canceled('canceled'),
+  menu('menu');
+
+  const SalesVisitFilter(this.wire);
+
+  final String wire;
+
+  /// 모르는 글자면 null.
+  static SalesVisitFilter? of(String? wire) {
+    for (final filter in values) {
+      if (filter.wire == wire) return filter;
+    }
+    return null;
+  }
+}
+
+/// 방문 목록의 한 줄. 보호자만의 방문과 이름을 보일 수 없는 아이는 [pet]이 null 이다 — 방문은 그대로 보인다.
+class SalesVisitItem {
+  const SalesVisitItem({required this.visitId, required this.date, required this.pet, required this.amount});
+
+  final int visitId;
+  final DateTime date;
+  final PetCard? pet;
+
+  /// 기록의 총액. 적지 않았으면 null.
+  final int? amount;
+
+  factory SalesVisitItem.fromJson(Map<String, dynamic> json) => SalesVisitItem(
+    visitId: json['visit_id'] as int,
+    date: parseDay(json['date'] as String),
+    pet: json['pet'] is Map<String, dynamic>
+        ? PetCard.fromJson(json['pet'] as Map<String, dynamic>)
+        : null,
+    amount: json['amount'] as int?,
+  );
+}
+
+/// 다시 올 때가 지난 아이 — 마지막으로 다녀간 날.
+class DuePetItem {
+  const DuePetItem({required this.pet, required this.lastVisitDate});
+
+  final PetCard pet;
+  final DateTime lastVisitDate;
+
+  factory DuePetItem.fromJson(Map<String, dynamic> json) => DuePetItem(
+    pet: PetCard.fromJson(json['pet'] as Map<String, dynamic>),
+    lastVisitDate: parseDay(json['last_visit_date'] as String),
+  );
+}
+
+/// 목록 한 쪽. [nextCursor]가 null 이면 마지막 쪽이다.
+class SalesPage<T> {
+  const SalesPage({required this.items, required this.nextCursor});
+
+  final List<T> items;
+  final String? nextCursor;
+
+  factory SalesPage.fromJson(Map<String, dynamic> json, T Function(Map<String, dynamic>) parse) =>
+      SalesPage(items: _list(json['items'], parse), nextCursor: json['next_cursor'] as String?);
+}

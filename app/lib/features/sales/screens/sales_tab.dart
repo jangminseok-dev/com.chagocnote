@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/error/async_body.dart';
 import '../../../core/proxy/media_images.dart';
+import '../../../core/proxy/share_sheet.dart';
 import '../../../core/time/shop_time.dart';
 import '../../../core/time/today_provider.dart';
 import '../../../design/tokens/app_spacing.dart';
@@ -11,6 +12,7 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_photo_fan.dart';
 import '../../../design/widgets/app_segment.dart';
+import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
@@ -18,6 +20,7 @@ import '../api/sales_models.dart';
 import '../state/sales_providers.dart';
 import '../state/sales_rules.dart';
 import 'sales_chart.dart';
+import 'sales_goal_sheet.dart';
 import 'sales_hero.dart';
 import 'sales_sections.dart';
 
@@ -114,13 +117,18 @@ class _SalesTabState extends ConsumerState<SalesTab> with WidgetsBindingObserver
         await ref.read(salesSummaryProvider(key).future);
       },
       builder: (summary) => _SalesBody(
+        shopId: shopId,
+        today: today,
         summary: summary,
         picked: _picked ?? selectedBucketKey(summary, today),
         onPick: (bucketKey) {
           if (summary.span == SalesSpan.year) {
-            // 연 보기의 막대는 그 달의 월 보기로 간다.
+            // 연 보기의 막대는 그 달의 월 보기로 간다. 읽지 못하는 key 는 누르지 않은 것으로 친다.
             final parts = bucketKey.split('-');
-            _show(SalesSpan.month, DateTime(int.parse(parts[0]), int.parse(parts[1])));
+            final year = int.tryParse(parts.first);
+            final month = parts.length > 1 ? int.tryParse(parts[1]) : null;
+            if (year == null || month == null || month < 1 || month > 12) return;
+            _show(SalesSpan.month, DateTime(year, month));
           } else {
             setState(() => _picked = bucketKey);
           }
@@ -219,8 +227,16 @@ class _PeriodBar extends StatelessWidget {
 }
 
 class _SalesBody extends ConsumerWidget {
-  const _SalesBody({required this.summary, required this.picked, required this.onPick});
+  const _SalesBody({
+    required this.shopId,
+    required this.today,
+    required this.summary,
+    required this.picked,
+    required this.onPick,
+  });
 
+  final int shopId;
+  final DateTime today;
   final SalesSummary summary;
   final String? picked;
   final ValueChanged<String> onPick;
@@ -237,12 +253,25 @@ class _SalesBody extends ConsumerWidget {
     }
     final weekdays = s.weekdays;
     final report = s.report;
+    // 이어지는 화면에서 금액을 적거나 예약을 잡았을 수 있다 — 돌아오면 요약을 다시 읽는다.
+    Future<void> open(String path) async {
+      await context.push(path);
+      if (context.mounted) ref.invalidate(salesSummaryProvider);
+    }
+
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       // 아래 여백은 떠 있는 탭바와 + 버튼의 자리다.
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 132),
       children: [
-        SalesHero(summary: s, empty: empty),
+        SalesHero(
+          summary: s,
+          empty: empty,
+          today: today,
+          onGoal: isGoalPeriod(s, today)
+              ? () => SalesGoalSheet.show(context, shopId: shopId, current: s.goalAmount)
+              : null,
+        ),
         if (!empty) ...[
           const SizedBox(height: AppSpacing.md),
           Row(
@@ -287,7 +316,13 @@ class _SalesBody extends ConsumerWidget {
           SalesSection(
             title: AppStrings.salesMenu,
             en: AppStrings.salesMenuEn,
-            child: SalesMenus(menus: s.menus, photoOf: images.of),
+            child: SalesMenus(
+              menus: s.menus,
+              photoOf: images.of,
+              onMenu: (menu) => open(
+                visitsPath(s, SalesVisitFilter.menu, menuId: menu.menuId, menuName: menu.name),
+              ),
+            ),
           ),
         if (!empty)
           SalesSection(
@@ -298,7 +333,11 @@ class _SalesBody extends ConsumerWidget {
         SalesSection(
           title: AppStrings.salesBookings,
           en: AppStrings.salesBookingsEn,
-          child: SalesBookings(summary: s),
+          child: SalesBookings(
+            summary: s,
+            onNoShow: () => open(visitsPath(s, SalesVisitFilter.noShow)),
+            onCanceled: () => open(visitsPath(s, SalesVisitFilter.canceled)),
+          ),
         ),
         if (!empty && weekdays != null)
           SalesSection(
@@ -315,15 +354,78 @@ class _SalesBody extends ConsumerWidget {
               style: AppTypography.body,
             ),
           ),
-        // 아래 두 줄은 ⑧-3 에서 목록으로 이어진다. 지금은 사실만 보인다.
         if (s.duePetCount > 0)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: Text(AppStrings.salesDuePets(s.duePetCount), style: AppTypography.body),
+          _LinkLine(
+            text: AppStrings.salesDuePets(s.duePetCount),
+            style: AppTypography.body,
+            onTap: () => open('/sales/due-pets'),
           ),
         if (s.unrecordedCount > 0)
-          Text(AppStrings.salesUnrecorded(s.unrecordedCount), style: AppTypography.caption),
+          _LinkLine(
+            text: AppStrings.salesUnrecorded(s.unrecordedCount),
+            style: AppTypography.caption,
+            onTap: () => open(visitsPath(s, SalesVisitFilter.unrecorded)),
+          ),
+        if (!empty)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              // 공유 시트는 누른 버튼 자리에 붙는다(아이패드의 말풍선) — 버튼의 사각형을 넘긴다.
+              child: Builder(
+                builder: (button) => Pressable(
+                  minSize: 0,
+                  onTap: () => _share(button, ref),
+                  child: SalesTapArea(child: Text(AppStrings.salesShare, style: salesLinkStyle)),
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+
+  /// 지금 보는 기간의 요약을 글로 공유한다(설계 3.4). 아이·보호자의 이름과 번호는 글에 없다.
+  Future<void> _share(BuildContext button, WidgetRef ref) async {
+    final box = button.findRenderObject() as RenderBox;
+    try {
+      await ref
+          .read(shareSheetProvider)
+          .shareText(
+            shareText(ref.read(shopNameProvider), summary),
+            origin: box.localToGlobal(Offset.zero) & box.size,
+          );
+    } on Exception {
+      if (button.mounted) AppSnackBar.show(button, AppStrings.salesShareFailed);
+    }
+  }
+}
+
+/// 목록으로 이어지는 한 줄 — 글자와 화살표.
+class _LinkLine extends StatelessWidget {
+  const _LinkLine({required this.text, required this.style, required this.onTap});
+
+  final String text;
+  final TextStyle style;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Pressable(
+        minSize: 0,
+        onTap: onTap,
+        child: SalesTapArea(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: Text(text, style: style)),
+              Icon(Icons.chevron_right, size: 16, color: style.color),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -347,7 +449,7 @@ class _DayCard extends StatelessWidget {
     ];
     return Pressable(
       key: const Key('sales-day-card'),
-      semanticLabel: heading,
+      semanticLabel: AppStrings.salesBarLabel(heading, won(bucket.revenue)),
       onTap: () => context.push('/visits/day/${bucket.key}'),
       child: AppCard(
         padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.md),

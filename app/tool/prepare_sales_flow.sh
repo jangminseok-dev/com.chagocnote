@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# ⑧-2 시뮬레이터 흐름의 준비물 — 매장·사장·직원·고객 둘(콩이·두부), 어제의 완료 방문 넷(카드 30,000 사진 하나 /
+# ⑧-2·⑧-3 시뮬레이터 흐름의 준비물 — 매장·사장·직원·고객 셋(콩이·두부·보리), 어제의 완료 방문 넷(카드 30,000 사진 하나 /
 # 현금 50,000 항목 합 45,000 사진 하나 / 계좌 20,000 / 금액 없음)과 노쇼 하나, 지난달 첫날의 완료 방문 하나,
-# 내일의 예약 하나(정가 25,000 메뉴), 월 목표 500,000.
+# 내일의 예약 하나(정가 25,000 메뉴), 월 목표 500,000, 60일 전에 다녀간 보리(다시 올 때가 지난 아이 — 카드 10,000).
 # infra/ 에서 실행(bash ../app/tool/prepare_sales_flow.sh). 개발 스택이 떠 있어야 한다(운영자 지정을 backend 컨테이너에서 한다).
 # 마지막 줄에 flutter drive 의 --dart-define 들을 찍는다 — 화면과 견줄 숫자는 서버의 요약에서 읽어 넘긴다.
 # 토큰·서명 주소는 찍지 않는다. 개발 DB·버킷에 확인용 매장·유저·고객·방문·사진이 남는다. zsh 에서는 ${=D} 로 펼친다.
@@ -10,6 +10,7 @@ BASE="${BASE:-http://127.0.0.1:8080}"
 STAMP="$(date +%s)"
 PHONE_A="010$(printf '%08d' $((STAMP % 100000000)))"
 PHONE_B="010$(printf '%08d' $(((STAMP + 1) % 100000000)))"
+PHONE_C="010$(printf '%08d' $(((STAMP + 2) % 100000000)))"
 # 30×40 JPEG 둘(밝은 회색·어두운 회색). 표시용·썸네일에도 그대로 올린다.
 LIGHT_JPEG='/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYyLjI4LjEwMgD/2wBDAAgYGBwYHCEhISEhISckJygoKCcnJycoKCgrKyszMzMrKysoKCsrMDAzMzc5NzQ0MzQ5OTw8PEhIRUVUVFdnZ3z/xABLAAEBAAAAAAAAAAAAAAAAAAAABwEBAAAAAAAAAAAAAAAAAAAAABABAAAAAAAAAAAAAAAAAAAAABEBAAAAAAAAAAAAAAAAAAAAAP/AABEIACgAHgMBIgACEQADEQD/2gAMAwEAAhEDEQA/ALQAAAAAAAAAAAD/2Q=='
 DARK_JPEG='/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYyLjI4LjEwMgD/2wBDAAgYGBwYHCEhISEhISckJygoKCcnJycoKCgrKyszMzMrKysoKCsrMDAzMzc5NzQ0MzQ5OTw8PEhIRUVUVFdnZ3z/xABLAAEBAAAAAAAAAAAAAAAAAAAABwEBAAAAAAAAAAAAAAAAAAAAABABAAAAAAAAAAAAAAAAAAAAABEBAAAAAAAAAAAAAAAAAAAAAP/AABEIACgAHgMBIgACEQADEQD/2gAMAwEAAhEDEQA/AJ+AAAAAAAAAAAD/2Q=='
@@ -44,6 +45,7 @@ family() {
 }
 read -r kong_owner kong <<<"$(family 김민지 "$PHONE_A" 콩이)"
 read -r dubu_owner dubu <<<"$(family 박두부 "$PHONE_B" 두부)"
+read -r bori_owner bori <<<"$(family 최보리 "$PHONE_C" 보리)"
 
 # photo <base64 JPEG> — 발급·올리기 셋·확인까지 마치고 media_id 를 낸다.
 photo() {
@@ -76,6 +78,9 @@ done_visit "$dubu_owner" "$dubu" "$(at -1 16)" "" >/dev/null
 noshow=$(visit "$kong_owner" "$kong" "$(at -1 17)"); move "$noshow" no_show
 done_visit "$kong_owner" "$kong" "$(prev_first)T11:00:00+09:00" "$old_rec" >/dev/null
 visit "$kong_owner" "$kong" "$(at 1 11)" "$priced" >/dev/null
+# 60일 전에 다녀가고 그 뒤로 오지 않은 아이 — 다시 올 때가 지난 아이(57일~365일) 하나.
+due_rec='{"payment_method":"card","total_amount":10000}'
+done_visit "$bori_owner" "$bori" "$(at -60 11)" "$due_rec" >/dev/null
 goal_req='{"monthly_amount":500000}'
 call PUT "$S/sales/goal" "$owner" "$goal_req" >/dev/null
 
@@ -83,6 +88,8 @@ call PUT "$S/sales/goal" "$owner" "$goal_req" >/dev/null
 YDAY="$(day -1)"; TODAY="$(day 0)"
 month=$(call GET "$S/sales/summary?span=month&anchor=$YDAY" "$owner")
 [ "$(echo "$month" | field "['revenue']")" = 100000 ]
+[ "$(echo "$month" | field "['due_pet_count']")" = 1 ]
 year_revenue=$(call GET "$S/sales/summary?span=year&anchor=$TODAY" "$owner" | field "['revenue']")
+bath_name=$(echo "$month" | field "['menus'][0]['name']")
 back=0; [ "${YDAY:0:7}" = "${TODAY:0:7}" ] || back=1
-echo "--dart-define=OWNER=sapp-owner-$STAMP --dart-define=STAFF=sapp-staff-$STAMP --dart-define=BACK=$back --dart-define=MONTH_REVENUE=100000 --dart-define=YEAR_REVENUE=$year_revenue"
+echo "--dart-define=OWNER=sapp-owner-$STAMP --dart-define=STAFF=sapp-staff-$STAMP --dart-define=BACK=$back --dart-define=MONTH_REVENUE=100000 --dart-define=YEAR_REVENUE=$year_revenue --dart-define=MENU=$bath_name"

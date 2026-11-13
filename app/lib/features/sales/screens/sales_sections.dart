@@ -4,6 +4,7 @@ import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_photo_tile.dart';
+import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../api/sales_models.dart';
 import '../state/sales_rules.dart';
@@ -135,52 +136,109 @@ class _Track extends StatelessWidget {
   }
 }
 
-/// 메뉴 — 그 메뉴를 가장 최근에 한 아이의 사진, 이름과 건수, 금액. 다섯 줄까지.
-class SalesMenus extends StatelessWidget {
-  const SalesMenus({super.key, required this.menus, required this.photoOf});
+/// 메뉴 — 그 메뉴를 가장 최근에 한 아이의 사진, 이름과 건수, 금액. 다섯 줄까지 보이고 [모두 보기]로 편다.
+/// 메뉴 줄을 누르면 그 메뉴의 방문으로 간다. 조정 줄은 눌리지 않는다.
+class SalesMenus extends StatefulWidget {
+  const SalesMenus({super.key, required this.menus, required this.photoOf, required this.onMenu});
 
   final List<SalesMenu> menus;
   final PhotoOf photoOf;
+  final ValueChanged<SalesMenu> onMenu;
 
+  @override
+  State<SalesMenus> createState() => _SalesMenusState();
+}
+
+class _SalesMenusState extends State<SalesMenus> {
   static const _limit = 5;
+
+  bool _all = false;
 
   @override
   Widget build(BuildContext context) {
+    final real = widget.menus.where((m) => m.menuId != null).toList();
     // 다섯으로 자르는 것은 메뉴뿐이다. 조정 줄(서버가 맨 끝에 붙인다)은 늘 보인다 — 합이 맞아야 한다.
     final shown = [
-      ...menus.where((m) => m.menuId != null).take(_limit),
-      ...menus.where((m) => m.menuId == null),
+      ...(_all ? real : real.take(_limit)),
+      ...widget.menus.where((m) => m.menuId == null),
     ];
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final menu in shown)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Row(
-              children: [
-                // 조정 줄(총액과 항목 합의 차이)은 메뉴가 아니다 — 사진 칸 없이 자리만 맞춘다.
-                if (menu.menuId == null) const SizedBox(width: 26) else _photo(menu.pet, photoOf, 26),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Text(
-                    menu.name,
-                    style: AppTypography.body,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (menu.menuId != null) ...[
-                  Text(AppStrings.salesCount(menu.count), style: AppTypography.caption),
-                  const SizedBox(width: AppSpacing.md),
-                ],
-                Text(won(menu.amount), style: AppTypography.body),
-              ],
+        for (final menu in shown) _row(menu),
+        if (!_all && real.length > _limit)
+          Pressable(
+            minSize: 0,
+            onTap: () => setState(() => _all = true),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 26 + AppSpacing.sm),
+              child: SalesTapArea(child: Text(AppStrings.salesShowAllMenus, style: salesLinkStyle)),
             ),
           ),
       ],
     );
   }
+
+  Widget _row(SalesMenu menu) {
+    final adjustment = menu.menuId == null;
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          // 조정 줄(총액과 항목 합의 차이)은 메뉴가 아니다 — 사진 칸 없이 자리만 맞춘다.
+          if (adjustment) const SizedBox(width: 26) else _photo(menu.pet, widget.photoOf, 26),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              menu.name,
+              style: AppTypography.body,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (!adjustment) ...[
+            Text(AppStrings.salesCount(menu.count), style: AppTypography.caption),
+            const SizedBox(width: AppSpacing.md),
+          ],
+          Text(won(menu.amount), style: AppTypography.body),
+          // 화살표의 자리는 조정 줄에도 비워 둔다 — 금액의 오른쪽 끝이 맞는다.
+          if (adjustment)
+            const SizedBox(width: 16)
+          else
+            const Icon(Icons.chevron_right, size: 16, color: AppColors.secondary),
+        ],
+      ),
+    );
+    if (adjustment) return row;
+    return Pressable(
+      minSize: 0,
+      semanticLabel: AppStrings.salesMenuRowLabel(menu.name),
+      onTap: () => widget.onMenu(menu),
+      child: ExcludeSemantics(child: row),
+    );
+  }
 }
+
+/// 글자뿐인 누를 것의 누름 영역 — 글자는 작아도 손가락이 닿는 높이는 44 다. 폭은 내용만큼이고 왼쪽에 붙는다.
+class SalesTapArea extends StatelessWidget {
+  const SalesTapArea({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Align(alignment: Alignment.centerLeft, widthFactor: 1, heightFactor: 1, child: child),
+    );
+  }
+}
+
+/// 누를 수 있는 작은 글자 — 밑줄 하나로만 알린다(색을 쓰지 않는다).
+final salesLinkStyle = AppTypography.caption.copyWith(
+  decoration: TextDecoration.underline,
+  decorationColor: AppColors.line,
+);
 
 /// 손님 — 처음 온 아이와 다시 온 아이, 그리고 단골.
 class SalesGuests extends StatelessWidget {
@@ -258,7 +316,7 @@ class _Half extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _BigCount(value: count, unit: AppStrings.salesHeads(count).replaceFirst('$count', '')),
+        _BigCount(value: count, unit: AppStrings.salesUnitHeads),
         Text(label, style: AppTypography.caption),
         if (pets.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -296,11 +354,18 @@ class _BigCount extends StatelessWidget {
   }
 }
 
-/// 예약 — 남은 예약(과 정가로 본 예상 금액), 노쇼, 취소.
+/// 예약 — 남은 예약(과 정가로 본 예상 금액), 노쇼, 취소. 노쇼·취소는 하나라도 있으면 눌러서 그 방문들로 간다.
 class SalesBookings extends StatelessWidget {
-  const SalesBookings({super.key, required this.summary});
+  const SalesBookings({
+    super.key,
+    required this.summary,
+    required this.onNoShow,
+    required this.onCanceled,
+  });
 
   final SalesSummary summary;
+  final VoidCallback onNoShow;
+  final VoidCallback onCanceled;
 
   @override
   Widget build(BuildContext context) {
@@ -314,8 +379,12 @@ class SalesBookings extends StatelessWidget {
           children: [
             if (remaining != null)
               Expanded(child: _Fact(value: remaining, label: AppStrings.salesRemaining)),
-            Expanded(child: _Fact(value: summary.noShow, label: AppStrings.salesNoShow)),
-            Expanded(child: _Fact(value: summary.canceled, label: AppStrings.salesCanceled)),
+            Expanded(
+              child: _Fact(value: summary.noShow, label: AppStrings.salesNoShow, onTap: onNoShow),
+            ),
+            Expanded(
+              child: _Fact(value: summary.canceled, label: AppStrings.salesCanceled, onTap: onCanceled),
+            ),
           ],
         ),
         if (remaining != null && remaining > 0 && expected != null)
@@ -332,19 +401,39 @@ class SalesBookings extends StatelessWidget {
 }
 
 class _Fact extends StatelessWidget {
-  const _Fact({required this.value, required this.label});
+  const _Fact({required this.value, required this.label, this.onTap});
 
   final int value;
   final String label;
 
+  /// 주면 값이 0 보다 클 때 눌린다(0 건의 목록으로는 가지 않는다).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final tappable = onTap != null && value > 0;
+    final fact = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _BigCount(value: value),
-        Text(label, style: AppTypography.caption),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: AppTypography.caption),
+            if (tappable) const Icon(Icons.chevron_right, size: 14, color: AppColors.secondary),
+          ],
+        ),
       ],
+    );
+    if (!tappable) return fact;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Pressable(
+        minSize: 0,
+        semanticLabel: AppStrings.salesFactLabel(label, value),
+        onTap: onTap,
+        child: ExcludeSemantics(child: fact),
+      ),
     );
   }
 }
@@ -362,33 +451,31 @@ class SalesWeekdays extends StatelessWidget {
     for (var i = 0; i < weekdays.length; i++) {
       if (weekdays[i] > 0 && (top < 0 || weekdays[i] > weekdays[top])) top = i;
     }
-    return SizedBox(
-      height: 56,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (var i = 0; i < weekdays.length && i < 7; i++)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      height: (ratios[i] * 36).clamp(1, 36),
-                      color: i == top ? AppColors.ink : AppColors.line,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      AppStrings.weekdaysShort[i],
-                      style: i == top ? AppTypography.bodyStrong.copyWith(fontSize: 11) : AppTypography.caption,
-                    ),
-                  ],
-                ),
+    // 높이를 고정하지 않는다 — 글자를 키운 기기에서 요일 글자가 잘리지 않게 글자 크기에 맡긴다.
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (var i = 0; i < weekdays.length && i < 7; i++)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: (ratios[i] * 36).clamp(1, 36),
+                    color: i == top ? AppColors.ink : AppColors.line,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    AppStrings.weekdaysShort[i],
+                    style: i == top ? AppTypography.bodyStrong.copyWith(fontSize: 11) : AppTypography.caption,
+                  ),
+                ],
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

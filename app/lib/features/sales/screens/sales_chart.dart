@@ -55,11 +55,21 @@ class SalesChart extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
+        // 주·연은 막대마다 글자가 하나라 막대 아래 가운데에 둔다. 월은 눈금 넷을 양 끝에 맞춰 흩는다.
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             for (final label in _axis())
-              Text(label, style: AppTypography.caption.copyWith(fontSize: 9)),
+              if (span == SalesSpan.month)
+                Text(label, style: AppTypography.caption.copyWith(fontSize: 9))
+              else
+                Expanded(
+                  child: Text(
+                    label,
+                    style: AppTypography.caption.copyWith(fontSize: 9),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
           ],
         ),
       ],
@@ -110,12 +120,15 @@ class SalesChart extends StatelessWidget {
   /// 화면 읽기용 — `14일`, `11월`.
   String _spoken(String key) {
     final parts = key.split('-');
-    return parts.length == 3 ? '${int.parse(parts[2])}일' : '${int.parse(parts[1])}월';
+    final last = int.tryParse(parts.last);
+    // 서버가 모르는 꼴의 key 를 줘도 죽지 않는다 — 온 글자를 그대로 읽는다.
+    if (last == null || parts.length < 2) return key;
+    return parts.length == 3 ? '$last일' : '$last월';
   }
 
   List<String> _axis() {
     if (buckets.isEmpty) return const [];
-    if (span == SalesSpan.week) return AppStrings.weekdaysShort;
+    if (span == SalesSpan.week) return AppStrings.weekdaysShort.take(buckets.length).toList();
     if (span == SalesSpan.year) return [for (var m = 1; m <= buckets.length; m++) '$m'];
     return ['1', '10', '20', '${buckets.length}'];
   }
