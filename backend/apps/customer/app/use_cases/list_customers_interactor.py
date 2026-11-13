@@ -14,6 +14,7 @@ from customer.app.ports.input.list_customers_use_case import ListCustomersUseCas
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
+from customer.domain.services.care_marks import caution_active
 from customer.domain.services.pet_age import age_label
 from customer.domain.services.phone_number import mask_phone
 from customer.app.services.pet_photos import pet_photos
@@ -66,6 +67,7 @@ class ListCustomersInteractor(ListCustomersUseCase):
                     )
                     for p in pets_by_customer.get(customer_id, [])
                 ],
+                caution=caution_active(customers[customer_id].caution_until, today),
             )
             for customer_id in page.customer_ids
             if customer_id in customers   # 검색 줄과 원본이 어긋났으면(익명화 직후 등) 원본을 따른다

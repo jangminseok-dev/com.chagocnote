@@ -21,6 +21,7 @@ class FamilyCardSchema(BaseModel):
     name: str
     phone_masked: str
     pets: list[PetSummarySchema]
+    caution: bool   # 살아 있는 주의 표시가 있다
 
 
 class CustomerListSchema(BaseModel):
@@ -44,6 +45,7 @@ class CustomerListSchema(BaseModel):
                         )
                         for p in card.pets
                     ],
+                    caution=card.caution,
                 )
                 for card in view.items
             ],

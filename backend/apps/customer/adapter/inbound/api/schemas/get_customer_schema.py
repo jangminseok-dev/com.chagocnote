@@ -19,6 +19,13 @@ class ConditionSchema(BaseModel):
     note: str | None
 
 
+class CautionSchema(BaseModel):
+    """살아 있는 주의 표시(③-B) — 매장용 응답에만 있다."""
+
+    reason: str
+    until: date
+
+
 class PetSchema(BaseModel):
     pet_id: int
     customer_id: int
@@ -36,6 +43,7 @@ class PetSchema(BaseModel):
     conditions: list[ConditionSchema]
     memo: str | None
     passed_away_at: datetime | None
+    grooming_consent_on: date | None
 
     @classmethod
     def of(cls, view: PetView) -> PetSchema:
@@ -51,6 +59,7 @@ class PetSchema(BaseModel):
                 for c in view.conditions
             ],
             memo=view.memo, passed_away_at=view.passed_away_at,
+            grooming_consent_on=view.grooming_consent_on,
         )
 
 
@@ -64,6 +73,10 @@ class PetWithPhotoSchema(PetSchema):
         return cls(**PetSchema.of(view).model_dump(), photo=photo)
 
 
+def _caution(view) -> CautionSchema | None:
+    return None if view is None else CautionSchema(reason=view.reason, until=view.until)
+
+
 class CustomerSchema(BaseModel):
     customer_id: int
     name: str
@@ -72,6 +85,7 @@ class CustomerSchema(BaseModel):
     marketing_consent: bool
     marketing_consent_changed_at: datetime
     memo: str | None
+    caution: CautionSchema | None
 
     @classmethod
     def of(cls, view: CustomerView) -> CustomerSchema:
@@ -79,6 +93,7 @@ class CustomerSchema(BaseModel):
             customer_id=view.customer_id, name=view.name, phone=view.phone,
             phone_alt=view.phone_alt, marketing_consent=view.marketing_consent,
             marketing_consent_changed_at=view.marketing_consent_changed_at, memo=view.memo,
+            caution=_caution(view.caution),
         )
 
 

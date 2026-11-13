@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import date
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -81,12 +82,30 @@ class CustomerPgRepository(CustomerRepository):
             )
         return to_customer(await self._row(ctx, customer_id, lock=False))
 
+    async def set_caution(
+        self, ctx: ShopContext, customer_id: int, reason: str | None, until: date | None,
+        member_id: int | None,
+    ) -> Customer:
+        # updated_at 은 건드리지 않는다 — 주의 표시는 고객 정보의 '수정'(최근순 정렬)이 아니다.
+        await self._session.execute(
+            update(CustomerOrm)
+            .where(CustomerOrm.id == customer_id, CustomerOrm.shop_id == ctx.shop_id,
+                   CustomerOrm.deleted_at.is_(None))
+            .values(caution_reason=reason, caution_until=until,
+                    caution_set_at=func.now() if reason is not None else None,
+                    caution_set_by_member_id=member_id, updated_at=CustomerOrm.updated_at)
+        )
+        return to_customer(await self._row(ctx, customer_id, lock=False))
+
     async def anonymize(self, ctx: ShopContext, customer_id: int) -> None:
         await self._session.execute(
             update(CustomerOrm)
             .where(CustomerOrm.id == customer_id, CustomerOrm.shop_id == ctx.shop_id,
                    CustomerOrm.deleted_at.is_(None))
-            .values(name=None, phone=None, phone_alt=None, memo=None, deleted_at=func.now())
+            .values(name=None, phone=None, phone_alt=None, memo=None, deleted_at=func.now(),
+                    # 주의 사유는 사람에 대한 평가다 — 익명화와 함께 지운다(③-B C2).
+                    caution_reason=None, caution_until=None, caution_set_at=None,
+                    caution_set_by_member_id=None)
         )
         # 뒤따르는 두 문장도 ctx 소속으로 거른다 — customer_id 만으로 걸렀다가는 다른 매장 ctx 로
         # 불러도 그 customer_id 가 실존하는 다른 매장 소속이면 그 반려동물·질병까지 지워 버린다.
@@ -103,7 +122,7 @@ class CustomerPgRepository(CustomerRepository):
         await self._session.execute(
             update(PetOrm)
             .where(PetOrm.customer_id.in_(owned_customer))
-            .values(name=None, memo=None)
+            .values(name=None, memo=None, grooming_consent_on=None, grooming_consent_by_member_id=None)
         )
 
     async def _row(self, ctx: ShopContext, customer_id: int, lock: bool) -> CustomerOrm:

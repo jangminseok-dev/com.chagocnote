@@ -23,6 +23,10 @@ from auth.dependencies.guard_active_user_provider import get_guard_active_user_u
 from auth.dependencies.hub_ports import get_membership_directory
 from customer.adapter.inbound.api.error_map import CUSTOMER_ERROR_STATUS
 from customer.adapter.inbound.api.v1.add_pet_router import add_pet_router
+from customer.adapter.inbound.api.v1.clear_customer_caution_router import clear_customer_caution_router
+from customer.adapter.inbound.api.v1.clear_pet_grooming_consent_router import (
+    clear_pet_grooming_consent_router,
+)
 from customer.adapter.inbound.api.v1.customer_myself_router import customer_myself_router
 from customer.adapter.inbound.api.v1.delete_customer_router import delete_customer_router
 from customer.adapter.inbound.api.v1.delete_pet_router import delete_pet_router
@@ -35,6 +39,10 @@ from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
 from customer.adapter.inbound.api.v1.lookup_customer_router import lookup_customer_router
 from customer.adapter.inbound.api.v1.mark_pet_passed_away_router import mark_pet_passed_away_router
 from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
+from customer.adapter.inbound.api.v1.set_customer_caution_router import set_customer_caution_router
+from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
+    set_pet_grooming_consent_router,
+)
 from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
     unmark_pet_passed_away_router,
 )
@@ -195,6 +203,10 @@ app.include_router(register_customer_router)
 app.include_router(update_customer_router)
 app.include_router(delete_customer_router)
 app.include_router(list_customers_router)
+app.include_router(set_customer_caution_router)
+app.include_router(clear_customer_caution_router)
+app.include_router(set_pet_grooming_consent_router)
+app.include_router(clear_pet_grooming_consent_router)
 app.include_router(add_pet_router)
 app.include_router(update_pet_router)
 app.include_router(mark_pet_passed_away_router)

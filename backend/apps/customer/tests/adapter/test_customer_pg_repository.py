@@ -96,3 +96,58 @@ async def test_다른_매장의_익명화는_아무것도_지우지_않는다(db
     kept = await pets.get(A, pet.id)
     assert kept.name == "콩이"
     assert len(kept.conditions) == 1
+
+
+async def test_주의_표시를_달고_고치고_푼다_다른_매장은_건드리지_못한다(db_session):
+    from datetime import date
+
+    repo = CustomerPgRepository(db_session)
+    created = await repo.create(A, customer_profile())
+    await db_session.execute(text("UPDATE customers SET updated_at = now() - interval '1 day'"))
+    before = (await db_session.execute(text("SELECT updated_at FROM customers"))).scalar_one()
+
+    marked = await repo.set_caution(A, created.id, "노쇼 2번", date(2027, 11, 14), 42)
+    assert (marked.caution_reason, marked.caution_until) == ("노쇼 2번", date(2027, 11, 14))
+    row = (await db_session.execute(text(
+        "SELECT caution_set_at IS NOT NULL, caution_set_by_member_id, updated_at FROM customers"
+    ))).one()
+    assert tuple(row) == (True, 42, before)   # 주의 표시는 '수정'이 아니다 — 최근순을 흔들지 않는다
+
+    with pytest.raises(CustomerNotFoundError):
+        await repo.set_caution(B, created.id, "남의 매장", date(2027, 1, 1), 7)
+    assert (await repo.get_active(A, created.id)).caution_reason == "노쇼 2번"
+
+    cleared = await repo.set_caution(A, created.id, None, None, None)
+    assert (cleared.caution_reason, cleared.caution_until) == (None, None)
+    row = (await db_session.execute(text(
+        "SELECT caution_reason, caution_until, caution_set_at, caution_set_by_member_id FROM customers"
+    ))).one()
+    assert tuple(row) == (None, None, None, None)
+
+
+async def test_익명화는_주의_표시와_미용_동의도_지운다(db_session):
+    from datetime import date
+
+    customers, pets = CustomerPgRepository(db_session), PetPgRepository(db_session)
+    created = await customers.create(A, customer_profile())
+    pet = await pets.add(A, created.id, pet_profile())
+    other = await customers.create(B, customer_profile())
+    other_pet = await pets.add(B, other.id, pet_profile())
+    for shop, customer, animal in ((A, created, pet), (B, other, other_pet)):
+        await customers.set_caution(shop, customer.id, "입질", date(2027, 1, 1), 11)
+        await pets.set_grooming_consent(shop, animal.id, date(2026, 3, 1), 11)
+
+    await customers.anonymize(A, created.id)
+
+    row = (await db_session.execute(text(
+        "SELECT caution_reason, caution_until, caution_set_at, caution_set_by_member_id "
+        "FROM customers WHERE id = :id"
+    ), {"id": created.id})).one()
+    assert tuple(row) == (None, None, None, None)
+    consent = (await db_session.execute(text(
+        "SELECT grooming_consent_on, grooming_consent_by_member_id FROM pets WHERE id = :id"
+    ), {"id": pet.id})).one()
+    assert tuple(consent) == (None, None)
+    # 다른 매장의 것은 그대로다.
+    assert (await customers.get_active(B, other.id)).caution_reason == "입질"
+    assert (await pets.get(B, other_pet.id)).grooming_consent_on == date(2026, 3, 1)

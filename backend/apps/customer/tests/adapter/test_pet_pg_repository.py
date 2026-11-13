@@ -141,3 +141,28 @@ async def test_현재_몸무게만_바꾸고_다른_매장의_아이는_건드�
     await repo.set_weight(B, pet.id, Decimal("9.9"))
     got = await repo.get(A, pet.id)
     assert (got.weight_kg, got.name) == (Decimal("4.1"), pet.name)
+
+
+async def test_미용_동의를_적고_지우며_다른_매장의_아이는_건드리지_못한다(db_session):
+    from sqlalchemy import text
+
+    pets = PetPgRepository(db_session)
+    customer_id = await _family(db_session)
+    pet = await pets.add(A, customer_id, pet_profile())
+    assert pet.grooming_consent_on is None
+
+    marked = await pets.set_grooming_consent(A, pet.id, date(2026, 3, 1), 42)
+    assert marked.grooming_consent_on == date(2026, 3, 1)
+    assert (await pets.list_for_customers(A, [customer_id]))[0].grooming_consent_on == date(2026, 3, 1)
+    by = (await db_session.execute(text("SELECT grooming_consent_by_member_id FROM pets"))).scalar_one()
+    assert by == 42
+
+    with pytest.raises(PetNotFoundError):
+        await pets.set_grooming_consent(B, pet.id, date(2026, 9, 9), 7)
+    assert (await pets.get(A, pet.id)).grooming_consent_on == date(2026, 3, 1)
+
+    # 프로필 수정은 동의를 건드리지 않는다(지병이 늘었는지는 유스케이스가 본다).
+    assert (await pets.update(A, pet.id, pet_profile(name="콩순이"))).grooming_consent_on == date(2026, 3, 1)
+
+    cleared = await pets.set_grooming_consent(A, pet.id, None, None)
+    assert cleared.grooming_consent_on is None

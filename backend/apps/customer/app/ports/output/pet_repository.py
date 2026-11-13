@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import date
 from decimal import Decimal
 
 from customer.domain.entities.pet import Pet
@@ -36,6 +37,12 @@ class PetRepository(ABC):
     @abstractmethod
     async def set_weight(self, ctx: ShopContext, pet_id: int, weight_kg: Decimal) -> None:
         """현재 몸무게만 바꾼다(미용 기록이 알려 준 값). 소속이 아니면 아무것도 바꾸지 않는다."""
+
+    @abstractmethod
+    async def set_grooming_consent(
+        self, ctx: ShopContext, pet_id: int, received_on: date | None, member_id: int | None
+    ) -> Pet:
+        """미용 동의를 받은 날과 적은 멤버. 둘 다 None 이면 지운다. 소속이 아니면 PetNotFoundError."""
 
     @abstractmethod
     async def count_for_customer(self, ctx: ShopContext, customer_id: int) -> int: ...

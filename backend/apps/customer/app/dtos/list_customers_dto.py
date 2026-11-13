@@ -35,6 +35,7 @@ class FamilyCardView:
     name: str
     phone_masked: str
     pets: list[PetSummaryView]
+    caution: bool = False   # 살아 있는 주의 표시가 있다(③-B). 사유는 상세에서만 준다
 
 
 @dataclass(frozen=True)
