@@ -36,8 +36,6 @@ class AppStrings {
   static const tabCalendar = '캘린더';
   static const tabCustomers = '고객';
   static const tabSales = '매출';
-  static const comingSoonEmptyTitle = '준비 중이에요';
-  static const comingSoonSheetText = '매출은 다음 업데이트에서 만나요';
 
   // 설정 허브
   static const settingsSectionShop = '매장';
@@ -365,6 +363,13 @@ class AppStrings {
       '완료한 $completed건 가운데 $sent건에 알림장을 보냈고, 보호자가 $opened건을 열어 봤어요.';
   static String salesUnrecorded(int count) => '금액을 적지 않은 완료 방문 $count건';
   static String salesBarLabel(String day, String amount) => '$day $amount원';
+  // 영문 장식(구역 이름 옆) — 화면 읽기에서는 뺀다.
+  static const salesPaymentEn = 'Payment';
+  static const salesMenuEn = 'Menu';
+  static const salesGuestsEn = 'Guests';
+  static const salesBookingsEn = 'Bookings';
+  static const salesWeekdayEn = 'Weekday';
+  static const salesReportEn = 'Report';
   static const dayTitleEn = 'Schedule';
   static const viewAsTimeline = '시간표로 보기';
   static const actionCompleteShort = '완료하기';
