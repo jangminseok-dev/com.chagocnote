@@ -40,6 +40,16 @@ Future<void> _chooseAction(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
+/// 보호자 탭은 보호자 계정 연결도 읽는다(⑦-3). 이 파일의 테스트는 이어지지 않은 고객으로 둔다.
+bool _isGuardianLink(RequestOptions options) =>
+    options.method == 'GET' &&
+    options.path == '/v1/shops/3/customers/7/guardian-link';
+
+final _notLinked = FakeResponse(
+  statusCode: 200,
+  data: guardianLinkJson(linked: false),
+);
+
 void main() {
   testWidgets('이름·질병 수·요약과 탭 넷을 보이고, 보호자 탭은 전체 번호를 고객 상세에서 받는다', (
     tester,
@@ -51,6 +61,7 @@ void main() {
         case 'GET /v1/shops/3/customers/7':
           return FakeResponse(statusCode: 200, data: customerDetailJson());
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -188,6 +199,7 @@ void main() {
           passed = true;
           return FakeResponse(statusCode: 200, data: petDetailJson());
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -215,6 +227,7 @@ void main() {
         case 'DELETE /v1/shops/3/pets/11/passed-away':
           return FakeResponse(statusCode: 200, data: petDetailJson());
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -233,6 +246,7 @@ void main() {
         case 'DELETE /v1/shops/3/pets/11':
           return const FakeResponse(statusCode: 204);
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -284,6 +298,7 @@ void main() {
           deleted = true;
           return const FakeResponse(statusCode: 204);
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -313,6 +328,7 @@ void main() {
             data: {'code': 'LAST_PET', 'message': 'x'},
           );
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -340,6 +356,7 @@ void main() {
         case 'DELETE /v1/shops/3/pets/11/passed-away':
           return gate.future;
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -383,6 +400,7 @@ void main() {
             ),
           );
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
@@ -463,6 +481,38 @@ void main() {
     );
   });
 
+  testWidgets('반려동물 상세 골든 — 보호자 탭, 보호자 계정 연결됨', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final setup = CustomerTestSetup((options, body) {
+      switch ('${options.method} ${options.path}') {
+        case 'GET /v1/shops/3/customers/7':
+          return FakeResponse(statusCode: 200, data: customerDetailJson());
+        case 'GET /v1/shops/3/customers/7/guardian-link':
+          return FakeResponse(statusCode: 200, data: guardianLinkJson());
+      }
+      return FakeResponse(statusCode: 200, data: petDetailJson());
+    });
+    addTearDown(setup.container.dispose);
+    await _openPet(tester, setup, 11);
+    await tester.tap(find.text(AppStrings.petTabOwner));
+    await tester.pumpAndSettle();
+    // 연결 줄이 화면 안에 오게 올린다.
+    await tester.scrollUntilVisible(
+      find.text('보호자 계정 연결됨 · 11월 13일'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byKey(ScreenKeys.petDetail),
+      matchesGoldenFile('goldens/pet_owner_tab_linked.png'),
+    );
+  });
+
   testWidgets('프로필 사진을 크게 보이고, [기록] 탭은 visit 가 꽂은 그 아이의 기록을 보인다', (
     tester,
   ) async {
@@ -503,6 +553,7 @@ void main() {
         case 'GET /v1/shops/3/customers/7':
           return FakeResponse(statusCode: 200, data: customerDetailJson());
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     }, overrides: [
       petRecordsRefreshPlugProvider.overrideWithValue(refreshed.add),
@@ -537,6 +588,7 @@ void main() {
               ? const FakeResponse(statusCode: 503, data: 'x')
               : FakeResponse(statusCode: 200, data: customerDetailJson());
       }
+      if (_isGuardianLink(options)) return _notLinked;
       fail('예상하지 못한 요청: ${options.method} ${options.path}');
     });
     addTearDown(setup.container.dispose);
