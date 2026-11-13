@@ -17,7 +17,7 @@ afterEach(() => {
 })
 
 function show(report: Report) {
-  const { container } = render(<ReportView report={report} token={TOKEN} />)
+  const { container } = render(<ReportView report={report} token={TOKEN} login />)
   const sections = () => [...container.querySelectorAll('[data-section]')].map((el) => el.getAttribute('data-section'))
   const section = (name: string) => container.querySelector<HTMLElement>(`[data-section="${name}"]`)
   return { container, sections, section }
@@ -26,7 +26,7 @@ function show(report: Report) {
 test('모든 항목이 있는 알림장은 구역 열이 순서대로 있다', () => {
   const { sections, section } = show(makeFullReport())
 
-  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'care', 'save-all', 'shop', 'foot'])
+  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'care', 'save-all', 'shop', 'claim', 'foot'])
   expect(section('head')).toHaveTextContent('Grooming Note')
   expect(section('head')).toHaveTextContent('Hiss Haus')
   expect(section('date')).toHaveTextContent('28')
@@ -62,7 +62,7 @@ test('매장 구역에 이름·전화·주소와 전화 링크가 있다', () =>
 test('끈 항목의 구역은 없다', () => {
   const { sections, section, container } = show(makeReport())
 
-  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'save-all', 'foot'])
+  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'save-all', 'claim', 'foot'])
   expect(section('head')!.textContent).toBe('Grooming Note')
   expect(container).not.toHaveTextContent('오늘의 케어')
   expect(container).not.toHaveTextContent('Shop')
@@ -105,7 +105,7 @@ test('켰지만 값이 없는 줄과 전화 버튼은 없고 null 글자가 보�
 test('켠 항목이 모두 null 이면 오늘의 케어와 매장 구역이 없다', () => {
   const { sections } = show(makeReport({ menus: null, total_amount: null, weight_kg: null, shop: null }))
 
-  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'save-all', 'foot'])
+  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'save-all', 'claim', 'foot'])
 })
 
 test('메뉴가 빈 목록이고 다른 줄도 없으면 오늘의 케어 구역이 없다', () => {
@@ -117,8 +117,9 @@ test('메뉴가 빈 목록이고 다른 줄도 없으면 오늘의 케어 구역
 test('미디어도 메모도 없으면 머리와 날짜, 제목, 꼬리만 있다', () => {
   const { sections, container } = show(makeReport({ media: [], cover: null, care_note: null }))
 
-  expect(sections()).toEqual(['head', 'date', 'title', 'foot'])
-  expect(container.querySelector('button')).toBeNull()
+  expect(sections()).toEqual(['head', 'date', 'title', 'claim', 'foot'])
+  // 버튼은 로그인하고 지난 기록 보기 하나뿐이다.
+  expect(container.querySelectorAll('button')).toHaveLength(1)
   expect(container.querySelector('a')).toBeNull()
   expect(container.querySelector('img')).toBeNull()
 })
@@ -217,8 +218,39 @@ test('무기한 알림장의 꼬리에는 기간 문구가 없다', () => {
   expect(section('foot')!.textContent).toBe('차곡노트')
 })
 
-test('화면 어디에도 토큰이 없다', () => {
-  const { container } = show(makeFullReport())
+test('토큰은 잇기 폼의 주소에만 있다', () => {
+  const { container, section } = show(makeFullReport())
 
+  expect(container.innerHTML.split(TOKEN)).toHaveLength(2)
+  section('claim')!.remove()
   expect(container.innerHTML).not.toContain(TOKEN)
+})
+
+test('토큰이 있으면 꼬리 앞에 /r/<토큰>/claim 으로 가는 폼 버튼 "로그인하고 지난 기록 보기" 가 있다', () => {
+  const { section } = show(makeReport())
+
+  const form = section('claim')!.querySelector('form')!
+  expect(form.getAttribute('action')).toBe(`/r/${TOKEN}/claim`)
+  expect(form.getAttribute('method')).toBe('post')
+  expect(within(form).getByRole('button', { name: '로그인하고 지난 기록 보기' })).toHaveAttribute('type', 'submit')
+  // 토큰을 숨은 칸에 한 번 더 싣지 않는다.
+  expect(form.querySelector('input')).toBeNull()
+})
+
+test('로그인 수단이 없으면 잇기 버튼이 없고 열람 신호는 그대로 나간다', () => {
+  const { container } = render(<ReportView report={makeFullReport()} token={TOKEN} />)
+
+  expect(container.querySelector('[data-section="claim"]')).toBeNull()
+  expect(container.querySelector('form')).toBeNull()
+  expect(container.innerHTML).not.toContain(TOKEN)
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+test('토큰이 없으면(로그인한 보호자의 한 장) 버튼도 열람 신호도 없다', () => {
+  const { container } = render(<ReportView report={makeFullReport()} />)
+
+  expect(container.querySelector('[data-section="claim"]')).toBeNull()
+  expect(container.querySelector('form')).toBeNull()
+  expect(fetch).not.toHaveBeenCalled()
+  expect(container.querySelector('[data-section="foot"]')).not.toBeNull()
 })

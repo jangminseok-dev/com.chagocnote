@@ -343,3 +343,17 @@
   font-family: var(--font-myeongjo);
   font-size: 14px;
 }
+
+/* 로그인하고 지난 기록 보기 — 꼬리 앞의 테두리 버튼 */
+.claim {
+  margin-top: 28px;
+}
+
+.page .claim button {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--ink);
+  font-size: 14px;
+  text-align: center;
+}

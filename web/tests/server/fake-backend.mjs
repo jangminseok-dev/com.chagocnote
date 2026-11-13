@@ -7,6 +7,14 @@
 //   nf    404 (그 밖의 앞머리도 404)          down  소켓을 끊는다
 //                                              slow  응답하지 않고 연결을 붙들고 있는다
 // POST /v1/public/report/viewed 도 같은 규칙이고 200 자리에 204 다.
+//
+// 이 서버는 인증 프로세스도 맡는다(검사는 AUTH_BASE_URL 을 같은 주소로 둔다).
+// POST /v1/auth/social — 본문의 token(로그인 이름)의 앞머리로 고른다. session 이 "web" 이 아니면 422.
+//   down 소켓을 끊는다   bad 401   refresh 200 인데 리프레시 토큰을 준다   그 밖 200, access_token 은 "tok-<이름>"
+// /v1/me/guardian/… — Authorization 의 토큰(tok-<이름>)의 앞머리로 고른다.
+//   tok-expired 401   tok-susp 403   tok-slow 매달린다   tok-empty 연결이 없다   그 밖 아래의 표준 자료
+//   tok-stale 표준 자료에 연결 13 이 하나 더 있는데 그 연결의 아이들·알림장은 404 다(목록을 읽은 직후 끊긴 연결)
+// POST /v1/me/guardian/links(잇기)는 X-Report-Token 의 앞머리 — ok 201, gone 410, taken 409, rate 429, 그 밖 404.
 import http from 'node:http'
 
 const port = Number(process.argv[2])
@@ -17,6 +25,9 @@ const media = `http://localhost:${port}/media`
 let count = 0
 let reports = 0 // GET /v1/public/report
 let viewed = 0 // POST /v1/public/report/viewed
+let auth = 0 // POST /v1/auth/social
+let claims = 0 // POST /v1/me/guardian/links
+let guardian = 0 // 그 밖의 /v1/me/guardian/…
 let last = null
 
 const photo = (name, phase) => ({
@@ -77,6 +88,85 @@ const ERRORS = {
   boom: [500, 'INTERNAL_ERROR'],
 }
 
+// 로그인한 보호자의 표준 자료 — 연결 둘(11 은 아이 둘·알림장 셋, 12 는 비어 있다).
+const LINKS = [
+  { link_id: 11, shop_name: 'Hiss Haus', linked_at: '2026-11-01T10:00:00+09:00' },
+  { link_id: 12, shop_name: '둘째 매장', linked_at: '2026-11-05T15:30:00+09:00' },
+]
+const PETS = { 11: [{ pet_id: 7, name: '두부' }, { pet_id: 8, name: null }], 12: [] }
+const item = (report_id, extra) => ({ report_id, visit_date: '2026-09-28', pet_id: null, pet_name: null, cover: null, media_count: 0, ...extra })
+const ITEM_501 = item(501, { pet_id: 7, pet_name: '두부', cover: FULL.cover, media_count: 4 })
+const ITEM_502 = item(502, { visit_date: '2026-08-15' }) // 보호자만의 방문 — 이름·대표·사진이 없다
+const ITEM_503 = item(503, { visit_date: '2026-07-01', pet_id: 8 })
+
+/** 본문을 다 읽어 JSON 으로. 깨졌으면 {} */
+function readJson(req) {
+  return new Promise((done) => {
+    let text = ''
+    req.on('data', (chunk) => (text += chunk))
+    req.on('end', () => {
+      try {
+        done(JSON.parse(text))
+      } catch {
+        done({})
+      }
+    })
+  })
+}
+
+async function login(req, send) {
+  const body = await readJson(req)
+  last.session = body.session ?? null
+  const name = String(body.token ?? '')
+  if (body.session !== 'web') return send(422, { code: 'VALIDATION_ERROR', message: '가짜 백엔드의 오류' })
+  if (name.startsWith('down')) return req.socket.destroy()
+  if (name.startsWith('bad')) return send(401, { code: 'INVALID_SOCIAL_TOKEN', message: '가짜 백엔드의 오류' })
+  return send(200, {
+    access_token: `tok-${name}`,
+    refresh_token: name.startsWith('refresh') ? 'refresh-token' : null,
+    token_type: 'Bearer',
+    expires_in: 1800,
+    user_id: 1,
+    is_new_user: false,
+  })
+}
+
+function guardianApi(req, url, send) {
+  const bearer = String(req.headers.authorization ?? '').replace(/^Bearer /, '')
+  const error = (status, code) => send(status, { code, message: '가짜 백엔드의 오류' })
+  if (!bearer.startsWith('tok-') || bearer.startsWith('tok-expired')) return error(401, 'UNAUTHENTICATED')
+  if (bearer.startsWith('tok-susp')) return error(403, 'ACCOUNT_SUSPENDED')
+  if (bearer.startsWith('tok-slow')) return
+  const empty = bearer.startsWith('tok-empty')
+  const path = url.pathname.slice('/v1/me/guardian'.length)
+
+  if (req.method === 'POST' && path === '/links') {
+    const token = String(req.headers['x-report-token'] ?? '')
+    if (token.startsWith('ok')) return send(201, { link_id: 11 })
+    if (token.startsWith('gone')) return error(410, 'REPORT_CLOSED')
+    if (token.startsWith('taken')) return error(409, 'GUARDIAN_ALREADY_LINKED')
+    if (token.startsWith('rate')) return error(429, 'GUARDIAN_RATE_LIMITED')
+    return error(404, 'REPORT_NOT_FOUND')
+  }
+  const stale = bearer.startsWith('tok-stale') ? [{ link_id: 13, shop_name: '방금 끊긴 매장', linked_at: '2026-11-07T09:00:00+09:00' }] : []
+  if (req.method === 'GET' && path === '/links') return send(200, { items: empty ? [] : [...LINKS, ...stale] })
+
+  const [, id, rest] = path.match(/^\/links\/(\d+)(\/.*)?$/) ?? []
+  const linkId = Number(id)
+  if (empty || !(linkId in PETS)) return error(404, 'GUARDIAN_LINK_NOT_FOUND')
+  if (req.method === 'DELETE' && rest === undefined) return linkId === 11 ? send(204) : error(404, 'GUARDIAN_LINK_NOT_FOUND')
+  if (req.method !== 'GET') return error(404, 'NOT_FOUND')
+  if (rest === '/pets') return send(200, { items: PETS[linkId] })
+  if (rest === '/reports') {
+    if (linkId !== 11) return send(200, { items: [], next_cursor: null })
+    if (url.searchParams.get('pet_id') === '7') return send(200, { items: [ITEM_501], next_cursor: null })
+    if (url.searchParams.get('cursor') === 'c2') return send(200, { items: [ITEM_503], next_cursor: null })
+    return send(200, { items: [ITEM_501, ITEM_502], next_cursor: 'c2' })
+  }
+  if (rest === '/reports/501' && linkId === 11) return send(200, { ...FULL, expires_at: null })
+  return error(404, 'REPORT_NOT_FOUND')
+}
+
 const prefixOf = (token) => ['ok', 'min', 'vid', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
 
 http
@@ -85,9 +175,9 @@ http
       res.writeHead(status, { 'content-type': 'application/json' })
       res.end(body === undefined ? '' : JSON.stringify(body))
     }
-    if (req.url === '/__stats') return send(200, { count, reports, viewed, last })
+    if (req.url === '/__stats') return send(200, { count, reports, viewed, auth, claims, guardian, last })
     if (req.url === '/__reset') {
-      count = reports = viewed = 0
+      count = reports = viewed = auth = claims = guardian = 0
       last = null
       return send(200, {})
     }
@@ -95,12 +185,26 @@ http
     count += 1
     if (req.method === 'GET' && req.url === '/v1/public/report') reports += 1
     if (req.method === 'POST' && req.url === '/v1/public/report/viewed') viewed += 1
-    // 토큰은 적지 않는다. 웹이 붙인 두 헤더만 남긴다.
+    // 토큰은 적지 않는다. 웹이 붙인 두 헤더와, 토큰 헤더가 있었는지만 남긴다.
     last = {
       method: req.method,
       path: req.url,
       web_secret: req.headers['x-report-web-secret'] ?? null,
       client_ip: req.headers['x-report-client-ip'] ?? null,
+      bearer: req.headers.authorization !== undefined,
+      report_token: req.headers['x-report-token'] !== undefined,
+      session: null, // 로그인 본문의 session
+    }
+
+    const url = new URL(req.url, 'http://fake')
+    if (req.method === 'POST' && url.pathname === '/v1/auth/social') {
+      auth += 1
+      return login(req, send)
+    }
+    if (url.pathname.startsWith('/v1/me/guardian/')) {
+      if (req.method === 'POST' && url.pathname === '/v1/me/guardian/links') claims += 1
+      else guardian += 1
+      return guardianApi(req, url, send)
     }
 
     const prefix = prefixOf(String(req.headers['x-report-token'] ?? ''))

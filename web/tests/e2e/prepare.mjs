@@ -1,6 +1,8 @@
 // 실제 브라우저 흐름(pnpm e2e)의 준비물 — 게이트웨이로 매장·고객·방문·사진 둘(전·후)·기록을 만들고
 // 알림장을 보낸 뒤 끊고 다시 보내, 끊은 링크 하나와 살아 있는 링크 하나를 test-results/e2e-links.json 에 쓴다.
 // 화면이 옆으로 밀리지 않는지 볼 긴 글 알림장도 하나 더 만든다(같은 매장·반려동물의 다른 방문).
+// 보호자 흐름(guardian.spec.ts)이 쓸 둘째 고객도 만든다 — 살아 있는 알림장 하나와 끊은 알림장 하나, 로그인할 이름 둘.
+// 위의 살아 있는 링크는 "아직 아무도 열지 않았다"를 보는 데 쓰므로 보호자 흐름과 나눠 쓰지 않는다.
 // 사용: infra/ 에서 개발 스택과 web 을 띄운 뒤 web/ 에서 pnpm e2e:prepare → pnpm e2e.
 // e2e 는 살아 있는 링크를 아직 아무도 열지 않았다고 보므로 e2e 를 돌릴 때마다 먼저 이것을 돌린다.
 // 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크가 남는다.
@@ -104,8 +106,34 @@ await call('PUT', `${LV}/record`, staff, {
 await call('POST', `${S}/visits/transitions`, staff, { visit_ids: [longVisit], action: 'complete' })
 const long = (await call('PUT', `${LV}/report`, staff, { hidden_media_ids: [] })).link.url
 
+// 5. 보호자 흐름 — 둘째 고객(반려동물 모카)의 방문 둘. 하나는 사진과 함께 보내고, 하나는 보낸 뒤 끊는다.
+const second = await call('POST', `${S}/customers`, staff, {
+  customer: { name: '김기록', phone: `010${String((STAMP + 1) % 100000000).padStart(8, '0')}`, marketing_consent: true },
+  pet: { name: '모카', species: 'dog', breed: '푸들', sex: 'male', neutered: true, birth_year: 2020, weight_kg: 4.1, no_known_conditions: true },
+})
+async function guardianVisit(hour, withPhoto) {
+  const id = (await call('POST', `${S}/visits`, staff, {
+    customer_id: second.customer.customer_id, pet_ids: [second.pets[0].pet_id], starts_at: startsAt.replace('T11:', `T${hour}:`),
+  })).visits[0].visit_id
+  await call('POST', `${S}/visits/transitions`, staff, { visit_ids: [id], action: 'start' })
+  const media = withPhoto ? [{ media_id: await photo(S, staff), phase: 'after', sort_order: 0 }, { media_id: await photo(S, staff), phase: 'before', sort_order: 0 }] : []
+  await call('PUT', `${S}/visits/${id}/record`, staff, {
+    care_note: '모카가 얌전히 잘 있었어요.', payment_method: 'card', total_amount: 25000, items: [{ menu_id: menu, amount: 25000 }], media,
+  })
+  await call('POST', `${S}/visits/transitions`, staff, { visit_ids: [id], action: 'complete' })
+  return `${S}/visits/${id}`
+}
+const guardianLive = (await call('PUT', `${await guardianVisit('13', true)}/report`, staff, { hidden_media_ids: [] })).link.url
+const closedVisit = await guardianVisit('17', false)
+const guardianClosed = (await call('PUT', `${closedVisit}/report`, staff, { hidden_media_ids: [] })).link.url
+await call('DELETE', `${closedVisit}/report`, staff)
+
 mkdirSync('test-results', { recursive: true })
 writeFileSync('test-results/e2e-links.json', JSON.stringify(
-  { live, closed, long, visitDate: startsAt.slice(0, 10), api: BASE, staffLogin, visitPath: V }, null, 2,
+  {
+    live, closed, long, visitDate: startsAt.slice(0, 10), api: BASE, staffLogin, visitPath: V,
+    guardianLive, guardianClosed, guardianShop: shop.name,
+    guardianLogin: `e2e-guardian-${STAMP}`, guardianOther: `e2e-guardian-other-${STAMP}`,
+  }, null, 2,
 ))
 console.log(`준비 완료 — 매장 ${shop.shop_id}, 방문 ${visit}. 링크는 test-results/e2e-links.json 에 있다.`)

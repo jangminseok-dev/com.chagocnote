@@ -30,6 +30,12 @@ export function koreanDate(iso: string): string {
   return `${month}월 ${day}일`
 }
 
+/** '2026-11-01T10:00:00+09:00' → '2026년 11월 1일' */
+export function koreanFullDate(iso: string): string {
+  const [year, month, day] = dateParts(iso)
+  return `${year}년 ${month}월 ${day}일`
+}
+
 /** 55000 → '55,000' */
 export function won(amount: number): string {
   return amount.toLocaleString('en-US')

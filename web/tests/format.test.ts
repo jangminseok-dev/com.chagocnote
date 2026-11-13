@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { dayNumber, duration, koreanDate, monthAndWeekday, reportTitle, weight, won } from '../lib/format'
+import { dayNumber, duration, koreanDate, koreanFullDate, monthAndWeekday, reportTitle, weight, won } from '../lib/format'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -61,4 +61,11 @@ test('제목은 이름이 있으면 "○○의 미용 알림장" 이다', () => 
 
 test('이름이 없으면 "미용 알림장" 이다', () => {
   expect(reportTitle(null)).toBe('미용 알림장')
+})
+
+test('온전한 날짜는 "○○○○년 ○월 ○일" 이다', () => {
+  expect(koreanFullDate('2026-11-01T10:00:00+09:00')).toBe('2026년 11월 1일')
+  expect(koreanFullDate('2026-09-28')).toBe('2026년 9월 28일')
+  // 문자열의 숫자를 그대로 읽는다 — 서버의 시간대에 기대지 않는다.
+  expect(koreanFullDate('2026-01-01T00:30:00+09:00')).toBe('2026년 1월 1일')
 })

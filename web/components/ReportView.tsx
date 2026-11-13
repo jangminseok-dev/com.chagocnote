@@ -9,8 +9,12 @@ import { ShopCard } from './ShopCard'
 import { TodaysCare } from './TodaysCare'
 import { ViewedSignal } from './ViewedSignal'
 
-/** 알림장 화면. 온 것만 그린다 — 매장이 끈 항목은 칸이 없고, 값이 없는 항목은 null 이다. */
-export function ReportView({ report, token }: { report: Report; token: string }) {
+/**
+ * 알림장 화면. 온 것만 그린다 — 매장이 끈 항목은 칸이 없고, 값이 없는 항목은 null 이다.
+ * token 은 받은 링크로 열었을 때만 있다. 로그인한 보호자의 한 장에는 없고, 그때는 열람 신호와 로그인 버튼이 없다.
+ * login 은 로그인할 수단이 있는가다 — 없으면 눌러도 갈 곳이 없으니 로그인 버튼을 그리지 않는다.
+ */
+export function ReportView({ report, token, login = false }: { report: Report; token?: string; login?: boolean }) {
   const { media } = report
   return (
     <main className={styles.page}>
@@ -20,8 +24,8 @@ export function ReportView({ report, token }: { report: Report; token: string })
       <TodaysCare menus={report.menus} totalAmount={report.total_amount} weightKg={report.weight_kg} />
       {media.length > 0 && <SaveAllButton media={media} />}
       {report.shop && <ShopCard shop={report.shop} />}
-      <ReportFoot expiresAt={report.expires_at} />
-      <ViewedSignal token={token} />
+      <ReportFoot expiresAt={report.expires_at} claimAction={token !== undefined && login ? `/r/${token}/claim` : undefined} />
+      {token !== undefined && <ViewedSignal token={token} />}
     </main>
   )
 }
