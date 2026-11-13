@@ -4,24 +4,39 @@ import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_big_date.dart';
+import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../api/sales_models.dart';
 import '../state/sales_rules.dart';
+import 'sales_sections.dart';
 
 /// 매출 탭의 머리 — 기간의 제목, 큰 숫자, 견준 문장, 목표(설계 ⑧ 3.2 의 2~4).
 ///
 /// 비교는 초록·빨강 화살표가 아니라 문장이다. 숫자 하나가 주인공이다.
 class SalesHero extends StatelessWidget {
-  const SalesHero({super.key, required this.summary, required this.empty});
+  const SalesHero({
+    super.key,
+    required this.summary,
+    required this.empty,
+    required this.today,
+    this.onGoal,
+  });
 
   final SalesSummary summary;
+
+  /// 기기의 오늘 — 오늘의 일 보기는 "어제보다"로 말한다.
+  final DateTime today;
+
+  /// 목표 줄(없으면 [이번 달 목표 정하기])을 눌렀을 때. 이번 달의 월 보기에서만 준다 — null 이면 줄이 눌리지 않고
+  /// 정하기도 없다.
+  final VoidCallback? onGoal;
 
   /// 완료한 방문이 없는 기간 — 큰 숫자 대신 안내를 보인다.
   final bool empty;
 
   @override
   Widget build(BuildContext context) {
-    final compare = compareSentence(summary);
+    final compare = compareSentence(summary, today: today);
     final yearAgo = yearAgoSentence(summary);
     final goal = goalSentence(summary);
     return Column(
@@ -68,9 +83,36 @@ class SalesHero extends StatelessWidget {
         ],
         if (goal != null) ...[
           const SizedBox(height: AppSpacing.md),
-          Text(goal, style: AppTypography.caption),
-          const SizedBox(height: AppSpacing.xs),
-          _GoalLine(progress: goalProgress(summary)),
+          Pressable(
+            key: const Key('sales-goal'),
+            minSize: 0,
+            semanticLabel: goal,
+            onTap: onGoal,
+            child: ExcludeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(goal, style: AppTypography.caption),
+                      if (onGoal != null)
+                        const Icon(Icons.chevron_right, size: 14, color: AppColors.secondary),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  _GoalLine(progress: goalProgress(summary)),
+                ],
+              ),
+            ),
+          ),
+        ] else if (onGoal != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          Pressable(
+            key: const Key('sales-goal'),
+            minSize: 0,
+            onTap: onGoal,
+            child: Text(AppStrings.salesSetGoal, style: salesLinkStyle),
+          ),
         ],
       ],
     );

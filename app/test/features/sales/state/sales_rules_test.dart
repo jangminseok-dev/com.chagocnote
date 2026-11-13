@@ -345,4 +345,82 @@ void main() {
       expect(shareText('매장', empty), '매장 · 2026년 11월 (14일까지)\n매출 0원 · 방문 0건');
     });
   });
+
+  test('오늘의 일 보기는 어제와 견준다 — 지난 날은 그 전날', () {
+    final day = _s(
+      asked: SalesSpan.day, span: 'day', start: '2026-11-14', end: '2026-11-14', revenue: 510000,
+      previous: _window('2026-11-13', '2026-11-13', 440000),
+    );
+    expect(compareSentence(day, today: DateTime(2026, 11, 14, 9)), '어제보다 7만 원 많아요.');
+    expect(compareSentence(day, today: DateTime(2026, 11, 15)), '그 전날보다 7만 원 많아요.');
+    expect(compareSentence(day), '그 전날보다 7만 원 많아요.');
+    expect(
+      compareSentence(day.span == SalesSpan.day ? _s(revenue: 3250000) : day, today: DateTime(2026, 11, 14)),
+      '지난달 14일까지보다 42만 원 많아요.',
+      reason: '월 보기는 그대로',
+    );
+  });
+
+  test('목표는 이번 달의 월 보기에서만', () {
+    final today = DateTime(2026, 11, 14);
+    expect(isGoalPeriod(_s(), today), isTrue);
+    expect(isGoalPeriod(_s(start: '2026-10-01', end: '2026-10-31', elapsedEnd: '2026-10-31'), today), isFalse);
+    expect(isGoalPeriod(_s(start: '2025-11-01', end: '2025-11-30', elapsedEnd: '2025-11-30'), today), isFalse);
+    expect(
+      isGoalPeriod(_s(asked: SalesSpan.week, span: 'week', start: '2026-11-09', end: '2026-11-15'), today),
+      isFalse,
+    );
+    expect(
+      isGoalPeriod(_s(asked: SalesSpan.year, span: 'year', start: '2026-01-01', end: '2026-12-31'), today),
+      isFalse,
+    );
+  });
+
+  group('방문 목록의 주소', () {
+    final today = DateTime(2026, 11, 14, 22);
+
+    test('요약의 기간이 그대로 가고 다시 읽으면 같은 조건이다', () {
+      final october = _s(start: '2026-10-01', end: '2026-10-31', elapsedEnd: '2026-10-31');
+      final path = visitsPath(october, SalesVisitFilter.menu, menuId: 2, menuName: '목욕 & 스파');
+      final uri = Uri.parse(path);
+
+      expect(uri.path, '/sales/visits');
+      expect(uri.queryParameters, {
+        'span': 'month', 'anchor': '2026-10-01', 'filter': 'menu', 'menu_id': '2', 'menu': '목욕 & 스파',
+      });
+      expect(visitsQueryOf(uri.queryParameters, today), (
+        span: SalesSpan.month,
+        anchor: DateTime(2026, 10, 1),
+        filter: SalesVisitFilter.menu,
+        menuId: 2,
+      ));
+      expect(Uri.parse(visitsPath(october, SalesVisitFilter.noShow)).queryParameters.containsKey('menu_id'), isFalse);
+    });
+
+    test('깨진 질의는 기본값이다', () {
+      const fallback = (span: SalesSpan.month, filter: SalesVisitFilter.unrecorded, menuId: null);
+      for (final query in <Map<String, String>>[
+        {},
+        {'span': 'decade', 'anchor': 'yesterday', 'filter': 'everything'},
+        {'span': '', 'anchor': '2026-02-31', 'filter': 'menu'},
+        {'anchor': '2026-13-01', 'filter': 'menu', 'menu_id': 'abc'},
+        {'anchor': '20261114'},
+      ]) {
+        final read = visitsQueryOf(query, today);
+        expect((span: read.span, filter: read.filter, menuId: read.menuId), fallback, reason: '$query');
+        expect(read.anchor, DateTime(2026, 11, 14), reason: '$query');
+      }
+    });
+
+    test('메뉴가 아닌 종류에 붙은 메뉴 ID 는 버린다', () {
+      final read = visitsQueryOf({'filter': 'no_show', 'menu_id': '4', 'span': 'year'}, today);
+      expect((read.span, read.filter, read.menuId), (SalesSpan.year, SalesVisitFilter.noShow, null));
+    });
+  });
+
+  test('목록 줄의 날짜', () {
+    expect(visitDateLabel(DateTime(2026, 11, 14)), '11월 14일 토');
+    expect(visitDateLabel(DateTime(2026, 11, 2)), '11월 2일 월');
+    expect(visitDateLabel(DateTime(2026, 11, 15)), '11월 15일 일');
+  });
 }

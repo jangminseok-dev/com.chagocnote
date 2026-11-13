@@ -385,6 +385,10 @@ class AppStrings {
   static const salesShare = '요약 공유';
   static const salesShareFailed = '공유 화면을 열지 못했어요. 다시 시도해 주세요.';
   static const salesUnitHeads = '마리';
+  static String salesVisitRowLabel(String who, String date) => '$who $date 방문 보기';
+  static String salesDuePetRowLabel(String name, String since) => '$name $since';
+  static String salesMenuRowLabel(String menu) => '$menu 한 방문 보기';
+  static String salesFactLabel(String label, int count) => '$label $count건 보기';
   // 영문 장식(구역 이름 옆) — 화면 읽기에서는 뺀다.
   static const salesPaymentEn = 'Payment';
   static const salesMenuEn = 'Menu';
