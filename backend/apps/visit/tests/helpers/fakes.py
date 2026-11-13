@@ -33,6 +33,7 @@ from visit.app.ports.output.guardian_report_repository import GuardianReportRepo
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
+from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepository
@@ -619,3 +620,19 @@ class FakeEvents(DomainEventPort):
     async def publish(self, event):
         self.published.append(event)
         self.journal.append(("publish", type(event).__name__, event.visit_id))
+
+
+class FakeSalesGoalRepository(SalesGoalRepository):
+    """rows 는 매장 ID → 월 목표. 없는 매장은 목표가 없다."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.rows: dict[int, int | None] = {}
+
+    async def get(self, ctx):
+        return self.rows.get(ctx.shop_id)
+
+    async def put(self, ctx, monthly_amount):
+        self.journal.append(("put_sales_goal", ctx.shop_id))
+        self.rows[ctx.shop_id] = monthly_amount
+        return monthly_amount

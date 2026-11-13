@@ -53,6 +53,10 @@ class VisitShopSettingsOrm(Base):
             "report_link_days IS NULL OR report_link_days IN (7, 30)",
             name="ck_visit_shop_settings_report_link_days",
         ),
+        CheckConstraint(
+            "sales_monthly_goal IS NULL OR sales_monthly_goal BETWEEN 1 AND 100000000",
+            name="ck_visit_shop_settings_sales_goal",
+        ),
     )
 
     # tenancy 의 매장 ID. 스포크를 넘는 외래 키는 걸지 않는다.
@@ -66,6 +70,8 @@ class VisitShopSettingsOrm(Base):
     report_show_shop_info: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     report_show_weight: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     report_show_amount: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # ⑧ 매출 — 월 목표 금액(원). NULL 이면 목표가 없다.
+    sales_monthly_goal: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
