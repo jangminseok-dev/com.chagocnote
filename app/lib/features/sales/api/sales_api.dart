@@ -18,4 +18,51 @@ class SalesApi {
             as Map<String, dynamic>;
     return SalesSummary.fromJson(data, span);
   }
+
+  /// 매출 탭의 숫자에서 이어지는 방문들 — 그 기간의 것만, 최신순 20개씩.
+  /// [filter]가 메뉴면 [menuId]가 있어야 한다.
+  Future<SalesPage<SalesVisitItem>> visits(
+    int shopId,
+    SalesSpan span,
+    DateTime anchor,
+    SalesVisitFilter filter, {
+    int? menuId,
+    String? cursor,
+  }) async {
+    final data =
+        await _client.get(
+              '/v1/shops/$shopId/sales/visits',
+              queryParameters: {
+                'span': span.name,
+                'anchor': isoDay(anchor),
+                'filter': filter.wire,
+                'menu_id': ?menuId,
+                'cursor': ?cursor,
+              },
+            )
+            as Map<String, dynamic>;
+    return SalesPage.fromJson(data, SalesVisitItem.fromJson);
+  }
+
+  /// 다시 올 때가 지난 아이 — 오래된 순 20마리씩.
+  Future<SalesPage<DuePetItem>> duePets(int shopId, {String? cursor}) async {
+    final data =
+        await _client.get(
+              '/v1/shops/$shopId/sales/due-pets',
+              queryParameters: {'cursor': ?cursor},
+            )
+            as Map<String, dynamic>;
+    return SalesPage.fromJson(data, DuePetItem.fromJson);
+  }
+
+  /// 월 목표를 정한다. null 이면 지운다. 저장된 값을 돌려준다.
+  Future<int?> setGoal(int shopId, int? monthlyAmount) async {
+    final data =
+        await _client.put(
+              '/v1/shops/$shopId/sales/goal',
+              data: {'monthly_amount': monthlyAmount},
+            )
+            as Map<String, dynamic>;
+    return data['monthly_amount'] as int?;
+  }
 }

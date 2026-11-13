@@ -110,3 +110,20 @@ Map<String, dynamic> salesSummaryJson({
   'unrecorded_count': unrecordedCount,
   'due_pet_count': duePetCount,
 };
+
+Map<String, dynamic> salesVisitJson(
+  int visitId, {
+  String date = '2026-11-14',
+  Map<String, dynamic>? pet,
+  int? amount,
+}) => {'visit_id': visitId, 'date': date, 'pet': pet, 'amount': amount};
+
+Map<String, dynamic> duePetJson(int petId, String name, String lastVisit, {String? photo}) => {
+  'pet': petCardJson(petId, name, photo: photo),
+  'last_visit_date': lastVisit,
+};
+
+Map<String, dynamic> salesPageJson(List<Map<String, dynamic>> items, {String? nextCursor}) => {
+  'items': items,
+  'next_cursor': nextCursor,
+};

@@ -224,4 +224,125 @@ void main() {
     expect(barRatios([]), isEmpty);
     expect(barRatios([-10, 20]), [0, 1]);
   });
+
+  group('목표 칸 읽기', () {
+    test('숫자만 읽고 빈 칸과 0 은 목표 없음이다', () {
+      expect(parseGoal('5000000'), 5000000);
+      expect(parseGoal(' 5,000,000원 '), 5000000);
+      expect(parseGoal(''), isNull);
+      expect(parseGoal('   '), isNull);
+      expect(parseGoal('0'), isNull);
+      expect(parseGoal('000'), isNull);
+      expect(parseGoal('원'), isNull);
+      expect(parseGoal('1'), 1);
+    });
+
+    test('1억까지 받고 그 위는 막는다', () {
+      expect(parseGoal('100000000'), 100000000);
+      expect(() => parseGoal('100000001'), throwsFormatException);
+      expect(() => parseGoal('99999999999999999999999999'), throwsFormatException);
+    });
+  });
+
+  test('마지막으로 다녀간 지 — 이레 안은 날, 그 밖은 주(버림)', () {
+    final today = DateTime(2026, 11, 14, 15, 30);
+    expect(sinceLabel(DateTime(2026, 11, 14), today), '오늘');
+    expect(sinceLabel(DateTime(2026, 11, 13), today), '1일 전');
+    expect(sinceLabel(DateTime(2026, 11, 8), today), '6일 전');
+    expect(sinceLabel(DateTime(2026, 11, 7), today), '1주 전');
+    expect(sinceLabel(DateTime(2026, 9, 18), today), '8주 전'); // 57일
+    expect(sinceLabel(DateTime(2026, 9, 12), today), '9주 전'); // 63일
+    expect(sinceLabel(DateTime(2025, 11, 14), today), '52주 전');
+    expect(sinceLabel(DateTime(2026, 11, 20), today), '오늘', reason: '앞날이 와도 죽지 않는다');
+  });
+
+  test('방문 목록의 제목', () {
+    expect(visitsTitle(SalesVisitFilter.unrecorded), '금액을 적지 않은 방문');
+    expect(visitsTitle(SalesVisitFilter.noShow), '노쇼한 방문');
+    expect(visitsTitle(SalesVisitFilter.canceled), '취소한 방문');
+    expect(visitsTitle(SalesVisitFilter.menu, menuName: '전체 미용'), '전체 미용 한 방문');
+    expect(visitsTitle(SalesVisitFilter.menu), '메뉴의 방문');
+    expect(visitsTitle(SalesVisitFilter.menu, menuName: ''), '메뉴의 방문');
+  });
+
+  group('요약 공유 글', () {
+    test('진행 중인 달 — 설계 3.4 의 네 줄', () {
+      expect(
+        shareText('Hiss Haus', _s()),
+        'Hiss Haus · 2026년 11월 (14일까지)\n'
+        '매출 3,250,000원 · 방문 48건\n'
+        '카드 2,400,000원 / 현금 550,000원 / 계좌 300,000원\n'
+        '전체 미용 2,100,000원(30건) · 목욕 750,000원(15건) · 스파 400,000원(8건)',
+      );
+    });
+
+    test('아이의 이름이 한 글자도 없다', () {
+      final text = shareText('Hiss Haus', _s());
+      for (final name in ['보리', '코코', '두부', '몽이']) {
+        expect(text.contains(name), isFalse, reason: name);
+      }
+    });
+
+    test('기간의 머리 — 지난 달, 일, 주, 달을 걸친 주, 연', () {
+      String head(SalesSummary s) => shareText('매장', s).split('\n').first;
+      expect(
+        head(_s(start: '2026-10-01', end: '2026-10-31', elapsedEnd: '2026-10-31')),
+        '매장 · 2026년 10월',
+      );
+      expect(
+        head(_s(asked: SalesSpan.day, span: 'day', start: '2026-11-14', end: '2026-11-14')),
+        '매장 · 2026년 11월 14일',
+      );
+      expect(
+        head(_s(asked: SalesSpan.week, span: 'week', start: '2026-11-09', end: '2026-11-15')),
+        '매장 · 2026년 11월 9일~15일',
+      );
+      expect(
+        head(_s(asked: SalesSpan.week, span: 'week', start: '2026-10-26', end: '2026-11-01', elapsedEnd: '2026-11-01')),
+        '매장 · 2026년 10월 26일~11월 1일',
+      );
+      expect(
+        head(_s(asked: SalesSpan.year, span: 'year', start: '2026-01-01', end: '2026-12-31')),
+        '매장 · 2026년 (11월 14일까지)',
+      );
+      expect(
+        head(_s(asked: SalesSpan.year, span: 'year', start: '2025-01-01', end: '2025-12-31', elapsedEnd: '2025-12-31')),
+        '매장 · 2025년',
+      );
+      expect(
+        head(_s(start: '2026-12-01', end: '2026-12-31', elapsedEnd: null)),
+        '매장 · 2026년 12월',
+        reason: '앞날의 기간',
+      );
+    });
+
+    test('조정·미선택·기타 수단이 든 요약, 결제 수단과 메뉴가 없으면 그 줄이 없다', () {
+      final mixed = SalesSummary.fromJson(
+        salesSummaryJson(
+          revenue: 90000,
+          visitCount: 2,
+          payments: [
+            {'method': 'none', 'amount': 40000},
+            {'method': 'point', 'amount': 50000},
+          ],
+          menus: [
+            {'menu_id': 1, 'name': '목욕', 'amount': 100000, 'count': 2, 'pet': null},
+            {'menu_id': null, 'name': '조정', 'amount': -10000, 'count': 0, 'pet': null},
+          ],
+        ),
+        SalesSpan.month,
+      );
+      expect(shareText('매장', mixed).split('\n').sublist(1), [
+        '매출 90,000원 · 방문 2건',
+        '미선택 40,000원 / 기타 50,000원',
+        '목욕 100,000원(2건) · 조정 -10,000원',
+      ]);
+
+      final empty = SalesSummary.fromJson(
+        salesSummaryJson(revenue: 0, visitCount: 0, payments: [], menus: []),
+        SalesSpan.month,
+      );
+      expect(shareText('매장', empty), '매장 · 2026년 11월 (14일까지)\n매출 0원 · 방문 0건');
+    });
+  });
 }

@@ -1,4 +1,6 @@
 // SalesApi 를 실제 네트워크 없이(FakeHttpClientAdapter) 검증한다 — 경로, 질의, 응답 해석.
+import 'dart:convert';
+
 import 'package:chagocnote/core/proxy/api_client.dart';
 import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/features/sales/api/sales_api.dart';
@@ -161,5 +163,73 @@ void main() {
 
     expect([...s.buckets, ...s.payments, ...s.menus, ...s.regulars], isEmpty);
     expect([...s.faces, ...s.newPets, ...s.returningPets], isEmpty);
+  });
+
+  test('방문 목록 — 경로와 질의, 메뉴와 커서는 있을 때만', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: salesPageJson([
+          salesVisitJson(7, pet: petCardJson(101, '보리'), amount: 45000),
+          salesVisitJson(6, date: '2026-11-02'),
+        ], nextCursor: 'c1'),
+      ),
+    );
+
+    final page = await s.api.visits(3, SalesSpan.month, DateTime(2026, 11, 14), SalesVisitFilter.noShow);
+    await s.api.visits(
+      3, SalesSpan.week, DateTime(2026, 11, 14), SalesVisitFilter.menu, menuId: 2, cursor: 'c1',
+    );
+
+    final first = s.adapter.requests.first;
+    expect('${first.method} ${first.path}', 'GET /v1/shops/3/sales/visits');
+    expect(first.queryParameters, {'span': 'month', 'anchor': '2026-11-14', 'filter': 'no_show'});
+    expect(s.adapter.requests.last.queryParameters, {
+      'span': 'week', 'anchor': '2026-11-14', 'filter': 'menu', 'menu_id': 2, 'cursor': 'c1',
+    });
+    expect(page.nextCursor, 'c1');
+    expect((page.items[0].visitId, page.items[0].pet!.name, page.items[0].amount), (7, '보리', 45000));
+    expect((page.items[1].date, page.items[1].pet, page.items[1].amount), (DateTime(2026, 11, 2), null, null));
+  });
+
+  test('목록 종류 넷의 글자', () {
+    expect([for (final f in SalesVisitFilter.values) f.wire], ['unrecorded', 'no_show', 'canceled', 'menu']);
+    expect(SalesVisitFilter.of('no_show'), SalesVisitFilter.noShow);
+    expect(SalesVisitFilter.of('nope'), isNull);
+    expect(SalesVisitFilter.of(null), isNull);
+  });
+
+  test('다시 올 때가 지난 아이 — 경로와 커서', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: salesPageJson([duePetJson(101, '보리', '2026-09-10')]),
+      ),
+    );
+
+    final page = await s.api.duePets(3);
+    await s.api.duePets(3, cursor: 'c9');
+
+    expect(s.adapter.requests.first.path, '/v1/shops/3/sales/due-pets');
+    expect(s.adapter.requests.first.queryParameters, isEmpty);
+    expect(s.adapter.requests.last.queryParameters, {'cursor': 'c9'});
+    expect((page.items.single.pet.petId, page.items.single.lastVisitDate), (101, DateTime(2026, 9, 10)));
+    expect(page.nextCursor, isNull);
+  });
+
+  test('목표를 정하고 지운다 — PUT 본문과 저장된 값', () async {
+    final bodies = <Object?>[];
+    final s = _build((options, body) {
+      final sent = jsonDecode(utf8.decode(body!)) as Map;
+      bodies.add(sent);
+      return FakeResponse(statusCode: 200, data: {'monthly_amount': sent['monthly_amount']});
+    });
+
+    expect(await s.api.setGoal(3, 5000000), 5000000);
+    expect(await s.api.setGoal(3, null), isNull);
+
+    final request = s.adapter.requests.first;
+    expect('${request.method} ${request.path}', 'PUT /v1/shops/3/sales/goal');
+    expect(bodies, [{'monthly_amount': 5000000}, {'monthly_amount': null}]);
   });
 }

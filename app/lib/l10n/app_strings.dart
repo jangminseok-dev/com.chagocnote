@@ -363,6 +363,28 @@ class AppStrings {
       '완료한 $completed건 가운데 $sent건에 알림장을 보냈고, 보호자가 $opened건을 열어 봤어요.';
   static String salesUnrecorded(int count) => '금액을 적지 않은 완료 방문 $count건';
   static String salesBarLabel(String day, String amount) => '$day $amount원';
+  // 매출에서 이어지는 화면(⑧-3)
+  static const salesVisitsUnrecorded = '금액을 적지 않은 방문';
+  static const salesVisitsNoShow = '노쇼한 방문';
+  static const salesVisitsCanceled = '취소한 방문';
+  static const salesVisitsMenu = '메뉴의 방문';
+  static String salesVisitsOfMenu(String menu) => '$menu 한 방문';
+  static const salesVisitsEmpty = '해당하는 방문이 없어요';
+  static const salesDuePetsTitle = '다시 올 때가 지난 아이';
+  static const salesDuePetsEmpty = '다시 올 때가 지난 아이가 없어요';
+  static const salesToday = '오늘';
+  static String salesDaysAgo(int days) => '$days일 전';
+  static String salesWeeksAgo(int weeks) => '$weeks주 전';
+  static const salesShowAllMenus = '모두 보기';
+  static const salesSetGoal = '이번 달 목표 정하기';
+  static const salesGoalTitle = '이번 달 목표';
+  static const salesGoalLabel = '목표 금액';
+  static const salesGoalHint = '비워 두면 목표가 없어요';
+  static const salesGoalTooBig = '1억 원까지 정할 수 있어요.';
+  static const salesGoalClear = '목표 지우기';
+  static const salesShare = '요약 공유';
+  static const salesShareFailed = '공유 화면을 열지 못했어요. 다시 시도해 주세요.';
+  static const salesUnitHeads = '마리';
   // 영문 장식(구역 이름 옆) — 화면 읽기에서는 뺀다.
   static const salesPaymentEn = 'Payment';
   static const salesMenuEn = 'Menu';

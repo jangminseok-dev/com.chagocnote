@@ -154,3 +154,66 @@ List<double> barRatios(List<int> values) {
   }
   return [for (final v in values) max == 0 || v <= 0 ? 0.0 : v / max];
 }
+
+/// 받을 수 있는 가장 큰 목표(기록의 총액과 같은 범위).
+const maxGoalAmount = 100000000;
+
+/// 목표 칸의 글자를 금액으로. 숫자만 읽는다(쉼표·띄어쓰기·'원'은 버린다). 빈 칸과 0 은 null(목표 없음),
+/// 한도를 넘으면 [FormatException].
+int? parseGoal(String text) {
+  final digits = text.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return null;
+  final amount = digits.length > 12 ? maxGoalAmount + 1 : int.parse(digits);
+  if (amount > maxGoalAmount) throw const FormatException('목표가 한도를 넘는다');
+  return amount == 0 ? null : amount;
+}
+
+/// 마지막으로 다녀간 지 얼마나 됐나 — 이레가 안 됐으면 `3일 전`, 그 밖은 `9주 전`(버림).
+String sinceLabel(DateTime lastVisit, DateTime today) {
+  final days = DateTime(today.year, today.month, today.day)
+      .difference(DateTime(lastVisit.year, lastVisit.month, lastVisit.day))
+      .inDays;
+  if (days <= 0) return AppStrings.salesToday;
+  return days < 7 ? AppStrings.salesDaysAgo(days) : AppStrings.salesWeeksAgo(days ~/ 7);
+}
+
+/// 방문 목록 화면의 제목.
+String visitsTitle(SalesVisitFilter filter, {String? menuName}) => switch (filter) {
+  SalesVisitFilter.unrecorded => AppStrings.salesVisitsUnrecorded,
+  SalesVisitFilter.noShow => AppStrings.salesVisitsNoShow,
+  SalesVisitFilter.canceled => AppStrings.salesVisitsCanceled,
+  SalesVisitFilter.menu =>
+    menuName == null || menuName.isEmpty
+        ? AppStrings.salesVisitsMenu
+        : AppStrings.salesVisitsOfMenu(menuName),
+};
+
+/// 공유 글의 기간 — `2026년 11월 (14일까지)`.
+String _sharePeriod(SalesSummary s) {
+  final ongoing = s.elapsedEnd != null && s.elapsedEnd!.isBefore(s.end);
+  final reached = s.elapsedEnd;
+  return switch (s.span) {
+    SalesSpan.day => '${s.start.year}년 ${s.start.month}월 ${s.start.day}일',
+    SalesSpan.week => s.start.month == s.end.month
+        ? '${s.start.year}년 ${s.start.month}월 ${s.start.day}일~${s.end.day}일'
+        : '${s.start.year}년 ${s.start.month}월 ${s.start.day}일~${s.end.month}월 ${s.end.day}일',
+    SalesSpan.month =>
+      '${s.start.year}년 ${s.start.month}월${ongoing ? ' (${reached!.day}일까지)' : ''}',
+    SalesSpan.year =>
+      '${s.start.year}년${ongoing ? ' (${reached!.month}월 ${reached.day}일까지)' : ''}',
+  };
+}
+
+/// 요약을 글로(설계 ⑧ 3.4). 기간·매출·방문 수·결제 수단별·메뉴별만 담는다 —
+/// 아이와 보호자의 이름·번호는 넣지 않는다.
+String shareText(String shopName, SalesSummary s) => [
+  '$shopName · ${_sharePeriod(s)}',
+  '매출 ${won(s.revenue)}원 · 방문 ${s.visitCount}건',
+  if (s.payments.isNotEmpty)
+    [for (final p in s.payments) '${paymentLabel(p.method)} ${won(p.amount)}원'].join(' / '),
+  if (s.menus.isNotEmpty)
+    [
+      for (final m in s.menus)
+        m.menuId == null ? '${m.name} ${won(m.amount)}원' : '${m.name} ${won(m.amount)}원(${m.count}건)',
+    ].join(' · '),
+].join('\n');
