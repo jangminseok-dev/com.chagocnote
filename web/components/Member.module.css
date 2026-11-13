@@ -101,3 +101,62 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+/* 내 기록 — 매장 하나 */
+.shop,
+.empty {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #d9d9d9;
+}
+
+.shop h2,
+.empty h2 {
+  margin: 0;
+  font-family: var(--font-myeongjo);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.empty h2 {
+  margin-bottom: 8px;
+}
+
+.shop small {
+  display: block;
+  margin: 2px 0 12px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.pets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pets a {
+  display: block;
+  padding: 10px 16px;
+  border: 1px solid var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.row a {
+  text-underline-offset: 3px;
+}
+
+.logout {
+  margin-top: 40px;
+  text-align: center;
+}

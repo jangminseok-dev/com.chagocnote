@@ -114,6 +114,12 @@ async function loginAs(get, name, { next, cookie } = {}) {
   return { res, session: line === null ? null : pair(line) }
 }
 
+/** 세션이 없거나 끝났을 때의 이동 — 307 이고 로그인 뒤 here 로 돌아온다. */
+function goesToLogin(res, here) {
+  assert.equal(res.status, 307)
+  assert.equal(res.headers.get('location'), `/login?next=${encodeURIComponent(here)}`)
+}
+
 const loginChecks = [
   {
     name: '/login 은 200 이고 헤더 셋이 있고 폼이 /login/dev 로 간다',
@@ -388,6 +394,144 @@ const loginChecks = [
     name: '잇기를 GET 으로 부르면 405 이고 백엔드를 부르지 않는다',
     async run({ get, stats }) {
       assert.equal((await get(`/r/${token('ok')}/claim`)).status, 405)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '세션 없는 /me 는 307 /login?next=%2Fme 이고 헤더 셋이 있으며 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      const res = await get('/me')
+      goesToLogin(res, '/me')
+      hasHeaderSet(res)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '깨진 세션 쿠키·잇기 쿠키로 만든 세션 쿠키는 로그인으로 간다(500 이 아니다)',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      const claim = pair(setCookie(await get(`/r/${token('ok')}/claim`, form({})), 'cn_claim'))
+      await reset()
+      const broken = [
+        'cn_session=garbage',
+        'cn_session=',
+        `cn_session=${'A'.repeat(4000)}`,
+        session.slice(0, -6), // 잘린 값
+        `cn_session=${claim.slice('cn_claim='.length)}`, // 다른 용도로 봉한 값
+      ]
+      for (const cookie of broken) goesToLogin(await get('/me', { headers: { cookie } }), '/me')
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '로그인한 /me 는 200 이고 헤더 셋이 있으며 매장과 아이들이 첫 HTML 에 있다',
+    async run({ get, stats, backend, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get('/me', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      // React 는 이어 붙인 글자 사이에 <!-- --> 를 넣는다.
+      const html = (await res.text()).replaceAll('<!-- -->', '')
+      assert.match(html, /<h1[^>]*>내 기록<\/h1>/)
+      for (const text of ['Hiss Haus', '2026년 11월 1일부터', '둘째 매장', '아직 받은 알림장이 없어요', '로그아웃']) {
+        assert.ok(html.includes(text), `첫 HTML 에 "${text}" 가 없다`)
+      }
+      assert.match(html, /<a href="\/me\/11\?pet=7">두부<\/a>/)
+      assert.match(html, /<a href="\/me\/11\?pet=8">우리 아이<\/a>/)
+      assert.match(html, /<form[^>]*action="\/me\/11\/unlink"/)
+      assert.ok(!html.includes('아직 이어진 기록이 없어요'), '연결이 있는데 빈 안내가 있다')
+      // 연결 목록 한 번 + 연결 둘의 아이들
+      const { guardian, count } = await stats()
+      assert.deepEqual([guardian, count], [3, 3])
+      assert.ok(!html.includes(backend), '첫 HTML 에 백엔드 주소가 있다')
+      assert.ok(!html.includes('tok-'), '첫 HTML 에 액세스 토큰이 있다')
+    },
+  },
+  {
+    name: '연결이 없는 계정의 /me 는 "아직 이어진 기록이 없어요" 다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'empty')
+      const html = await (await get('/me', { headers: { cookie: session } })).text()
+      assert.ok(html.includes('아직 이어진 기록이 없어요'))
+      assert.ok(!html.includes('data-section="shop"'), '매장 구역이 있다')
+    },
+  },
+  {
+    name: '/me?notice=taken 에만 안내가 있다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'ok')
+      const text = '이미 다른 계정에 이어져 있어요'
+      assert.ok((await (await get('/me?notice=taken', { headers: { cookie: session } })).text()).includes(text))
+      for (const path of ['/me', '/me?notice=%3Cscript%3E', '/me?notice=taken&notice=x']) {
+        assert.ok(!(await (await get(path, { headers: { cookie: session } })).text()).includes(text), path)
+      }
+    },
+  },
+  {
+    name: '끝난 토큰의 /me 는 307 /login?next=%2Fme 다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'expired')
+      goesToLogin(await get('/me', { headers: { cookie: session } }), '/me')
+    },
+  },
+  {
+    name: '정지된 계정의 /me 는 200 "이 계정으로는 볼 수 없어요" 다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'susp')
+      const res = await get('/me', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      assert.match(await res.text(), /<h1[^>]*>이 계정으로는 볼 수 없어요<\/h1>/)
+    },
+  },
+  {
+    name: '백엔드가 매달리면 /me 는 5초 뒤 200 "잠시 후 다시 열어 주세요" 다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'slow')
+      const { res, body } = await timed(get, '/me', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      assert.match(body, /<h1[^>]*>잠시 후 다시 열어 주세요<\/h1>/)
+    },
+  },
+  {
+    name: '연결 끊기는 303 /me 이고 끊기를 한 번 부른다. 없는 연결도 303 /me 다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get('/me/11/unlink', form({}, { cookie: session }))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/me')
+      const { count, last } = await stats()
+      assert.equal(count, 1)
+      assert.deepEqual([last.method, last.path, last.bearer], ['DELETE', '/v1/me/guardian/links/11', true])
+      assert.equal((await get('/me/99/unlink', form({}, { cookie: session }))).headers.get('location'), '/me')
+    },
+  },
+  {
+    name: '숫자가 아닌 연결의 끊기는 404 이고 백엔드를 부르지 않는다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      for (const id of ['abc', '0', '-1', '1e3', '11%0a', '9'.repeat(16)]) {
+        assert.equal((await get(`/me/${id}/unlink`, form({}, { cookie: session }))).status, 404, id)
+      }
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '세션 없는 끊기는 303 /login, 끝난 세션의 끊기는 세션 쿠키를 지우고 303 /login, 다른 출처는 403 이다',
+    async run({ get, stats, reset }) {
+      const none = await get('/me/11/unlink', form({}))
+      assert.deepEqual([none.status, none.headers.get('location')], [303, '/login'])
+      const { session: expired } = await loginAs(get, 'expired')
+      const ended = await get('/me/11/unlink', form({}, { cookie: expired }))
+      assert.deepEqual([ended.status, ended.headers.get('location')], [303, '/login'])
+      const cleared = ended.headers.getSetCookie().find((value) => value.startsWith('cn_session='))
+      assert.ok(cleared && isDeletion(cleared), '세션 쿠키를 지우지 않았다')
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      assert.equal((await get('/me/11/unlink', form({}, { cookie: session, 'Sec-Fetch-Site': 'cross-site' }))).status, 403)
+      assert.equal((await get('/me/11/unlink')).status, 405)
       assertBackendNotCalled(await stats())
     },
   },
