@@ -8,6 +8,7 @@ from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
 from visit.adapter.outbound.pg.report_settings_pg_repository import ReportSettingsPgRepository
 from visit.adapter.outbound.pg.sales_goal_pg_repository import SalesGoalPgRepository
+from visit.adapter.outbound.pg.sales_pg_repository import SalesPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
@@ -16,6 +17,7 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
+from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 
@@ -44,6 +46,10 @@ def build_report_repository(db: AsyncSession) -> ReportPgRepository:
 
 def build_report_settings_repository(db: AsyncSession) -> ReportSettingsRepository:
     return ReportSettingsPgRepository(db)
+
+
+def build_sales_repository(db: AsyncSession) -> SalesRepository:
+    return SalesPgRepository(db)
 
 
 def build_sales_goal_repository(db: AsyncSession) -> SalesGoalRepository:
