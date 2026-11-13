@@ -21,6 +21,7 @@ root_packages =
     visit
     media
     notification
+    guardian
 include_external_packages = True
 
 [importlinter:contract:clean-architecture]
@@ -39,6 +40,7 @@ containers =
     visit
     media
     notification
+    guardian
 
 [importlinter:contract:spoke-independence]
 name = 스포크 상호 독립 (스포크끼리 import 하지 않는다)
@@ -51,6 +53,7 @@ modules =
     visit
     media
     notification
+    guardian
 
 [importlinter:contract:framework-isolation]
 name = 프레임워크 격리 (app·domain 은 웹·DB·외부 통신 라이브러리를 모른다)
@@ -71,6 +74,8 @@ source_modules =
     media.domain
     notification.app
     notification.domain
+    guardian.app
+    guardian.domain
 forbidden_modules =
     fastapi
     sqlalchemy
@@ -90,6 +95,7 @@ source_modules =
     visit.domain
     media.domain
     notification.domain
+    guardian.domain
 forbidden_modules =
     pydantic
     core
@@ -107,6 +113,7 @@ forbidden_modules =
     visit
     media
     notification
+    guardian
 
 [importlinter:contract:core-isolation]
 name = core 격리 (core 는 스포크를 import 하지 않는다)
@@ -121,3 +128,4 @@ forbidden_modules =
     visit
     media
     notification
+    guardian

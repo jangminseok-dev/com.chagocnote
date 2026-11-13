@@ -47,6 +47,8 @@ from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_ro
 from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
+from guardian.adapter.inbound.api.error_map import GUARDIAN_ERROR_STATUS
+from guardian.adapter.inbound.api.v1.guardian_myself_router import guardian_myself_router
 from notification.adapter.inbound.api.error_map import NOTIFICATION_ERROR_STATUS
 from notification.adapter.inbound.api.v1.confirm_sender_router import confirm_sender_router
 from notification.adapter.inbound.api.v1.get_notification_message_router import get_notification_message_router
@@ -224,6 +226,8 @@ app.include_router(list_visit_notifications_router)
 app.include_router(resend_notification_router)
 app.include_router(get_notification_message_router)
 # media
+app.include_router(guardian_myself_router)
+
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
 app.include_router(confirm_upload_router)
@@ -232,6 +236,7 @@ install_error_handlers(
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
         **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS, **NOTIFICATION_ERROR_STATUS,
+        **GUARDIAN_ERROR_STATUS,
     },
 )
 
