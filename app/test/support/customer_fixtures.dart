@@ -178,3 +178,9 @@ const conditionTypesJson = [
   {'code': 'skin_disease', 'label': '피부병', 'sort_order': 3},
   {'code': 'other', 'label': '기타', 'sort_order': 10},
 ];
+
+/// 고객 카드의 보호자 계정 연결(매장용 응답 — 여부와 이은 날뿐이다).
+Map<String, dynamic> guardianLinkJson({
+  bool linked = true,
+  String? linkedAt = '2026-11-13T10:30:00+09:00',
+}) => {'linked': linked, 'linked_at': linked ? linkedAt : null};

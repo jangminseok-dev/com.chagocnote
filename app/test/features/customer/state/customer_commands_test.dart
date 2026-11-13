@@ -1,3 +1,4 @@
+import 'package:chagocnote/core/error/error_messages.dart';
 import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/customer/api/customer_models.dart';
@@ -211,5 +212,99 @@ void main() {
           .lookup(_shop, '01012345678'),
       isNull,
     );
+  });
+
+  group('보호자 연결 끊기', () {
+    const linkPath = '/v1/shops/3/customers/7/guardian-link';
+
+    /// 목록·상세에 더해 연결도 보고 있는 상태. [onDelete]가 DELETE 의 응답을 정한다.
+    Future<CustomerTestSetup> watchingLink(FakeResponse Function() onDelete) async {
+      final setup = await _watchingEverything((options, body) {
+        final key = '${options.method} ${options.path}';
+        if (key == 'GET $linkPath') {
+          return FakeResponse(statusCode: 200, data: guardianLinkJson());
+        }
+        expect(key, 'DELETE $linkPath');
+        return onDelete();
+      });
+      final c = setup.container;
+      c.listen(guardianLinkProvider(_customerKey), (_, _) {});
+      await c.read(guardianLinkProvider(_customerKey).future);
+      setup.adapter.requests.clear();
+      return setup;
+    }
+
+    test('연결을 끊으면 그 고객의 연결만 다시 읽고 목록·상세는 다시 읽지 않는다', () async {
+      final setup = await watchingLink(
+        () => const FakeResponse(statusCode: 204),
+      );
+      addTearDown(setup.container.dispose);
+
+      await setup.container
+          .read(customerCommandsProvider)
+          .endGuardianLink(_shop, 7);
+      await setup.container.read(guardianLinkProvider(_customerKey).future);
+      await _settle(setup);
+
+      expect(setup.calls, ['DELETE $linkPath', 'GET $linkPath']);
+    });
+
+    test('끊기가 실패해도(404) 연결을 다시 읽고 예외는 그대로 던진다', () async {
+      final setup = await watchingLink(
+        () => const FakeResponse(
+          statusCode: 404,
+          data: {'code': 'GUARDIAN_LINK_NOT_FOUND', 'message': 'x'},
+        ),
+      );
+      addTearDown(setup.container.dispose);
+
+      await expectLater(
+        setup.container
+            .read(customerCommandsProvider)
+            .endGuardianLink(_shop, 7),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.code,
+            'code',
+            'GUARDIAN_LINK_NOT_FOUND',
+          ),
+        ),
+      );
+      await setup.container.read(guardianLinkProvider(_customerKey).future);
+
+      expect(setup.calls, ['DELETE $linkPath', 'GET $linkPath']);
+    });
+
+    test('끊기가 NOT_A_MEMBER 면 내 정보를 다시 불러온다', () async {
+      final setup = await watchingLink(
+        () => const FakeResponse(
+          statusCode: 403,
+          data: {'code': 'NOT_A_MEMBER', 'message': 'x'},
+        ),
+      );
+      addTearDown(setup.container.dispose);
+      await setup.container.read(sessionControllerProvider.future);
+
+      await expectLater(
+        setup.container
+            .read(customerCommandsProvider)
+            .endGuardianLink(_shop, 7),
+        throwsA(isA<ApiException>()),
+      );
+      expect(setup.gateway.refreshMeCallCount, 1);
+    });
+
+    test('messageFor 는 GUARDIAN_LINK_NOT_FOUND 를 "이미 끊긴 연결이에요." 로 바꾼다', () {
+      expect(
+        messageFor(
+          ApiException(
+            statusCode: 404,
+            code: 'GUARDIAN_LINK_NOT_FOUND',
+            message: 'x',
+          ),
+        ),
+        '이미 끊긴 연결이에요.',
+      );
+    });
   });
 }

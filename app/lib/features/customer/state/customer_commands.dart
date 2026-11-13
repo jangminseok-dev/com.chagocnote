@@ -71,6 +71,21 @@ class CustomerCommands {
     refreshCustomerDetails: false,
   );
 
+  /// 매장이 보호자 연결을 끊는다. 성공하든 실패하든 그 고객의 연결을 다시
+  /// 읽게 한다 — 보호자가 먼저 끊었을 수 있다(404). 목록·상세는 바뀌지 않는다.
+  Future<void> endGuardianLink(int shopId, int customerId) async {
+    try {
+      await runShopScoped(
+        _ref,
+        () => _api.endGuardianLink(shopId, customerId),
+      );
+    } finally {
+      _ref.invalidate(
+        guardianLinkProvider((shopId: shopId, customerId: customerId)),
+      );
+    }
+  }
+
   Future<T> _write<T>(
     Future<T> Function() action, {
     bool refreshPetDetails = true,

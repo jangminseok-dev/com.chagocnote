@@ -347,4 +347,89 @@ void main() {
       'GET /v1/shops/3/pet-condition-types',
     ]);
   });
+
+  test('보호자 연결을 읽는다 — 경로와 응답', () async {
+    final s = _build((options, body) {
+      expect(body, isNull);
+      return FakeResponse(statusCode: 200, data: guardianLinkJson());
+    });
+
+    final link = await s.api.guardianLink(3, 7);
+
+    expect(link.linked, isTrue);
+    expect(link.linkedAt, '2026-11-13T10:30:00+09:00');
+    expect(s.adapter.requests.map((r) => '${r.method} ${r.path}'), [
+      'GET /v1/shops/3/customers/7/guardian-link',
+    ]);
+  });
+
+  test('연결이 없으면 linked 가 false 이고 날짜가 null 이다', () {
+    final link = GuardianLink.fromJson(guardianLinkJson(linked: false));
+    expect(link.linked, isFalse);
+    expect(link.linkedAt, isNull);
+  });
+
+  test('이은 날이 없거나 글자가 아니어도 연결됨으로 읽고 날짜는 null 이다', () {
+    for (final json in <Map<String, dynamic>>[
+      {'linked': true},
+      {'linked': true, 'linked_at': null},
+      {'linked': true, 'linked_at': 5},
+    ]) {
+      final link = GuardianLink.fromJson(json);
+      expect(link.linked, isTrue, reason: '$json');
+      expect(link.linkedAt, isNull, reason: '$json');
+    }
+  });
+
+  test('linked 가 true 가 아니면(없음·글자·null) 연결 없음이다', () {
+    for (final json in <Map<String, dynamic>>[
+      {},
+      {'linked': 'true'},
+      {'linked': null},
+      {'linked': 1},
+    ]) {
+      expect(GuardianLink.fromJson(json).linked, isFalse, reason: '$json');
+    }
+  });
+
+  test('모르는 칸이 더 와도 읽는다', () {
+    final link = GuardianLink.fromJson({
+      ...guardianLinkJson(),
+      'guardian_name': '누군가',
+    });
+    expect(link.linked, isTrue);
+  });
+
+  test('보호자 연결을 끊는다 — DELETE 이고 본문이 없다', () async {
+    final s = _build((options, body) {
+      expect(body, isNull);
+      return const FakeResponse(statusCode: 204);
+    });
+
+    await s.api.endGuardianLink(3, 7);
+
+    expect(s.adapter.requests.map((r) => '${r.method} ${r.path}'), [
+      'DELETE /v1/shops/3/customers/7/guardian-link',
+    ]);
+  });
+
+  test('없는 연결을 끊으면 GUARDIAN_LINK_NOT_FOUND 를 던진다', () async {
+    final s = _build(
+      (options, body) => const FakeResponse(
+        statusCode: 404,
+        data: {'code': 'GUARDIAN_LINK_NOT_FOUND', 'message': 'x'},
+      ),
+    );
+
+    await expectLater(
+      s.api.endGuardianLink(3, 7),
+      throwsA(
+        isA<ApiException>().having(
+          (e) => e.code,
+          'code',
+          'GUARDIAN_LINK_NOT_FOUND',
+        ),
+      ),
+    );
+  });
 }

@@ -133,6 +133,23 @@ class CustomerApi {
     await _client.delete('/v1/shops/$shopId/pets/$petId');
   }
 
+  /// 이 고객 카드가 보호자 계정에 이어져 있는지(여부와 이은 날뿐이다).
+  Future<GuardianLink> guardianLink(int shopId, int customerId) async {
+    final data =
+        await _client.get(
+              '/v1/shops/$shopId/customers/$customerId/guardian-link',
+            )
+            as Map<String, dynamic>;
+    return GuardianLink.fromJson(data);
+  }
+
+  /// 매장이 보호자 연결을 끊는다. 연결이 없으면 404 `GUARDIAN_LINK_NOT_FOUND`.
+  Future<void> endGuardianLink(int shopId, int customerId) async {
+    await _client.delete(
+      '/v1/shops/$shopId/customers/$customerId/guardian-link',
+    );
+  }
+
   /// 정해진 질병 종류(칩 순서대로).
   Future<List<ConditionType>> conditionTypes(int shopId) async {
     final data =

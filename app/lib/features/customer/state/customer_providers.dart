@@ -32,6 +32,18 @@ final customerDetailProvider = FutureProvider.autoDispose
       ),
     );
 
+/// 고객 카드의 보호자 계정 연결. 반려동물 상세의 보호자 탭이 고객 상세와 따로
+/// 읽는다 — 읽지 못해도 탭의 나머지는 그대로 보인다.
+final guardianLinkProvider = FutureProvider.autoDispose
+    .family<GuardianLink, CustomerKey>(
+      (ref, key) => runShopScoped(
+        ref,
+        () => ref
+            .read(customerApiProvider)
+            .guardianLink(key.shopId, key.customerId),
+      ),
+    );
+
 /// 정해진 질병 종류(칩 순서대로).
 final conditionTypesProvider = FutureProvider.autoDispose
     .family<List<ConditionType>, int>(

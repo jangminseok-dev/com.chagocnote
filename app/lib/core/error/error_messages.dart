@@ -29,6 +29,7 @@ const Map<String, String> _messages = {
   'VALIDATION_ERROR': '입력한 내용을 확인해 주세요.',
   'TOO_MANY_ATTEMPTS': '시도가 너무 잦아요. 잠시 뒤에 다시 해 주세요.',
   'CUSTOMER_NOT_FOUND': '고객을 찾을 수 없어요. 이미 삭제되었을 수 있어요.',
+  'GUARDIAN_LINK_NOT_FOUND': '이미 끊긴 연결이에요.',
   'PET_NOT_FOUND': '반려동물을 찾을 수 없어요. 이미 삭제되었을 수 있어요.',
   'CUSTOMER_PHONE_TAKEN': '이미 등록된 전화번호예요.',
   'LAST_PET': '마지막 반려동물은 삭제할 수 없어요. 고객 삭제를 이용해 주세요.',
