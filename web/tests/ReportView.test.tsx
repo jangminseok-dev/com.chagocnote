@@ -17,7 +17,7 @@ afterEach(() => {
 })
 
 function show(report: Report) {
-  const { container } = render(<ReportView report={report} token={TOKEN} />)
+  const { container } = render(<ReportView report={report} token={TOKEN} login />)
   const sections = () => [...container.querySelectorAll('[data-section]')].map((el) => el.getAttribute('data-section'))
   const section = (name: string) => container.querySelector<HTMLElement>(`[data-section="${name}"]`)
   return { container, sections, section }
@@ -235,6 +235,15 @@ test('토큰이 있으면 꼬리 앞에 /r/<토큰>/claim 으로 가는 폼 버�
   expect(within(form).getByRole('button', { name: '로그인하고 지난 기록 보기' })).toHaveAttribute('type', 'submit')
   // 토큰을 숨은 칸에 한 번 더 싣지 않는다.
   expect(form.querySelector('input')).toBeNull()
+})
+
+test('로그인 수단이 없으면 잇기 버튼이 없고 열람 신호는 그대로 나간다', () => {
+  const { container } = render(<ReportView report={makeFullReport()} token={TOKEN} />)
+
+  expect(container.querySelector('[data-section="claim"]')).toBeNull()
+  expect(container.querySelector('form')).toBeNull()
+  expect(container.innerHTML).not.toContain(TOKEN)
+  expect(fetch).toHaveBeenCalledTimes(1)
 })
 
 test('토큰이 없으면(로그인한 보호자의 한 장) 버튼도 열람 신호도 없다', () => {

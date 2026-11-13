@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { ErrorScreen } from '../../../components/ErrorScreen'
 import { ReportView } from '../../../components/ReportView'
 import { clientIpFrom } from '../../../lib/client-ip'
+import { devLogin } from '../../../lib/config'
 import { koreanDate, reportTitle } from '../../../lib/format'
 import { getReport } from '../../../lib/report'
 
@@ -45,6 +46,8 @@ async function defaultImage() {
 export default async function ReportPage(props: Props) {
   const { token, result } = await load(props)
   if (result.kind === 'not_found') notFound()
-  if (result.kind !== 'ok') return <ErrorScreen kind={result.kind} />
-  return <ReportView report={result.report} token={token} />
+  // 지금 로그인 수단은 개발용 하나다. 없으면 [로그인하고 지난 기록 보기]를 그리지 않는다.
+  const login = devLogin()
+  if (result.kind !== 'ok') return <ErrorScreen kind={result.kind} login={login} />
+  return <ReportView report={result.report} token={token} login={login} />
 }

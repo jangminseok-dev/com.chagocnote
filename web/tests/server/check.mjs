@@ -213,7 +213,7 @@ const loginChecks = [
     },
   },
   {
-    name: '로그아웃은 303 /login 이고 세션 쿠키를 지우며 백엔드를 부르지 않는다',
+    name: '로그아웃은 303 /login 이고 세션 쿠키와 잇기 쿠키를 지우며 백엔드를 부르지 않는다',
     async run({ get, stats }) {
       const { session } = await loginAs(get, 'ok')
       const before = (await stats()).count
@@ -222,6 +222,9 @@ const loginChecks = [
       assert.equal(res.headers.get('location'), '/login')
       const line = res.headers.getSetCookie().find((value) => value.startsWith('cn_session='))
       assert.ok(line && isDeletion(line), '세션 쿠키를 지우지 않았다')
+      // 맡겨 둔 알림장 토큰도 버린다 — 같은 브라우저에서 다음에 로그인하는 사람의 계정에 이어지지 않게.
+      const claim = res.headers.getSetCookie().find((value) => value.startsWith('cn_claim='))
+      assert.ok(claim && isDeletion(claim), '잇기 쿠키를 지우지 않았다')
       assert.equal((await stats()).count, before, '로그아웃이 백엔드를 불렀다')
     },
   },
@@ -233,8 +236,8 @@ const loginChecks = [
     },
   },
   {
-    name: 'DEV_LOGIN 없이 띄우면 개발용 로그인은 404 이고 로그인 화면에 폼이 없다',
-    async run({ backend, stats }) {
+    name: 'DEV_LOGIN 없이 띄우면 개발용 로그인·잇기는 404 이고 로그인 화면에 폼이, 알림장과 닫힌 화면에 로그인 버튼이 없다',
+    async run({ backend, stats, reset }) {
       const env = webEnv(backend)
       delete env.DEV_LOGIN
       const port = await freePort()
@@ -248,6 +251,16 @@ const loginChecks = [
         const html = await (await fetch(`${base}/login`)).text()
         assert.ok(!html.includes('<form'), '로그인 화면에 폼이 있다')
         assert.match(html, /로그인은 준비 중이에요\./)
+        // 로그인할 길이 없으면 알림장에 막다른 버튼을 그리지 않고, 잇기도 받지 않는다.
+        const open = await (await fetch(`${base}/r/${token('ok')}`)).text()
+        assert.ok(open.includes('두부의 미용 알림장') && !open.includes('<form'), '알림장에 잇기 폼이 있다')
+        assert.ok(!open.includes('로그인하고 지난 기록 보기'), '알림장에 로그인 버튼이 있다')
+        const closed = await (await fetch(`${base}/r/${token('gone')}`)).text()
+        assert.ok(closed.includes('닫힌 알림장이에요') && !closed.includes('href="/me"'), '닫힌 화면에 로그인 링크가 있다')
+        await reset()
+        const claim = await fetch(`${base}/r/${token('ok')}/claim`, { redirect: 'manual', ...form({}) })
+        assert.equal(claim.status, 404)
+        assert.equal(claim.headers.getSetCookie().length, 0, '잇기 쿠키를 썼다')
         assertBackendNotCalled(await stats())
       } finally {
         await stop(child)
@@ -446,6 +459,17 @@ const loginChecks = [
       assert.deepEqual([guardian, count], [3, 3])
       assert.ok(!html.includes(backend), '첫 HTML 에 백엔드 주소가 있다')
       assert.ok(!html.includes('tok-'), '첫 HTML 에 액세스 토큰이 있다')
+    },
+  },
+  {
+    name: '목록을 읽은 직후 끊긴 연결(아이들 조회 404)은 빼고 나머지를 그린다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'stale')
+      const res = await get('/me', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      const html = await res.text()
+      assert.ok(html.includes('Hiss Haus') && html.includes('둘째 매장'), '남은 연결이 없다')
+      assert.ok(!html.includes('방금 끊긴 매장'), '끊긴 연결이 그려졌다')
     },
   },
   {

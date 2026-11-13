@@ -13,6 +13,7 @@
 //   down 소켓을 끊는다   bad 401   refresh 200 인데 리프레시 토큰을 준다   그 밖 200, access_token 은 "tok-<이름>"
 // /v1/me/guardian/… — Authorization 의 토큰(tok-<이름>)의 앞머리로 고른다.
 //   tok-expired 401   tok-susp 403   tok-slow 매달린다   tok-empty 연결이 없다   그 밖 아래의 표준 자료
+//   tok-stale 표준 자료에 연결 13 이 하나 더 있는데 그 연결의 아이들·알림장은 404 다(목록을 읽은 직후 끊긴 연결)
 // POST /v1/me/guardian/links(잇기)는 X-Report-Token 의 앞머리 — ok 201, gone 410, taken 409, rate 429, 그 밖 404.
 import http from 'node:http'
 
@@ -147,7 +148,8 @@ function guardianApi(req, url, send) {
     if (token.startsWith('rate')) return error(429, 'GUARDIAN_RATE_LIMITED')
     return error(404, 'REPORT_NOT_FOUND')
   }
-  if (req.method === 'GET' && path === '/links') return send(200, { items: empty ? [] : LINKS })
+  const stale = bearer.startsWith('tok-stale') ? [{ link_id: 13, shop_name: '방금 끊긴 매장', linked_at: '2026-11-07T09:00:00+09:00' }] : []
+  if (req.method === 'GET' && path === '/links') return send(200, { items: empty ? [] : [...LINKS, ...stale] })
 
   const [, id, rest] = path.match(/^\/links\/(\d+)(\/.*)?$/) ?? []
   const linkId = Number(id)

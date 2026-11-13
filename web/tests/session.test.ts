@@ -25,6 +25,7 @@ vi.mock('next/headers', () => ({
 import {
   CLAIM_COOKIE,
   SESSION_COOKIE,
+  clearClaim,
   clearSession,
   readSession,
   takeClaim,
@@ -109,6 +110,13 @@ test('잇기 쿠키는 httpOnly·lax·maxAge 600 이고 값에 토큰이 보이�
 test('takeClaim 은 값을 주고 쿠키를 지운다', async () => {
   await writeClaim(REPORT_TOKEN)
   expect(await takeClaim()).toBe(REPORT_TOKEN)
+  expect(deleted).toEqual([CLAIM_COOKIE])
+  expect(await takeClaim()).toBeNull()
+})
+
+test('clearClaim 은 맡긴 토큰을 버린다', async () => {
+  await writeClaim(REPORT_TOKEN)
+  await clearClaim()
   expect(deleted).toEqual([CLAIM_COOKIE])
   expect(await takeClaim()).toBeNull()
 })

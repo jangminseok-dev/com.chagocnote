@@ -33,8 +33,15 @@ test('백엔드에 닿지 못하면 잠시 후 다시 열라는 제목만 있다
   expect(container.querySelector('p')).toBeNull()
 })
 
-test('닫힌 화면에 매장 정보와 전화 링크가 없고 링크는 내 기록으로 가는 하나뿐이다', () => {
+test('로그인 수단이 없으면 닫힌 화면에 링크가 없다', () => {
   const { container } = render(<ErrorScreen kind="closed" />)
+
+  expect(container.querySelector('a')).toBeNull()
+  expect(container.textContent).toBe(`Closed닫힌 알림장이에요${CLOSED_TEXT}`)
+})
+
+test('닫힌 화면에 매장 정보와 전화 링크가 없고 링크는 내 기록으로 가는 하나뿐이다', () => {
+  const { container } = render(<ErrorScreen kind="closed" login />)
 
   expect(container.querySelectorAll('a')).toHaveLength(1)
   expect(container.querySelector('button')).toBeNull()
@@ -43,13 +50,13 @@ test('닫힌 화면에 매장 정보와 전화 링크가 없고 링크는 내 �
 })
 
 test('닫힌 화면에 /me 로 가는 링크 "로그인하고 지난 기록 보기" 가 있다', () => {
-  render(<ErrorScreen kind="closed" />)
+  render(<ErrorScreen kind="closed" login />)
 
   expect(screen.getByRole('link', { name: '로그인하고 지난 기록 보기' })).toHaveAttribute('href', '/me')
 })
 
 test.each(['not_found', 'busy', 'unavailable', 'forbidden'] as const)('%s 화면에는 그 링크가 없다', (kind) => {
-  const { container } = render(<ErrorScreen kind={kind} />)
+  const { container } = render(<ErrorScreen kind={kind} login />)
 
   expect(container.querySelector('a')).toBeNull()
 })

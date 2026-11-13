@@ -47,6 +47,11 @@ export async function writeClaim(reportToken: string): Promise<void> {
   ;(await cookies()).set(CLAIM_COOKIE, await seal('claim', reportToken), options(CLAIM_TTL_SECONDS))
 }
 
+/** 맡긴 토큰을 쓰지 않고 버린다(로그아웃). */
+export async function clearClaim(): Promise<void> {
+  ;(await cookies()).delete(CLAIM_COOKIE)
+}
+
 /** 맡긴 토큰을 꺼내고 쿠키를 지운다. 없거나 토큰 모양이 아니면 null 이다. */
 export async function takeClaim(): Promise<string | null> {
   const store = await cookies()

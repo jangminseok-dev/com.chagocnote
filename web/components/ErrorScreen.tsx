@@ -17,8 +17,9 @@ const SCREENS: Record<ErrorKind, { mark: string; title: string; text?: string; l
   forbidden: { mark: 'Closed', title: '이 계정으로는 볼 수 없어요' },
 }
 
-export function ErrorScreen({ kind }: { kind: ErrorKind }) {
-  const { mark, title, text, login } = SCREENS[kind]
+/** login 은 로그인할 수단이 있는가다. 있을 때만 닫힌 화면에 내 기록으로 가는 링크를 둔다. */
+export function ErrorScreen({ kind, login = false }: { kind: ErrorKind; login?: boolean }) {
+  const { mark, title, text, login: offersLogin } = SCREENS[kind]
   return (
     <main className={styles.screen}>
       <div className={styles.mark} aria-hidden="true">
@@ -26,7 +27,7 @@ export function ErrorScreen({ kind }: { kind: ErrorKind }) {
       </div>
       <h1 className={styles.title}>{title}</h1>
       {text && <p className={styles.text}>{text}</p>}
-      {login && (
+      {offersLogin && login && (
         <a className={styles.link} href="/me">
           로그인하고 지난 기록 보기
         </a>
