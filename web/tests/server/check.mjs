@@ -535,6 +535,141 @@ const loginChecks = [
       assertBackendNotCalled(await stats())
     },
   },
+  {
+    name: '세션 없는 목록·한 장은 로그인으로 가고 돌아올 경로를 싣는다(쪽 표시는 싣지 않는다)',
+    async run({ get, stats }) {
+      goesToLogin(await get('/me/11'), '/me/11')
+      goesToLogin(await get('/me/11?pet=7'), '/me/11?pet=7')
+      goesToLogin(await get('/me/11?pet=7&cursor=c2'), '/me/11?pet=7')
+      goesToLogin(await get('/me/11?cursor=c2'), '/me/11')
+      goesToLogin(await get('/me/11/501'), '/me/11/501')
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '목록은 200 이고 헤더 셋이 있으며 알림장 둘과 "더 보기" 가 있고 조회는 한 번이다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get('/me/11', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = (await res.text()).replaceAll('<!-- -->', '')
+      assert.match(html, /<h1[^>]*>지난 알림장<\/h1>/)
+      assert.ok(html.includes('href="/me/11/501"') && html.includes('href="/me/11/502"'), '항목 링크가 없다')
+      assert.ok(!html.includes('href="/me/11/503"'), '다음 쪽의 항목이 있다')
+      for (const text of ['2026년 9월 28일', '두부', '사진·영상 4', '2026년 8월 15일']) {
+        assert.ok(html.includes(text), `첫 HTML 에 "${text}" 가 없다`)
+      }
+      assert.match(html, /<a [^>]*href="\/me\/11\?cursor=c2"[^>]*>더 보기<\/a>/)
+      const { count, last } = await stats()
+      assert.equal(count, 1)
+      assert.equal(last.path, '/v1/me/guardian/links/11/reports')
+    },
+  },
+  {
+    name: '다음 쪽은 그 쪽의 항목만 있고 "더 보기" 가 없다. 아이로 거르면 그 아이의 것만 있다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      const next = await (await get('/me/11?cursor=c2', { headers: { cookie: session } })).text()
+      assert.ok(next.includes('href="/me/11/503"') && !next.includes('href="/me/11/501"'))
+      assert.ok(!next.includes('더 보기'))
+      await reset()
+      const filtered = await (await get('/me/11?pet=7', { headers: { cookie: session } })).text()
+      assert.ok(filtered.includes('href="/me/11/501"') && !filtered.includes('href="/me/11/502"'))
+      assert.equal((await stats()).last.path, '/v1/me/guardian/links/11/reports?pet_id=7')
+    },
+  },
+  {
+    name: '모양이 틀린 pet·cursor 는 없는 것으로 치고 첫 쪽을 준다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      for (const query of ['pet=abc', 'pet=0', 'cursor=%3Cscript%3E', 'cursor=a%20b', 'pet=7&pet=8', `cursor=${'a'.repeat(301)}`]) {
+        await reset()
+        const res = await get(`/me/11?${query}`, { headers: { cookie: session } })
+        assert.equal(res.status, 200, query)
+        assert.equal((await stats()).last.path, '/v1/me/guardian/links/11/reports', query)
+      }
+    },
+  },
+  {
+    name: '빈 연결의 목록은 "아직 받은 알림장이 없어요", 없는 연결은 404 다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'ok')
+      const empty = await get('/me/12', { headers: { cookie: session } })
+      assert.equal(empty.status, 200)
+      assert.ok((await empty.text()).includes('아직 받은 알림장이 없어요'))
+      assert.equal((await get('/me/99', { headers: { cookie: session } })).status, 404)
+    },
+  },
+  {
+    name: '숫자가 아닌 연결·알림장 번호는 404 이고 백엔드를 부르지 않는다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      for (const path of ['/me/abc', '/me/0', '/me/-1', '/me/1e3', `/me/${'9'.repeat(16)}`, '/me/11/abc', '/me/11/0', '/me/abc/501', '/me/11/501/x']) {
+        const res = await get(path, { headers: { cookie: session } })
+        assert.equal(res.status, 404, path)
+        hasHeaderSet(res)
+      }
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '한 장은 200 이고 케어 메모가 있으며 기간 문구·잇기 폼·미리보기 그림 정보가 없고 조회는 한 번이다',
+    async run({ get, stats, reset, backend }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get('/me/11/501', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = (await res.text()).replaceAll('<!-- -->', '')
+      assert.equal(html.match(/<title>([^<]*)<\/title>/)?.[1], '두부의 미용 알림장')
+      assert.ok(html.includes('오늘 두부가 드라이할 때 조금 긴장했지만 끝까지 잘 참아 줬어요.'), '케어 메모가 없다')
+      assert.match(html, /<a [^>]*href="\/me\/11"[^>]*>지난 알림장<\/a>/)
+      assert.ok(!html.includes('까지 열려요'), '기간 문구가 있다')
+      assert.ok(!html.includes('<form'), '폼이 있다')
+      assert.ok(!html.includes('/claim') && !html.includes('/viewed'), '잇기·열람 신호 주소가 있다')
+      assert.equal(meta(html, 'og:image'), null)
+      assert.equal(meta(html, 'og:title'), null)
+      const { count, viewed, last } = await stats()
+      assert.deepEqual([count, viewed], [1, 0])
+      assert.equal(last.path, '/v1/me/guardian/links/11/reports/501')
+      assert.ok(!html.includes(backend), '첫 HTML 에 백엔드 주소가 있다')
+      assert.ok(!html.includes('tok-'), '첫 HTML 에 액세스 토큰이 있다')
+    },
+  },
+  {
+    name: '없는 알림장·남의 연결의 한 장은 404 다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'ok')
+      assert.equal((await get('/me/11/999', { headers: { cookie: session } })).status, 404)
+      assert.equal((await get('/me/99/501', { headers: { cookie: session } })).status, 404)
+    },
+  },
+  {
+    name: '끝난 토큰의 목록·한 장은 로그인으로 가고, 정지된 계정은 "이 계정으로는 볼 수 없어요" 다',
+    async run({ get }) {
+      const { session: expired } = await loginAs(get, 'expired')
+      goesToLogin(await get('/me/11?pet=7', { headers: { cookie: expired } }), '/me/11?pet=7')
+      goesToLogin(await get('/me/11/501', { headers: { cookie: expired } }), '/me/11/501')
+      const { session: suspended } = await loginAs(get, 'susp')
+      for (const path of ['/me/11', '/me/11/501']) {
+        const res = await get(path, { headers: { cookie: suspended } })
+        assert.equal(res.status, 200, path)
+        assert.match(await res.text(), /<h1[^>]*>이 계정으로는 볼 수 없어요<\/h1>/)
+      }
+    },
+  },
+  ...['/me/11', '/me/11/501'].map((path) => ({
+    name: `백엔드가 매달리면 ${path} 는 5초 뒤 200 "잠시 후 다시 열어 주세요" 다`,
+    async run({ get }) {
+      const { session } = await loginAs(get, 'slow')
+      const { res, body } = await timed(get, path, { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      assert.match(body, /<h1[^>]*>잠시 후 다시 열어 주세요<\/h1>/)
+    },
+  })),
   // (보호자 검사는 이 위에 더한다)
 ]
 
