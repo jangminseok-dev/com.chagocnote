@@ -67,4 +67,4 @@ async def test_웹_세션은_30분짜리_액세스_토큰만_내주고_리프레
     pair = await SessionIssuer(issuer, store).issue_web(5)
     assert (pair.access_token, pair.refresh_token, pair.expires_in) == ("access-for-5", None, 1800)
     assert store.saved == []
-    assert issuer.seen == [(5, None, True, 1800)]   # 로그인 시각을 찍는다
+    assert issuer.seen == [(5, None, False, 1800)]   # 로그인 시각을 찍지 않는다 — 웹 세션은 '최근 로그인'이 아니다

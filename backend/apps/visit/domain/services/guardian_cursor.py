@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 
 from visit.domain.errors import VisitInputError
 
@@ -20,6 +20,7 @@ def decode_cursor(cursor: str) -> tuple[datetime, int]:
         at = datetime.fromisoformat(starts_at)
         if at.tzinfo is None or not 0 < int(visit_id) <= 2_147_483_647:
             raise ValueError(cursor)
-        return at, int(visit_id)
-    except (ValueError, UnicodeError) as exc:
+        # UTC 로 바꿔 둔다 — 바꾸면 범위를 넘는 시각(연도 1·9999 근처)은 DB 바인딩이 아니라 여기서 걸린다.
+        return at.astimezone(timezone.utc), int(visit_id)
+    except (ValueError, UnicodeError, OverflowError) as exc:
         raise VisitInputError("목록을 이어서 불러올 수 없습니다. 처음부터 다시 불러 주세요.") from exc

@@ -9,12 +9,7 @@ from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.ports.input.list_guardian_reports_use_case import ListGuardianReportsUseCase
 from visit.app.use_cases.list_guardian_reports_interactor import ListGuardianReportsInteractor
 from visit.dependencies.hub_ports import get_customer_directory, get_media_library, get_shop_profile
-from visit.dependencies.visit_wiring import (
-    build_menu_repository,
-    build_record_repository,
-    build_report_repository,
-    build_report_settings_repository,
-)
+from visit.dependencies.visit_wiring import build_record_repository, build_report_repository
 
 
 def get_list_guardian_reports_use_case(
