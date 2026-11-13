@@ -1,0 +1,103 @@
+/* 로그인과 내 기록 화면. 알림장·오류 화면의 글꼴·색·여백을 그대로 쓴다. */
+
+.page {
+  padding: 56px 24px calc(40px + env(safe-area-inset-bottom));
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.page ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page a {
+  color: inherit;
+}
+
+.mark {
+  color: var(--faint);
+  font-family: var(--font-serif);
+  font-size: min(48px, 13vw);
+  font-style: italic;
+  line-height: 1.2;
+}
+
+.title {
+  margin: 10px 0 8px;
+  font-family: var(--font-myeongjo);
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.text {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.alert {
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 로그인 폼 */
+.form {
+  margin-top: 28px;
+}
+
+.label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  /* 16px 보다 작으면 iOS 가 입력할 때 화면을 키운다. */
+  font: inherit;
+  font-size: 16px;
+}
+
+.primary {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* 글자만 있는 버튼 — 로그아웃, 연결 끊기 */
+.plain {
+  margin: 0;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--mute);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

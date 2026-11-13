@@ -76,6 +76,181 @@ function hasHeaderSet(res) {
   assert.ok(cacheControl.includes('no-store'), `Cache-Control 에 no-store 가 없다: ${cacheControl}`)
 }
 
+/** 같은 출처의 폼 POST. */
+function form(fields, headers = {}) {
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin', ...headers },
+    body: new URLSearchParams(fields).toString(),
+  }
+}
+
+/** 검사에서 받은 쿠키 값 전부 — 웹 서버의 기록에 남으면 안 된다. */
+const SEEN_COOKIES = new Set()
+
+/** 응답의 Set-Cookie 가운데 그 이름의 줄. 없으면 null. */
+function setCookie(res, name) {
+  const line = res.headers.getSetCookie().find((value) => value.startsWith(`${name}=`)) ?? null
+  if (line !== null && pair(line).length > name.length + 1) SEEN_COOKIES.add(pair(line).slice(name.length + 1))
+  return line
+}
+
+/** Set-Cookie 한 줄의 "이름=값" — 다음 요청의 cookie 헤더에 넣는다. */
+const pair = (line) => line.split(';')[0]
+
+/** 쿠키를 지우는 줄인가. */
+const isDeletion = (line) => /Max-Age=0/i.test(line) || /Expires=Thu, 01 Jan 1970/i.test(line)
+
+/** 쿠키 줄의 속성이 다 있는가. */
+function hasAttributes(line, attributes) {
+  const parts = line.split(';').map((part) => part.trim().toLowerCase())
+  for (const attribute of attributes) assert.ok(parts.includes(attribute.toLowerCase()), `쿠키에 ${attribute} 가 없다`)
+}
+
+/** 개발용 로그인을 하고 { res, session }(session 은 cookie 헤더에 넣을 "cn_session=…")을 준다. cookie 는 함께 보낼 쿠키다. */
+async function loginAs(get, name, { next, cookie } = {}) {
+  const res = await get('/login/dev', form({ name, ...(next !== undefined && { next }) }, cookie ? { cookie } : {}))
+  const line = setCookie(res, 'cn_session')
+  return { res, session: line === null ? null : pair(line) }
+}
+
+const loginChecks = [
+  {
+    name: '/login 은 200 이고 헤더 셋이 있고 폼이 /login/dev 로 간다',
+    async run({ get, stats }) {
+      const res = await get('/login')
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = await res.text()
+      assert.match(html, /<form[^>]*action="\/login\/dev"/)
+      assert.match(html, /<h1[^>]*>로그인<\/h1>/)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '로그인하면 303 /me 이고 세션 쿠키가 HttpOnly·Secure·SameSite=lax·Path=/·Max-Age=1800 이며 값에 토큰이 보이지 않는다',
+    async run({ get, stats }) {
+      const res = await get('/login/dev', form({ name: 'ok' }))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/me')
+      hasHeaderSet(res)
+      const line = setCookie(res, 'cn_session')
+      assert.ok(line, '세션 쿠키가 없다')
+      hasAttributes(line, ['HttpOnly', 'Secure', 'SameSite=lax', 'Path=/', 'Max-Age=1800'])
+      assert.ok(!line.includes('tok-ok'), '쿠키에 토큰이 그대로 있다')
+      const { auth, count, last } = await stats()
+      assert.equal(auth, 1)
+      assert.equal(count, 1, '로그인이 인증 말고 다른 곳을 불렀다')
+      assert.equal(last.session, 'web')
+    },
+  },
+  {
+    name: '돌아갈 경로가 내 기록 아래면 그곳으로, 아니면 /me 로 간다',
+    async run({ get }) {
+      const to = async (next) => (await loginAs(get, 'ok', { next })).res.headers.get('location')
+      assert.equal(await to('/me/11'), '/me/11')
+      assert.equal(await to('/me/11?pet=7'), '/me/11?pet=7')
+      for (const next of ['//evil.example', 'https://evil.example/me', '/\\evil.example', '/r/x', '/login', '/me/11?cursor=a']) {
+        assert.equal(await to(next), '/me', `${next} 로 나갔다`)
+      }
+    },
+  },
+  {
+    name: '이름이 비었거나 51글자면 303 /login?error=1 이고 인증을 부르지 않는다',
+    async run({ get, stats }) {
+      for (const name of ['', '   ', 'a'.repeat(51)]) {
+        const res = await get('/login/dev', form({ name }))
+        assert.equal(res.status, 303)
+        assert.equal(res.headers.get('location'), '/login?error=1')
+        assert.equal(setCookie(res, 'cn_session'), null)
+      }
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '인증이 거절하거나 끊기거나 리프레시 토큰을 주면 303 /login?error=1 이고 세션 쿠키가 없다',
+    async run({ get }) {
+      for (const name of ['bad', 'down', 'refresh']) {
+        const { res, session } = await loginAs(get, name)
+        assert.equal(res.status, 303, name)
+        assert.equal(res.headers.get('location'), '/login?error=1', name)
+        assert.equal(session, null, `${name}: 세션 쿠키가 있다`)
+      }
+    },
+  },
+  {
+    name: '로그인이 실패하면 돌아갈 경로를 이어 붙이고, 실패 화면에 문구와 그 경로가 있다',
+    async run({ get }) {
+      const { res } = await loginAs(get, 'bad', { next: '/me/11?pet=7' })
+      assert.equal(res.headers.get('location'), '/login?error=1&next=%2Fme%2F11%3Fpet%3D7')
+      const html = await (await get(res.headers.get('location'))).text()
+      assert.match(html, /로그인하지 못했어요\. 다시 시도해 주세요\./)
+      assert.match(html, /name="next"[^>]*value="\/me\/11\?pet=7"/)
+    },
+  },
+  {
+    name: '/login 의 next 가 밖을 가리키면 숨은 칸은 /me 다',
+    async run({ get }) {
+      const html = await (await get('/login?next=%2F%2Fevil.example')).text()
+      assert.match(html, /name="next"[^>]*value="\/me"/)
+      // Next 는 요청 주소를 첫 HTML 의 라우터 상태(스크립트 안의 글자)에 싣는다. 폼과 링크에 없는지만 본다.
+      assert.ok(!/(?:value|href|action)="[^"]*evil\.example/.test(html), '폼·링크에 밖의 주소가 있다')
+    },
+  },
+  {
+    name: '다른 출처의 로그인·로그아웃은 403 이고 인증을 부르지 않는다',
+    async run({ get, stats }) {
+      const cross = { 'Sec-Fetch-Site': 'cross-site' }
+      assert.equal((await get('/login/dev', form({ name: 'ok' }, cross))).status, 403)
+      assert.equal((await get('/logout', form({}, cross))).status, 403)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '로그아웃은 303 /login 이고 세션 쿠키를 지우며 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      const { session } = await loginAs(get, 'ok')
+      const before = (await stats()).count
+      const res = await get('/logout', form({}, { cookie: session }))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/login')
+      const line = res.headers.getSetCookie().find((value) => value.startsWith('cn_session='))
+      assert.ok(line && isDeletion(line), '세션 쿠키를 지우지 않았다')
+      assert.equal((await stats()).count, before, '로그아웃이 백엔드를 불렀다')
+    },
+  },
+  {
+    name: '로그인·로그아웃을 GET 으로 부르면 405 다',
+    async run({ get }) {
+      assert.equal((await get('/login/dev')).status, 405)
+      assert.equal((await get('/logout')).status, 405)
+    },
+  },
+  {
+    name: 'DEV_LOGIN 없이 띄우면 개발용 로그인은 404 이고 로그인 화면에 폼이 없다',
+    async run({ backend, stats }) {
+      const env = webEnv(backend)
+      delete env.DEV_LOGIN
+      const port = await freePort()
+      const child = startWeb(port, env, ['ignore', 'ignore', 'ignore'])
+      try {
+        const base = `http://127.0.0.1:${port}`
+        await waitUntilUp(base, child)
+        const res = await fetch(`${base}/login/dev`, { redirect: 'manual', ...form({ name: 'ok' }) })
+        assert.equal(res.status, 404)
+        assert.equal(res.headers.getSetCookie().length, 0)
+        const html = await (await fetch(`${base}/login`)).text()
+        assert.ok(!html.includes('<form'), '로그인 화면에 폼이 있다')
+        assert.match(html, /로그인은 준비 중이에요\./)
+        assertBackendNotCalled(await stats())
+      } finally {
+        await stop(child)
+      }
+    },
+  },
+  // (보호자 검사는 이 위에 더한다)
+]
+
 /**
  * 검사 목록. 뒤 작업은 여기에 줄을 더한다.
  * run 은 { web, backend, get, stats, log } 를 받고, 틀리면 던진다.
@@ -361,6 +536,7 @@ const checks = [
       assert.equal(res.status, 204)
     },
   },
+  ...loginChecks,
   ...['API_BASE_URL', 'REPORT_WEB_SECRET', 'AUTH_BASE_URL', 'WEB_SESSION_SECRET'].map((missing) => ({
     // 프로세스는 끝나지 않는다. 준비에 실패한 채로 모든 요청에 500 을 낸다.
     name: `${missing} 없이 띄우면 모든 요청이 500 이고 오류가 변수 이름을 말한다`,
@@ -395,6 +571,11 @@ const checks = [
         assert.ok(!text.includes(value), '기록에 검사에 쓴 토큰이 있다')
       }
       assert.ok(!text.includes(WEB_SECRET) && !text.includes(SESSION_SECRET), '기록에 비밀값이 있다')
+      // 가짜 인증이 내주는 액세스 토큰은 tok- 으로 시작한다.
+      assert.ok(!text.includes('tok-'), '기록에 액세스 토큰이 있다')
+      assert.ok(SEEN_COOKIES.size > 0, '쿠키를 하나도 받지 못했다')
+      for (const value of SEEN_COOKIES) assert.ok(!text.includes(value), '기록에 쿠키 값이 있다')
+      assert.ok(!text.includes('X-Amz-Signature'), '기록에 서명 주소가 있다')
     },
   },
 ]
