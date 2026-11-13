@@ -146,9 +146,14 @@ class SalesMenus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 다섯으로 자르는 것은 메뉴뿐이다. 조정 줄(서버가 맨 끝에 붙인다)은 늘 보인다 — 합이 맞아야 한다.
+    final shown = [
+      ...menus.where((m) => m.menuId != null).take(_limit),
+      ...menus.where((m) => m.menuId == null),
+    ];
     return Column(
       children: [
-        for (final menu in menus.take(_limit))
+        for (final menu in shown)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 5),
             child: Row(

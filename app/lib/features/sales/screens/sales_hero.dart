@@ -109,8 +109,10 @@ class _GoalLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 폭을 채워야 회색 바탕선이 끝까지 간다 — 채우지 않으면 진행한 만큼만 있는 밑줄로 보인다.
     return SizedBox(
       key: const Key('sales-goal-line'),
+      width: double.infinity,
       height: 2,
       child: Stack(
         children: [

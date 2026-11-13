@@ -32,8 +32,27 @@ class SalesTab extends ConsumerStatefulWidget {
   ConsumerState<SalesTab> createState() => _SalesTabState();
 }
 
-class _SalesTabState extends ConsumerState<SalesTab> {
+class _SalesTabState extends ConsumerState<SalesTab> with WidgetsBindingObserver {
   SalesSpan _span = SalesSpan.month;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// 앱을 켜 둔 채 날이 바뀌면 어제가 '오늘'로 굳는다 — › 가 막혀 새 기간으로 갈 수 없다.
+  /// 앱으로 돌아올 때(와 당겨서 새로고침할 때) 오늘을 다시 읽는다.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) ref.invalidate(todayProvider);
+  }
 
   /// 보는 기간 안의 아무 날. null 이면 오늘이다.
   DateTime? _anchor;
@@ -87,7 +106,13 @@ class _SalesTabState extends ConsumerState<SalesTab> {
     return AsyncBody<SalesSummary>(
       value: ref.watch(salesSummaryProvider(key)),
       onRetry: () => ref.invalidate(salesSummaryProvider(key)),
-      onRefresh: () => ref.refresh(salesSummaryProvider(key).future),
+      onRefresh: () async {
+        ref.invalidate(todayProvider);
+        // 날이 바뀌었으면 이 화면이 새 오늘로 다시 그려지며 새 기간을 읽는다. 같은 날이면 지금 것을 다시 읽는다.
+        if (_anchor == null && isoDay(ref.read(todayProvider)) != key.anchor) return;
+        ref.invalidate(salesSummaryProvider(key));
+        await ref.read(salesSummaryProvider(key).future);
+      },
       builder: (summary) => _SalesBody(
         summary: summary,
         picked: _picked ?? selectedBucketKey(summary, today),

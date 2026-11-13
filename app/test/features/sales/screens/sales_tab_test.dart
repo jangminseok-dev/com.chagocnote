@@ -25,6 +25,7 @@ class _World {
     String role = 'owner',
     FakeResponse Function(RequestOptions options)? summary,
   }) {
+    today = DateTime(2026, 11, 14);
     final backend = VisitTestBackend({
       _summaryPath: (o, b) {
         asked.add((o.queryParameters['span'] as String, o.queryParameters['anchor'] as String));
@@ -35,13 +36,16 @@ class _World {
       backend.call,
       role: role,
       overrides: [
-        todayProvider.overrideWithValue(DateTime(2026, 11, 14)),
+        todayProvider.overrideWith((ref) => today),
         mediaImagesProvider.overrideWithValue(images),
       ],
     );
   }
 
   late final CustomerTestSetup setup;
+
+  /// 기기의 오늘. 테스트가 바꾸면 날이 바뀐 것이다.
+  late DateTime today;
   final images = FakeMediaImages();
 
   /// 서버가 받은 (기간, anchor).
@@ -275,7 +279,8 @@ void main() {
     await w.open(tester);
 
     expect(find.text('이번 달 목표 500만 원의 65%'), findsOneWidget);
-    expect(find.byKey(const Key('sales-goal-line')), findsOneWidget);
+    // 진행선은 본문 폭 전체의 바탕선 위에 그린다 — 진행한 만큼만 있는 밑줄이 아니다.
+    expect(tester.getSize(find.byKey(const Key('sales-goal-line'))).width, 390 - 32);
     expect(find.text('작년 같은 때보다 125만 원 많아요.'), findsOneWidget);
   });
 
@@ -308,6 +313,44 @@ void main() {
     );
     expect(menuTiles, findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('메뉴가 다섯을 넘어도 조정 줄은 잘리지 않는다', (tester) async {
+    final w = _World(
+      summary: (o) => _ok(salesSummaryJson(
+        menus: [
+          for (var i = 1; i <= 7; i++)
+            {'menu_id': i, 'name': '메뉴$i', 'amount': (8 - i) * 100000, 'count': i, 'pet': null},
+          {'menu_id': null, 'name': '조정', 'amount': -50000, 'count': 0, 'pet': null},
+        ],
+      )),
+    );
+    await w.open(tester);
+
+    expect(find.text('메뉴5'), findsOneWidget);
+    expect(find.text('메뉴6'), findsNothing, reason: '메뉴는 다섯 줄까지');
+    expect(find.text('조정'), findsOneWidget);
+    expect(find.text('-50,000'), findsOneWidget);
+  });
+
+  testWidgets('앱을 켜 둔 채 날이 바뀌면 — 돌아오거나 당겨서 새로고침할 때 오늘을 다시 읽는다', (tester) async {
+    final w = _World();
+    w.today = DateTime(2026, 11, 30);
+    await w.open(tester, size: const Size(390, 844));
+    expect(w.asked.last, ('month', '2026-11-30'));
+
+    // 자정이 지났다. 앱이 뒤에 있다가 돌아온다.
+    w.today = DateTime(2026, 12, 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await settle(tester);
+    expect(w.asked.last, ('month', '2026-12-01'), reason: '어제가 든 달에 갇히지 않는다');
+
+    // 화면을 켜 둔 채 또 하루가 지났다 — 당겨서 새로고침.
+    w.today = DateTime(2026, 12, 2);
+    await tester.fling(find.byKey(const Key('sales-revenue')), const Offset(0, 400), 1000);
+    await settle(tester);
+    expect(w.asked.last, ('month', '2026-12-02'));
   });
 
   testWidgets('빈 기간은 안내가 보이고 예약과 다시 올 때가 지난 아이는 그대로다', (tester) async {
