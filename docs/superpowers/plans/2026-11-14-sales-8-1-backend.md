@@ -171,6 +171,8 @@ class PetVisits:     pet_id: int; visits: int; last_day: date; first_ever_day: d
 class SalesVisitRow: visit_id: int; day: date; pet_id: int | None; customer_id: int; amount: int | None
 @dataclass(frozen=True)
 class DuePet:        pet_id: int; last_day: date
+@dataclass(frozen=True)
+class RemainingBookings: count: int; expected_amount: int | None
 
 class SalesRepository(ABC):
     async def totals(self, ctx, start: date, until: date) -> SalesTotals
@@ -178,12 +180,13 @@ class SalesRepository(ABC):
     async def by_payment(self, ctx, start, until) -> dict[str | None, int]      # 총액이 있는 기록만. None = 미선택
     async def by_menu(self, ctx, start, until) -> list[MenuSales]               # 항목 합·건수, 금액 큰 순(같으면 menu_id)
     async def pets(self, ctx, start, until) -> list[PetVisits]                  # pet_id 가 있는 완료 방문
-    async def remaining_reserved(self, ctx, now: datetime, until: date) -> int  # now 이후·until 전의 reserved
+    async def remaining_reserved(self, ctx, now: datetime, until: date) -> RemainingBookings
+        # now 이후·until 전의 reserved 수와, 그 예약들이 고른 메뉴의 정가(service_menus.price) 합. 정가가 있는 메뉴가 하나도 없으면 expected_amount 는 None
     async def report_counts(self, ctx, start, until) -> tuple[int, int]         # (알림장 줄이 있는 완료 방문 수, 그 가운데 연 적 있는 수)
     async def list_visits(self, ctx, start, until, kind: Literal["unrecorded","no_show","canceled","menu"],
                           menu_id: int | None, before: tuple[datetime, int] | None, limit: int) -> list[SalesVisitRow]
         # 시작 시각 최신순(같으면 visit_id 큰 순). limit+1 은 부르는 쪽이.
-    async def due_candidates(self, ctx, today: date) -> list[DuePet]
+    async def due_candidates(self, ctx, today: date, now: datetime) -> list[DuePet]
         # 마지막 완료 방문일이 today-365 ~ today-57 이고 그 뒤(지금 이후) reserved 가 없는 아이. 오래된 순.
 ```
 
@@ -199,7 +202,7 @@ class SalesRepository(ABC):
 결제:   카드·현금·이체·None 으로 나뉘고 합이 매출과 같다
 메뉴:   항목 합과 건수 / 총액 NULL 인 기록의 항목은 세지 않는다 / 가장 최근에 한 아이 / 보관한 메뉴도 나온다
 아이:   기간 안의 방문 수와 마지막 날 / first_ever_day 는 기간 밖의 옛 방문도 본다(다시 온 아이) / 취소·노쇼는 첫 방문이 아니다
-예약:   지금 이후의 reserved 만, until 전까지
+예약:   지금 이후의 reserved 만, until 전까지 / 예상 금액은 고른 메뉴의 정가 합(정가 없는 메뉴는 빼고, 하나도 없으면 None)
 알림장: 줄이 있으면 보낸 것(끊은 줄·기간 지난 줄 포함) / 다시 보내 줄이 둘이어도 방문은 하나 / 하나라도 열었으면 연 것
 목록:   종류 넷 / 최신순과 쪽 나눔(before) / 같은 시각의 둘이 쪽 경계에 걸려도 빠지거나 겹치지 않는다 / 남의 매장 menu_id 는 빈 목록
 다시 올 때: 57일 전은 들고 56일 전은 아니다 / 365일 전은 들고 366일 전은 아니다 / 앞으로 예약이 있으면 빠진다
@@ -243,7 +246,7 @@ buckets[{key "YYYY-MM-DD"|"YYYY-MM", revenue, visit_count, future: bool, pets[Pe
 payments[{method "card"|"cash"|"transfer"|"none", amount}]  # 0원인 줄은 뺀다. 순서는 card, cash, transfer, none
 menus[{menu_id|null, name, amount, count, pet: PetCard|null}]   # 금액순. 조정은 menu_id null·name "조정"·count 0·pet null, 차이가 0 이면 없다
 regulars[{pet: PetCard, visit_count}]                        # 기간이 든 해(오늘까지)의 방문 수 큰 순 셋, 같으면 최근에 온 아이
-bookings{remaining|null, no_show, canceled}                  # remaining 은 기간이 오늘을 품을 때만
+bookings{remaining|null, expected_amount|null, no_show, canceled}   # remaining·expected_amount 는 기간이 오늘을 품을 때만. expected_amount 는 남은 예약의 정가 합(없으면 null)
 weekdays[7 ints 월~일]|null                                  # span 이 month·year 일 때만
 report{completed, sent, opened}|null                         # 완료 방문이 0 이면 null
 unrecorded_count, due_pet_count
