@@ -28,9 +28,10 @@ from auth.adapter.inbound.api.v1.refresh_token_router import refresh_token_route
 from auth.adapter.inbound.api.v1.social_login_router import social_login_router
 from auth.adapter.inbound.api.v1.unlink_identity_router import unlink_identity_router
 from auth.adapter.inbound.api.v1.withdraw_router import withdraw_router
-from auth.dependencies.hub_ports import get_membership_lifecycle
+from auth.dependencies.hub_ports import get_guardian_lifecycle, get_membership_lifecycle
 from core.http_errors import install_error_handlers
 from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
+from guardian.dependencies.end_guardian_links_provider import get_end_guardian_links_use_case
 from tenancy.dependencies.apply_withdrawal_provider import get_apply_withdrawal_use_case
 
 
@@ -58,6 +59,8 @@ install_error_handlers(app, {**AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS})
 
 # 허브 포트 조립 — 스포크끼리는 서로를 모른다. 소비하는 쪽의 "자리"에 구현하는 쪽의 프로바이더를 꽂는다.
 app.dependency_overrides[get_membership_lifecycle] = get_apply_withdrawal_use_case
+# 탈퇴가 보호자 연결도 끝낸다(guardian).
+app.dependency_overrides[get_guardian_lifecycle] = get_end_guardian_links_use_case
 
 
 @app.get("/v1/auth/health")

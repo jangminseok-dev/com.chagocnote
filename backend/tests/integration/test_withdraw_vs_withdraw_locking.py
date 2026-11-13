@@ -23,6 +23,7 @@ from tenancy.adapter.outbound.pg.invite_pg_repository import InvitePgRepository
 from tenancy.adapter.outbound.pg.member_pg_repository import MemberPgRepository
 from tenancy.adapter.outbound.pg.shop_pg_repository import ShopPgRepository
 from tenancy.app.use_cases.apply_withdrawal_interactor import ApplyWithdrawalInteractor
+from tests.integration.support import NoGuardians
 
 pytestmark = pytest.mark.integration
 
@@ -51,6 +52,7 @@ class _StubStore(RefreshTokenStorePort):
 
 def _withdraw(session, user_id, store):
     interactor = WithdrawInteractor(
+        guardians=NoGuardians(),
         users=UserPgRepository(session),
         operators=OperatorPgRepository(session),
         lifecycle=ApplyWithdrawalInteractor(

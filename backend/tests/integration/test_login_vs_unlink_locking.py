@@ -38,6 +38,7 @@ from tenancy.adapter.outbound.pg.invite_pg_repository import InvitePgRepository
 from tenancy.adapter.outbound.pg.member_pg_repository import MemberPgRepository
 from tenancy.adapter.outbound.pg.shop_pg_repository import ShopPgRepository
 from tenancy.app.use_cases.apply_withdrawal_interactor import ApplyWithdrawalInteractor
+from tests.integration.support import NoGuardians
 from tests.integration.support import FakeKakaoStrategy
 
 pytestmark = pytest.mark.integration
@@ -103,6 +104,7 @@ def _unlink(session, user_id, provider, store):
 
 def _withdraw(session, user_id, store):
     interactor = WithdrawInteractor(
+        guardians=NoGuardians(),
         users=UserPgRepository(session),
         operators=OperatorPgRepository(session),
         lifecycle=ApplyWithdrawalInteractor(

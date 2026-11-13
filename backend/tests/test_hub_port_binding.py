@@ -132,3 +132,29 @@ def test_로그인_없이_열리는_경로를_센다():
         return {}
 
     assert routes_without_login(app) == {"POST /v1/open"}
+
+
+def test_guardian_의_자리와_보호자_가드는_visit_auth_tenancy_guardian_의_구현으로_채운다():
+    from auth.dependencies.guard_active_user_provider import get_guard_active_user_use_case
+    from core.guardian_guard import get_guardian_access_port
+    from guardian.dependencies.hub_ports import get_active_user_guard as get_guardian_active_user_guard
+    from guardian.dependencies.hub_ports import get_report_link as get_guardian_report_link
+    from guardian.dependencies.hub_ports import get_shop_profile as get_guardian_shop_profile
+    from guardian.dependencies.resolve_guardian_access_provider import get_resolve_guardian_access_use_case
+    from visit.dependencies.resolve_report_link_provider import get_resolve_report_link_use_case
+
+    overrides = main.app.dependency_overrides
+    assert overrides[get_guardian_report_link] is get_resolve_report_link_use_case
+    assert overrides[get_guardian_active_user_guard] is get_guard_active_user_use_case
+    assert overrides[get_guardian_shop_profile] is get_shop_profile_use_case
+    assert overrides[get_guardian_access_port] is get_resolve_guardian_access_use_case
+
+
+def test_탈퇴와_고객_익명화의_보호자_연결_끝내기_자리는_guardian_의_구현으로_채운다():
+    import auth_main
+    from auth.dependencies.hub_ports import get_guardian_lifecycle as auth_slot
+    from customer.dependencies.hub_ports import get_guardian_lifecycle as customer_slot
+    from guardian.dependencies.end_guardian_links_provider import get_end_guardian_links_use_case
+
+    assert auth_main.app.dependency_overrides[auth_slot] is get_end_guardian_links_use_case
+    assert main.app.dependency_overrides[customer_slot] is get_end_guardian_links_use_case

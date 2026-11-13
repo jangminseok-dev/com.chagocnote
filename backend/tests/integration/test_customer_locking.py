@@ -31,6 +31,7 @@ from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
 from visit.domain.services.visit_schedule import utc_now
+from tests.integration.support import NoGuardians
 
 pytestmark = pytest.mark.integration
 
@@ -100,7 +101,7 @@ async def test_익명화가_고객을_쥔_동안_반려동물_추가는_기다�
 
     async with factory() as deleting, factory() as adding:
         customers, _, _, search = _repos(deleting)
-        await DeleteCustomerInteractor(customers, search, _ledger(deleting)).delete_customer(
+        await DeleteCustomerInteractor(customers, search, _ledger(deleting), NoGuardians()).delete_customer(
             DeleteCustomerCommand(ctx=SHOP, customer_id=customer_id)
         )
         customers, pets, types, search = _repos(adding)

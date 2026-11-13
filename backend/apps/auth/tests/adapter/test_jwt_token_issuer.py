@@ -79,3 +79,14 @@ def test_auth_time_이_정수가_아니면_거절한다():
         )
         with pytest.raises(InvalidAccessToken):
             decode_access_claims(forged, public_pem)
+
+
+def test_수명을_주면_그_수명으로_발급하고_없으면_기본_수명이다():
+    private_pem, _, _ = make_rsa_keypair()
+    issuer = JwtTokenIssuer(private_pem, ttl_seconds=900)
+    web = issuer.issue_access(42, ttl_seconds=1800)
+    claims = jwt.get_unverified_claims(web.token)
+    assert (web.expires_in, claims["exp"] - claims["iat"]) == (1800, 1800)
+    app = issuer.issue_access(42)
+    claims = jwt.get_unverified_claims(app.token)
+    assert (app.expires_in, claims["exp"] - claims["iat"]) == (900, 900)

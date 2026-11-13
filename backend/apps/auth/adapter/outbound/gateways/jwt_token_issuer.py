@@ -25,8 +25,10 @@ class JwtTokenIssuer(TokenIssuerPort):
         self._now = now
 
     def issue_access(
-        self, user_id: int, *, auth_time: int | None = None, fresh_login: bool = False
+        self, user_id: int, *, auth_time: int | None = None, fresh_login: bool = False,
+        ttl_seconds: int | None = None,
     ) -> AccessToken:
+        ttl = ttl_seconds if ttl_seconds is not None else self._ttl_seconds
         issued_at = self._now()
         iat = int(issued_at.timestamp())
         claims = {
@@ -34,7 +36,7 @@ class JwtTokenIssuer(TokenIssuerPort):
             "jti": uuid4().hex,
             "typ": "access",
             "iat": iat,
-            "exp": int((issued_at + timedelta(seconds=self._ttl_seconds)).timestamp()),
+            "exp": int((issued_at + timedelta(seconds=ttl)).timestamp()),
         }
         # 최근 로그인 확인(재인증)에 쓴다. 갱신으로 받은 토큰에는 없다.
         if fresh_login:
@@ -43,5 +45,5 @@ class JwtTokenIssuer(TokenIssuerPort):
             claims["auth_time"] = auth_time
         return AccessToken(
             token=jwt.encode(claims, self._private_key, algorithm="RS256"),
-            expires_in=self._ttl_seconds,
+            expires_in=ttl,
         )

@@ -34,6 +34,14 @@ class FamilyPetPassedAwayError(HubPortError):
     code = "PET_PASSED_AWAY"
 
 
+# --- GuardianAccessPort.resolve (구현: guardian, 소비: core/guardian_guard) ----------------------
+
+class GuardianAccessDeniedError(HubPortError):
+    """그 계정의 살아 있는 연결이 아니다. 없는 연결·남의 연결·끝난 연결을 구분해 주지 않는다."""
+
+    code = "GUARDIAN_LINK_NOT_FOUND"
+
+
 # --- ShopAccessPort.resolve (구현: tenancy, 소비: core/shop_guard) --------------------------------
 
 class ShopAccessDeniedError(HubPortError):

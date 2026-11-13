@@ -128,3 +128,13 @@ async def ready_video(wired: Wired, shop_id: int, headers: dict) -> int:
     confirmed = await wired.api.post(f"/v1/shops/{shop_id}/media/{issued['media_id']}/confirm", headers=headers)
     assert confirmed.status_code == 200, confirmed.text
     return issued["media_id"]
+
+
+class NoGuardians:
+    """GuardianLifecyclePort 대역 — 인터랙터를 직접 만드는 잠금 테스트가 쓴다. 아무 연결도 끝내지 않는다."""
+
+    async def end_for_user(self, user_id: int) -> int:
+        return 0
+
+    async def end_for_customer(self, shop_id: int, customer_id: int) -> int:
+        return 0

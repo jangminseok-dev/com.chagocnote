@@ -235,3 +235,23 @@ async def test_두_번_어긋나면_토큰을_발급하지_않는다():
         await SocialLoginInteractor(_StubResolver(_StubProvider()), users, sessions).login(_command())
     assert sessions.issued_for == []
     assert users.created == []
+
+
+class _WebSessions(_StubSessions):
+    def __init__(self):
+        super().__init__()
+        self.web_for = []
+
+    async def issue_web(self, user_id):
+        self.web_for.append(user_id)
+        return TokenPair("access", None, 1800)
+
+
+async def test_웹_세션_표시가_있으면_웹_세션을_발급하고_없으면_보통_세션이다():
+    users, sessions = _StubUsers(existing=_user(1)), _WebSessions()
+    interactor = SocialLoginInteractor(_StubResolver(_StubProvider()), users, sessions)
+    web = await interactor.login(SocialLoginCommand(
+        provider="kakao", token="t", authorization_code=None, nonce=None, display_name=None, session="web"))
+    assert (web.tokens.refresh_token, sessions.web_for, sessions.issued_for) == (None, [1], [])
+    app = await interactor.login(_command())
+    assert (app.tokens.refresh_token, sessions.web_for, sessions.issued_for) == ("refresh", [1], [1])

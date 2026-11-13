@@ -72,3 +72,32 @@ async def test_정지된_유저는_갱신도_내_정보도_403_이다(wired):
     assert (refreshed.status_code, refreshed.json()["code"]) == (403, "ACCOUNT_SUSPENDED")
     me = await wired.api.get("/v1/me", headers=bearer(login["access_token"]))
     assert (me.status_code, me.json()["code"]) == (403, "ACCOUNT_SUSPENDED")
+
+
+async def test_웹_세션_로그인은_리프레시_없이_30분짜리_토큰으로_내_정보를_읽는다(wired):
+    response = await wired.auth.post(
+        "/v1/auth/social", json={"provider": "dev", "token": "웹보호자", "session": "web"})
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["refresh_token"], body["expires_in"]) == (None, 1800)
+
+    me = await wired.api.get("/v1/me", headers=bearer(body["access_token"]))
+    assert (me.status_code, me.json()["display_name"]) == (200, "웹보호자")
+
+    # 같은 사람이 매장 앱으로 로그인하면 지금처럼 리프레시 토큰을 받는다 — 같은 계정이다.
+    app = await wired.login("웹보호자")
+    assert (app["user_id"], app["expires_in"]) == (body["user_id"], 900)
+    assert isinstance(app["refresh_token"], str)
+
+
+async def test_웹_세션_토큰으로는_탈퇴도_수단_해제도_하지_못한다(wired):
+    """웹 세션은 '최근 로그인'으로 치지 않는다 — 수단 해제가 30일짜리 리프레시 토큰 쌍을 내주는 길을 막는다."""
+    login = await wired.auth.post("/v1/auth/social", json={"provider": "dev", "token": "웹보호자", "session": "web"})
+    web = bearer(login.json()["access_token"])
+
+    gone = await wired.auth.request("DELETE", "/v1/auth/account", headers=web, json={"confirm_close_shops": False})
+    unlinked = await wired.auth.delete("/v1/auth/identities/dev", headers=web)
+
+    assert (gone.status_code, gone.json()["code"]) == (403, "REAUTH_REQUIRED")
+    assert (unlinked.status_code, unlinked.json()["code"]) == (403, "REAUTH_REQUIRED")
+    assert (await wired.api.get("/v1/me", headers=web)).status_code == 200   # 계정은 그대로다

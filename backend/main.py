@@ -14,6 +14,7 @@ from core.redis import dispose_redis
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.get_me_router import get_me_router
+from core.guardian_guard import get_guardian_access_port
 from core.http_errors import install_error_handlers
 from core.shop_guard import get_shop_access_port
 from auth.dependencies.check_operator_provider import get_check_operator_use_case
@@ -40,6 +41,7 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.hub_ports import get_guardian_lifecycle as get_customer_guardian_lifecycle
 from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
 from customer.dependencies.hub_ports import get_visit_ledger
 from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
@@ -47,6 +49,18 @@ from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_ro
 from media.adapter.inbound.api.v1.issue_upload_router import issue_upload_router
 from media.adapter.inbound.api.v1.media_myself_router import media_myself_router
 from media.dependencies.media_library_provider import get_media_library_use_case
+from guardian.adapter.inbound.api.error_map import GUARDIAN_ERROR_STATUS
+from guardian.adapter.inbound.api.v1.claim_guardian_link_router import claim_guardian_link_router
+from guardian.adapter.inbound.api.v1.end_customer_guardian_link_router import end_customer_guardian_link_router
+from guardian.adapter.inbound.api.v1.end_guardian_link_router import end_guardian_link_router
+from guardian.adapter.inbound.api.v1.get_customer_guardian_link_router import get_customer_guardian_link_router
+from guardian.adapter.inbound.api.v1.guardian_myself_router import guardian_myself_router
+from guardian.adapter.inbound.api.v1.list_guardian_links_router import list_guardian_links_router
+from guardian.dependencies.end_guardian_links_provider import get_end_guardian_links_use_case
+from guardian.dependencies.hub_ports import get_active_user_guard as get_guardian_active_user_guard
+from guardian.dependencies.hub_ports import get_report_link as get_guardian_report_link
+from guardian.dependencies.hub_ports import get_shop_profile as get_guardian_shop_profile
+from guardian.dependencies.resolve_guardian_access_provider import get_resolve_guardian_access_use_case
 from notification.adapter.inbound.api.error_map import NOTIFICATION_ERROR_STATUS
 from notification.adapter.inbound.api.v1.confirm_sender_router import confirm_sender_router
 from notification.adapter.inbound.api.v1.get_notification_message_router import get_notification_message_router
@@ -125,6 +139,12 @@ from visit.dependencies.hub_ports import get_customer_directory, get_domain_even
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
+from visit.adapter.inbound.api.v1.guardian_reports_router import (
+    list_guardian_pets_router,
+    list_guardian_reports_router,
+    read_guardian_report_router,
+)
+from visit.dependencies.resolve_report_link_provider import get_resolve_report_link_use_case
 
 
 @asynccontextmanager
@@ -224,6 +244,17 @@ app.include_router(list_visit_notifications_router)
 app.include_router(resend_notification_router)
 app.include_router(get_notification_message_router)
 # media
+app.include_router(guardian_myself_router)
+app.include_router(claim_guardian_link_router)
+app.include_router(list_guardian_links_router)
+app.include_router(end_guardian_link_router)
+app.include_router(get_customer_guardian_link_router)
+app.include_router(end_customer_guardian_link_router)
+# 보호자용 읽기는 visit 이 소유한다(알림장은 visit 의 것이다) — 보호자 가드를 거친다.
+app.include_router(list_guardian_pets_router)
+app.include_router(list_guardian_reports_router)
+app.include_router(read_guardian_report_router)
+
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
 app.include_router(confirm_upload_router)
@@ -232,6 +263,7 @@ install_error_handlers(
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
         **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS, **NOTIFICATION_ERROR_STATUS,
+        **GUARDIAN_ERROR_STATUS,
     },
 )
 
@@ -242,6 +274,14 @@ app.dependency_overrides[get_shop_provisioning] = get_provision_shop_use_case
 app.dependency_overrides[get_user_directory] = get_get_user_profiles_use_case
 app.dependency_overrides[get_membership_directory] = get_list_memberships_use_case
 app.dependency_overrides[get_active_user_guard] = get_guard_active_user_use_case
+# guardian: 잇기가 유저 행을 잠그고(auth), 알림장 토큰을 매장·고객으로 푼다(visit).
+app.dependency_overrides[get_guardian_active_user_guard] = get_guard_active_user_use_case
+app.dependency_overrides[get_guardian_report_link] = get_resolve_report_link_use_case
+app.dependency_overrides[get_guardian_shop_profile] = get_shop_profile_use_case
+# 보호자 가드(core/guardian_guard)의 접근 확인은 guardian 이 구현한다.
+app.dependency_overrides[get_guardian_access_port] = get_resolve_guardian_access_use_case
+# 고객 익명화가 보호자 연결을 끝낸다.
+app.dependency_overrides[get_customer_guardian_lifecycle] = get_end_guardian_links_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case

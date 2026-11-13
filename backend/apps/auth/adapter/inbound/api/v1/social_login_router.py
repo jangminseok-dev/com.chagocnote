@@ -23,6 +23,7 @@ async def social_login(
             authorization_code=body.authorization_code,
             nonce=body.nonce,
             display_name=body.display_name,
+            session=body.session,
         )
     )
     return TokenResponseSchema(

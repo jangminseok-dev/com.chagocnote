@@ -61,6 +61,15 @@ class _StubLifecycle:
             raise WithdrawalOwnershipTransferRequiredError("막힘")
 
 
+class _StubGuardians:
+    def __init__(self, calls):
+        self.calls = calls
+
+    async def end_for_user(self, user_id):
+        self.calls.append(f"end_guardian_links:{user_id}")
+        return 1
+
+
 class _StubStore:
     def __init__(self, calls):
         self.calls = calls
@@ -74,7 +83,7 @@ def _run(user="default", blocked=False):
     lifecycle = _StubLifecycle(calls, blocked)
     interactor = WithdrawInteractor(
         _StubUsers(calls, _user() if user == "default" else user),
-        _StubOperators(calls), lifecycle, _StubStore(calls),
+        _StubOperators(calls), lifecycle, _StubStore(calls), _StubGuardians(calls),
     )
     return interactor, lifecycle, calls
 
@@ -83,7 +92,7 @@ async def test_잠그고_소속을_정리한_뒤에_익명화하고_신원을_�
     interactor, lifecycle, calls = _run()
     result = await interactor.withdraw(WithdrawCommand(user_id=5, confirm_close_shops=True))
     assert calls == [
-        "lock:5", "apply_withdrawal", "list_revocations:5",
+        "lock:5", "apply_withdrawal", "end_guardian_links:5", "list_revocations:5",
         "revoke_operator:5", "anonymize:5", "delete_identities:5", "revoke_all:5",
     ]
     assert lifecycle.seen == [(5, True)]

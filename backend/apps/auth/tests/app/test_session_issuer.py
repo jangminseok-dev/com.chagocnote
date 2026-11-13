@@ -54,3 +54,17 @@ async def test_새_로그인과_물려받은_시각을_발급기에_그대로_�
     await sessions.issue(5, fresh_login=True)
     await sessions.issue(5, auth_time=1_700_000_000)
     assert issuer.seen == [(5, None, True), (5, 1_700_000_000, False)]
+
+
+class _TtlIssuer(_StubIssuer):
+    def issue_access(self, user_id, *, auth_time=None, fresh_login=False, ttl_seconds=None):
+        self.seen.append((user_id, auth_time, fresh_login, ttl_seconds))
+        return AccessToken(token=f"access-for-{user_id}", expires_in=ttl_seconds or 900)
+
+
+async def test_웹_세션은_30분짜리_액세스_토큰만_내주고_리프레시_저장소를_건드리지_않는다():
+    issuer, store = _TtlIssuer(), _StubStore()
+    pair = await SessionIssuer(issuer, store).issue_web(5)
+    assert (pair.access_token, pair.refresh_token, pair.expires_in) == ("access-for-5", None, 1800)
+    assert store.saved == []
+    assert issuer.seen == [(5, None, False, 1800)]   # 로그인 시각을 찍지 않는다 — 웹 세션은 '최근 로그인'이 아니다

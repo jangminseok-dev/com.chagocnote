@@ -17,6 +17,9 @@ from auth.domain.value_objects.social_credentials import SocialCredentials
 from auth.domain.value_objects.social_profile import SocialProfile
 
 
+WEB_SESSION = "web"
+
+
 class SocialLoginInteractor(SocialLoginUseCase):
     def __init__(
         self, providers: SocialProviderResolverPort, users: UserRepository, sessions: SessionIssuer
@@ -47,7 +50,7 @@ class SocialLoginInteractor(SocialLoginUseCase):
             if user is None:
                 created = await self._create(profile)
                 if created is not None:
-                    return await self._issue(created.id, is_new_user=True)
+                    return await self._issue(created.id, command, is_new_user=True)
                 # 같은 신원의 첫 로그인이 동시에 두 번 왔다(C1). 먼저 끝난 쪽이 만든 유저를 다시 찾는다.
                 continue
             locked = await self._lock_and_recheck(user.id, profile)
@@ -62,7 +65,7 @@ class SocialLoginInteractor(SocialLoginUseCase):
                 await self._users.fill_provider_refresh_token(
                     profile.provider, profile.provider_user_id, profile.provider_refresh_token
                 )
-            return await self._issue(locked.id, is_new_user=False)
+            return await self._issue(locked.id, command, is_new_user=False)
         raise UserNotFoundError("다시 로그인해 주세요.")
 
     async def _create(self, profile: SocialProfile) -> User | None:
@@ -88,6 +91,9 @@ class SocialLoginInteractor(SocialLoginUseCase):
             return None
         return locked
 
-    async def _issue(self, user_id: int, is_new_user: bool) -> SocialLoginResult:
-        tokens = await self._sessions.issue(user_id, fresh_login=True)
+    async def _issue(self, user_id: int, command: SocialLoginCommand, is_new_user: bool) -> SocialLoginResult:
+        if command.session == WEB_SESSION:
+            tokens = await self._sessions.issue_web(user_id)
+        else:
+            tokens = await self._sessions.issue(user_id, fresh_login=True)
         return SocialLoginResult(user_id=user_id, is_new_user=is_new_user, tokens=tokens)

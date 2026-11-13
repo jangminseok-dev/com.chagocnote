@@ -221,3 +221,78 @@ async def test_방문을_지우면_링크도_함께_지워진다(db_session):
     await repo.create(A, visit_id, FIRST, WEEK, NOW)
     await db_session.execute(delete(VisitOrm).where(VisitOrm.id == visit_id))
     assert await repo.find(FIRST) is None
+
+
+# --- 보호자용 읽기(GuardianReportRepository) — 쪽 나눔·아이 거르기·보호자만의 방문을 실제 DB 로 고정한다 ----------
+
+from sqlalchemy import text  # noqa: E402
+
+
+async def _sent(session, repo, starts_at, public_id: int, *, pet_id=101, customer_id=1, record=True) -> tuple[int, int]:
+    """starts_at 의 완료 방문에 기록과 알림장을 둔다. (visit_id, report_id)"""
+    visit_id = await insert_visit(session, starts_at, "completed", customer_id=customer_id, pet_id=pet_id)
+    if record:
+        await session.execute(text(
+            "INSERT INTO visit_records (visit_id, care_note, created_by_member_id, updated_by_member_id) "
+            "VALUES (:visit_id, '메모', 11, 11)"), {"visit_id": visit_id})
+    report = await repo.create(A, visit_id, public_id.to_bytes(16, "big"), None, NOW)
+    return visit_id, report.id
+
+
+async def test_보호자용_목록은_최신순이고_before_로_다음_쪽을_빠짐없이_겹침없이_준다(db_session):
+    repo = ReportPgRepository(db_session)
+    made = [await _sent(db_session, repo, kst(9, day, 14), day) for day in (20, 21, 22, 23, 24)]
+    newest_first = [report_id for _, report_id in reversed(made)]
+
+    first = await repo.list_sent(A, 1, pet_id=None, before=None, limit=2)
+    assert [s.report.id for s in first] == newest_first[:2]
+    last = first[-1].visit
+    second = await repo.list_sent(A, 1, pet_id=None, before=(last.starts_at, last.id), limit=2)
+    assert [s.report.id for s in second] == newest_first[2:4]
+    last = second[-1].visit
+    third = await repo.list_sent(A, 1, pet_id=None, before=(last.starts_at, last.id), limit=2)
+    assert [s.report.id for s in third] == newest_first[4:]
+
+
+async def test_같은_시각의_두_방문이_쪽_경계에_걸려도_빠지거나_겹치지_않는다(db_session):
+    """가족 두 마리의 같은 날 방문 — 시작 시각이 같으면 방문 ID 로 순서를 가른다."""
+    repo = ReportPgRepository(db_session)
+    same = kst(9, 22, 14)
+    kong = await _sent(db_session, repo, same, 1, pet_id=101)
+    dubu = await _sent(db_session, repo, same, 2, pet_id=102)
+    older = await _sent(db_session, repo, kst(9, 20, 14), 3)
+
+    first = await repo.list_sent(A, 1, pet_id=None, before=None, limit=1)
+    assert [s.report.id for s in first] == [dubu[1]]            # 같은 시각이면 방문 ID 가 큰 쪽이 먼저다
+    last = first[-1].visit
+    rest = await repo.list_sent(A, 1, pet_id=None, before=(last.starts_at, last.id), limit=5)
+    assert [s.report.id for s in rest] == [kong[1], older[1]]
+
+
+async def test_아이로_거르면_그_아이의_것만이고_보호자만의_방문은_목록에만_있다(db_session):
+    repo = ReportPgRepository(db_session)
+    kong = await _sent(db_session, repo, kst(9, 20, 14), 1, pet_id=101)
+    dubu = await _sent(db_session, repo, kst(9, 21, 14), 2, pet_id=102)
+    alone = await _sent(db_session, repo, kst(9, 22, 14), 3, pet_id=None)
+
+    assert [s.report.id for s in await repo.list_sent(A, 1, pet_id=102, before=None, limit=20)] == [dubu[1]]
+    everything = await repo.list_sent(A, 1, pet_id=None, before=None, limit=20)
+    assert [(s.report.id, s.visit.pet_id) for s in everything] == [(alone[1], None), (dubu[1], 102), (kong[1], 101)]
+    assert await repo.pet_ids_with_reports(A, 1) == [101, 102]
+
+
+async def test_보호자용_읽기는_끊은_것_기록_없는_것_다른_고객_다른_매장의_것을_주지_않는다(db_session):
+    repo = ReportPgRepository(db_session)
+    mine = await _sent(db_session, repo, kst(9, 20, 14), 1)
+    revoked = await _sent(db_session, repo, kst(9, 21, 14), 2)
+    await repo.revoke(A, revoked[0], NOW)
+    no_record = await _sent(db_session, repo, kst(9, 22, 14), 3, record=False)
+    theirs = await _sent(db_session, repo, kst(9, 23, 14), 4, customer_id=2, pet_id=201)
+
+    assert [s.report.id for s in await repo.list_sent(A, 1, pet_id=None, before=None, limit=20)] == [mine[1]]
+    assert (await repo.get_sent(A, 1, mine[1])).visit.id == mine[0]
+    for report_id in (revoked[1], no_record[1], theirs[1]):
+        assert await repo.get_sent(A, 1, report_id) is None
+    assert await repo.get_sent(B, 1, mine[1]) is None
+    assert await repo.list_sent(B, 1, pet_id=None, before=None, limit=20) == []
+    assert await repo.pet_ids_with_reports(A, 2) == [201]
