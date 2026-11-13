@@ -47,7 +47,8 @@ async def test_오래된_순으로_아이와_마지막_방문일을_준다():
         (PetCard(101, "아이101", None), date(2026, 9, 1)),
     ]
     assert view.next_cursor is None
-    assert w.sales.due_args == (date(2026, 11, 14), NOW)
+    # 오늘 예약이 있는 아이는 그 시각이 지났어도 뺀다 — 저장소에 오늘 0시를 넘긴다.
+    assert w.sales.due_args == (date(2026, 11, 14), kst(11, 14, 0))
 
 
 async def test_무지개다리를_건넌_아이와_익명화한_고객의_아이와_지운_아이는_빠진다():

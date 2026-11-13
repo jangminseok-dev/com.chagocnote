@@ -45,8 +45,9 @@ class SalesRepository(ABC):
         """기간에 완료 방문이 있는 아이들. 마지막 날이 최근인 순(같으면 pet_id 순)."""
 
     @abstractmethod
-    async def remaining_reserved(self, ctx: ShopContext, now: datetime, until: date) -> RemainingBookings:
-        """now 부터 until 전까지의 예약(reserved)."""
+    async def remaining_reserved(self, ctx: ShopContext, since: datetime, until: date) -> RemainingBookings:
+        """since 부터 until 전까지의 예약(reserved). 부르는 쪽은 매장 시간대의 오늘 0시를 넘긴다 —
+        시각이 지났지만 아직 시작하지 않은 오늘의 예약도 남은 예약이다."""
 
     @abstractmethod
     async def report_counts(self, ctx: ShopContext, start: date, until: date) -> tuple[int, int]:
@@ -62,6 +63,7 @@ class SalesRepository(ABC):
         unrecorded — 총액이 없는 완료 방문, menu — 그 메뉴를 항목에 적은(총액이 있는) 완료 방문."""
 
     @abstractmethod
-    async def due_candidates(self, ctx: ShopContext, today: date, now: datetime) -> list[DuePet]:
-        """마지막 완료 방문이 57일~365일 전이고 앞으로의 예약(지금 이후의 예약·미용 중)이 없는 아이.
+    async def due_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[DuePet]:
+        """마지막 완료 방문이 57일~365일 전이고 앞으로의 예약(since 이후의 예약·미용 중)이 없는 아이.
+        부르는 쪽은 since 에 매장 시간대의 오늘 0시를 넘긴다 — 오늘 예약한 아이는 그 시각이 지났어도 뺀다.
         오래된 순(같으면 pet_id 순). 무지개다리·익명화는 여기서 모른다 — 부르는 쪽이 거른다."""

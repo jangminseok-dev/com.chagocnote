@@ -34,9 +34,8 @@ class ListDuePetsInteractor(ListDuePetsUseCase):
     async def list_due_pets(self, query: ListDuePetsQuery) -> DuePetsView:
         ctx = query.ctx
         after = decode_due_cursor(query.cursor) if query.cursor else None
-        now = self._now()
-        due, pets = await due_pets(
-            ctx, self._sales, self._directory, now.astimezone(ZoneInfo(ctx.timezone)).date(), now)
+        today = self._now().astimezone(ZoneInfo(ctx.timezone)).date()
+        due, pets = await due_pets(ctx, self._sales, self._directory, today)
         if after is not None:
             due = [d for d in due if (d.last_day, d.pet_id) > after]
         page = due[:PAGE_SIZE]

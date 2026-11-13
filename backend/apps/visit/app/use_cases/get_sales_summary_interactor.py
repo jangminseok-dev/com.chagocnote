@@ -26,7 +26,7 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
-from visit.app.services.due_pets import due_pets
+from visit.app.services.due_pets import due_pets, start_of_day
 from visit.app.services.pet_cards import pet_cards, showable_pets
 from visit.domain.services.sales_period import (
     Period,
@@ -78,8 +78,9 @@ class GetSalesSummaryInteractor(GetSalesSummaryUseCase):
         menu_sales = await self._sales.by_menu(ctx, period.start, period.until)
         seen = await self._sales.pets(ctx, period.start, period.until)
         regular_rows = await self._regulars(ctx, period, seen, today)
-        due, _ = await due_pets(ctx, self._sales, self._directory, today, now)
-        remaining = await self._sales.remaining_reserved(ctx, now, period.until) if current else None
+        due, _ = await due_pets(ctx, self._sales, self._directory, today)
+        remaining = await self._sales.remaining_reserved(ctx, start_of_day(ctx, today), period.until) \
+            if current else None
         report = await self._sales.report_counts(ctx, period.start, period.until) if totals.completed else None
         goal = await self._goals.get(ctx) if query.span == "month" and current else None
 

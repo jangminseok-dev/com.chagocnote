@@ -363,7 +363,7 @@ async def test_다시_올_때는_마지막_완료_방문으로_보고_앞으로�
     await _done(db_session, kst(8, 2, 11), 10_000, pet_id=102)
     await insert_visit(db_session, kst(11, 20, 11), "reserved", pet_id=102)     # 예약이 잡혀 있다 — 빠진다
     await _done(db_session, kst(8, 3, 11), 10_000, pet_id=103)
-    await insert_visit(db_session, kst(11, 10, 11), "reserved", pet_id=103)     # 지나간 예약은 막지 않는다
+    await insert_visit(db_session, kst(11, 10, 11), "reserved", pet_id=103)     # 며칠 전에 지나간 예약은 막지 않는다
     await _done(db_session, kst(8, 4, 11), 10_000, pet_id=104)
     await insert_visit(db_session, kst(11, 14, 14), "in_progress", pet_id=104)  # 지금 미용 중이다 — 빠진다
     await _done(db_session, kst(8, 5, 11), 10_000, pet_id=105)

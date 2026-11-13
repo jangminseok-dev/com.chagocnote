@@ -136,9 +136,9 @@ class SalesPgRepository(SalesRepository):
         """), self._range(ctx, start, until))).all()
         return [PetVisits(pet_id=p, visits=n, last_day=last, first_ever_day=first) for p, n, last, first in rows]
 
-    async def remaining_reserved(self, ctx: ShopContext, now: datetime, until: date) -> RemainingBookings:
+    async def remaining_reserved(self, ctx: ShopContext, since: datetime, until: date) -> RemainingBookings:
         params = {
-            "shop": ctx.shop_id, "now": now,
+            "shop": ctx.shop_id, "now": since,
             "to_at": datetime.combine(until, time.min, ZoneInfo(ctx.timezone)),
         }
         upcoming = "v.shop_id = :shop AND v.status = 'reserved' AND v.starts_at >= :now AND v.starts_at < :to_at"
@@ -177,7 +177,7 @@ class SalesPgRepository(SalesRepository):
         """), params)).all()
         return [SalesVisitRow(*row) for row in rows]
 
-    async def due_candidates(self, ctx: ShopContext, today: date, now: datetime) -> list[DuePet]:
+    async def due_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[DuePet]:
         rows = (await self._session.execute(text("""
             WITH latest AS (
               SELECT v.pet_id, (max(v.starts_at) AT TIME ZONE :tz)::date AS last_day
@@ -195,7 +195,7 @@ class SalesPgRepository(SalesRepository):
               )
             ORDER BY latest.last_day, latest.pet_id
         """), {
-            "shop": ctx.shop_id, "tz": ctx.timezone, "now": now,
+            "shop": ctx.shop_id, "tz": ctx.timezone, "now": since,
             "oldest": today - timedelta(days=DUE_WITHIN_DAYS),
             "newest": today - timedelta(days=DUE_AFTER_DAYS + 1),
         })).all()

@@ -689,9 +689,9 @@ class FakeSalesRepository(SalesRepository):
         self.calls.append("pets")
         return self.pets_by.get((start, until), [])
 
-    async def remaining_reserved(self, ctx, now, until):
+    async def remaining_reserved(self, ctx, since, until):
         self.calls.append("remaining_reserved")
-        self.remaining_args = (now, until)
+        self.remaining_args = (since, until)
         return self.remaining
 
     async def report_counts(self, ctx, start, until):
@@ -704,7 +704,7 @@ class FakeSalesRepository(SalesRepository):
         rows = [r for r in self.visit_rows if before is None or (r.starts_at, r.visit_id) < before]
         return rows[:limit]
 
-    async def due_candidates(self, ctx, today, now):
+    async def due_candidates(self, ctx, today, since):
         self.calls.append("due_candidates")
-        self.due_args = (today, now)
+        self.due_args = (today, since)
         return list(self.due)

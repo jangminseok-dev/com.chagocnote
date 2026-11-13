@@ -27,6 +27,7 @@ from visit.tests.helpers.fakes import (
 )
 
 NOW = kst(11, 14, 15)
+MIDNIGHT = kst(11, 14, 0)     # 오늘 0시(서울) — 오늘의 예약은 시각이 지났어도 '앞으로의 예약'이다
 TODAY = date(2026, 11, 14)
 NOV = (date(2026, 11, 1), date(2026, 12, 1))
 OCT_SAME = (date(2026, 10, 1), date(2026, 10, 15))        # 10월 1~14일 — 끝 다음 날
@@ -340,7 +341,8 @@ async def test_남은_예약은_진행_중인_기간에만_있고_지금부터_�
     w.sales.remaining = RemainingBookings(count=12, expected_amount=840_000)
     s = await w.summary()
     assert (s.bookings.remaining, s.bookings.expected_amount) == (12, 840_000)
-    assert w.sales.remaining_args == (NOW, date(2026, 12, 1))
+    # 10시 예약을 10시 20분에 아직 시작하지 않았어도 남은 예약이다 — 오늘 0시부터 센다.
+    assert w.sales.remaining_args == (MIDNIGHT, date(2026, 12, 1))
     past = await w.summary("month", date(2026, 10, 10))
     assert (past.bookings.remaining, past.bookings.expected_amount) == (None, None)
 
@@ -392,7 +394,7 @@ async def test_다시_올_때가_지난_아이의_수는_무지개다리와_익�
                    DuePet(999, date(2026, 8, 4)), DuePet(201, date(2026, 8, 5))]
     s = await w.summary("day")
     assert s.due_pet_count == 2
-    assert w.sales.due_args == (TODAY, NOW)
+    assert w.sales.due_args == (TODAY, MIDNIGHT)
 
 
 async def test_요약_한_번의_저장소_호출_수는_방문_수와_상관없다():

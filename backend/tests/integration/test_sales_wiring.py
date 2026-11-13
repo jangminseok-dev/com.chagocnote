@@ -185,8 +185,10 @@ async def test_금액을_채우면_매출이_늘고_노쇼와_취소와_남은_�
         "customer_id": customer_id, "pet_ids": [kong], "starts_at": _at(1, 11), "menu_ids": [bath]})
     assert booked.status_code == 201, booked.text
 
+    # 노쇼·취소는 어제의 것이라 어제로 읽는다 — 오늘이 1월 1일이면 올해의 요약에는 없다.
+    yesterday = await _summary(wired, shop_id, o, "day")
+    assert (yesterday["bookings"]["no_show"], yesterday["bookings"]["canceled"]) == (1, 1)
     today = await _summary(wired, shop_id, o, "year", _day(0).isoformat())
-    assert (today["bookings"]["no_show"], today["bookings"]["canceled"]) == (1, 1)
     # 내일이 해를 넘기면(12월 31일) 올해의 남은 예약이 아니다 — 그날만 0 이다.
     expected = (1, 25_000) if _day(1).year == _day(0).year else (0, None)
     assert (today["bookings"]["remaining"], today["bookings"]["expected_amount"]) == expected
