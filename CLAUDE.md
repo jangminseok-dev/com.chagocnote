@@ -12,7 +12,7 @@
 |---|---|---|
 | 백엔드 | Python 3.13 · FastAPI · SQLAlchemy 2.0(asyncio) · Alembic | `backend/` |
 | 앱 | Flutter 3.41 이상 | `app/` |
-| 웹 (보호자 알림장) | Next.js 16 (App Router) · TypeScript · pnpm | `web/` |
+| 웹 (보호자 알림장·내 기록) | Next.js 16 (App Router) · TypeScript · pnpm | `web/` |
 | 개발 환경 | Docker Compose (pgvector · redis · minio · backend · auth · gateway · web) | `infra/` |
 | 설계·계획 | 서브 프로젝트별 문서 | `docs/superpowers/` |
 
@@ -26,7 +26,7 @@
 - 매장 범위의 경로는 `core/shop_guard.py`의 `get_shop_context` 또는 `require_permission`으로 `ShopContext`를 받는다. 매장 범위의 리포지토리 메서드는 `ShopContext`를 첫 인자로 받는다.
 - 로그인 없이 열리는 경로는 `backend/tests/route_inspection.py`의 허용 목록과 프로세스별 목록 테스트에 있는 것뿐이다. 공개 응답 스키마는 매장용과 따로 쓰고 칸을 하나하나 적는다.
 - 알림장 토큰은 헤더(`X-Report-Token`)로 받고 로그·문서·커밋에 남기지 않는다.
-- 웹(`web/`)은 토큰·서명 주소·비밀값을 로그에 찍지 않는다. 보호자의 브라우저는 백엔드를 직접 부르지 않는다 — 웹 서버가 부른다.
+- 웹(`web/`)은 토큰(알림장·세션)·쿠키 값·서명 주소·비밀값을 로그에 찍지 않는다. 보호자의 브라우저는 백엔드를 직접 부르지 않는다 — 웹 서버가 부른다.
 - 가드 없이 `ShopContext`를 만드는 곳은 둘뿐이다. 매장 멤버가 아닌 요청 경로(로그인 없는 공개 알림장, 로그인한 보호자의 읽기)에서는 `visit/app/services/public_context.py` 하나, 요청 밖(디스패처·운영자 스크립트)에서는 `notification/app/services/system_context.py` 하나(권한 빔). 둘 다 권한이 비어 있고 포트 읽기(와 알림 표 쓰기)에만 쓴다.
 - 인증 프로세스 전용 비밀값(JWT 개인키, `IDENTITY_TOKEN_ENC_KEY`, `KAKAO_ADMIN_KEY`)은 `core/auth_config.py`에만 있고 인증 프로세스(`auth_main.py`)만 읽는다. 이 모듈은 함수 안에서만 import한다. API 프로세스 경로에서 import하지 않는다.
 - 보호자 경로(`/v1/me/guardian/…`)는 `core/guardian_guard.py`의 `get_guardian_context`로 `GuardianContext`를 받는다. `guardian` 스포크는 `ShopContext`를 만들지 않고 고객·반려동물을 읽지 않는다. 보호자용 응답은 공개 알림장과 같은 스키마를 쓰고, 매장용 응답에 보호자가 누구인지 싣지 않는다.
