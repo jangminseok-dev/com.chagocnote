@@ -28,6 +28,7 @@ import '../state/customer_commands.dart';
 import '../state/customer_input.dart';
 import '../state/customer_providers.dart';
 import 'customer_labels.dart';
+import 'guardian_link_row.dart';
 
 /// 반려동물 한 마리 화면 — 큰 프로필 사진(최근 완료 기록의 대표 사진), 이름·요약, 탭 [기본 / 질병 / 보호자 /
 /// 기록](기록은 visit 가 그린다 — `petRecordsPlugProvider`),
@@ -222,6 +223,7 @@ class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
                   // 탭 안의 보호자·기록도 함께 다시 읽는다.
                   onRefresh: () {
                     ref.invalidate(customerDetailProvider);
+                    ref.invalidate(guardianLinkProvider);
                     ref.read(petRecordsRefreshPlugProvider)(widget.petId);
                     return ref.refresh(
                       petDetailProvider((
@@ -437,6 +439,7 @@ class _OwnerTab extends ConsumerWidget {
                   label: AppStrings.noShowCountLabel,
                   value: AppStrings.timesCount(detail.noShowCount),
                 ),
+                GuardianLinkRow(customerId: customerId),
                 _UpcomingVisits(visits: detail.upcomingVisits),
                 const SizedBox(height: AppSpacing.sm),
                 Wrap(

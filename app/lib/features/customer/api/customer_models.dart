@@ -477,3 +477,22 @@ class PetFields {
   static String _isoDate(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
+
+/// 고객 카드와 보호자 계정의 연결. 매장에는 여부와 이은 날만 온다 — 보호자가
+/// 누구인지는 없다(매장은 고객이 다른 매장의 사장인지 알 수 없다).
+class GuardianLink {
+  const GuardianLink({required this.linked, required this.linkedAt});
+
+  final bool linked;
+
+  /// 이은 시각(매장 시간대 ISO). 연결이 없으면 null.
+  final String? linkedAt;
+
+  factory GuardianLink.fromJson(Map<String, dynamic> json) {
+    final linkedAt = json['linked_at'];
+    return GuardianLink(
+      linked: json['linked'] == true,
+      linkedAt: linkedAt is String ? linkedAt : null,
+    );
+  }
+}

@@ -319,6 +319,16 @@ class AppStrings {
   static String noShowCount(int count) => '노쇼 $count회';
   static const noShowCountLabel = '노쇼 횟수';
   static String timesCount(int count) => '$count회';
+
+  // 보호자 계정 연결(⑦-3) — 반려동물 상세의 보호자 탭
+  static const guardianLinked = '보호자 계정 연결됨';
+  static String guardianLinkedOn(int month, int day) =>
+      '보호자 계정 연결됨 · $month월 $day일';
+  static const guardianLinkMore = '보호자 연결 더 보기';
+  static const endGuardianLink = '연결 끊기';
+  static const endGuardianLinkConfirm =
+      '보호자가 지난 기록을 더는 볼 수 없어요. 알림장을 다시 보내면 다시 이을 수 있어요.';
+  static const guardianLinkEnded = '보호자 연결을 끊었어요.';
   static const dayTitleEn = 'Schedule';
   static const viewAsTimeline = '시간표로 보기';
   static const actionCompleteShort = '완료하기';
