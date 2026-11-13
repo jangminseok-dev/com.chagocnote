@@ -28,12 +28,16 @@ test.each(['', 'abc', '!!!!', 'A'.repeat(500), '한글'])('아무 글자(%s)는 
   expect(await open('session', value)).toBeNull()
 })
 
-test('한 글자를 바꾸면 null 이다', async () => {
-  const sealed = await seal('session', '값')
-  const last = sealed.at(-1) === 'A' ? 'B' : 'A'
-  expect(await open('session', sealed.slice(0, -1) + last)).toBeNull()
-  const first = sealed[0] === 'A' ? 'B' : 'A'
-  expect(await open('session', first + sealed.slice(1))).toBeNull()
+// 글자가 아니라 바이트를 뒤집는다 — base64url 의 마지막 글자는 남는 비트가 있어 바꿔도 같은 바이트일 수 있다.
+test.each([
+  ['첫', 0],
+  ['가운데', 14],
+  ['마지막', -1],
+])('%s 바이트를 바꾸면 null 이다', async (_name, index) => {
+  const bytes = Buffer.from(await seal('session', '값'), 'base64url')
+  const at = index < 0 ? bytes.length + index : index
+  bytes[at] ^= 0x01
+  expect(await open('session', bytes.toString('base64url'))).toBeNull()
 })
 
 test('다른 용도로 봉한 값은 null 이다', async () => {
