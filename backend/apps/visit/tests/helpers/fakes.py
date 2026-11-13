@@ -28,6 +28,8 @@ from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.report_target_dto import ReportTarget
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
+from visit.app.dtos.guardian_report_dto import SentReport
+from visit.app.ports.output.guardian_report_repository import GuardianReportRepository
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
@@ -420,7 +422,7 @@ class FakeRecords(VisitRecordRepository):
         self.journal.append(("delete_record", visit_id))
 
 
-class FakeReportRepository(ReportRepository, PublicReportRepository):
+class FakeReportRepository(ReportRepository, PublicReportRepository, GuardianReportRepository):
     """visit_reports 스텁 — pg 구현처럼 두 포트를 한 객체가 낸다. 방문의 매장은 visits 스텁에서 본다.
 
     끊지 않은 줄이 있는 방문에 또 만들면 AssertionError 다 — 인터랙터가 닫기(close_expired)나 끊기를 빠뜨린 것이다.
@@ -443,6 +445,31 @@ class FakeReportRepository(ReportRepository, PublicReportRepository):
 
     def _revoke(self, reports, now) -> None:
         self.rows = [replace(r, revoked_at=now) if r in reports else r for r in self.rows]
+
+    # --- 보호자용 읽기(GuardianReportRepository) — 끊지 않은 줄(기간은 보지 않는다)과 기록이 있는 방문 ------------
+
+    def _sent(self, ctx, customer_id):
+        """records 를 꽂아 두면 기록이 있는 방문만 본다(pg 구현이 visit_records 를 확인하는 것처럼)."""
+        records = getattr(self, "records", None)
+        found = [
+            SentReport(report=r, visit=self.visits.rows[r.visit_id]) for r in self._open(ctx, customer_id=customer_id)
+            if records is None or r.visit_id in records.rows
+        ]
+        return sorted(found, key=lambda s: (s.visit.starts_at, s.visit.id), reverse=True)
+
+    async def list_sent(self, ctx, customer_id, *, pet_id, before, limit):
+        found = [
+            s for s in self._sent(ctx, customer_id)
+            if (pet_id is None or s.visit.pet_id == pet_id)
+            and (before is None or (s.visit.starts_at, s.visit.id) < before)
+        ]
+        return found[:limit]
+
+    async def get_sent(self, ctx, customer_id, report_id):
+        return next((s for s in self._sent(ctx, customer_id) if s.report.id == report_id), None)
+
+    async def pet_ids_with_reports(self, ctx, customer_id):
+        return sorted({s.visit.pet_id for s in self._sent(ctx, customer_id) if s.visit.pet_id is not None})
 
     async def get_live(self, ctx, visit_id, now):
         self.reads.append("get_live")

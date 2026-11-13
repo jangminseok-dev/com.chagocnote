@@ -171,3 +171,132 @@ async def test_고객을_삭제하면_연결이_끝나고_보호자_목록에서
         from sqlalchemy import text
         row = (await conn.execute(text("SELECT ended_by FROM guardian_links WHERE id = :id"), {"id": link_id})).one()
     assert row.ended_by == "anonymized"
+
+
+# --- 보호자용 읽기(visit) -----------------------------------------------------------------------------------------
+
+from sqlalchemy import text  # noqa: E402
+
+from tests.integration.test_public_report_wiring import ALL_ON, LEAKS, PUBLIC  # noqa: E402
+
+
+def _reports(link_id: int) -> str:
+    return f"{LINKS}/{link_id}/reports"
+
+
+async def _listed(wired, guardian, link_id, **params) -> dict:
+    response = await wired.api.get(_reports(link_id), headers=guardian, params=params)
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_이은_보호자는_지난_알림장을_목록과_한_장으로_읽고_공개_알림장과_같은_칸만_받는다(wired):
+    mine, link_id, shop_id, headers, visit, token = await linked(wired)
+    assert (await wired.api.put(f"/v1/shops/{shop_id}/report-settings", headers=headers, json=ALL_ON)).status_code == 200
+
+    page = await _listed(wired, mine, link_id)
+    [item] = page["items"]
+    assert set(item) == {"report_id", "visit_date", "pet_id", "pet_name", "cover", "media_count"}
+    assert (item["pet_name"], item["media_count"], item["cover"], page["next_cursor"]) == ("콩이", 0, None, None)
+
+    one = await wired.api.get(f"{_reports(link_id)}/{item['report_id']}", headers=mine)
+    public = await wired.api.get(PUBLIC, headers=_with(token))
+    assert one.status_code == 200 and public.status_code == 200
+    assert set(one.json()) == set(public.json())            # 공개 알림장과 같은 칸 — 새 칸이 없다
+    assert one.json()["expires_at"] is None and public.json()["expires_at"] is not None
+    assert {k: v for k, v in one.json().items() if k != "expires_at"} == {
+        k: v for k, v in public.json().items() if k != "expires_at"}
+    for leak in LEAKS:
+        assert leak not in one.text, leak                    # 내부 메모·결제 수단·ID 가 없다
+    assert one.headers["cache-control"] == "private, no-store"
+
+    pets = await wired.api.get(f"{LINKS}/{link_id}/pets", headers=mine)
+    assert [p["name"] for p in pets.json()["items"]] == ["콩이"]
+    assert pets.json()["items"][0]["pet_id"] == item["pet_id"]
+
+    # 보호자용 읽기는 '링크를 열었는가'를 찍지 않는다.
+    async with wired.engine.connect() as conn:
+        viewed = (await conn.execute(text("SELECT first_viewed_at FROM visit_reports"))).scalars().all()
+    assert viewed == [None]
+
+
+async def test_남의_연결로는_아무것도_읽지_못한다(wired):
+    mine, link_id, *_ = await linked(wired)
+    stranger = await web_login(wired, "다른사람")
+    report_id = (await _listed(wired, mine, link_id))["items"][0]["report_id"]
+
+    for path in (_reports(link_id), f"{_reports(link_id)}/{report_id}", f"{LINKS}/{link_id}/pets"):
+        assert error_of(await wired.api.get(path, headers=stranger)) == (404, "GUARDIAN_LINK_NOT_FOUND")
+        assert (await wired.api.get(path)).status_code == 401
+
+
+async def test_기간이_지난_알림장은_보이고_끊은_알림장은_안_보이며_다시_보내면_새_것_한_장이다(wired):
+    mine, link_id, _, headers, visit, token = await linked(wired)
+    old_id = (await _listed(wired, mine, link_id))["items"][0]["report_id"]
+
+    # 링크의 기간을 지나게 한다 — 공개 조회는 닫히지만 로그인한 보호자는 계속 본다.
+    await wired.execute(
+        "UPDATE visit_reports SET created_at = now() - interval '10 days', expires_at = now() - interval '1 day'")
+    assert (await wired.api.get(PUBLIC, headers=_with(token))).status_code == 410
+    assert [i["report_id"] for i in (await _listed(wired, mine, link_id))["items"]] == [old_id]
+    assert (await wired.api.get(f"{_reports(link_id)}/{old_id}", headers=mine)).status_code == 200
+
+    # 매장이 다시 보내면(기간 지난 줄은 닫히고 새 줄이 생긴다) 새 것 한 장만 보이고 옛 번호는 없다.
+    resent = await wired.api.put(f"{visit}/report", headers=headers, json={"hidden_media_ids": []})
+    assert resent.status_code == 200, resent.text
+    [item] = (await _listed(wired, mine, link_id))["items"]
+    assert item["report_id"] != old_id
+    assert error_of(await wired.api.get(f"{_reports(link_id)}/{old_id}", headers=mine)) == (404, "REPORT_NOT_FOUND")
+
+    # 매장이 끊으면 보이지 않는다.
+    assert (await wired.api.delete(f"{visit}/report", headers=headers)).status_code == 204
+    assert (await _listed(wired, mine, link_id))["items"] == []
+    assert error_of(await wired.api.get(f"{_reports(link_id)}/{item['report_id']}", headers=mine)) == (
+        404, "REPORT_NOT_FOUND")
+    assert (await wired.api.get(f"{LINKS}/{link_id}/pets", headers=mine)).json() == {"items": []}
+
+
+async def test_같은_매장의_다른_고객이_받은_알림장은_번호를_알아도_읽지_못한다(wired):
+    mine, link_id, shop_id, headers, _, _ = await linked(wired)
+    other_visit, _, _ = await _completed_visit(wired, shop_id, headers, phone="010-1111-2222")
+    assert (await wired.api.put(f"{other_visit}/report", headers=headers, json={"hidden_media_ids": []})).status_code == 200
+    async with wired.engine.connect() as conn:
+        ids = (await conn.execute(text("SELECT id FROM visit_reports ORDER BY id"))).scalars().all()
+    my_id = (await _listed(wired, mine, link_id))["items"][0]["report_id"]
+    [their_id] = [i for i in ids if i != my_id]
+
+    assert error_of(await wired.api.get(f"{_reports(link_id)}/{their_id}", headers=mine)) == (404, "REPORT_NOT_FOUND")
+    assert [i["report_id"] for i in (await _listed(wired, mine, link_id))["items"]] == [my_id]
+
+
+async def test_매장이_뺀_사진은_목록의_수와_한_장에_없다(wired, media_storage):
+    shop_id, headers = await _shop(wired, "사진매장", "사진매장 사장님")
+    visit, media, _ = await _completed_visit(wired, shop_id, headers, photos=2)
+    sent = await wired.api.put(f"{visit}/report", headers=headers, json={"hidden_media_ids": [media[0]]})
+    assert sent.status_code == 200, sent.text
+    guardian = await web_login(wired, "두부보호자")
+    link_id = (await claim(wired, guardian, _token(sent.json()["link"]))).json()["link_id"]
+
+    [item] = (await _listed(wired, guardian, link_id))["items"]
+    assert item["media_count"] == 1 and item["cover"] is not None
+    one = await wired.api.get(f"{_reports(link_id)}/{item['report_id']}", headers=guardian)
+    assert len(one.json()["media"]) == 1
+
+
+async def test_깨진_쪽_표시와_범위_밖_숫자는_422_다(wired):
+    mine, link_id, *_ = await linked(wired)
+    assert error_of(await wired.api.get(_reports(link_id), headers=mine, params={"cursor": "이상한글자"})) == (
+        422, "VALIDATION_ERROR")
+    assert (await wired.api.get(f"{_reports(link_id)}/99999999999", headers=mine)).status_code == 422
+    assert (await wired.api.get(f"{LINKS}/99999999999/reports", headers=mine)).status_code == 422
+
+
+async def test_탈퇴한_뒤에는_아직_살아_있는_웹_토큰으로도_읽지_못한다(wired):
+    mine, link_id, *_ = await linked(wired)
+    app_login = await wired.login("두부보호자")
+    gone = await wired.auth.request(
+        "DELETE", "/v1/auth/account", headers=bearer(app_login["access_token"]), json={"confirm_close_shops": False})
+    assert gone.status_code == 204, gone.text
+
+    response = await wired.api.get(_reports(link_id), headers=mine)
+    assert response.status_code in (401, 404), response.text

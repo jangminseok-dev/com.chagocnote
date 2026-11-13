@@ -139,6 +139,11 @@ from visit.dependencies.hub_ports import get_customer_directory, get_domain_even
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
+from visit.adapter.inbound.api.v1.guardian_reports_router import (
+    list_guardian_pets_router,
+    list_guardian_reports_router,
+    read_guardian_report_router,
+)
 from visit.dependencies.resolve_report_link_provider import get_resolve_report_link_use_case
 
 
@@ -245,6 +250,10 @@ app.include_router(list_guardian_links_router)
 app.include_router(end_guardian_link_router)
 app.include_router(get_customer_guardian_link_router)
 app.include_router(end_customer_guardian_link_router)
+# 보호자용 읽기는 visit 이 소유한다(알림장은 visit 의 것이다) — 보호자 가드를 거친다.
+app.include_router(list_guardian_pets_router)
+app.include_router(list_guardian_reports_router)
+app.include_router(read_guardian_report_router)
 
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
