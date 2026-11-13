@@ -123,12 +123,13 @@ String facesLine(SalesSummary s) => s.petCount > 0
     ? '${s.petCount}마리가 ${s.visitCount}번 다녀갔어요'
     : '${s.visitCount}번 다녀갔어요';
 
-/// 처음 고를 칸 — 오늘 칸이 있으면 그것, 없으면 방문이 있는 마지막 칸. 연 보기의 막대는 고르지 않는다.
+/// 처음 고를 칸 — 오늘 방문이 있으면 오늘, 없으면 방문이 있는 마지막 칸. 연 보기의 막대는 고르지 않는다.
+/// 방문이 없는 날은 처음부터 고르지 않는다("0원 0건" 카드를 띄우지 않는다).
 String? selectedBucketKey(SalesSummary s, DateTime today) {
   if (s.span == SalesSpan.year) return null;
   final todayKey = isoDay(today);
   for (final bucket in s.buckets) {
-    if (bucket.key == todayKey && !bucket.future) return bucket.key;
+    if (bucket.key == todayKey && bucket.visitCount > 0) return bucket.key;
   }
   for (final bucket in s.buckets.reversed) {
     if (bucket.visitCount > 0) return bucket.key;

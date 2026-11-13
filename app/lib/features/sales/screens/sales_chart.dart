@@ -8,7 +8,7 @@ import '../../../l10n/app_strings.dart';
 import '../api/sales_models.dart';
 import '../state/sales_rules.dart';
 
-/// 칸별 매출 막대(설계 ⑧ 3.2 의 6). 고른 칸만 검정이고 나머지는 옅은 회색, 아직 오지 않은 칸은 바닥선뿐이다.
+/// 칸별 매출 막대(설계 ⑧ 3.2 의 6). 고른 칸만 검정이고 나머지는 옅은 회색, 방문이 없거나 아직 오지 않은 칸은 바닥선뿐이다.
 /// 고른 칸 위에는 그날의 대표 사진이 뜬다. 차트 패키지를 쓰지 않고 직접 그린다.
 class SalesChart extends StatelessWidget {
   const SalesChart({
@@ -79,8 +79,8 @@ class SalesChart extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (on)
-              // 막대보다 넓은 사진 — 옆 칸 위로 넘쳐도 된다.
+            if (photo != null)
+              // 막대보다 넓은 사진 — 옆 칸 위로 넘쳐도 된다. 사진이 없는 날에는 빈 칸을 띄우지 않는다.
               SizedBox(
                 height: _pinSize + 4,
                 child: OverflowBox(
@@ -88,14 +88,14 @@ class SalesChart extends StatelessWidget {
                   maxWidth: _pinSize,
                   alignment: Alignment.topCenter,
                   child: AppPhotoTile(
-                    image: photo == null ? null : photoOf(photo),
+                    image: photoOf(photo),
                     size: _pinSize,
                   ),
                 ),
               ),
             Container(
-              // 방문이 있는 날은 0원이어도 1 은 보이게, 아직 오지 않은 날은 바닥선만.
-              height: bucket.future ? 0 : (ratio * _barHeight).clamp(1, _barHeight),
+              // 방문이 있는 날은 0원이어도 1 은 보이게. 방문이 없는 날과 아직 오지 않은 날은 바닥선뿐이다.
+              height: bucket.visitCount > 0 ? (ratio * _barHeight).clamp(1, _barHeight) : 0,
               decoration: BoxDecoration(
                 color: on ? AppColors.ink : AppColors.line,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),

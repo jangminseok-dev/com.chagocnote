@@ -153,7 +153,8 @@ class SalesMenus extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 5),
             child: Row(
               children: [
-                _photo(menu.pet, photoOf, 26),
+                // 조정 줄(총액과 항목 합의 차이)은 메뉴가 아니다 — 사진 칸 없이 자리만 맞춘다.
+                if (menu.menuId == null) const SizedBox(width: 26) else _photo(menu.pet, photoOf, 26),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(

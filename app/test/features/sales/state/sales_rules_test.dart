@@ -190,8 +190,15 @@ void main() {
     expect(facesLine(ownerOnly), '2번 다녀갔어요');
   });
 
-  test('처음 고르는 칸 — 오늘 칸, 없으면 방문이 있는 마지막 칸, 그것도 없으면 없다', () {
+  test('처음 고르는 칸 — 오늘 방문이 있으면 오늘, 없으면 방문이 있는 마지막 칸, 그것도 없으면 없다', () {
     expect(selectedBucketKey(_s(), DateTime(2026, 11, 14)), '2026-11-14');
+    // 오늘은 아직 방문이 없다 — "0원 0건" 카드를 띄우지 않고 어제를 고른다.
+    final quietToday = _s(buckets: [
+      {'key': '2026-11-13', 'revenue': 100000, 'visit_count': 4, 'future': false, 'pets': <Map<String, dynamic>>[]},
+      {'key': '2026-11-14', 'revenue': 0, 'visit_count': 0, 'future': false, 'pets': <Map<String, dynamic>>[]},
+      {'key': '2026-11-15', 'revenue': 0, 'visit_count': 0, 'future': true, 'pets': <Map<String, dynamic>>[]},
+    ]);
+    expect(selectedBucketKey(quietToday, DateTime(2026, 11, 14)), '2026-11-13');
     // 지난 달을 보면 방문이 있는 마지막 날.
     expect(selectedBucketKey(_s(), DateTime(2026, 12, 20)), '2026-11-14');
     final empty = _s(buckets: [

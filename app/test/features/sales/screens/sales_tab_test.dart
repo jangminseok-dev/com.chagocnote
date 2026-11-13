@@ -4,6 +4,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
+import 'package:chagocnote/features/sales/screens/sales_sections.dart';
 import 'package:chagocnote/features/sales/screens/sales_tab.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:dio/dio.dart';
@@ -300,6 +301,12 @@ void main() {
     expect(find.text('조정'), findsOneWidget);
     expect(find.text('-10,000'), findsOneWidget);
     expect(find.text('0건'), findsNothing, reason: '조정 줄에는 건수가 없다');
+    // 조정 줄에는 사진 칸이 없다 — 메뉴가 아니다. 사진 칸은 '전체 미용' 줄의 하나뿐이다(이 요약에는 얼굴·단골이 그대로 있다).
+    final menuTiles = find.descendant(
+      of: find.byType(SalesMenus),
+      matching: find.byType(AppPhotoTile),
+    );
+    expect(menuTiles, findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
