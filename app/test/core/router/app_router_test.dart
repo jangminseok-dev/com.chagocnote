@@ -6,6 +6,7 @@ import 'package:chagocnote/core/storage/token_store.dart';
 import 'package:chagocnote/features/auth/state/session.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/auth/state/session_gateway.dart';
+import 'package:chagocnote/features/sales/screens/sales_tab.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -248,7 +249,22 @@ void main() {
     // 뒤 설정에 들어갔다 돌아왔을 때도 그 탭이 그대로인지를 본다. go로
     // 이동했다면 홈이 통째로 다시 만들어져 탭이 첫 화면으로 리셋된다.
     final gateway = FakeSessionGateway()..meOnRestore = _me(shops: [_ownerA]);
-    final container = _containerWith(gateway);
+    // 매출 탭은 요약을 읽는다. 실제 네트워크로 나가 pumpAndSettle이 멎지 않도록 가짜 어댑터를 문다 —
+    // 읽기가 실패한 화면이어도 탭이 유지되는지는 볼 수 있다.
+    final adapter = FakeHttpClientAdapter(
+      (options, body) => const FakeResponse(statusCode: 503, data: 'x'),
+    );
+    final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
+    final refreshDio = Dio(BaseOptions())..httpClientAdapter = adapter;
+    final container = _containerWith(
+      gateway,
+      apiClientBuilder: (ref) => ApiClient(
+        tokenStore: MemoryTokenStore(),
+        dio: dio,
+        refreshDio: refreshDio,
+        onSessionEnded: ref.read(sessionEndedSignalProvider).fire,
+      ),
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(_appWith(container));
@@ -258,7 +274,7 @@ void main() {
     // 고객 탭은 머리에 설정 버튼이 없다(자기 머리를 쓴다) — 매출 탭으로 본다.
     await tester.tap(find.text(AppStrings.tabSales));
     await tester.pumpAndSettle();
-    expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
+    expect(find.byType(SalesTab), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel(AppStrings.settingsLabel));
     await tester.pumpAndSettle();
@@ -268,7 +284,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(ScreenKeys.home), findsOneWidget);
-    expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
+    expect(find.byType(SalesTab), findsOneWidget);
   });
 
   testWidgets('설정 → 멤버 → 뒤로 → 설정', (tester) async {

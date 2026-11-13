@@ -36,8 +36,6 @@ class AppStrings {
   static const tabCalendar = '캘린더';
   static const tabCustomers = '고객';
   static const tabSales = '매출';
-  static const comingSoonEmptyTitle = '준비 중이에요';
-  static const comingSoonSheetText = '매출은 다음 업데이트에서 만나요';
 
   // 설정 허브
   static const settingsSectionShop = '매장';
@@ -329,6 +327,49 @@ class AppStrings {
   static const endGuardianLinkConfirm =
       '보호자가 지난 기록을 더는 볼 수 없어요. 알림장을 다시 보내면 다시 이을 수 있어요.';
   static const guardianLinkEnded = '보호자 연결을 끊었어요.';
+
+  // 매출(⑧) — 홈의 매출 탭. 비교·목표 문장은 features/sales/state/sales_rules.dart 가 만든다.
+  static const salesOwnerOnly = '매출은 사장님만 볼 수 있어요.';
+  static const salesEmptyTitle = '아직 기록한 매출이 없어요';
+  static const salesEmptyText = '방문을 완료하고 기록에 금액을 적으면 여기에 쌓여요.';
+  static const salesSpanDay = '일';
+  static const salesSpanWeek = '주';
+  static const salesSpanMonth = '월';
+  static const salesSpanYear = '연';
+  static const salesPrev = '이전 기간';
+  static const salesNext = '다음 기간';
+  static const salesWonUnit = '원';
+  static String salesAverage(String amount) => '한 번에 평균 $amount원';
+  static const salesPayment = '결제 수단';
+  static const salesPaymentNone = '미선택';
+  static const salesPaymentOther = '기타';
+  static const salesMenu = '메뉴';
+  static const salesGuests = '손님';
+  static const salesNewPets = '처음 온 아이';
+  static const salesReturningPets = '다시 온 아이';
+  static const salesRegulars = '단골';
+  static String salesHeads(int count) => '$count마리';
+  static String salesTimes(int count) => '$count번';
+  static String salesCount(int count) => '$count건';
+  static String salesDuePets(int count) => '다시 올 때가 지난 아이 $count마리';
+  static const salesBookings = '예약';
+  static const salesRemaining = '남은 예약';
+  static String salesExpected(String amount) => '정가로 약 $amount';
+  static const salesNoShow = '노쇼';
+  static const salesCanceled = '취소';
+  static const salesWeekday = '요일';
+  static const salesReport = '알림장';
+  static String salesReportLine(int completed, int sent, int opened) =>
+      '완료한 $completed건 가운데 $sent건에 알림장을 보냈고, 보호자가 $opened건을 열어 봤어요.';
+  static String salesUnrecorded(int count) => '금액을 적지 않은 완료 방문 $count건';
+  static String salesBarLabel(String day, String amount) => '$day $amount원';
+  // 영문 장식(구역 이름 옆) — 화면 읽기에서는 뺀다.
+  static const salesPaymentEn = 'Payment';
+  static const salesMenuEn = 'Menu';
+  static const salesGuestsEn = 'Guests';
+  static const salesBookingsEn = 'Bookings';
+  static const salesWeekdayEn = 'Weekday';
+  static const salesReportEn = 'Report';
   static const dayTitleEn = 'Schedule';
   static const viewAsTimeline = '시간표로 보기';
   static const actionCompleteShort = '완료하기';

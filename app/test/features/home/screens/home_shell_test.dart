@@ -1,6 +1,7 @@
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_big_date.dart';
 import 'package:chagocnote/features/customer/screens/customer_list_tab.dart';
+import 'package:chagocnote/features/sales/screens/sales_tab.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/features/visit/screens/calendar_tab.dart';
 import 'package:chagocnote/features/visit/state/calendar_selection.dart';
@@ -45,9 +46,10 @@ void main() {
     await tester.tap(find.text(AppStrings.tabSales));
     await settle(tester);
 
+    // 매출 탭도 자기 머리를 쓴다 — 매장 이름이 거기 있다.
+    expect(find.byType(SalesTab), findsOneWidget);
     expect(find.text('Hiss Haus'), findsOneWidget);
-    expect(find.byType(AppBigDate), findsOneWidget);
-    expect(find.text(AppStrings.comingSoonEmptyTitle), findsOneWidget);
+    expect(find.byType(AppBigDate), findsNothing);
   });
 
   testWidgets('탭을 바꾸면 본문이 바뀐다', (tester) async {
@@ -77,9 +79,10 @@ void main() {
     expect(find.byKey(ScreenKeys.settings), findsOneWidget);
   });
 
-  testWidgets('매출 탭의 + 는 준비 중 안내 시트를 띄운다', (tester) async {
+  testWidgets('매출 탭의 + 도 예약 등록을 연다', (tester) async {
     final setup = _setup();
     addTearDown(setup.container.dispose);
+    useTallView(tester);
     await _pumpHome(tester, setup);
     await tester.tap(find.text(AppStrings.tabSales));
     await settle(tester);
@@ -87,7 +90,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.add));
     await settle(tester);
 
-    expect(find.text(AppStrings.comingSoonSheetText), findsOneWidget);
+    expect(find.byKey(ScreenKeys.registerVisit), findsOneWidget);
   });
 
   testWidgets('캘린더 탭의 + 는 고른 날로 예약 등록을 열고, 저장한 날을 고른다', (tester) async {
