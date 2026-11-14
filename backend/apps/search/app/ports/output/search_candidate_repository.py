@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from hub.app.dtos.shop_context import ShopContext
 from search.domain.entities.search_document import Candidate, PetScope
-from search.domain.services.rank_fusion import CANDIDATE_LIMIT
+from search.domain.services.rank_fusion import CANDIDATE_LIMIT, SEMANTIC_LIMIT
 
 
 class SearchCandidateRepository(ABC):
@@ -19,6 +19,7 @@ class SearchCandidateRepository(ABC):
 
     @abstractmethod
     async def semantic(
-        self, ctx: ShopContext, vector: tuple[float, ...], pet_scope: PetScope | None, limit: int = CANDIDATE_LIMIT
+        self, ctx: ShopContext, vector: tuple[float, ...], pet_scope: PetScope | None, limit: int = SEMANTIC_LIMIT
     ) -> list[Candidate]:
-        """뜻으로 가까운 문서 — 지금 모델의 벡터가 있는 문서 가운데 cosine 유사도가 기준 이상인 것, 가까운 순."""
+        """뜻으로 가까운 문서 — 지금 모델의 벡터가 있는 문서 가운데 cosine 유사도가 바닥 이상이고 가장 가까운 것에서
+        여유(SEMANTIC_MARGIN) 안쪽인 것, 가까운 순으로 limit 개."""

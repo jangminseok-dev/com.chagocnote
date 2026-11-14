@@ -76,7 +76,8 @@
 
 첫 구독자(⑥ 알림톡)가 생기면서 허브에 `DomainEventPort`(`hub/app/ports/domain_event_port.py`)와 이벤트 DTO(`hub/app/dtos/visit_events.py`)를 두었다. 구현은 `core/observer/`의 **같은 프로세스·같은 세션의 동기 버스**다 — 발행한 인터랙터의 트랜잭션 안에서 구독자가 차례로 돌고, 구독자가 던지면 발행한 요청이 실패한다. 별도 이벤트 저장소는 없다. 구독자(notification)가 같은 트랜잭션에 쓰는 `notification_messages` 큐가 아웃박스 역할을 하고, 요청 밖의 디스패처가 그 큐를 집어 외부를 부른다. 메시지 브로커·다른 프로세스로 나갈 일이 생기면 버스 어댑터만 바꾼다.
 
-- 발행은 `dependencies/hub_ports.py`의 자리(`get_domain_events`)로 받고 `main.py`가 `get_event_bus`를 꽂는다. 구독은 `main.py`가 기동 때 `subscribe(handler)`로 등록한다 — 구독자는 `(AsyncSession, VisitEvent)`를 받는 어댑터(`<app>/adapter/inbound/observer/`)이고 `app` 층에 두지 않는다(프레임워크 격리).
+- 발행은 `dependencies/hub_ports.py`의 자리(`get_domain_events`)로 받고 `main.py`가 `get_event_bus`를 꽂는다(visit, customer). 구독은 `main.py`가 기동 때 `subscribe(handler, 이벤트 형)`으로 등록한다 — 버스는 그 형(과 하위 형)의 이벤트만 넘긴다. 구독자는 `(AsyncSession, 이벤트)`를 받는 어댑터(`<app>/adapter/inbound/observer/`)이고 `app` 층에 두지 않는다(프레임워크 격리).
+- 이벤트는 둘이다 — `VisitEvent`(`hub/app/dtos/visit_events.py`, 구독: notification)와 `SearchSourceChanged`(`hub/app/dtos/search_events.py`, 발행: visit·customer, 구독: search). 버스에 실리는 형은 `hub/app/ports/domain_event_port.py`의 `DomainEvent`에 적는다.
 - 구독자는 외부(HTTP)를 부르지 않는다. 외부 호출은 요청 밖(디스패처)에서 잠금 없이 한다.
 - 요청 밖에서 `ShopContext`가 필요하면 `hub/app/dtos/shop_context.py`의 `system_context` 하나로 만든다(권한 빔 — 알림 디스패처와 검색 색인기가 함께 쓴다). 전 매장 질의는 `ShopContext`를 받지 않는 별도 포트(`NotificationQueueRepository`)에 둔다.
 
@@ -94,3 +95,11 @@
 - 매출은 새 스포크가 아니다. 방문·기록·메뉴·알림장이 모두 `visit` 의 것이라 집계도 `visit` 의 읽기 슬라이스다(`/v1/shops/{shop_id}/sales/…`, 전부 `sales:read` — 사장만). 아이의 이름은 허브 포트 `CustomerDirectoryPort.briefs` 로, 사진은 아이의 프로필 사진(가장 최근 대표)을 `MediaLibraryPort` 로 읽는다.
 - **미리 계산해 둔 표·캐시·배치가 없다.** 요약은 읽을 때 SQL 로 센다(`SalesRepository` — pg 구현만 `text()` 질의를 쓴다. FILTER·DISTINCT ON 과 여러 표가 얽혀서다. 값은 전부 바인딩한다).
 - 기간·비교 창은 순수 도메인(`domain/services/sales_period.py`)이, 낱말의 뜻(조정·미선택·처음/다시 온 아이·얼굴 거르기)은 인터랙터가, 세기는 저장소가 맡는다. 날짜는 매장 시간대로만 자른다.
+
+## 기록 검색 — 사본을 갖는 스포크와 요청 밖의 색인기 (⑨)
+
+- `search`는 다른 스포크의 글을 **사본으로** 갖는다(`search_documents` — 글·벡터, `search_jobs` — 다시 색인할 줄). 원본은 visit·customer의 것이고 스포크를 넘는 외래 키는 없다. 사본은 언제든 다시 만들 수 있다(`scripts/reindex_search.py`).
+- 흐름은 알림과 같은 모양이다 — **쓰기의 트랜잭션 안에서는 줄 하나만**(구독자), 무거운 일은 요청 밖의 **색인기**(`search/app/services/indexer.py`, `main.py` lifespan의 asyncio 작업)가 한다. 색인기는 허브 포트 `SearchSourcePort`(visit·customer가 구현)로 글을 읽고, 별도 프로세스 `embed`(compose, 안쪽 HTTP)에서 벡터를 받는다. 요청 밖의 허브 포트는 `search/dependencies/indexer_ports.py`의 공장 자리로 받는다(디스패처와 같다).
+- 지우기만은 기다리지 않는 길이 하나 더 있다 — 고객 익명화가 허브 포트 `SearchIndexPort.forget_customer`를 같은 트랜잭션에서 부른다.
+- 임베딩 프로세스(`embed/`)는 백엔드와 다른 이미지다(ONNX 런타임, 토치 없음). 죽어 있어도 백엔드는 기동하고 검색은 글자만으로 답한다. 게이트웨이에 싣지 않는다.
+- 검색은 글자 후보(pg_trgm)와 뜻 후보(pgvector cosine)를 순위 합치기(RRF)로 합친다. 기준값은 `search/domain/services/rank_fusion.py` 한 곳, 근거는 결정 기록 013이다.

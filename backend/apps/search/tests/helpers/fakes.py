@@ -14,7 +14,7 @@ from search.app.ports.output.search_candidate_repository import SearchCandidateR
 from search.app.ports.output.search_document_repository import SearchDocumentRepository
 from search.domain.entities.search_document import ReindexJob, SearchDocument
 from search.domain.services.embedding_model import CURRENT_MODEL
-from search.domain.services.rank_fusion import CANDIDATE_LIMIT
+from search.domain.services.rank_fusion import CANDIDATE_LIMIT, SEMANTIC_LIMIT
 from search.domain.services.retry import CLAIM_HOLD, retry_delay
 from search.domain.services.targets import belongs
 
@@ -164,6 +164,6 @@ class FakeCandidates(SearchCandidateRepository):
         self.calls.append(("lexical", ctx.shop_id, q, pattern, pet_scope, limit))
         return self.lexical_rows[:limit]
 
-    async def semantic(self, ctx, vector, pet_scope, limit=CANDIDATE_LIMIT):
+    async def semantic(self, ctx, vector, pet_scope, limit=SEMANTIC_LIMIT):
         self.calls.append(("semantic", ctx.shop_id, vector, pet_scope, limit))
         return self.semantic_rows[:limit]

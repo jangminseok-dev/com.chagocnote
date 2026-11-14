@@ -11,6 +11,8 @@ from search.domain.services.embedding_model import CURRENT_MODEL
 from search.domain.services.rank_fusion import (
     CANDIDATE_LIMIT,
     LEXICAL_MIN_SIMILARITY,
+    SEMANTIC_LIMIT,
+    SEMANTIC_MARGIN,
     SEMANTIC_MIN_SIMILARITY,
 )
 
@@ -56,16 +58,24 @@ class SearchCandidatePgRepository(SearchCandidateRepository):
         return _candidates(rows)
 
     async def semantic(
-        self, ctx: ShopContext, vector: tuple[float, ...], pet_scope: PetScope | None, limit: int = CANDIDATE_LIMIT
+        self, ctx: ShopContext, vector: tuple[float, ...], pet_scope: PetScope | None, limit: int = SEMANTIC_LIMIT
     ) -> list[Candidate]:
         distance = _D.embedding.cosine_distance(list(vector))
-        rows = await self._session.execute(
-            select(*_COLUMNS)
+        nearest = (
+            select(*_COLUMNS, distance.label("distance"))
             .where(
                 *_within(ctx, pet_scope), _D.embedding.is_not(None), _D.model == CURRENT_MODEL,
                 distance <= 1 - SEMANTIC_MIN_SIMILARITY,
             )
             .order_by(distance, _D.id.desc())
             .limit(limit)
+            .subquery()
+        )
+        # 가장 가까운 글에서 여유 안쪽만 — 관계없는 글이 "그나마 가까워서" 딸려 나오지 않게.
+        best = select(func.min(nearest.c.distance)).scalar_subquery()
+        rows = await self._session.execute(
+            select(nearest)
+            .where(nearest.c.distance <= best + SEMANTIC_MARGIN)
+            .order_by(nearest.c.distance, nearest.c.id.desc())
         )
         return _candidates(rows)

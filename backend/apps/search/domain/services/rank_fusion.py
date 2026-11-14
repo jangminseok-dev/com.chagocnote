@@ -5,9 +5,14 @@ from search.domain.entities.search_document import VISIT_KINDS, Candidate
 
 RRF_K = 60
 RESULT_LIMIT = 30
-CANDIDATE_LIMIT = 50          # 글자·뜻 후보를 각각 이만큼
+CANDIDATE_LIMIT = 50          # 글자 후보의 수
 LEXICAL_MIN_SIMILARITY = 0.3  # trigram word_similarity — 이보다 낮으면 글자 후보가 아니다(ILIKE 로 든 것은 늘 후보)
-SEMANTIC_MIN_SIMILARITY = 0.80  # cosine 유사도 — e5 는 점수가 높게 몰린다. 품질 확인(check_search_quality)으로 맞춘 값
+# 뜻 후보 — 이 모델(e5-small)은 cosine 유사도가 높게 몰린다: 관계없는 글도 0.79~0.82, 맞는 글은 0.83~0.89 다
+# (scripts/check_search_quality.py 로 잰 값, 결정 기록 013). 바닥만으로는 관계없는 글을 못 거르므로, 가장 가까운
+# 글에서 여유 안쪽인 것만 몇 개 남긴다. 글자가 그대로 든 글은 글자 후보가 따로 넉넉히 받는다.
+SEMANTIC_MIN_SIMILARITY = 0.80   # 바닥 — 이보다 낮으면 가장 가까워도 후보가 아니다
+SEMANTIC_MARGIN = 0.02           # 가장 가까운 글의 유사도에서 이만큼 안쪽까지
+SEMANTIC_LIMIT = 5               # 뜻 후보의 수 — 맞는 글이 없을 때 딸려 나오는 "그나마 가까운 글"도 이 수를 넘지 않는다
 
 
 def fuse(lexical: list[int], semantic: list[int]) -> list[int]:

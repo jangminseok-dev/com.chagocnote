@@ -255,17 +255,29 @@ async def test_아이로_좁힌_후보도_이_매장_안에서만이다(db_sessi
     assert await candidates.lexical(ctx(1), "입질", "%입질%", PetScope(pet_id=999, customer_id=999)) == []
 
 
-async def test_뜻_후보는_가까운_순이고_기준_아래와_벡터_없는_문서와_다른_모델은_빠진다(db_session):
+async def test_뜻_후보는_가장_가까운_것에서_여유_안쪽만이고_벡터_없는_문서와_다른_모델은_빠진다(db_session):
+    """이 모델은 관계없는 글도 0.8 안팎이 나온다 — 바닥(0.80)만으로는 못 거른다. 1등에서 0.02 안쪽만 남긴다."""
     documents, candidates = SearchDocumentPgRepository(db_session), SearchCandidatePgRepository(db_session)
     for visit_id, body, embedding, model in (
-        (1, "조금 가까움", _away(0.82), MODEL_NOW), (2, "아주 가까움", _away(0.97), MODEL_NOW),
-        (3, "기준 바로 아래", _away(0.79), MODEL_NOW), (4, "벡터 없음", None, None),
-        (5, "다른 모델", VECTOR, "old-model"),
+        (1, "여유 끝", _away(0.951), MODEL_NOW), (2, "가장 가까움", _away(0.97), MODEL_NOW),
+        (3, "여유 밖", _away(0.94), MODEL_NOW), (4, "벡터 없음", None, None),
+        (5, "다른 모델", VECTOR, "old-model"), (6, "바로 다음", _away(0.96), MODEL_NOW),
     ):
         await documents.replace_target(ctx(), "visit", visit_id, [
             doc("care_note", visit_id, body=body, embedding=embedding, model=model)], NOW)
-    assert [c.body for c in await candidates.semantic(ctx(), VECTOR, None)] == ["아주 가까움", "조금 가까움"]
-    assert [c.body for c in await candidates.semantic(ctx(), VECTOR, None, limit=1)] == ["아주 가까움"]
+    assert [c.body for c in await candidates.semantic(ctx(), VECTOR, None)] == ["가장 가까움", "바로 다음", "여유 끝"]
+    assert [c.body for c in await candidates.semantic(ctx(), VECTOR, None, limit=1)] == ["가장 가까움"]
+
+
+async def test_뜻_후보는_바닥_아래면_가장_가까워도_빠지고_다섯_개까지다(db_session):
+    documents, candidates = SearchDocumentPgRepository(db_session), SearchCandidatePgRepository(db_session)
+    await documents.replace_target(ctx(), "visit", 1, [
+        doc("care_note", 1, body="바닥 아래", embedding=_away(0.79), model=MODEL_NOW)], NOW)
+    assert await candidates.semantic(ctx(), VECTOR, None) == []
+    for visit_id in range(2, 15):
+        await documents.replace_target(ctx(), "visit", visit_id, [
+            doc("care_note", visit_id, body=f"가까움 {visit_id}", embedding=_away(0.9), model=MODEL_NOW)], NOW)
+    assert len(await candidates.semantic(ctx(), VECTOR, None)) == 5
 
 
 async def test_글자_후보는_그대로_든_글이_먼저이고_닮은_글이_뒤따른다(db_session):
