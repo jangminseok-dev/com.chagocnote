@@ -78,8 +78,38 @@ class _CautionRowState extends ConsumerState<CautionRow> {
     if (edit) {
       await _openSheet();
     } else {
+      final confirmed = await _confirmClear();
+      if (confirmed != true || !mounted) return;
       await _clear();
     }
+  }
+
+  /// 지우면 사유가 남지 않는다 — 같은 탭의 [연결 끊기]처럼 한 번 묻는다.
+  Future<bool?> _confirmClear() {
+    return AppSheet.show<bool>(
+      context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            AppStrings.cautionClearConfirm,
+            style: AppTypography.body,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          AppButton(
+            label: AppStrings.cautionClear,
+            filled: true,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            label: AppStrings.cancel,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _clear() async {
