@@ -11,3 +11,4 @@ import visit.adapter.outbound.orm.visit_orm  # noqa: F401
 import media.adapter.outbound.orm.media_orm  # noqa: F401
 import notification.adapter.outbound.orm.notification_orm  # noqa: F401
 import guardian.adapter.outbound.orm.guardian_orm  # noqa: F401
+import search.adapter.outbound.orm.search_orm  # noqa: F401

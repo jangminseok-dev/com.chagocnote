@@ -11,6 +11,7 @@ from core.access_log import redact_access_log_queries
 from core.database import dispose_engine, init_engine
 from core.observer.in_process_event_bus import get_event_bus, subscribe
 from core.redis import dispose_redis
+from hub.app.dtos.search_events import SearchSourceChanged
 from hub.app.dtos.visit_events import VisitEvent
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
@@ -97,6 +98,7 @@ from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_ST
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
 from platform_admin.dependencies.hub_ports import get_operator_directory, get_shop_provisioning
+from search.adapter.inbound.observer.source_changed_subscriber import handle_source_changed
 from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
 from tenancy.adapter.inbound.api.v1.accept_invite_router import accept_invite_router
 from tenancy.adapter.inbound.api.v1.change_member_role_router import change_member_role_router
@@ -318,6 +320,8 @@ app.dependency_overrides[get_notification_customer_directory] = get_customer_dir
 # 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
 app.dependency_overrides[get_domain_events] = get_event_bus
 subscribe(handle_visit_event, VisitEvent)
+# 검색 — 글이 바뀐 대상을 다시 색인할 줄에 넣는다(같은 트랜잭션). 글은 요청 밖의 색인기가 읽는다.
+subscribe(handle_source_changed, SearchSourceChanged)
 # 디스패처는 요청 밖이라 Depends 자리를 못 쓴다 — 같은 세 프로바이더를 세션을 받는 공장으로 꽂는다.
 configure_dispatcher_ports(DispatcherPorts(
     shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,
