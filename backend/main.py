@@ -101,9 +101,15 @@ from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_ST
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
 from platform_admin.dependencies.hub_ports import get_operator_directory, get_shop_provisioning
+from search.adapter.inbound.api.error_map import SEARCH_ERROR_STATUS
+from search.adapter.inbound.api.v1.search_myself_router import search_myself_router
+from search.adapter.inbound.api.v1.search_records_router import search_records_router
 from search.adapter.inbound.observer.source_changed_subscriber import handle_source_changed
 from search.app.services.indexer_wakeup import wake as wake_indexer
 from search.dependencies.forget_customer_provider import get_forget_customer_use_case
+from search.dependencies.hub_ports import get_customer_directory as get_search_customer_directory
+from search.dependencies.hub_ports import get_media_library as get_search_media_library
+from search.dependencies.hub_ports import get_visit_ledger as get_search_visit_ledger
 from search.dependencies.indexer_ports import IndexerPorts, configure_indexer_ports
 from search.dependencies.indexer_provider import start_indexer
 from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
@@ -299,12 +305,15 @@ app.include_router(read_guardian_report_router)
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
 app.include_router(confirm_upload_router)
+# search — 기록 검색(⑨). /search/myself 와 /search 는 겹치지 않는다.
+app.include_router(search_myself_router)
+app.include_router(search_records_router)
 install_error_handlers(
     app,
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
         **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS, **NOTIFICATION_ERROR_STATUS,
-        **GUARDIAN_ERROR_STATUS,
+        **GUARDIAN_ERROR_STATUS, **SEARCH_ERROR_STATUS,
     },
 )
 
@@ -330,6 +339,10 @@ app.dependency_overrides[get_customer_media_library] = get_media_library_use_cas
 app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
 app.dependency_overrides[get_notification_shop_profile] = get_shop_profile_use_case
 app.dependency_overrides[get_notification_customer_directory] = get_customer_directory_use_case
+# search: 결과 줄의 이름(customer)과 프로필 사진(visit 의 대표 → media 의 주소).
+app.dependency_overrides[get_search_customer_directory] = get_customer_directory_use_case
+app.dependency_overrides[get_search_visit_ledger] = get_visit_ledger_use_case
+app.dependency_overrides[get_search_media_library] = get_media_library_use_case
 # 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
 app.dependency_overrides[get_domain_events] = get_event_bus
 # customer 도 발행한다(검색되는 글이 바뀌었다). 고객 익명화는 검색 문서를 그 트랜잭션에서 곧바로 지운다.

@@ -12,10 +12,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from core.observer.in_process_event_bus import InProcessEventBus
 from hub.app.dtos.search_events import SEARCH_SCOPES, SearchSourceChanged
 from search.adapter.inbound.observer.source_changed_subscriber import handle_source_changed
+from search.adapter.outbound.pg.search_candidate_pg_repository import SearchCandidatePgRepository
 from search.adapter.outbound.pg.search_document_pg_repository import SearchDocumentPgRepository
 from search.adapter.outbound.pg.search_job_pg_repository import SearchJobPgRepository
 from search.app.use_cases.forget_customer_interactor import ForgetCustomerInteractor
-from search.domain.entities.search_document import KINDS, SCOPES
+from search.domain.entities.search_document import KINDS, SCOPES, PetScope
+from search.domain.services.embedding_model import CURRENT_MODEL as MODEL_NOW
 from search.domain.services.retry import CLAIM_HOLD
 from search.tests.helpers.builders import NOW, ctx, doc
 
@@ -208,3 +210,69 @@ async def test_잊기는_부른_쪽의_트랜잭션_안에서_지우고_롤백�
     await db_session.rollback()
     assert await _count(db_session, "search_documents", "customer_id = 1") == 5
     assert await _count(db_session, "search_jobs") == 0
+
+
+# --- 후보 질의 ----------------------------------------------------------------------------------------------------
+
+def _away(similarity: float) -> tuple[float, ...]:
+    """VECTOR(0번 축)와 cosine 유사도가 similarity 인 길이 1 의 벡터."""
+    import math
+
+    return (similarity, math.sqrt(1 - similarity ** 2)) + (0.0,) * 382
+
+
+async def _seed_two_shops(session):
+    documents = SearchDocumentPgRepository(session)
+    for shop_id, label in ((1, "우리 매장"), (2, "다른 매장")):
+        await documents.replace_target(ctx(shop_id), "pet", 101, [
+            doc("pet_memo", 101, body=f"입질이 있어요 — {label}", embedding=VECTOR, model=MODEL_NOW)], NOW)
+    return documents
+
+
+async def test_글자_후보는_이_매장의_문서만이다(db_session):
+    """S1 — 결과에 이름을 붙이는 단계가 걸러 주기 전에, 질의 자체가 매장으로 거른다."""
+    await _seed_two_shops(db_session)
+    candidates = SearchCandidatePgRepository(db_session)
+    assert [c.body for c in await candidates.lexical(ctx(1), "입질", "%입질%", None)] == ["입질이 있어요 — 우리 매장"]
+    assert [c.body for c in await candidates.lexical(ctx(2), "입질", "%입질%", None)] == ["입질이 있어요 — 다른 매장"]
+    assert await candidates.lexical(ctx(3), "입질", "%입질%", None) == []
+
+
+async def test_뜻_후보는_이_매장의_문서만이다(db_session):
+    await _seed_two_shops(db_session)
+    candidates = SearchCandidatePgRepository(db_session)
+    assert [c.body for c in await candidates.semantic(ctx(1), VECTOR, None)] == ["입질이 있어요 — 우리 매장"]
+    assert [c.body for c in await candidates.semantic(ctx(2), VECTOR, None)] == ["입질이 있어요 — 다른 매장"]
+    assert await candidates.semantic(ctx(3), VECTOR, None) == []
+
+
+async def test_아이로_좁힌_후보도_이_매장_안에서만이다(db_session):
+    await _seed_two_shops(db_session)
+    candidates = SearchCandidatePgRepository(db_session)
+    scope = PetScope(pet_id=101, customer_id=1)
+    assert [c.body for c in await candidates.lexical(ctx(1), "입질", "%입질%", scope)] == ["입질이 있어요 — 우리 매장"]
+    assert [c.body for c in await candidates.semantic(ctx(1), VECTOR, scope)] == ["입질이 있어요 — 우리 매장"]
+    assert await candidates.lexical(ctx(1), "입질", "%입질%", PetScope(pet_id=999, customer_id=999)) == []
+
+
+async def test_뜻_후보는_가까운_순이고_기준_아래와_벡터_없는_문서와_다른_모델은_빠진다(db_session):
+    documents, candidates = SearchDocumentPgRepository(db_session), SearchCandidatePgRepository(db_session)
+    for visit_id, body, embedding, model in (
+        (1, "조금 가까움", _away(0.82), MODEL_NOW), (2, "아주 가까움", _away(0.97), MODEL_NOW),
+        (3, "기준 바로 아래", _away(0.79), MODEL_NOW), (4, "벡터 없음", None, None),
+        (5, "다른 모델", VECTOR, "old-model"),
+    ):
+        await documents.replace_target(ctx(), "visit", visit_id, [
+            doc("care_note", visit_id, body=body, embedding=embedding, model=model)], NOW)
+    assert [c.body for c in await candidates.semantic(ctx(), VECTOR, None)] == ["아주 가까움", "조금 가까움"]
+    assert [c.body for c in await candidates.semantic(ctx(), VECTOR, None, limit=1)] == ["아주 가까움"]
+
+
+async def test_글자_후보는_그대로_든_글이_먼저이고_닮은_글이_뒤따른다(db_session):
+    documents, candidates = SearchDocumentPgRepository(db_session), SearchCandidatePgRepository(db_session)
+    for visit_id, body in ((1, "슬개골 탈구 수술을 했어요"), (2, "슬개골탈구 주의"), (3, "가위컷으로 정리했어요")):
+        await documents.replace_target(ctx(), "visit", visit_id, [doc("care_note", visit_id, body=body)], NOW)
+    found = [c.body for c in await candidates.lexical(ctx(), "슬개골탈구", "%슬개골탈구%", None)]
+    assert found[0] == "슬개골탈구 주의"                      # 그대로 든 글
+    assert "가위컷으로 정리했어요" not in found
+    assert len(await candidates.lexical(ctx(), "슬개골탈구", "%슬개골탈구%", None, limit=1)) == 1

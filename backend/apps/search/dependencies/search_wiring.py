@@ -5,10 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import EMBED_BASE_URL
 from search.adapter.outbound.gateways.embed_http_gateway import EmbedHttpGateway, NoEmbedding
+from search.adapter.outbound.pg.search_candidate_pg_repository import SearchCandidatePgRepository
 from search.adapter.outbound.pg.search_document_pg_repository import SearchDocumentPgRepository
 from search.adapter.outbound.pg.search_job_pg_repository import SearchJobPgRepository
 from search.app.ports.output.embedding_port import EmbeddingPort
 from search.app.ports.output.reindex_queue_repository import ReindexQueueRepository
+from search.app.ports.output.search_candidate_repository import SearchCandidateRepository
 from search.app.ports.output.search_document_repository import SearchDocumentRepository
 
 
@@ -18,6 +20,10 @@ def build_document_repository(db: AsyncSession) -> SearchDocumentRepository:
 
 def build_queue_repository(db: AsyncSession) -> ReindexQueueRepository:
     return SearchJobPgRepository(db)
+
+
+def build_candidate_repository(db: AsyncSession) -> SearchCandidateRepository:
+    return SearchCandidatePgRepository(db)
 
 
 _embedder: EmbeddingPort | None = None

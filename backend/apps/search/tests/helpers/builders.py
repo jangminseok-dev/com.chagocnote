@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from hub.app.dtos.shop_context import ShopContext
-from search.domain.entities.search_document import SearchDocument
+from search.domain.entities.search_document import Candidate, SearchDocument
 
 NOW = datetime(2026, 11, 15, 3, 0, tzinfo=timezone.utc)
 
@@ -24,3 +24,22 @@ def doc(kind: str = "care_note", source_id: int = 7, *, customer_id: int = 1, pe
         happened_on=happened_on if happened_on is not None else (date(2026, 11, 3) if visit_kind else None),
         body=body, embedding=embedding, model=model,
     )
+
+
+def candidate(doc_id: int, kind: str = "care_note", *, source_id: int | None = None, customer_id: int = 1,
+              pet_id: int | None = 101, visit_id: int | None = None, happened_on: date | None = None,
+              body: str = "얌전했어요") -> Candidate:
+    """방문 계열이면 visit_id 를 준다(source_id 는 visit_id 와 같다). 그 밖에는 source_id 를 준다."""
+    visit_kind = kind in ("care_note", "internal_note", "visit_memo")
+    if visit_kind:
+        visit_id = visit_id if visit_id is not None else doc_id
+        source_id, happened_on = visit_id, happened_on or date(2026, 11, 3)
+    return Candidate(id=doc_id, kind=kind, source_id=source_id if source_id is not None else doc_id,
+                     customer_id=customer_id, pet_id=pet_id, visit_id=visit_id if visit_kind else None,
+                     happened_on=happened_on, body=body)
+
+TZ = "Asia/Seoul"
+STAFF_PERMISSIONS = frozenset({"reservation:write", "customer:write", "record:write", "sales:write"})
+OWNER_PERMISSIONS = STAFF_PERMISSIONS | frozenset(
+    {"sales:read", "record:delete", "customer:delete", "member:manage", "shop:update"}
+)

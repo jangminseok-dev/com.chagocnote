@@ -10,9 +10,11 @@ from hub.app.ports.search_source_port import SearchSourcePort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from search.app.ports.output.embedding_port import DIMENSIONS, Embedded, EmbeddingPort
 from search.app.ports.output.reindex_queue_repository import ReindexQueueRepository
+from search.app.ports.output.search_candidate_repository import SearchCandidateRepository
 from search.app.ports.output.search_document_repository import SearchDocumentRepository
 from search.domain.entities.search_document import ReindexJob, SearchDocument
 from search.domain.services.embedding_model import CURRENT_MODEL
+from search.domain.services.rank_fusion import CANDIDATE_LIMIT
 from search.domain.services.retry import CLAIM_HOLD, retry_delay
 from search.domain.services.targets import belongs
 
@@ -149,3 +151,19 @@ class FakeShops(ShopProfilePort):
             return None
         return ShopProfile(shop_id=shop_id, name="매장", phone=None, address=None,
                            timezone=self.timezones[shop_id], open=True)
+
+
+class FakeCandidates(SearchCandidateRepository):
+    """SearchCandidateRepository 스텁 — 정해 둔 후보를 그대로 돌려주고 받은 인자를 남긴다."""
+
+    def __init__(self, lexical=(), semantic=()) -> None:
+        self.lexical_rows, self.semantic_rows = list(lexical), list(semantic)
+        self.calls: list[tuple] = []
+
+    async def lexical(self, ctx, q, pattern, pet_scope, limit=CANDIDATE_LIMIT):
+        self.calls.append(("lexical", ctx.shop_id, q, pattern, pet_scope, limit))
+        return self.lexical_rows[:limit]
+
+    async def semantic(self, ctx, vector, pet_scope, limit=CANDIDATE_LIMIT):
+        self.calls.append(("semantic", ctx.shop_id, vector, pet_scope, limit))
+        return self.semantic_rows[:limit]

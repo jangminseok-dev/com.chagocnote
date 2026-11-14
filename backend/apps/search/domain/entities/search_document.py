@@ -35,3 +35,25 @@ class ReindexJob:
     ref_id: int
     generation: int      # 같은 대상이 다시 바뀔 때마다 오른다 — 집은 뒤에 올랐으면 줄을 지우지 않는다
     attempts: int
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """검색에 걸린 문서 하나 — 순위를 매기고 결과 줄을 만드는 데 쓴다. 벡터는 싣지 않는다."""
+
+    id: int                    # search_documents.id — 글자·뜻 후보를 합칠 때의 키
+    kind: str
+    source_id: int
+    customer_id: int
+    pet_id: int | None
+    visit_id: int | None
+    happened_on: date | None
+    body: str
+
+
+@dataclass(frozen=True)
+class PetScope:
+    """한 아이로 좁힌 검색 — 그 아이의 문서와 그 아이 보호자의 메모."""
+
+    pet_id: int
+    customer_id: int
