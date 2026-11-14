@@ -124,14 +124,14 @@ async def test_글자로도_뜻으로도_찾고_둘_다_걸린_것이_앞에_온
             embedding=_near(0.9), model=CURRENT_MODEL),
         doc("care_note", 9, customer_id=customer_id, pet_id=pet_id, body="둘 다 걸려요 — 손대면 싫어하는 아이",
             embedding=_near(0.89), model=CURRENT_MODEL),
-        doc("care_note", 10, customer_id=customer_id, pet_id=pet_id, body="뜻이 조금 멀어요", embedding=_near(0.86),
+        doc("care_note", 10, customer_id=customer_id, pet_id=pet_id, body="뜻이 조금 멀어요", embedding=_near(0.85),
             model=CURRENT_MODEL),
         doc("care_note", 11, customer_id=customer_id, pet_id=pet_id, body="옛 모델의 벡터예요", embedding=_axis(0),
             model="old-model"),
     )
     found = await _search(wired, shop_id, headers, "손대면 싫어하는")
     assert found["semantic"] is True
-    # 글자 순위 [9, 7], 뜻 순위 [8, 9] — 둘 다 걸린 9 가 맨 앞, 각 쪽의 1등·2등이 뒤따른다. 1등에서 0.02 넘게 먼 글과 옛 모델은 없다.
+    # 글자 순위 [9, 7], 뜻 순위 [8, 9] — 둘 다 걸린 9 가 맨 앞, 각 쪽의 1등·2등이 뒤따른다. 1등에서 0.04 넘게 먼 글과 옛 모델은 없다.
     assert [s.split(" — ")[0] for s in _snippets(found)] == ["둘 다 걸려요", "뜻으로만 걸려요", "글자로만 걸려요"]
     first = found["items"][0]
     assert (first["kind"], first["visit_id"], first["open_pet_id"], first["date"]) == ("care_note", 9, None, "2026-11-03")

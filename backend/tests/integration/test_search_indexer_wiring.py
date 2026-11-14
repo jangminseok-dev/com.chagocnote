@@ -228,3 +228,52 @@ async def test_맞춤_스크립트의_엔진도_hide_parameters를_켠다(migrat
     monkeypatch.setattr(reindex_search, "DATABASE_URL", migrated_test_db)
     await reindex_search._run(None, False)
     assert captured.get("hide_parameters") is True
+
+
+class _Interrupting(FakeEmbedder):
+    """그 글을 임베딩하는 바로 그 순간에 한 번 끼어든다 — 색인기가 원본을 읽은 뒤, 고객 행을 잠그기 전이다."""
+
+    def __init__(self, when: str, action) -> None:
+        super().__init__()
+        self.when, self.action, self.fired = when, action, False
+
+    async def embed(self, kind, texts, timeout):
+        if not self.fired and any(self.when in t for t in texts):
+            self.fired = True
+            await self.action()
+        return await super().embed(kind, texts, timeout)
+
+
+async def test_임베딩하는_사이에_글을_고치면_옛_글이_쓰이지_않는다(wired):
+    """되살아남 — 색인기는 고객 행을 잠근 뒤 원본을 실제 DB 에서 다시 읽어 견준다(옛 값이 세션에 남아 있어도)."""
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, pet=_pet(memo="옛 특이사항", conditions=()))
+    async def edit():
+        updated = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=headers,
+                                      json=_pet(memo="새 특이사항", conditions=()))
+        assert updated.status_code == 200, updated.text
+
+    embedder = _Interrupting("옛 특이사항", edit)
+    await _index(wired, embedder)
+    assert embedder.fired
+    bodies = [body for kind, body, *_ in await _documents(wired, shop_id) if kind == "pet_memo"]
+    assert "옛 특이사항" not in bodies                       # 임베딩 전에 읽은 글을 쓰지 않았다
+    await _index(wired, embedder)                            # 고친 쓰기가 세대를 올려 곧바로 다시 집힌다
+    bodies = [body for kind, body, *_ in await _documents(wired, shop_id) if kind == "pet_memo"]
+    assert bodies == ["새 특이사항"]
+
+
+async def test_임베딩하는_사이에_익명화하면_그_고객의_글이_쓰이지_않는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, _ = await _family(wired, shop_id, headers, pet=_pet(conditions=()))
+    async def anonymize():
+        gone = await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)
+        assert gone.status_code == 204, gone.text
+
+    embedder = _Interrupting("드라이를 무서워해요", anonymize)
+    await _index(wired, embedder)
+    assert embedder.fired
+    assert await _documents(wired, shop_id) == []
+    await _index(wired, embedder)
+    assert await _documents(wired, shop_id) == []
+    assert await _rows(wired, "SELECT count(*) FROM search_jobs") == [(0,)]

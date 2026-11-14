@@ -18,7 +18,7 @@
 - 스포크끼리 import 하지 않는다 — `search` 는 허브 포트와 이벤트만 안다. `.importlinter` 의 일곱 군데에 `search` 를 더한다(`tests/test_importlinter_lists_spokes.py` 가 잡는다). 슬라이스 1:1. 매장 범위 저장소 메서드의 첫 인자는 `ShopContext`. 전 매장 질의(줄 집기)는 `ShopContext` 를 받지 않는 별도 포트에 둔다(`NotificationQueueRepository` 와 같은 예외).
 - 잠금 순서에 더한다: **고객 행 → 검색 표**. 색인기는 잠금을 쥔 채 `embed` 를 부르지 않는다. 구독자는 외부를 부르지 않는다.
 - 가드 없이 `ShopContext` 를 만드는 곳은 늘리지 않는다 — `system_context` 를 `hub/app/dtos/shop_context.py` 로 옮겨 디스패처와 색인기가 함께 쓴다.
-- 기준값(고정, 품질 확인으로만 바꾼다): 검색어 2~100자(다듬은 뒤) · 글자 후보 50(`word_similarity` ≥ 0.3) · 뜻 후보 5(유사도 ≥ 0.80 이고 가장 가까운 글에서 0.02 안쪽 — 품질 확인으로 바꾼 값, 처음 계획은 50·0.80, 결정 기록 013) · RRF k=60 · 결과 30 · snippet 80자 · 임베딩 시간 제한 질의 1.5초·색인 10초 · 벡터 384차원 · 색인기 간격 2초·한 번에 20줄 · 재시도 `min(30 × 2^attempts, 3600)`초.
+- 기준값(고정, 품질 확인으로만 바꾼다): 검색어 2~100자(다듬은 뒤) · 글자 후보 50(`word_similarity` ≥ 0.3) · 뜻 후보 10(유사도 ≥ 0.80 이고 가장 가까운 글에서 0.04 안쪽 — 품질 확인으로 바꾼 값, 처음 계획은 50·0.80, 결정 기록 013) · RRF k=60 · 결과 30 · snippet 80자 · 임베딩 시간 제한 질의 1.5초·색인 10초 · 벡터 384차원 · 색인기 간격 2초·한 번에 20줄 · 재시도 `min(30 × 2^attempts, 3600)`초.
 - 새 권한 없음. 읽기는 `get_shop_context`(매장 멤버). 공개·보호자 경로는 건드리지 않는다(`routes_without_login` 의 넷 그대로).
 - 마이그레이션은 `0017`. `docker compose down -v` 같은 파괴 명령은 쓰지 않는다 — 스키마는 `alembic upgrade head` 로만 올린다.
 - 검증(전부 `infra/` 에서): 단위 `docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m "not integration and not network"` · 통합 `… -m integration` · `docker compose run --rm --no-deps backend lint-imports --config .importlinter` · 라우트 표 `docker compose run --rm --no-deps auth python scripts/print_routes.py`. CI 에는 `embed` 가 없다 — 단위·통합 테스트는 가짜 임베딩으로만 돈다.
