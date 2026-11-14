@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+from hub.app.dtos.shop_context import system_context
 from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
@@ -30,7 +31,6 @@ from notification.app.ports.output.notification_queue_repository import Notifica
 from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
 from notification.app.services.message_text import message_pet_ids, message_target, message_variables
-from notification.app.services.system_context import system_context
 from notification.app.services.template_registration import REJECTED_NEW_VERSION, record_template_state
 from notification.domain.entities.notification_message import NotificationMessage
 from notification.domain.services.schedule_rules import (

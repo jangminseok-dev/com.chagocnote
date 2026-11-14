@@ -336,6 +336,9 @@ class FakeDirectory(CustomerDirectoryPort):
     async def care_facts(self, ctx, customer_ids, pet_ids, today):
         raise NotImplementedError   # notification 은 쓰지 않는다
 
+    async def first_pets(self, ctx, customer_ids):
+        raise NotImplementedError   # notification 은 쓰지 않는다
+
     async def briefs(self, ctx, customer_ids, pet_ids):
         if ctx.shop_id != self.shop_id:
             return FamilyBriefs(customers={}, pets={})

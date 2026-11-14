@@ -11,19 +11,22 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.detail_reader import read_pet_detail
+from hub.app.dtos.search_events import SearchSourceChanged
+from hub.app.ports.domain_event_port import DomainEventPort
 
 
 class AddPetInteractor(AddPetUseCase):
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository,
         condition_types: ConditionTypeRepository, search: CustomerSearchPort,
-        today: Callable[[], date],
+        today: Callable[[], date], events: DomainEventPort,
     ) -> None:
         self._customers = customers
         self._pets = pets
         self._condition_types = condition_types
         self._search = search
         self._today = today
+        self._events = events
 
     async def add_pet(self, command: AddPetCommand) -> PetDetailView:
         codes = frozenset(t.code for t in await self._condition_types.list_all())
@@ -32,4 +35,5 @@ class AddPetInteractor(AddPetUseCase):
         await self._customers.lock_active(command.ctx, command.customer_id)
         pet = await self._pets.add(command.ctx, command.customer_id, profile)
         await self._search.rebuild_search_entry(command.ctx, command.customer_id)
+        await self._events.publish(SearchSourceChanged(ctx=command.ctx, scope="pet", ref_id=pet.id))   # 기록 검색(⑨)
         return await read_pet_detail(command.ctx, pet.id, self._customers, self._pets, self._today())

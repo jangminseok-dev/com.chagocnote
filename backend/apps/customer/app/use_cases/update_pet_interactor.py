@@ -12,19 +12,22 @@ from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.detail_reader import read_pet_detail
 from customer.domain.services.care_marks import conditions_added
+from hub.app.dtos.search_events import SearchSourceChanged
+from hub.app.ports.domain_event_port import DomainEventPort
 
 
 class UpdatePetInteractor(UpdatePetUseCase):
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository,
         condition_types: ConditionTypeRepository, search: CustomerSearchPort,
-        today: Callable[[], date],
+        today: Callable[[], date], events: DomainEventPort,
     ) -> None:
         self._customers = customers
         self._pets = pets
         self._condition_types = condition_types
         self._search = search
         self._today = today
+        self._events = events
 
     async def update_pet(self, command: UpdatePetCommand) -> PetDetailView:
         codes = frozenset(t.code for t in await self._condition_types.list_all())
@@ -36,6 +39,8 @@ class UpdatePetInteractor(UpdatePetUseCase):
         if before.grooming_consent_on is not None and conditions_added(before.conditions, profile.conditions):
             await self._pets.set_grooming_consent(command.ctx, command.pet_id, None, None)
         await self._search.rebuild_search_entry(command.ctx, customer_id)
+        # 특이사항·지병이 기록 검색에 든다(⑨).
+        await self._events.publish(SearchSourceChanged(ctx=command.ctx, scope="pet", ref_id=command.pet_id))
         return await read_pet_detail(
             command.ctx, command.pet_id, self._customers, self._pets, self._today()
         )

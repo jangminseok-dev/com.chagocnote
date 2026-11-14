@@ -6,6 +6,7 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.domain.errors import CustomerHasUpcomingVisitsError
 from hub.app.ports.guardian_lifecycle_port import GuardianLifecyclePort
+from hub.app.ports.search_index_port import SearchIndexPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 
@@ -14,12 +15,13 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
 
     def __init__(
         self, customers: CustomerRepository, search: CustomerSearchPort, ledger: VisitLedgerPort,
-        guardians: GuardianLifecyclePort,
+        guardians: GuardianLifecyclePort, index: SearchIndexPort,
     ) -> None:
         self._customers = customers
         self._search = search
         self._ledger = ledger
         self._guardians = guardians
+        self._index = index
 
     async def delete_customer(self, command: DeleteCustomerCommand) -> None:
         await self._customers.lock_active(command.ctx, command.customer_id)
@@ -29,4 +31,6 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
         # 보호자 계정과의 연결을 끝낸다 — 익명화한 고객의 기록이 보호자 쪽에 남지 않게(⑦ 설계 G9).
         await self._guardians.end_for_customer(command.ctx.shop_id, command.customer_id)
         await self._ledger.clear_customer_memos(command.ctx, command.customer_id)   # 방문 메모의 개인정보(V11)
+        # 기록 검색의 글 사본을 이 트랜잭션에서 곧바로 지운다 — 색인기를 기다리지 않는다(⑨ 설계 3.5).
+        await self._index.forget_customer(command.ctx, command.customer_id)
         await self._search.rebuild_search_entry(command.ctx, command.customer_id)   # 익명화한 고객이라 줄이 지워진다

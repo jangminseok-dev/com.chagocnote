@@ -140,3 +140,11 @@ async def test_수정이_실패하면_발행하지_않는다():
     with pytest.raises(VisitDuplicateError):
         await interactor.update_visit(_command(kong, starts_at=kst(10, 9, 14)))
     assert events.published == []
+
+
+async def test_고치면_시각이_그대로여도_다시_색인하라고_알린다():
+    _, visits, _, interactor, events = _setup()
+    visit = visits.seed()
+    await interactor.update_visit(_command(visit, memo="드라이를 무서워해요"))
+    assert events.changed == [("visit", visit.id)]
+    assert events.published == []      # 보호자에게 알릴 일은 아니다

@@ -131,3 +131,17 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
             return None
         return CustomerContact(customer_id=customer.id, name=customer.name, phone=customer.phone,
                                marketing_consent=customer.marketing_consent)
+
+    async def first_pets(self, ctx: ShopContext, customer_ids: tuple[int, ...]) -> dict[int, int]:
+        if not customer_ids:
+            return {}
+        known = [c.id for c in await self._customers.list_active(ctx, list(customer_ids))]   # 익명화·다른 매장은 빠진다
+        if not known:
+            return {}
+        first: dict[int, int] = {}
+        alive: dict[int, int] = {}
+        for pet in sorted(await self._pets.list_for_customers(ctx, known), key=lambda p: p.id):   # ID 가 등록 순서다
+            first.setdefault(pet.customer_id, pet.id)
+            if not pet.passed_away:
+                alive.setdefault(pet.customer_id, pet.id)
+        return first | alive

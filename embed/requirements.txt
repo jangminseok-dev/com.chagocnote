@@ -1,0 +1,9 @@
+# 임베딩 프로세스의 의존성 — 판을 고정한다. 올릴 때는 이미지를 다시 짓고 embed 의 테스트를 돌린다.
+fastapi==0.162.7
+uvicorn==0.54.0
+onnxruntime==1.32.0
+tokenizers==0.23.3
+numpy==2.5.4
+huggingface_hub==2.4.0   # 이미지를 지을 때 모델 파일을 받는 데만 쓴다
+httpx==0.28.1            # 테스트(TestClient)
+pytest==9.2.0

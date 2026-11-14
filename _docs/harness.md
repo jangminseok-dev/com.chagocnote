@@ -52,7 +52,7 @@
 - 유스케이스는 스텁 포트로 검증한다. mock 프레임워크보다 스텁 구현을 쓴다. 공용 스텁(`apps/*/tests/helpers/fakes.py`)은 포트 ABC를 상속한다 — 포트에 메서드를 더하고 스텁을 빠뜨리면 인스턴스를 만드는 순간 잡힌다(`apps/*/tests/test_fakes_are_ports.py`). 테스트 파일 안의 부분 스텁(`_Stub*`)은 그 테스트가 부르는 메서드만 가지므로 상속하지 않는다.
 - `tests/integration/`은 두 프로세스의 실제 앱 객체에 붙어 프로바이더·DB 커밋·Redis까지 통과한다. 인증 프로세스의 개인키는 테스트마다 새로 만든 키로 바꿔 넣는다.
 - 스포크를 새로 만들면 첫 통합 테스트로 "A매장 멤버가 B매장의 경로를 부르면 403"(테넌트 격리)을 둔다. notification 도 그렇게 시작했다(`tests/integration/test_notification_onboarding_wiring.py`·`test_notification_messages_wiring.py`의 첫 테스트).
-- 요청 밖(디스패처·운영자 스크립트)에서 `ShopContext`를 만드는 곳은 `notification/app/services/system_context.py` 하나다(권한 빔). 테스트가 요청 밖 코드를 돌릴 때도 이것을 쓴다 — 가드를 흉내 내는 다른 생성자를 만들지 않는다.
+- 요청 밖(디스패처·운영자 스크립트)에서 `ShopContext`를 만드는 곳은 `hub/app/dtos/shop_context.py`의 `system_context` 하나다(권한 빔). 테스트가 요청 밖 코드를 돌릴 때도 이것을 쓴다 — 가드를 흉내 내는 다른 생성자를 만들지 않는다.
 - 디스패처는 테스트에서 루프를 띄우지 않고 `build_dispatcher(session, gateway=FakeGateway(), now=lambda: fixed).run_once()`로 한 번씩 돌린다(`tests/integration/test_notification_dispatcher_wiring.py`). 상한은 `monkeypatch.setattr(dispatcher_provider, "NOTIFICATION_DAILY_CAP", 1)`, 요청 쪽 게이트웨이는 `main.app.dependency_overrides[get_message_gateway] = lambda: fake`(끝나면 pop). `dispatcher_wakeup._event`는 처음 `wait()`한 이벤트 루프에 묶이므로 `wait`를 부르는 테스트 파일은 autouse 픽스처로 새 `asyncio.Event`를 넣는다.
 - 통합 테스트 두 세션을 **동시에** 돌리면(전체 + 파일 하나) 같은 테스트 DB 를 TRUNCATE 해 서로 깨진다 — 차례로 돌린다. 대역 서버(테스트 DB 로 흐름 스크립트를 돌리는 임시 서버)도 통합 테스트와 같이 띄우지 않는다.
 - 실제 발송 업체(`api.solapi.com`)는 테스트에서 부르지 않는다 — 어댑터 테스트는 `httpx.MockTransport`, 나머지는 `FakeGateway`/`SpyGateway`(`notification/tests/helpers/fakes.py`)다. `.env`의 `SOLAPI_*`가 비어 있으면 dev 는 가짜 게이트웨이다.
@@ -74,3 +74,8 @@
 - e2e 준비는 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크를 남긴다. 지우는 스크립트는 없다.
 - e2e 는 `next dev`에 붙는다. `next.config.ts`의 `allowedDevOrigins: ['127.0.0.1']`을 빼면 `http://127.0.0.1:3010` 에서 브라우저 쪽 코드가 막혀 크게 보기·열람 신호·404 화면 글자 테스트가 실패한다.
 - 웹을 띄운 기록(`next dev`·`next start`)에 토큰이 없어야 한다. `check:server`의 마지막 줄이 `next start`의 기록을 보고, `next dev`는 `logging.incomingRequests: false`로 요청 주소를 찍지 않는다.
+- 임베딩 프로세스(`embed/`, compose 의 `embed`)는 백엔드와 다른 이미지다. 테스트는 그 컨테이너에서 돈다 — `infra/`에서 `docker compose run --rm --no-deps embed pytest -q`. `test_encoder.py`는 이미지에 든 실제 모델로 돌고(인터넷이 필요 없다) `test_app.py`는 가짜 인코더로 돈다. 의존성이나 모델 판(`infra/docker/embed.Dockerfile`의 `MODEL_REVISION`)을 바꾸면 `docker compose build embed` 뒤에 다시 돌린다. CI 에는 넣지 않았다(이미지를 지을 때 모델 파일을 받는다) — 로컬에서 확인한다.
+- 검색 색인기도 테스트에서 루프를 띄우지 않고 `build_indexer(session, embedder=FakeEmbedder(), now=…).run_once()`로 한 번씩 돌린다(`tests/integration/test_search_indexer_wiring.py`). 미룬 줄을 집게 하려면 `now`를 뒤로 민다. 요청 쪽의 임베딩은 `monkeypatch.setattr(search_wiring, "_embedder", fake)`로 바꾼다(`tests/integration/test_search_wiring.py`). 단위·통합 테스트는 실제 임베딩 프로세스를 부르지 않는다 — CI에 `embed`가 없다.
+- 검색의 매장 격리는 **저장소 수준에서도** 본다(`tests/integration/test_search_schema.py`의 후보 질의 테스트). HTTP로만 보면 결과에 이름을 붙이는 단계(`briefs`)가 다른 매장의 줄을 걸러 줘서, 질의의 `shop_id` 조건을 빼는 변이가 살아남는다.
+- 검색 품질 확인(`scripts/check_search_quality.py`)과 검색 흐름(`check_search_flow.sh`)은 실제 임베딩 프로세스가 떠 있어야 한다(`docker compose up -d embed`). 품질 확인은 개발 DB의 가짜 매장 번호(9000000001)에 글 60개를 넣고 끝나면 지운다. 흐름은 `embed`를 멈췄다 다시 띄운다 — 중간에 끊기면 `docker compose start embed`. 뜻 검색은 맞는 글이 없어도 가까운 글 몇 개를 주므로 "사라졌다"는 줄 수가 아니라 그 글이 없는지로 본다.
+- 검색어·글이 로그에 없는지는 흐름을 돌린 뒤 `docker compose logs backend embed gateway --since 30m | grep -c <검색어>`로 본다(0이어야 한다). 접근 로그에는 `/search?[가림]`만 남는다.

@@ -5,7 +5,7 @@ import pytest
 from customer.app.dtos.update_pet_dto import UpdatePetCommand
 from customer.app.use_cases.update_pet_interactor import UpdatePetInteractor
 from customer.domain.errors import CustomerInputError, PetNotFoundError
-from customer.tests.helpers.fakes import family, today
+from customer.tests.helpers.fakes import FakeEvents, family, today
 from customer.tests.helpers.inputs import pet_input
 from customer.tests.helpers.profiles import condition, ctx
 
@@ -13,7 +13,7 @@ from customer.tests.helpers.profiles import condition, ctx
 def _setup(shop_id=1):
     journal, customers, pets, types, search = family()
     pet = pets.seed(customers.seed(shop_id=shop_id).id)
-    return journal, pet, UpdatePetInteractor(customers, pets, types, search, today)
+    return journal, pet, UpdatePetInteractor(customers, pets, types, search, today, events=FakeEvents())
 
 
 async def test_고객을_잠근_뒤_고치고_검색_줄을_다시_만든다():
@@ -42,3 +42,22 @@ async def test_다른_매장의_반려동물은_404_다():
     with pytest.raises(PetNotFoundError):
         await interactor.update_pet(UpdatePetCommand(ctx=ctx(shop_id=1), pet_id=pet.id, pet=pet_input()))
     assert journal == []
+
+
+async def test_고치면_그_아이를_다시_색인하라고_알린다():
+    _, customers, pets, types, search = family()
+    pet = pets.seed(customers.seed().id)
+    events = FakeEvents()
+    await UpdatePetInteractor(customers, pets, types, search, today, events=events).update_pet(
+        UpdatePetCommand(ctx=ctx(), pet_id=pet.id, pet=pet_input(memo="드라이를 무서워해요")))
+    assert events.changed == [("pet", pet.id)]
+
+
+async def test_다른_매장의_아이면_알리지_않는다():
+    _, customers, pets, types, search = family()
+    pet = pets.seed(customers.seed(shop_id=2).id)
+    events = FakeEvents()
+    with pytest.raises(PetNotFoundError):
+        await UpdatePetInteractor(customers, pets, types, search, today, events=events).update_pet(
+            UpdatePetCommand(ctx=ctx(), pet_id=pet.id, pet=pet_input()))
+    assert events.changed == []

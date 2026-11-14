@@ -32,3 +32,12 @@ def test_API_프로세스는_접근_로거에_가림_필터를_단다():
 
     filters = logging.getLogger("uvicorn.access").filters
     assert sum(isinstance(f, QueryStringRedactor) for f in filters) == 1
+
+
+def test_기록_검색의_검색어도_가려진다():
+    """⑨ — 검색어는 매장이 적어 둔 글의 한 토막일 수 있다. 한글은 주소에서 %XX 로 오지만 그것도 남기지 않는다."""
+    record = _uvicorn_record("/v1/shops/3/search?q=%EA%B7%80%EB%A5%BC%20%EB%A7%8C%EC%A7%80%EB%A9%B4&pet_id=101")
+    QueryStringRedactor().filter(record)
+    message = record.getMessage()
+    assert message == '127.0.0.1:5000 - "GET /v1/shops/3/search?[가림] HTTP/1.1" 200'
+    assert "%EA" not in message and "pet_id" not in message

@@ -176,6 +176,6 @@ class PetPgRepository(PetRepository):
         for row, label in rows:
             found.setdefault(row.pet_id, []).append(
                 PetCondition(type_code=row.type_code, label=label,
-                             custom_label=row.custom_label, note=row.note)
+                             custom_label=row.custom_label, note=row.note, condition_id=row.id)
             )
         return found

@@ -11,6 +11,8 @@ from core.access_log import redact_access_log_queries
 from core.database import dispose_engine, init_engine
 from core.observer.in_process_event_bus import get_event_bus, subscribe
 from core.redis import dispose_redis
+from hub.app.dtos.search_events import SearchSourceChanged
+from hub.app.dtos.visit_events import VisitEvent
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.get_me_router import get_me_router
@@ -49,8 +51,11 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.customer_search_source_provider import get_customer_search_source_use_case
+from customer.dependencies.hub_ports import get_domain_events as get_customer_domain_events
 from customer.dependencies.hub_ports import get_guardian_lifecycle as get_customer_guardian_lifecycle
 from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
+from customer.dependencies.hub_ports import get_search_index as get_customer_search_index
 from customer.dependencies.hub_ports import get_visit_ledger
 from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
 from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_router
@@ -96,6 +101,17 @@ from platform_admin.adapter.inbound.api.error_map import PLATFORM_ADMIN_ERROR_ST
 from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop_router
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
 from platform_admin.dependencies.hub_ports import get_operator_directory, get_shop_provisioning
+from search.adapter.inbound.api.error_map import SEARCH_ERROR_STATUS
+from search.adapter.inbound.api.v1.search_myself_router import search_myself_router
+from search.adapter.inbound.api.v1.search_records_router import search_records_router
+from search.adapter.inbound.observer.source_changed_subscriber import handle_source_changed
+from search.app.services.indexer_wakeup import wake as wake_indexer
+from search.dependencies.forget_customer_provider import get_forget_customer_use_case
+from search.dependencies.hub_ports import get_customer_directory as get_search_customer_directory
+from search.dependencies.hub_ports import get_media_library as get_search_media_library
+from search.dependencies.hub_ports import get_visit_ledger as get_search_visit_ledger
+from search.dependencies.indexer_ports import IndexerPorts, configure_indexer_ports
+from search.dependencies.indexer_provider import start_indexer
 from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
 from tenancy.adapter.inbound.api.v1.accept_invite_router import accept_invite_router
 from tenancy.adapter.inbound.api.v1.change_member_role_router import change_member_role_router
@@ -153,6 +169,7 @@ from visit.dependencies.hub_ports import get_customer_directory, get_domain_even
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
+from visit.dependencies.visit_search_source_provider import get_visit_search_source_use_case
 from visit.adapter.inbound.api.v1.guardian_reports_router import (
     list_guardian_pets_router,
     list_guardian_reports_router,
@@ -168,12 +185,17 @@ async def lifespan(app: FastAPI):
     get_message_gateway()
     # 디스패처 — 프로세스에 asyncio 작업 하나(설계 3.2). 끝낼 때 정지를 알리고 깨워서 기다림을 끊는다.
     task, stop = start_dispatcher()
+    # 검색 색인기 — 같은 모양의 작업 하나(⑨ 설계 3.4). 임베딩 프로세스가 죽어 있어도 기동한다.
+    indexer_task, indexer_stop = start_indexer()
     try:
         yield
     finally:
         stop.set()
+        indexer_stop.set()
         wake()
+        wake_indexer()
         await task
+        await indexer_task
         await dispose_engine()
         await dispose_redis()
 
@@ -283,12 +305,15 @@ app.include_router(read_guardian_report_router)
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
 app.include_router(confirm_upload_router)
+# search — 기록 검색(⑨). /search/myself 와 /search 는 겹치지 않는다.
+app.include_router(search_myself_router)
+app.include_router(search_records_router)
 install_error_handlers(
     app,
     {
         **AUTH_ERROR_STATUS, **TENANCY_ERROR_STATUS, **PLATFORM_ADMIN_ERROR_STATUS,
         **CUSTOMER_ERROR_STATUS, **VISIT_ERROR_STATUS, **MEDIA_ERROR_STATUS, **NOTIFICATION_ERROR_STATUS,
-        **GUARDIAN_ERROR_STATUS,
+        **GUARDIAN_ERROR_STATUS, **SEARCH_ERROR_STATUS,
     },
 )
 
@@ -314,13 +339,27 @@ app.dependency_overrides[get_customer_media_library] = get_media_library_use_cas
 app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
 app.dependency_overrides[get_notification_shop_profile] = get_shop_profile_use_case
 app.dependency_overrides[get_notification_customer_directory] = get_customer_directory_use_case
+# search: 결과 줄의 이름(customer)과 프로필 사진(visit 의 대표 → media 의 주소).
+app.dependency_overrides[get_search_customer_directory] = get_customer_directory_use_case
+app.dependency_overrides[get_search_visit_ledger] = get_visit_ledger_use_case
+app.dependency_overrides[get_search_media_library] = get_media_library_use_case
 # 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
 app.dependency_overrides[get_domain_events] = get_event_bus
-subscribe(handle_visit_event)
+# customer 도 발행한다(검색되는 글이 바뀌었다). 고객 익명화는 검색 문서를 그 트랜잭션에서 곧바로 지운다.
+app.dependency_overrides[get_customer_domain_events] = get_event_bus
+app.dependency_overrides[get_customer_search_index] = get_forget_customer_use_case
+subscribe(handle_visit_event, VisitEvent)
+# 검색 — 글이 바뀐 대상을 다시 색인할 줄에 넣는다(같은 트랜잭션). 글은 요청 밖의 색인기가 읽는다.
+subscribe(handle_source_changed, SearchSourceChanged)
 # 디스패처는 요청 밖이라 Depends 자리를 못 쓴다 — 같은 세 프로바이더를 세션을 받는 공장으로 꽂는다.
 configure_dispatcher_ports(DispatcherPorts(
     shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,
     visit_ledger=get_visit_ledger_use_case,
+))
+# 검색 색인기도 요청 밖이다 — 글은 visit·customer 가 구현한 SearchSourcePort 로 읽는다.
+configure_indexer_ports(IndexerPorts(
+    shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,
+    visit_source=get_visit_search_source_use_case, customer_source=get_customer_search_source_use_case,
 ))
 
 

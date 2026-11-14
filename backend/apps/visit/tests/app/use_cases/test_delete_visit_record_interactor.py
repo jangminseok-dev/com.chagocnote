@@ -9,6 +9,7 @@ from visit.domain.errors import RecordNotFoundError, VisitReportSentError
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import (
     FakeDirectory,
+    FakeEvents,
     FakeLibrary,
     FakeRecords,
     FakeReportRepository,
@@ -17,6 +18,12 @@ from visit.tests.helpers.fakes import (
 )
 
 NOW = kst(9, 24, 10)
+EVENTS = FakeEvents()   # 검색 이벤트만 본다 — 테스트마다 changed 를 비운다
+
+
+@pytest.fixture(autouse=True)
+def _clear_events():
+    EVENTS.changed.clear()
 
 
 def _with_reports(status="completed"):
@@ -26,7 +33,8 @@ def _with_reports(status="completed"):
     records, library = FakeRecords(visits, journal), FakeLibrary(journal)
     reports = FakeReportRepository(visits, journal)
     visit = visits.seed(status=status, started_at=kst(9, 23, 14), completed_at=kst(9, 23, 16))
-    interactor = DeleteVisitRecordInteractor(visits, records, reports, directory, library, now=lambda: NOW)
+    interactor = DeleteVisitRecordInteractor(visits, records, reports, directory, library, now=lambda: NOW,
+                                             events=EVENTS)
     return journal, visit, records, reports, interactor
 
 
@@ -82,3 +90,17 @@ async def test_링크의_기간이_지나면_기록을_지울_수_있다():
     await _sent(records, reports, visit, expires_at=NOW)   # 지금 끝난다
     await interactor.delete_visit_record(DeleteVisitRecordCommand(ctx=ctx(), visit_id=visit.id))
     assert visit.id not in records.rows
+
+
+async def test_지우면_그_방문을_다시_색인하라고_알린다():
+    _, visit, records, interactor = _world()
+    records.seed(record(visit.id, care_note="얌전했어요"))
+    await interactor.delete_visit_record(DeleteVisitRecordCommand(ctx=ctx(), visit_id=visit.id))
+    assert EVENTS.changed == [("visit", visit.id)]
+
+
+async def test_지우지_못하면_알리지_않는다():
+    _, visit, _, interactor = _world()
+    with pytest.raises(RecordNotFoundError):
+        await interactor.delete_visit_record(DeleteVisitRecordCommand(ctx=ctx(), visit_id=visit.id))
+    assert EVENTS.changed == []

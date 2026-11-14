@@ -24,7 +24,7 @@ from notification.app.ports.output.message_gateway_port import GatewayError, Mes
 from notification.app.ports.output.notification_queue_repository import NotificationQueueRepository
 from notification.app.ports.output.settings_repository import SettingsRepository
 from notification.app.ports.output.template_repository import TemplateRepository
-from notification.app.services.system_context import system_context
+from hub.app.dtos.shop_context import system_context
 from notification.app.services.template_registration import record_template_state
 from notification.dependencies.notification_wiring import (
     build_message_repository,

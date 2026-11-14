@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
+from hub.app.dtos.search_events import SearchSourceChanged
 from hub.app.dtos.visit_events import VisitReserved
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.domain_event_port import DomainEventPort
@@ -77,6 +78,9 @@ class RegisterVisitInteractor(RegisterVisitUseCase):
                 await self._events.publish(VisitReserved(
                     ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
                     starts_at=visit.starts_at, occurred_at=now, family_pet_ids=family))
+        # 예약 메모가 검색에 든다(⑨) — 지금 시작한 손님도, 메모가 없어도 알린다(문서가 될지는 색인기가 정한다).
+        for visit in created:
+            await self._events.publish(SearchSourceChanged(ctx=ctx, scope="visit", ref_id=visit.id))
 
         warnings = await warnings_after_save(
             ctx, command.customer_id, starts_at, duration, settings, self._board, self._schedule

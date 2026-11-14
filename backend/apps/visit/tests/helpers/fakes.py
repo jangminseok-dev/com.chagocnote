@@ -12,6 +12,7 @@ from hub.app.dtos.care_facts import CareFacts, PetCareFact
 from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
 from hub.app.dtos.media_urls import MediaUrls
+from hub.app.dtos.search_events import SearchSourceChanged
 from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.dtos.visit_events import VisitEvent
 from hub.app.errors import (
@@ -180,6 +181,9 @@ class FakeDirectory(CustomerDirectoryPort):
         self.names[customer_id] = name
         self.contacts[customer_id] = CustomerContact(customer_id=customer_id, name=name, phone="01012345678",
                                                      marketing_consent=True)
+
+    async def first_pets(self, ctx, customer_ids):
+        raise NotImplementedError   # visit 은 쓰지 않는다
 
     async def care_facts(self, ctx, customer_ids, pet_ids, today):
         self.care_calls.append((tuple(customer_ids), tuple(pet_ids), today))
@@ -648,8 +652,12 @@ class FakeEvents(DomainEventPort):
     def __init__(self, journal: Journal | None = None) -> None:
         self.journal = journal if journal is not None else Journal()
         self.published: list[VisitEvent] = []
+        self.changed: list[tuple[str, int]] = []   # 검색 이벤트(SearchSourceChanged)의 (scope, ref_id)
 
     async def publish(self, event):
+        if isinstance(event, SearchSourceChanged):
+            self.changed.append((event.scope, event.ref_id))
+            return
         self.published.append(event)
         self.journal.append(("publish", type(event).__name__, event.visit_id))
 

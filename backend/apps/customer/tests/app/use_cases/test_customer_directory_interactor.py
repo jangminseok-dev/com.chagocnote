@@ -204,3 +204,32 @@ async def test_다른_매장_고객의_연락처는_None_이다():
     _, customers, _, _, directory = _directory()
     customer = customers.seed(shop_id=2)
     assert await directory.contact(ctx(shop_id=1), customer.id) is None
+
+
+async def test_first_pets_는_무지개다리가_아닌_가장_먼저_등록한_아이를_준다():
+    _, customers, pets, _, directory = _directory()
+    a, b = customers.seed(), customers.seed(name="이수진", phone="01099998888")
+    pets.seed(a.id, "콩이", passed_away=True)
+    dubu = pets.seed(a.id, "두부")
+    pets.seed(a.id, "보리")
+    mong = pets.seed(b.id, "몽이")
+    assert await directory.first_pets(ctx(), (a.id, b.id)) == {a.id: dubu.id, b.id: mong.id}
+
+
+async def test_first_pets_는_무지개다리_아이뿐이면_가장_먼저_등록한_아이를_준다():
+    _, customers, pets, _, directory = _directory()
+    a = customers.seed()
+    kong = pets.seed(a.id, "콩이", passed_away=True)
+    pets.seed(a.id, "두부", passed_away=True)
+    assert await directory.first_pets(ctx(), (a.id,)) == {a.id: kong.id}
+
+
+async def test_first_pets_에서_아이가_없거나_익명화했거나_다른_매장의_고객은_빠진다():
+    _, customers, pets, _, directory = _directory()
+    empty, gone = customers.seed(), customers.seed(name="박지호", phone="01011112222")
+    other = customers.seed(shop_id=2, name="최유나", phone="01033334444")
+    pets.seed(gone.id, "콩이")
+    pets.seed(other.id, "두부")
+    await customers.anonymize(ctx(), gone.id)
+    assert await directory.first_pets(ctx(), (empty.id, gone.id, other.id, 999)) == {}
+    assert await directory.first_pets(ctx(), ()) == {}

@@ -17,7 +17,15 @@ from visit.domain.errors import (
 )
 from visit.domain.value_objects.record_input import MediaPlacement, RecordInput
 from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeDirectory, FakeLibrary, FakeMenus, FakeRecords, FakeVisits, Journal
+from visit.tests.helpers.fakes import (
+    FakeDirectory,
+    FakeEvents,
+    FakeLibrary,
+    FakeMenus,
+    FakeRecords,
+    FakeVisits,
+    Journal,
+)
 
 
 class _World:
@@ -31,8 +39,9 @@ class _World:
         self.library = FakeLibrary(self.journal)
         self.visit = self.visits.seed(status=status, started_at=kst(9, 23, 14) if status != "reserved" else None)
         self.bath = self.menus.seed("목욕", price=30_000)
+        self.events = FakeEvents(self.journal)
         self.interactor = PutVisitRecordInteractor(self.visits, self.visits, self.records, self.menus,
-                                                   self.directory, self.library)
+                                                   self.directory, self.library, events=self.events)
 
     async def put(self, record, version=None, context=None):
         return await self.interactor.put_visit_record(
@@ -180,3 +189,16 @@ async def test_기록_응답에는_뺀_표시가_없다():
     w.existing(media=[RecordMedia(51, "photo", "after", 0, hidden=True)])
     view = await w.put(record(media=[at(51)]), version=2)
     assert not hasattr(view.media[0], "hidden")
+
+
+async def test_저장하면_그_방문을_다시_색인하라고_알린다():
+    world = _World()
+    await world.put(record())
+    assert world.events.changed == [("visit", world.visit.id)]
+
+
+async def test_거절된_저장은_알리지_않는다():
+    world = _World(status="reserved")
+    with pytest.raises(VisitNoRecordYetError):
+        await world.put(record())
+    assert world.events.changed == []

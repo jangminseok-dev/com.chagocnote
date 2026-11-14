@@ -186,3 +186,11 @@ async def test_등록이_실패하면_발행하지_않는다():
     with pytest.raises(MenuNotAvailableError):
         await interactor.register_visit(_command(menu_ids=(999,)))
     assert events.published == []
+
+
+async def test_만든_방문마다_다시_색인하라고_알린다():
+    """메모가 없어도 알린다 — 문서가 될지는 색인기가 읽어 보고 정한다. 지금 시작한 손님도 같다."""
+    _, _, _, _, _, interactor, events = _setup()
+    booked = await interactor.register_visit(_command(pet_ids=(101, 102), memo="발톱 짧게"))
+    walk_in = await interactor.register_visit(_command(pet_ids=(), starts_at=None, walk_in=True))
+    assert events.changed == [("visit", v.visit_id) for v in (*booked.visits, *walk_in.visits)]

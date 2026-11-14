@@ -10,17 +10,20 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.detail_reader import read_customer_detail
+from hub.app.dtos.search_events import SearchSourceChanged
+from hub.app.ports.domain_event_port import DomainEventPort
 
 
 class UpdateCustomerInteractor(UpdateCustomerUseCase):
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository, search: CustomerSearchPort,
-        today: Callable[[], date],
+        today: Callable[[], date], events: DomainEventPort,
     ) -> None:
         self._customers = customers
         self._pets = pets
         self._search = search
         self._today = today
+        self._events = events
 
     async def update_customer(self, command: UpdateCustomerCommand) -> CustomerDetailView:
         profile = command.customer.to_profile()
@@ -31,6 +34,8 @@ class UpdateCustomerInteractor(UpdateCustomerUseCase):
             consent_changed=current.marketing_consent != profile.marketing_consent,
         )
         await self._search.rebuild_search_entry(command.ctx, command.customer_id)
+        await self._events.publish(   # 보호자 메모가 기록 검색에 든다(⑨)
+            SearchSourceChanged(ctx=command.ctx, scope="customer", ref_id=command.customer_id))
         return await read_customer_detail(
             command.ctx, command.customer_id, self._customers, self._pets, self._today()
         )

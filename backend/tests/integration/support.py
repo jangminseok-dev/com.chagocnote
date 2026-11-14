@@ -138,3 +138,17 @@ class NoGuardians:
 
     async def end_for_customer(self, shop_id: int, customer_id: int) -> int:
         return 0
+
+
+class NoEvents:
+    """DomainEventPort 대역 — 인터랙터를 직접 만드는 잠금 테스트가 쓴다. 아무에게도 넘기지 않는다."""
+
+    async def publish(self, event) -> None:
+        return None
+
+
+class NoSearchIndex:
+    """SearchIndexPort 대역 — 인터랙터를 직접 만드는 잠금 테스트가 쓴다. 아무것도 지우지 않는다."""
+
+    async def forget_customer(self, ctx, customer_id: int) -> None:
+        return None
