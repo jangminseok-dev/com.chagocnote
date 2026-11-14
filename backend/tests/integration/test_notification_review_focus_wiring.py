@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from notification.adapter.outbound.pg.template_pg_repository import TemplatePgRepository
 from notification.adapter.outbound.strategy.fake_gateway import FakeGateway
 from notification.app.ports.output.message_gateway_port import TemplateState
-from notification.app.services.system_context import system_context
+from hub.app.dtos.shop_context import system_context
 from notification.dependencies.dispatcher_provider import build_dispatcher
 from notification.domain.services.templates import format_when
 from notification.domain.value_objects.message_kind import KINDS

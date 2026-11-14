@@ -52,7 +52,7 @@
 - 유스케이스는 스텁 포트로 검증한다. mock 프레임워크보다 스텁 구현을 쓴다. 공용 스텁(`apps/*/tests/helpers/fakes.py`)은 포트 ABC를 상속한다 — 포트에 메서드를 더하고 스텁을 빠뜨리면 인스턴스를 만드는 순간 잡힌다(`apps/*/tests/test_fakes_are_ports.py`). 테스트 파일 안의 부분 스텁(`_Stub*`)은 그 테스트가 부르는 메서드만 가지므로 상속하지 않는다.
 - `tests/integration/`은 두 프로세스의 실제 앱 객체에 붙어 프로바이더·DB 커밋·Redis까지 통과한다. 인증 프로세스의 개인키는 테스트마다 새로 만든 키로 바꿔 넣는다.
 - 스포크를 새로 만들면 첫 통합 테스트로 "A매장 멤버가 B매장의 경로를 부르면 403"(테넌트 격리)을 둔다. notification 도 그렇게 시작했다(`tests/integration/test_notification_onboarding_wiring.py`·`test_notification_messages_wiring.py`의 첫 테스트).
-- 요청 밖(디스패처·운영자 스크립트)에서 `ShopContext`를 만드는 곳은 `notification/app/services/system_context.py` 하나다(권한 빔). 테스트가 요청 밖 코드를 돌릴 때도 이것을 쓴다 — 가드를 흉내 내는 다른 생성자를 만들지 않는다.
+- 요청 밖(디스패처·운영자 스크립트)에서 `ShopContext`를 만드는 곳은 `hub/app/dtos/shop_context.py`의 `system_context` 하나다(권한 빔). 테스트가 요청 밖 코드를 돌릴 때도 이것을 쓴다 — 가드를 흉내 내는 다른 생성자를 만들지 않는다.
 - 디스패처는 테스트에서 루프를 띄우지 않고 `build_dispatcher(session, gateway=FakeGateway(), now=lambda: fixed).run_once()`로 한 번씩 돌린다(`tests/integration/test_notification_dispatcher_wiring.py`). 상한은 `monkeypatch.setattr(dispatcher_provider, "NOTIFICATION_DAILY_CAP", 1)`, 요청 쪽 게이트웨이는 `main.app.dependency_overrides[get_message_gateway] = lambda: fake`(끝나면 pop). `dispatcher_wakeup._event`는 처음 `wait()`한 이벤트 루프에 묶이므로 `wait`를 부르는 테스트 파일은 autouse 픽스처로 새 `asyncio.Event`를 넣는다.
 - 통합 테스트 두 세션을 **동시에** 돌리면(전체 + 파일 하나) 같은 테스트 DB 를 TRUNCATE 해 서로 깨진다 — 차례로 돌린다. 대역 서버(테스트 DB 로 흐름 스크립트를 돌리는 임시 서버)도 통합 테스트와 같이 띄우지 않는다.
 - 실제 발송 업체(`api.solapi.com`)는 테스트에서 부르지 않는다 — 어댑터 테스트는 `httpx.MockTransport`, 나머지는 `FakeGateway`/`SpyGateway`(`notification/tests/helpers/fakes.py`)다. `.env`의 `SOLAPI_*`가 비어 있으면 dev 는 가짜 게이트웨이다.

@@ -11,6 +11,7 @@ from core.access_log import redact_access_log_queries
 from core.database import dispose_engine, init_engine
 from core.observer.in_process_event_bus import get_event_bus, subscribe
 from core.redis import dispose_redis
+from hub.app.dtos.visit_events import VisitEvent
 
 from auth.adapter.inbound.api.error_map import AUTH_ERROR_STATUS
 from auth.adapter.inbound.api.v1.get_me_router import get_me_router
@@ -316,7 +317,7 @@ app.dependency_overrides[get_notification_shop_profile] = get_shop_profile_use_c
 app.dependency_overrides[get_notification_customer_directory] = get_customer_directory_use_case
 # 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
 app.dependency_overrides[get_domain_events] = get_event_bus
-subscribe(handle_visit_event)
+subscribe(handle_visit_event, VisitEvent)
 # 디스패처는 요청 밖이라 Depends 자리를 못 쓴다 — 같은 세 프로바이더를 세션을 받는 공장으로 꽂는다.
 configure_dispatcher_ports(DispatcherPorts(
     shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,

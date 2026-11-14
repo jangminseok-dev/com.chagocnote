@@ -181,6 +181,9 @@ class FakeDirectory(CustomerDirectoryPort):
         self.contacts[customer_id] = CustomerContact(customer_id=customer_id, name=name, phone="01012345678",
                                                      marketing_consent=True)
 
+    async def first_pets(self, ctx, customer_ids):
+        raise NotImplementedError   # visit 은 쓰지 않는다
+
     async def care_facts(self, ctx, customer_ids, pet_ids, today):
         self.care_calls.append((tuple(customer_ids), tuple(pet_ids), today))
         known = frozenset(c for c in customer_ids if self.families.get(c, (None,))[0] == ctx.shop_id)

@@ -13,6 +13,7 @@ from notification.dependencies.hub_ports import get_shop_profile as get_notifica
 from tenancy.dependencies.hub_ports import get_user_directory
 from tenancy.dependencies.get_shop_profile_provider import get_shop_profile_use_case
 from core.security import get_current_user_id
+from hub.app.dtos.visit_events import VisitEvent
 from core.shop_guard import get_shop_context
 from tests.route_inspection import find_route_violations, routes_without_login
 from visit.dependencies.hub_ports import get_domain_events, get_shop_profile
@@ -46,7 +47,7 @@ def test_도메인_이벤트_자리는_core_의_버스로_채운다():
 
 
 def test_notification_구독자가_버스에_등록되어_있다():
-    assert handle_visit_event in subscribers()
+    assert (handle_visit_event, VisitEvent) in subscribers()
 
 
 def test_notification_의_매장_공개_정보와_고객_연락처_자리는_tenancy_customer_의_구현으로_채운다():

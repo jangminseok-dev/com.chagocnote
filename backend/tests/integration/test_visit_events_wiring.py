@@ -10,7 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
 from core.observer.in_process_event_bus import subscribe, unsubscribe
-from hub.app.dtos.visit_events import VisitCanceled, VisitRescheduled, VisitReserved
+from hub.app.dtos.visit_events import VisitCanceled, VisitEvent, VisitRescheduled, VisitReserved
 from tests.integration.support import bearer, make_operator, shop_with_owner
 
 pytestmark = pytest.mark.integration
@@ -35,7 +35,7 @@ def received():
         await session.execute(text("SELECT 1"))   # 요청의 세션이 그대로 넘어온다
         events.append(event)
 
-    subscribe(collect)
+    subscribe(collect, VisitEvent)
     yield events
     unsubscribe(collect)
 
@@ -89,7 +89,7 @@ async def test_구독자가_던지면_500_이고_방문은_생기지_않는다(w
     async def explode(session, event):
         raise RuntimeError("구독자 실패")
 
-    subscribe(explode)
+    subscribe(explode, VisitEvent)
     try:
         shop_id, headers, customer_id, pet_id = await _shop(wired)
         async with AsyncClient(transport=ASGITransport(app=main.app, raise_app_exceptions=False),

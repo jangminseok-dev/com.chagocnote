@@ -78,7 +78,7 @@
 
 - 발행은 `dependencies/hub_ports.py`의 자리(`get_domain_events`)로 받고 `main.py`가 `get_event_bus`를 꽂는다. 구독은 `main.py`가 기동 때 `subscribe(handler)`로 등록한다 — 구독자는 `(AsyncSession, VisitEvent)`를 받는 어댑터(`<app>/adapter/inbound/observer/`)이고 `app` 층에 두지 않는다(프레임워크 격리).
 - 구독자는 외부(HTTP)를 부르지 않는다. 외부 호출은 요청 밖(디스패처)에서 잠금 없이 한다.
-- 요청 밖에서 `ShopContext`가 필요하면 `notification/app/services/system_context.py` 하나로 만든다(권한 빔). 전 매장 질의는 `ShopContext`를 받지 않는 별도 포트(`NotificationQueueRepository`)에 둔다.
+- 요청 밖에서 `ShopContext`가 필요하면 `hub/app/dtos/shop_context.py`의 `system_context` 하나로 만든다(권한 빔 — 알림 디스패처와 검색 색인기가 함께 쓴다). 전 매장 질의는 `ShopContext`를 받지 않는 별도 포트(`NotificationQueueRepository`)에 둔다.
 
 ## 보호자 표면
 
