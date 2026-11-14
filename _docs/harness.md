@@ -74,3 +74,4 @@
 - e2e 준비는 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크를 남긴다. 지우는 스크립트는 없다.
 - e2e 는 `next dev`에 붙는다. `next.config.ts`의 `allowedDevOrigins: ['127.0.0.1']`을 빼면 `http://127.0.0.1:3010` 에서 브라우저 쪽 코드가 막혀 크게 보기·열람 신호·404 화면 글자 테스트가 실패한다.
 - 웹을 띄운 기록(`next dev`·`next start`)에 토큰이 없어야 한다. `check:server`의 마지막 줄이 `next start`의 기록을 보고, `next dev`는 `logging.incomingRequests: false`로 요청 주소를 찍지 않는다.
+- 임베딩 프로세스(`embed/`, compose 의 `embed`)는 백엔드와 다른 이미지다. 테스트는 그 컨테이너에서 돈다 — `infra/`에서 `docker compose run --rm --no-deps embed pytest -q`. `test_encoder.py`는 이미지에 든 실제 모델로 돌고(인터넷이 필요 없다) `test_app.py`는 가짜 인코더로 돈다. 의존성이나 모델 판(`infra/docker/embed.Dockerfile`의 `MODEL_REVISION`)을 바꾸면 `docker compose build embed` 뒤에 다시 돌린다. CI 에는 넣지 않았다(이미지를 지을 때 모델 파일을 받는다) — 로컬에서 확인한다.
