@@ -11,6 +11,8 @@ DayVisitItem _item(
   String? group,
   String status = 'reserved',
   bool reportSent = false,
+  int customerChecks = 0,
+  int petChecks = 0,
 }) => DayVisitItem.fromJson(
   dayItemJson(
     visitJson(
@@ -21,6 +23,8 @@ DayVisitItem _item(
     ),
     groupKey: group ?? 'g$id',
     reportSent: reportSent,
+    customerCheckCount: customerChecks,
+    petCheckCount: petChecks,
   ),
 );
 
@@ -157,5 +161,27 @@ void main() {
       final groups = groupDay([_item(1, '18:00', duration: 120)]); // 20:00 끝
       expect(timelineHours(settings, groups), (first: 10, last: 20));
     });
+  });
+
+  test('확인할 것의 수 — 가족 묶음에서 보호자 수는 한 번만, 아이 수는 더한다', () {
+    final group = groupDay([
+      _item(1, '14:00', group: 'a', customerChecks: 2, petChecks: 1),
+      _item(2, '14:00', group: 'a', customerChecks: 2, petChecks: 3),
+    ]).single;
+
+    expect(group.checkCount, 6);
+  });
+
+  test('확인할 것이 없으면 0 이다', () {
+    expect(groupDay([_item(1, '14:00')]).single.checkCount, 0);
+  });
+
+  test('묶음 안에서 보호자 수가 다르면(한 아이는 취소) 큰 쪽을 쓴다', () {
+    final group = groupDay([
+      _item(1, '14:00', group: 'a', status: 'canceled'),
+      _item(2, '14:00', group: 'a', customerChecks: 1, petChecks: 1),
+    ]).single;
+
+    expect(group.checkCount, 2);
   });
 }

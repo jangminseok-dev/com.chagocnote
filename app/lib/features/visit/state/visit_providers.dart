@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/proxy/providers.dart';
+import '../../../core/plugs/care_marks_plug.dart';
 import '../../auth/state/shop_scoped.dart';
+import '../api/check_models.dart';
 import '../api/media_api.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
@@ -116,3 +118,34 @@ final closedDatesProvider = FutureProvider.autoDispose
             ),
       ),
     );
+
+/// 미리 보기 조회 조건. [petIds]는 `petIdsKey`로 이은 글자다(목록은 값으로 비교되지 않는다).
+typedef ChecksKey = ({int shopId, int customerId, String petIds, DateTime date});
+
+/// 예약 등록의 확인할 것 미리 보기(③-B). 아이·날짜가 바뀌면 키가 바뀌어 앞 선택의 응답이
+/// 지금 선택에 보이지 않는다.
+final visitChecksProvider = FutureProvider.autoDispose
+    .family<VisitChecksPreview, ChecksKey>(
+      (ref, key) => runShopScoped(
+        ref,
+        () => ref
+            .read(visitApiProvider)
+            .checks(
+              key.shopId,
+              customerId: key.customerId,
+              petIds: [
+                for (final id in key.petIds.split(','))
+                  if (id.isNotEmpty) int.parse(id),
+              ],
+              date: key.date,
+            ),
+      ),
+    );
+
+/// 확인할 것을 다시 읽게 한다 — 미용 동의·주의 표시가 바뀌면 방문 상세의 묶음, 하루 목록의 수,
+/// 미리 보기가 낡는다. `app.dart`가 `careMarksChangedPlugProvider`에 꽂는다.
+CareMarksChanged careMarksChanged(Ref ref) => () {
+  ref.invalidate(visitDetailProvider);
+  ref.invalidate(dayVisitsProvider);
+  ref.invalidate(visitChecksProvider);
+};

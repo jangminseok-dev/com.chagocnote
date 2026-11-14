@@ -1,5 +1,6 @@
 import '../../../core/error/api_exception.dart';
 import '../../../core/proxy/api_client.dart';
+import '../../../core/time/shop_time.dart';
 import 'customer_models.dart';
 
 /// 고객·반려동물 API. 경로는 모두 `/v1/shops/{shopId}` 아래다.
@@ -148,6 +149,53 @@ class CustomerApi {
     await _client.delete(
       '/v1/shops/$shopId/customers/$customerId/guardian-link',
     );
+  }
+
+  /// 미용 동의서를 받았다고 적는다(③-B). [receivedOn]이 없으면 서버가 오늘로 적는다.
+  Future<PetDetail> setGroomingConsent(
+    int shopId,
+    int petId, {
+    DateTime? receivedOn,
+  }) async {
+    final data =
+        await _client.put(
+              '/v1/shops/$shopId/pets/$petId/grooming-consent',
+              data: {
+                'received_on': receivedOn == null ? null : isoDay(receivedOn),
+              },
+            )
+            as Map<String, dynamic>;
+    return PetDetail.fromJson(data);
+  }
+
+  Future<PetDetail> clearGroomingConsent(int shopId, int petId) async {
+    final data =
+        await _client.delete('/v1/shops/$shopId/pets/$petId/grooming-consent')
+            as Map<String, dynamic>;
+    return PetDetail.fromJson(data);
+  }
+
+  /// 주의 고객으로 표시한다(③-B). 사유는 1~100자 한 줄. 기한은 서버가 정한다.
+  Future<CustomerDetail> setCaution(
+    int shopId,
+    int customerId,
+    String reason,
+  ) async {
+    final data =
+        await _client.put(
+              '/v1/shops/$shopId/customers/$customerId/caution',
+              data: {'reason': reason},
+            )
+            as Map<String, dynamic>;
+    return CustomerDetail.fromJson(data);
+  }
+
+  /// 주의 표시를 지운다. 없어도 성공한다.
+  Future<CustomerDetail> clearCaution(int shopId, int customerId) async {
+    final data =
+        await _client.delete('/v1/shops/$shopId/customers/$customerId/caution')
+            as Map<String, dynamic>;
+    return CustomerDetail.fromJson(data);
   }
 
   /// 정해진 질병 종류(칩 순서대로).

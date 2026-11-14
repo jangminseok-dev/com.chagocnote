@@ -28,11 +28,13 @@ Map<String, dynamic> familyJson({
   String name = '김민지',
   String phoneMasked = '010-12··-5678',
   List<Map<String, dynamic>>? pets,
+  bool caution = false,
 }) => {
   'customer_id': customerId,
   'name': name,
   'phone_masked': phoneMasked,
   'pets': pets ?? [petSummaryJson()],
+  'caution': caution,
 };
 
 Map<String, dynamic> pageJson({
@@ -79,6 +81,7 @@ Map<String, dynamic> petJson({
   String? memo = '귀 만지면 싫어함',
   String? passedAwayAt,
   String? photo,
+  String? groomingConsentOn,
 }) {
   final list = conditions ?? (noKnownConditions ? const [] : [conditionJson()]);
   return {
@@ -99,6 +102,7 @@ Map<String, dynamic> petJson({
     'memo': memo,
     'passed_away_at': passedAwayAt,
     'photo': photo,
+    'grooming_consent_on': groomingConsentOn,
   };
 }
 
@@ -110,6 +114,7 @@ Map<String, dynamic> customerJson({
   bool marketingConsent = true,
   String marketingConsentChangedAt = '2026-09-20T12:00:00Z',
   String? memo = '오후 방문 선호',
+  Map<String, dynamic>? caution,
 }) => {
   'customer_id': customerId,
   'name': name,
@@ -118,7 +123,14 @@ Map<String, dynamic> customerJson({
   'marketing_consent': marketingConsent,
   'marketing_consent_changed_at': marketingConsentChangedAt,
   'memo': memo,
+  'caution': caution,
 };
+
+/// 살아 있는 주의 표시(③-B).
+Map<String, dynamic> cautionJson({
+  String reason = '노쇼 2번',
+  String until = '2027-11-14',
+}) => {'reason': reason, 'until': until};
 
 Map<String, dynamic> customerDetailJson({
   Map<String, dynamic>? customer,
@@ -150,8 +162,10 @@ Map<String, dynamic> petDetailJson({
   String ownerName = '김민지',
   String phoneMasked = '010-12··-5678',
   List<Map<String, dynamic>> siblings = const [],
+  Map<String, dynamic>? caution,
 }) => {
   'pet': pet ?? petJson(customerId: customerId),
+  'caution': caution,
   'owner': {
     'customer_id': customerId,
     'name': ownerName,

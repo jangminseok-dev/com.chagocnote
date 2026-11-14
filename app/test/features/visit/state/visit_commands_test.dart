@@ -1,4 +1,5 @@
 import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:chagocnote/core/plugs/care_marks_plug.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/customer/state/customer_list_controller.dart';
 import 'package:chagocnote/features/customer/state/customer_providers.dart';
@@ -7,6 +8,7 @@ import 'package:chagocnote/features/visit/api/visit_models.dart';
 import 'package:chagocnote/features/visit/state/feed_controller.dart';
 import 'package:chagocnote/features/visit/state/visit_commands.dart';
 import 'package:chagocnote/features/visit/state/visit_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_fixtures.dart';
@@ -269,4 +271,86 @@ void main() {
       );
     },
   );
+
+  test('[받았어요]는 동의를 적고 하루·상세와 고객 쪽을 다시 불러온다', () async {
+    final setup = await _watchingEverything((options, body) {
+      expect(
+        '${options.method} ${options.path}',
+        'PUT /v1/shops/3/pets/11/grooming-consent',
+      );
+      return FakeResponse(statusCode: 200, data: petDetailJson());
+    });
+    addTearDown(setup.container.dispose);
+
+    await setup.container.read(visitCommandsProvider).consentReceived(_shop, 11);
+    await _settle(setup);
+
+    expect(
+      setup.calls,
+      containsAll([
+        'PUT /v1/shops/3/pets/11/grooming-consent',
+        'GET /v1/shops/3/visits',
+        'GET /v1/shops/3/visits/101',
+        'GET /v1/shops/3/pets/11',
+        'GET /v1/shops/3/customers',
+      ]),
+    );
+  });
+
+  test('[받았어요]가 실패해도 하루·상세를 다시 불러온다', () async {
+    final setup = await _watchingEverything(
+      (options, body) => const FakeResponse(
+        statusCode: 404,
+        data: {'code': 'PET_NOT_FOUND', 'message': 'x'},
+      ),
+    );
+    addTearDown(setup.container.dispose);
+
+    await expectLater(
+      setup.container.read(visitCommandsProvider).consentReceived(_shop, 11),
+      throwsA(isA<ApiException>()),
+    );
+    await _settle(setup);
+
+    expect(
+      setup.calls,
+      containsAll(['GET /v1/shops/3/visits', 'GET /v1/shops/3/visits/101']),
+    );
+  });
+
+  test('careMarksChanged 는 방문 상세·하루 목록·미리 보기를 다시 읽게 한다 — app.dart 가 플러그에 꽂는다', () async {
+    var checks = 0;
+    final setup = await _watchingEverything((options, body) {
+      expect(
+        '${options.method} ${options.path}',
+        'GET /v1/shops/3/visit-checks',
+      );
+      checks++;
+      return FakeResponse(statusCode: 200, data: checksPreviewJson());
+    });
+    addTearDown(setup.container.dispose);
+    final key = (
+      shopId: _shop,
+      customerId: 7,
+      petIds: '11',
+      date: DateTime(2026, 10, 2),
+    );
+    setup.container.listen(visitChecksProvider(key), (_, _) {});
+    await setup.container.read(visitChecksProvider(key).future);
+    setup.adapter.requests.clear();
+
+    setup.container.read(Provider<CareMarksChanged>(careMarksChanged))();
+    await _settle(setup);
+    await setup.container.read(visitChecksProvider(key).future);
+
+    expect(
+      setup.calls,
+      unorderedEquals([
+        'GET /v1/shops/3/visits',
+        'GET /v1/shops/3/visits/101',
+        'GET /v1/shops/3/visit-checks',
+      ]),
+    );
+    expect(checks, 2);
+  });
 }

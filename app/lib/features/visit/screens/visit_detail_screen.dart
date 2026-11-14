@@ -27,6 +27,7 @@ import '../../customer/state/customer_input.dart';
 import '../api/record_models.dart';
 import '../api/report_models.dart';
 import '../api/visit_models.dart';
+import '../state/check_rules.dart';
 import '../state/photo_edits.dart';
 import '../state/record_rules.dart';
 import '../state/report_commands.dart';
@@ -34,6 +35,7 @@ import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
 import 'record_photos.dart';
 import 'visit_actions.dart';
+import 'visit_checks_block.dart';
 import 'visit_labels.dart';
 import 'visit_notifications_block.dart';
 
@@ -396,6 +398,10 @@ class _Body extends ConsumerWidget {
                 AppStrings.ownerLine(ownerLabel(visit.customer)),
                 style: AppTypography.caption,
               ),
+              if (detail.checks.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                _DetailChecks(detail: detail),
+              ],
               if (recordable || media.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.md),
                 RecordPhotoStrip(
@@ -489,6 +495,49 @@ class _Body extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 이 방문의 "확인할 것"(③-B). 미용 동의 줄의 [받았어요]는 그 아이의 동의를 오늘로 적는다 —
+/// 도는 동안 다시 누르지 못하고, 실패하면 스낵바로 알린다. 성공하면 상세를 다시 읽어 줄이 사라진다.
+class _DetailChecks extends ConsumerStatefulWidget {
+  const _DetailChecks({required this.detail});
+
+  final VisitDetail detail;
+
+  @override
+  ConsumerState<_DetailChecks> createState() => _DetailChecksState();
+}
+
+class _DetailChecksState extends ConsumerState<_DetailChecks> {
+  bool _busy = false;
+
+  Future<void> _received(int petId) async {
+    final shopId = ref.read(selectedShopIdProvider);
+    if (shopId == null || _busy) return;
+    setState(() => _busy = true);
+    String? failure;
+    try {
+      await ref.read(visitCommandsProvider).consentReceived(shopId, petId);
+    } catch (e) {
+      failure = messageFor(e);
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (failure != null) AppSnackBar.show(context, failure);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = widget.detail;
+    return VisitChecksBlock(
+      sections: detailSections(
+        detail.checks,
+        petId: detail.visit.pet?.petId,
+      ),
+      onConsent: _received,
+      consentBusy: _busy,
     );
   }
 }

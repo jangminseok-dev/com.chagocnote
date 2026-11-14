@@ -77,3 +77,10 @@ DateTime? parseBirthDate(String raw, DateTime today) {
   }
   return date;
 }
+
+/// 주의 사유를 한 줄로 다듬는다 — 줄바꿈·탭을 빈칸으로, 이어진 빈칸은 하나로, 앞뒤는 뗀다.
+/// 빈 글이면 null(저장하지 않는다). 서버는 제어 문자를 422 로 거절한다.
+String? cleanCautionReason(String text) {
+  final line = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return line.isEmpty ? null : line;
+}

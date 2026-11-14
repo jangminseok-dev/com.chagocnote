@@ -25,8 +25,11 @@ import '../../customer/state/customer_providers.dart';
 import '../../customer/state/search_debouncer.dart';
 import '../../../core/time/today_provider.dart';
 import '../api/visit_models.dart';
+import '../state/check_rules.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_prefill.dart';
+import '../state/visit_providers.dart';
+import 'visit_checks_block.dart';
 import 'visit_form.dart';
 import 'visit_labels.dart';
 
@@ -221,6 +224,47 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
       onWalkIn: (value) => _save(value, walkIn: true),
       busy: _busy,
       errorText: _errorText,
+      aboveSubmit: (petIds, date) => _PreviewChecks(
+        checksKey: (
+          shopId: shopId,
+          customerId: customerId,
+          petIds: petIdsKey(petIds),
+          date: date,
+        ),
+      ),
+    );
+  }
+}
+
+/// ②의 "확인할 것"(③-B) — 고른 보호자·아이·날짜로 서버에 묻는다. 읽는 중이거나 읽지 못하면
+/// 아무것도 그리지 않는다 — 예약을 막지 않는다. 동의를 받았다고 적는 것은 방문 상세에서 한다.
+class _PreviewChecks extends ConsumerWidget {
+  const _PreviewChecks({required this.checksKey});
+
+  final ChecksKey checksKey;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(visitChecksProvider(checksKey));
+    // 다시 읽기가 실패하면 앞서 읽은 값이 남아 있다 — 낡은 묶음을 보이지 않는다.
+    final preview = async.hasError ? null : async.value;
+    if (preview == null || preview.isEmpty) return const SizedBox.shrink();
+    final pets = ref
+        .watch(
+          customerDetailProvider((
+            shopId: checksKey.shopId,
+            customerId: checksKey.customerId,
+          )),
+        )
+        .value
+        ?.pets;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: VisitChecksBlock(
+        sections: checkSections(preview, {
+          for (final p in pets ?? const <Pet>[]) p.petId: p.name,
+        }),
+      ),
     );
   }
 }

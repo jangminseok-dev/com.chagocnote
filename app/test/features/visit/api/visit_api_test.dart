@@ -736,4 +736,52 @@ void main() {
       );
     });
   });
+
+  test('확인할 것 미리 보기는 보호자·아이들·날짜로 묻고 pet_ids 를 되풀이한다', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: checksPreviewJson(
+          customer: [
+            checkJson('no_show', detail: {'count': 2}),
+          ],
+          pets: {
+            11: [checkJson('first_visit', scope: 'pet')],
+            12: [],
+          },
+        ),
+      ),
+    );
+
+    final preview = await s.api.checks(
+      3,
+      customerId: 7,
+      petIds: [11, 12],
+      date: DateTime(2026, 11, 20),
+    );
+
+    final request = s.adapter.requests.single;
+    expect(request.path, '/v1/shops/3/visit-checks');
+    expect(request.uri.queryParametersAll, {
+      'customer_id': ['7'],
+      'pet_ids': ['11', '12'],
+      'date': ['2026-11-20'],
+    });
+    expect(preview.customer.single.count, 2);
+    expect(preview.pets.map((p) => p.petId), [11, 12]);
+  });
+
+  test('보호자만의 방문은 pet_ids 없이 묻는다', () async {
+    final s = _build(
+      (options, body) =>
+          FakeResponse(statusCode: 200, data: checksPreviewJson()),
+    );
+
+    await s.api.checks(3, customerId: 7, petIds: [], date: DateTime(2026, 11, 20));
+
+    expect(
+      s.adapter.requests.single.uri.queryParametersAll.containsKey('pet_ids'),
+      isFalse,
+    );
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/plugs/care_marks_plug.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/customer_api.dart';
 import '../api/customer_models.dart';
@@ -83,6 +84,38 @@ class CustomerCommands {
       _ref.invalidate(
         guardianLinkProvider((shopId: shopId, customerId: customerId)),
       );
+    }
+  }
+
+  /// 미용 동의서를 받았다고 적는다(③-B). [receivedOn]이 없으면 오늘이다.
+  Future<PetDetail> setGroomingConsent(
+    int shopId,
+    int petId, {
+    DateTime? receivedOn,
+  }) => _careWrite(
+    () => _api.setGroomingConsent(shopId, petId, receivedOn: receivedOn),
+  );
+
+  Future<PetDetail> clearGroomingConsent(int shopId, int petId) =>
+      _careWrite(() => _api.clearGroomingConsent(shopId, petId));
+
+  /// 주의 고객으로 표시한다. 사유는 다듬은 한 줄(`cleanCautionReason`)이다.
+  Future<CustomerDetail> setCaution(int shopId, int customerId, String reason) =>
+      _careWrite(() => _api.setCaution(shopId, customerId, reason));
+
+  Future<CustomerDetail> clearCaution(int shopId, int customerId) =>
+      _careWrite(() => _api.clearCaution(shopId, customerId));
+
+  /// 동의·주의 쓰기. **성공하든 실패하든** 목록·상세를 다시 읽고 방문 쪽에 알린다 — 다른
+  /// 기기가 먼저 바꿨을 수 있고, 방문의 "확인할 것"이 이 값으로 정해진다.
+  Future<T> _careWrite<T>(Future<T> Function() action) async {
+    try {
+      return await runShopScoped(_ref, action);
+    } finally {
+      _ref.invalidate(customerListControllerProvider);
+      _ref.invalidate(petDetailProvider);
+      _ref.invalidate(customerDetailProvider);
+      _ref.read(careMarksChangedPlugProvider)();
     }
   }
 

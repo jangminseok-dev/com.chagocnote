@@ -66,6 +66,9 @@ class VisitTestBackend {
         FakeResponse(statusCode: 201, data: savedJson([visitJson()])),
     'POST /v1/shops/3/visit-drafts': (o, b) =>
         FakeResponse(statusCode: 200, data: visitDraftJson()),
+    // 예약 등록은 확인할 것을 묻는다(③-B) — 따로 정하지 않은 테스트에는 아무것도 없다.
+    'GET /v1/shops/3/visit-checks': (o, b) =>
+        FakeResponse(statusCode: 200, data: checksPreviewJson()),
   };
 
   static Map<String, dynamic> _family() => familyJson(

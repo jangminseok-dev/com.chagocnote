@@ -94,4 +94,11 @@ void main() {
       expect(parseBirthDate(bad, today), isNull, reason: bad);
     }
   });
+
+  test('주의 사유는 한 줄로 다듬고 빈 글이면 null 이다', () {
+    expect(cleanCautionReason('  노쇼 2번  '), '노쇼 2번');
+    expect(cleanCautionReason('노쇼\n두 번\t있음\r\n끝'), '노쇼 두 번 있음 끝');
+    expect(cleanCautionReason(''), isNull);
+    expect(cleanCautionReason('  \n\t '), isNull);
+  });
 }

@@ -1,4 +1,5 @@
 import '../../../core/proxy/api_client.dart';
+import 'check_models.dart';
 import 'feed_models.dart';
 import 'record_models.dart';
 import 'visit_models.dart';
@@ -67,6 +68,20 @@ class VisitApi {
 
   Future<VisitDetail> detail(int shopId, int visitId) async =>
       VisitDetail.fromJson(await _get('/v1/shops/$shopId/visits/$visitId'));
+
+  /// 예약을 잡기 전의 확인할 것(③-B). [petIds]가 비면 보호자 항목만 온다.
+  Future<VisitChecksPreview> checks(
+    int shopId, {
+    required int customerId,
+    required List<int> petIds,
+    required DateTime date,
+  }) async => VisitChecksPreview.fromJson(
+    await _get('/v1/shops/$shopId/visit-checks', {
+      'customer_id': customerId,
+      if (petIds.isNotEmpty) 'pet_ids': petIds,
+      'date': isoDay(date),
+    }),
+  );
 
   /// 기록 전체 교체(설계 8절). 버전이 다르면 409 `RECORD_VERSION_CONFLICT`.
   Future<VisitRecord> putRecord(

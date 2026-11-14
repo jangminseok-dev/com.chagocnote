@@ -382,6 +382,7 @@ class _GroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final first = group.first;
     final marks = [
+      if (group.checkCount > 0) AppStrings.checkCount(group.checkCount),
       if (group.overlapping) AppStrings.markOverlap,
       if (group.unresolved) AppStrings.markUnresolved,
       if (group.reportSent) AppStrings.reportSentMark,
@@ -645,6 +646,8 @@ class _Block extends StatelessWidget {
                       menusLabel(group.first.menus),
                       ownerLabel(group.first.customer),
                       statusLabel(group.uniformStatus ?? group.first.status),
+                      if (group.checkCount > 0)
+                        AppStrings.checkCount(group.checkCount),
                       if (group.overlapping) AppStrings.markOverlap,
                       if (group.reportSent) AppStrings.reportSentMark,
                     ].join(' · '),

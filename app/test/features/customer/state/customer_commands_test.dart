@@ -1,5 +1,6 @@
 import 'package:chagocnote/core/error/error_messages.dart';
 import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:chagocnote/core/plugs/care_marks_plug.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/customer/api/customer_models.dart';
 import 'package:chagocnote/features/customer/state/customer_commands.dart';
@@ -17,8 +18,16 @@ const _petKey = (shopId: _shop, petId: 11);
 const _customerKey = (shopId: _shop, customerId: 7);
 
 /// 목록·반려동물 상세·고객 상세를 모두 보고 있는 상태를 만든다.
-Future<CustomerTestSetup> _watchingEverything(FakeHandler writes) async {
-  final setup = CustomerTestSetup((options, body) {
+Future<CustomerTestSetup> _watchingEverything(
+  FakeHandler writes, {
+  void Function()? onCareMarks,
+}) async {
+  final setup = CustomerTestSetup(
+    overrides: [
+      if (onCareMarks != null)
+        careMarksChangedPlugProvider.overrideWithValue(onCareMarks),
+    ],
+    (options, body) {
     final key = '${options.method} ${options.path}';
     switch (key) {
       case 'GET /v1/shops/3/customers':
@@ -306,5 +315,75 @@ void main() {
         '이미 끊긴 연결이에요.',
       );
     });
+  });
+
+  group('미용 동의·주의 표시(③-B)', () {
+    final writes = <String, Future<Object?> Function(CustomerCommands)>{
+      'PUT /v1/shops/3/pets/11/grooming-consent': (c) =>
+          c.setGroomingConsent(_shop, 11),
+      'DELETE /v1/shops/3/pets/11/grooming-consent': (c) =>
+          c.clearGroomingConsent(_shop, 11),
+      'PUT /v1/shops/3/customers/7/caution': (c) =>
+          c.setCaution(_shop, 7, '노쇼 2번'),
+      'DELETE /v1/shops/3/customers/7/caution': (c) => c.clearCaution(_shop, 7),
+    };
+
+    for (final entry in writes.entries) {
+      test('${entry.key} 뒤에 목록·상세를 다시 불러오고 방문 쪽에 알린다', () async {
+        var told = 0;
+        final setup = await _watchingEverything((options, body) {
+          expect('${options.method} ${options.path}', entry.key);
+          return FakeResponse(
+            statusCode: 200,
+            data: entry.key.contains('/pets/')
+                ? petDetailJson()
+                : customerDetailJson(),
+          );
+        }, onCareMarks: () => told++);
+        addTearDown(setup.container.dispose);
+
+        await entry.value(setup.container.read(customerCommandsProvider));
+        await _settle(setup);
+
+        expect(
+          setup.calls,
+          unorderedEquals([
+            entry.key,
+            'GET /v1/shops/3/customers',
+            'GET /v1/shops/3/pets/11',
+            'GET /v1/shops/3/customers/7',
+          ]),
+        );
+        expect(told, 1);
+      });
+
+      test('${entry.key} 가 실패해도 다시 불러오고 알린다', () async {
+        var told = 0;
+        final setup = await _watchingEverything(
+          (options, body) => const FakeResponse(
+            statusCode: 409,
+            data: {'code': 'CONFLICT', 'message': 'x'},
+          ),
+          onCareMarks: () => told++,
+        );
+        addTearDown(setup.container.dispose);
+
+        await expectLater(
+          entry.value(setup.container.read(customerCommandsProvider)),
+          throwsA(isA<ApiException>()),
+        );
+        await _settle(setup);
+
+        expect(
+          setup.calls,
+          containsAll([
+            'GET /v1/shops/3/customers',
+            'GET /v1/shops/3/pets/11',
+            'GET /v1/shops/3/customers/7',
+          ]),
+        );
+        expect(told, 1);
+      });
+    }
   });
 }
