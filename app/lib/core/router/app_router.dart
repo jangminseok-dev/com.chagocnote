@@ -17,6 +17,7 @@ import '../../features/customer/screens/register_customer_screen.dart';
 import '../../features/home/screens/home_shell.dart';
 import '../../features/sales/screens/due_pets_screen.dart';
 import '../../features/sales/screens/sales_visits_screen.dart';
+import '../../features/search/screens/search_screen.dart';
 import '../../features/shop/screens/members_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
@@ -137,8 +138,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/pets/:petId',
-        builder: (context, state) =>
-            PetDetailScreen(petId: int.parse(state.pathParameters['petId']!)),
+        // tab=owner 면 [보호자] 탭으로 연다(기록 찾기의 보호자 메모에서 왔다).
+        builder: (context, state) => PetDetailScreen(
+          petId: int.parse(state.pathParameters['petId']!),
+          initialTab: state.uri.queryParameters['tab'] == 'owner'
+              ? PetDetailScreen.ownerTab
+              : 0,
+        ),
       ),
       GoRoute(
         path: '/pets/:petId/edit',
@@ -185,6 +191,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/sales/due-pets',
         builder: (context, state) => const DuePetsScreen(),
+      ),
+      // 기록 찾기(⑨). pet_id 를 주면 그 아이 안에서만 찾는다 — pet 은 화면 위에 보일 이름이다.
+      GoRoute(
+        path: '/search',
+        builder: (context, state) => SearchScreen(
+          petId: int.tryParse(state.uri.queryParameters['pet_id'] ?? ''),
+          petName: state.uri.queryParameters['pet'],
+        ),
       ),
       GoRoute(
         path: '/visits/draft',

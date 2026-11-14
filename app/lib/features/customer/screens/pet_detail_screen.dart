@@ -10,6 +10,7 @@ import '../../../core/router/screen_keys.dart';
 import '../../../core/time/shop_time.dart';
 import '../../../core/time/time_labels.dart';
 import '../../../design/app_theme.dart';
+import '../../../design/tokens/app_colors.dart';
 import '../../../design/tokens/app_spacing.dart';
 import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
@@ -36,16 +37,22 @@ import 'guardian_link_row.dart';
 /// 기록](기록은 visit 가 그린다 — `petRecordsPlugProvider`),
 /// 같은 보호자의 다른 아이, 수정·무지개다리·삭제(설계 8.1).
 class PetDetailScreen extends ConsumerStatefulWidget {
-  const PetDetailScreen({super.key, required this.petId});
+  const PetDetailScreen({super.key, required this.petId, this.initialTab = 0});
 
   final int petId;
+
+  /// 처음 보일 탭. 기본은 [기본] 이다.
+  final int initialTab;
+
+  /// [보호자] 탭의 자리.
+  static const ownerTab = 2;
 
   @override
   ConsumerState<PetDetailScreen> createState() => _PetDetailScreenState();
 }
 
 class _PetDetailScreenState extends ConsumerState<PetDetailScreen> {
-  int _tab = 0;
+  late int _tab = widget.initialTab;
   bool _busy = false;
   String? _errorText;
 
@@ -307,7 +314,34 @@ class _DetailBody extends ConsumerWidget {
           0 => _BasicTab(pet: pet),
           1 => _ConditionsTab(pet: pet),
           2 => _OwnerTab(customerId: detail.owner.customerId),
-          _ => ref.watch(petRecordsPlugProvider)(pet.petId),
+          _ => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 이 아이의 기록에서 찾기(⑨) — 검색 화면은 다른 기능이라 경로로만 간다.
+              Pressable(
+                semanticLabel: AppStrings.petRecordsSearch,
+                onTap: () => context.push(
+                  Uri(
+                    path: '/search',
+                    queryParameters: {'pet_id': '${pet.petId}', 'pet': pet.name},
+                  ).toString(),
+                ),
+                child: const ExcludeSemantics(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search, size: 18, color: AppColors.secondary),
+                        SizedBox(width: AppSpacing.sm),
+                        Text(AppStrings.petRecordsSearch, style: AppTypography.caption),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              ref.watch(petRecordsPlugProvider)(pet.petId),
+            ],
+          ),
         },
         if (detail.siblings.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.sm),
