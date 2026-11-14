@@ -47,6 +47,7 @@ class VisitForm extends ConsumerStatefulWidget {
     this.singlePet = false,
     this.scheduleLocked = false,
     this.excludeVisitIds = const [],
+    this.aboveSubmit,
   });
 
   final int shopId;
@@ -71,6 +72,9 @@ class VisitForm extends ConsumerStatefulWidget {
 
   /// 옮길 방문. 시간 칸이 자기 자신과 겹치지 않게 뺀다.
   final List<int> excludeVisitIds;
+
+  /// 저장 버튼 위에 둘 것(예약 등록의 "확인할 것"). 아이나 '보호자만'을 고른 뒤에만 부른다.
+  final Widget Function(Set<int> petIds, DateTime date)? aboveSubmit;
 
   @override
   ConsumerState<VisitForm> createState() => _VisitFormState();
@@ -339,6 +343,8 @@ class _VisitFormState extends ConsumerState<VisitForm> {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
+        if (widget.aboveSubmit != null && petsChosen)
+          widget.aboveSubmit!({..._draft.petIds}, _draft.date),
         if (widget.errorText != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
