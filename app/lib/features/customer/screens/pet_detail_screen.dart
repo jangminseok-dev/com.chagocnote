@@ -27,7 +27,9 @@ import '../api/customer_models.dart';
 import '../state/customer_commands.dart';
 import '../state/customer_input.dart';
 import '../state/customer_providers.dart';
+import 'caution_row.dart';
 import 'customer_labels.dart';
+import 'grooming_consent_row.dart';
 import 'guardian_link_row.dart';
 
 /// 반려동물 한 마리 화면 — 큰 프로필 사진(최근 완료 기록의 대표 사진), 이름·요약, 탭 [기본 / 질병 / 보호자 /
@@ -367,6 +369,8 @@ class _BasicTab extends StatelessWidget {
           label: AppStrings.petMemoLabel,
           value: pet.memo ?? AppStrings.none,
         ),
+        // 무지개다리를 건넌 아이는 미용을 받지 않는다 — 동의 줄이 없다.
+        if (!pet.passedAway) GroomingConsentRow(pet: pet),
       ],
     );
   }
@@ -438,6 +442,11 @@ class _OwnerTab extends ConsumerWidget {
                 _InfoCard(
                   label: AppStrings.noShowCountLabel,
                   value: AppStrings.timesCount(detail.noShowCount),
+                ),
+                CautionRow(
+                  customerId: customerId,
+                  caution: c.caution,
+                  noShowCount: detail.noShowCount,
                 ),
                 GuardianLinkRow(customerId: customerId),
                 _UpcomingVisits(visits: detail.upcomingVisits),

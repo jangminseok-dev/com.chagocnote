@@ -337,6 +337,27 @@ class AppStrings {
       '$label — $note';
   static const consentReceived = '받았어요';
   static String fullDate(DateTime d) => '${d.year}년 ${d.month}월 ${d.day}일';
+
+  // 미용 동의서·주의 고객(③-B) — 반려동물 상세.
+  static const groomingConsentLabel = '미용 동의서';
+  static const groomingConsentNone = '받지 않았어요';
+  static String groomingConsentOn(DateTime d) => '${fullDate(d)}에 받았어요';
+  static const groomingConsentMore = '미용 동의서 더 보기';
+  static const groomingConsentAgain = '오늘 다시 받았어요';
+  static const groomingConsentClear = '받은 기록 지우기';
+  static const cautionLabel = '주의 고객';
+  static const cautionMark = '주의';
+  static const cautionNone = '표시하지 않았어요';
+  static String cautionSuggest(int noShows) => '노쇼가 $noShows번 있어요';
+  static String cautionNoShowReason(int noShows) => '노쇼 $noShows번';
+  static String cautionUntil(DateTime d) => '${fullDate(d)}까지 보여요';
+  static const cautionSet = '표시하기';
+  static const cautionMore = '주의 고객 더 보기';
+  static const cautionEdit = '사유 고치기';
+  static const cautionClear = '주의 표시 지우기';
+  static const cautionSheetTitle = '주의 고객으로 표시해요';
+  static const cautionReasonHint = '사유를 한 줄로 적어 주세요';
+  static const cautionSheetNote = '우리 매장에서만 보여요. 1년 뒤에 저절로 지워져요.';
   static const noShowCountLabel = '노쇼 횟수';
   static String timesCount(int count) => '$count회';
 

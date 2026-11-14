@@ -36,8 +36,23 @@ class FamilyCardView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${card.name} · ${maskedTail(card.phoneMasked)}',
+          Text.rich(
+            TextSpan(
+              text: '${card.name} · ${maskedTail(card.phoneMasked)}',
+              children: [
+                // 주의 표시가 살아 있는 가족(③-B) — 색 딱지 없이 잉크색 두 글자. 사유는 상세에서 본다.
+                if (card.caution) ...[
+                  const TextSpan(text: ' · '),
+                  TextSpan(
+                    text: AppStrings.cautionMark,
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.ink,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
             style: AppTypography.caption,
           ),
           const SizedBox(height: AppSpacing.xs),
