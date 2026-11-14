@@ -176,6 +176,65 @@ void main() {
     expect(find.byKey(ScreenKeys.search), findsOneWidget);
   });
 
+  testWidgets('줄은 스크린리더에 이름·종류와 날짜·걸린 문장을 한 번씩만 읽어 준다', (tester) async {
+    final handle = tester.ensureSemantics();
+    final w = _World((_) => _ok([searchItemJson(), searchOwnerItemJson(openPetId: null)]));
+    await w.open(tester);
+    await w.type(tester, '귀 청소');
+
+    expect(tester.getSemantics(_row(0)).label, '콩이, 케어 노트 · 11월 3일, 귀 청소할 때 예민하게 반응했어요');
+    // 갈 곳이 없는 줄도 같은 모양으로 읽힌다.
+    expect(tester.getSemantics(_row(1)).label, '김민지, 보호자 메모, 미용이 끝나면 전화를 달라고 하심');
+    handle.dispose();
+  });
+
+  testWidgets('칸을 비우면 곧바로 처음 화면이고, 진행 중이던 결과가 뒤늦게 나타나지 않는다', (tester) async {
+    final gate = Completer<FakeResponse>();
+    final w = _World(
+      (o) => o.queryParameters['q'] == '발톱' ? _ok([searchItemJson(snippet: '발톱 결과')]) : gate.future,
+    );
+    await w.open(tester);
+    await w.type(tester, '발톱');
+    await tester.enterText(find.byKey(SearchScreen.fieldKey), '발톱 짧게');
+    await tester.pump(_pause);
+    await tester.pump(const Duration(milliseconds: 1)); // 느린 요청이 나갔다
+
+    await tester.enterText(find.byKey(SearchScreen.fieldKey), '');
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.text(AppStrings.searchIntro), findsOneWidget); // 0.5초를 기다리지 않는다
+    expect(_row(0), findsNothing);
+
+    gate.complete(_ok([searchItemJson(snippet: '늦게 온 결과')]));
+    await settle(tester);
+    expect(find.text('늦게 온 결과'), findsNothing);
+    expect(find.text(AppStrings.searchIntro), findsOneWidget);
+  });
+
+  testWidgets('비운 뒤 곧바로 같은 검색어를 다시 쳐도 다시 묻는다', (tester) async {
+    final w = _World((_) => _ok([searchItemJson()]));
+    await w.open(tester);
+    await w.type(tester, '발톱');
+    await tester.enterText(find.byKey(SearchScreen.fieldKey), '');
+    await tester.pump(const Duration(milliseconds: 100));
+    await w.type(tester, '발톱');
+
+    expect(w.queries, hasLength(2));
+    expect(_row(0), findsOneWidget);
+  });
+
+  testWidgets('상세에 다녀온 뒤 다시 쳐도 묻는다', (tester) async {
+    final w = _World((_) => _ok([searchItemJson(visitId: 7)]));
+    await w.open(tester);
+    await w.type(tester, '귀 청소');
+    await tester.tap(_row(0));
+    await settle(tester);
+    w.setup.container.read(routerProvider).pop();
+    await settle(tester);
+
+    await w.type(tester, '발톱 짧게');
+    expect(w.queries.map((q) => q['q']), ['귀 청소', '발톱 짧게']);
+  });
+
   testWidgets('찾은 것이 없으면 그렇게 알린다', (tester) async {
     final w = _World();
     await w.open(tester);

@@ -87,4 +87,19 @@ void main() {
 
     expect(sent, isEmpty);
   });
+
+  testWidgets('reset 뒤에는 마지막으로 보낸 검색어와 같아도 다시 보낸다', (tester) async {
+    final sent = <String>[];
+    final debouncer = SearchDebouncer(onSearch: sent.add);
+    addTearDown(debouncer.dispose);
+
+    debouncer.onChanged(_typed('발톱'));
+    await tester.pump(const Duration(milliseconds: 300));
+    debouncer.onChanged(_typed('귀'));
+    debouncer.reset(); // 걸려 있던 것도 버린다
+    await tester.pump(const Duration(milliseconds: 300));
+    debouncer.onChanged(_typed('발톱'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(sent, ['발톱', '발톱']);
+  });
 }

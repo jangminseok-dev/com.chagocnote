@@ -804,5 +804,5 @@ class AppStrings {
   static const searchKindConditionNote = '지병';
   static const searchKindCustomerMemo = '보호자 메모';
   static String searchMeta(String kind, DateTime date) => '$kind · ${date.month}월 ${date.day}일';
-  static String searchRowLabel(String title, String meta) => '$title, $meta';
+  static String searchRowLabel(String title, String meta, String snippet) => '$title, $meta, $snippet';
 }

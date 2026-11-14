@@ -33,5 +33,12 @@ class SearchDebouncer {
     });
   }
 
+  /// 걸려 있던 것을 버리고 "마지막으로 보낸 검색어"를 잊는다 — 화면이 결과를 스스로 비웠을 때 부른다.
+  /// 그 뒤에 같은 검색어를 다시 쳐도 보낸다.
+  void reset() {
+    _timer?.cancel();
+    _sent = '';
+  }
+
   void dispose() => _timer?.cancel();
 }

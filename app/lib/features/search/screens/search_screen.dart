@@ -52,10 +52,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _debouncer = SearchDebouncer(
       delay: const Duration(milliseconds: 500),
       onSearch: (query) {
-        if (mounted) ref.read(searchControllerProvider(_scope).notifier).search(query);
+        if (!mounted) return;
+        ref.read(searchControllerProvider(_scope).notifier).search(query);
       },
     );
-    _text.addListener(() => _debouncer.onChanged(_text.value));
+    _text.addListener(_onTextChanged);
+  }
+
+  /// 묻는 것은 0.5초를 쉰 뒤지만, 칸을 비우면(두 자 미만) 곧바로 처음 화면으로 돌아간다 — 빈 칸 아래에 옛 결과가
+  /// 남거나 진행 중이던 결과가 뒤늦게 나타나지 않게.
+  void _onTextChanged() {
+    if (cleanSearchText(_text.text) == null) {
+      _debouncer.reset();
+      ref.read(searchControllerProvider(_scope).notifier).search('');
+      return;
+    }
+    _debouncer.onChanged(_text.value);
   }
 
   @override
@@ -67,7 +79,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scope = (shopId: ref.watch(selectedShopIdProvider) ?? 0, petId: widget.petId);
+    final scope = (
+      shopId: ref.watch(selectedShopIdProvider) ?? 0,
+      petId: widget.petId,
+    );
     final state = ref.watch(searchControllerProvider(scope));
     final display = state.display;
     return Scaffold(
@@ -89,7 +104,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     const AppBackButton(),
                     const SizedBox(width: AppSpacing.sm),
                     const Expanded(
-                      child: Text(AppStrings.searchTitle, style: AppTypography.titleKo),
+                      child: Text(
+                        AppStrings.searchTitle,
+                        style: AppTypography.titleKo,
+                      ),
                     ),
                   ],
                 ),
@@ -105,7 +123,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               if (widget.petId != null)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                    0,
+                  ),
                   child: Text(
                     widget.petName == null || widget.petName!.isEmpty
                         ? AppStrings.searchInThisPet
@@ -118,8 +141,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? const _Intro()
                     : AsyncBody<SearchResult>(
                         value: display,
-                        onRetry: () =>
-                            ref.read(searchControllerProvider(scope).notifier).retry(),
+                        onRetry: () => ref
+                            .read(searchControllerProvider(scope).notifier)
+                            .retry(),
                         builder: (result) => _Results(result: result),
                       ),
               ),
@@ -138,7 +162,12 @@ class _Intro extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.xl,
+        AppSpacing.lg,
+        AppSpacing.xl,
+      ),
       children: [
         const Text(AppStrings.searchIntro, style: AppTypography.body),
         const SizedBox(height: AppSpacing.sm),
@@ -160,12 +189,21 @@ class _Results extends ConsumerWidget {
     final items = result.items;
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.xl,
+      ),
       children: [
         if (items.isEmpty)
           const Padding(
             padding: EdgeInsets.only(top: AppSpacing.xl),
-            child: Text(AppStrings.searchEmpty, style: AppTypography.body, textAlign: TextAlign.center),
+            child: Text(
+              AppStrings.searchEmpty,
+              style: AppTypography.body,
+              textAlign: TextAlign.center,
+            ),
           )
         else
           Text(AppStrings.searchNearest, style: AppTypography.caption),
@@ -197,42 +235,56 @@ class _SearchRow extends StatelessWidget {
     final title = titleOf(item);
     final meta = metaLine(item);
     return Pressable(
-      semanticLabel: AppStrings.searchRowLabel(title, meta),
+      semanticLabel: AppStrings.searchRowLabel(title, meta, item.snippet),
       // 돌아와도 다시 묻지 않는다 — 검색어와 결과를 그대로 둔다.
       onTap: destination == null ? null : () => context.push(destination),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 아이가 없는 줄(보호자 메모·보호자만의 방문)은 사진 칸 없이 자리만 맞춘다.
-            if (item.petId != null)
-              AppPhotoTile(image: photo, size: _photoSize)
-            else
-              const SizedBox(width: _photoSize, height: _photoSize),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: AppTypography.body, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(meta, style: AppTypography.caption),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    item.snippet,
-                    style: AppTypography.body.copyWith(color: AppColors.secondary),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+      // 이름표가 줄의 글을 다 읽는다 — 안의 글자가 한 번 더 읽히지 않게 뺀다.
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 아이가 없는 줄(보호자 메모·보호자만의 방문)은 사진 칸 없이 자리만 맞춘다.
+              if (item.petId != null)
+                AppPhotoTile(image: photo, size: _photoSize)
+              else
+                const SizedBox(width: _photoSize, height: _photoSize),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTypography.body,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(meta, style: AppTypography.caption),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      item.snippet,
+                      style: AppTypography.body.copyWith(
+                        color: AppColors.secondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (destination != null)
+                const Padding(
+                  padding: EdgeInsets.only(top: AppSpacing.xs),
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 18,
+                    color: AppColors.secondary,
                   ),
-                ],
-              ),
-            ),
-            if (destination != null)
-              const Padding(
-                padding: EdgeInsets.only(top: AppSpacing.xs),
-                child: Icon(Icons.chevron_right, size: 18, color: AppColors.secondary),
-              ),
-          ],
+                ),
+            ],
+          ),
         ),
       ),
     );
