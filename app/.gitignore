@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 골든이 어긋났을 때 flutter test 가 남기는 비교 그림
+**/failures/

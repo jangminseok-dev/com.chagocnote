@@ -9,6 +9,7 @@ import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/visit/api/check_models.dart';
 import 'package:chagocnote/features/visit/screens/visit_checks_block.dart';
 import 'package:chagocnote/features/visit/state/check_rules.dart';
+import 'package:chagocnote/features/visit/state/visit_providers.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -344,6 +345,34 @@ void main() {
       await tester.tap(_saveButton());
       await settle(tester);
       expect(result.closed, isTrue);
+    });
+
+    testWidgets('보이던 묶음을 다시 읽다가 실패하면 낡은 묶음을 숨긴다', (tester) async {
+      var fail = false;
+      final backend = VisitTestBackend({
+        _checksPath: (o, b) => fail
+            ? const FakeResponse(
+                statusCode: 500,
+                data: {'code': 'INTERNAL', 'message': 'x'},
+              )
+            : FakeResponse(
+                statusCode: 200,
+                data: checksPreviewJson(customer: [_noShow]),
+              ),
+      });
+      final setup = CustomerTestSetup(backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _openRegister(tester, setup);
+      expect(find.text('지난 1년 동안 노쇼 2번'), findsOneWidget);
+
+      fail = true;
+      setup.container.invalidate(visitChecksProvider);
+      await settle(tester);
+
+      expect(_checkQueries(setup), hasLength(2));
+      expect(find.text(AppStrings.checksTitle), findsNothing);
+      // 저장 버튼 자리는 그대로다(아직 시각을 고르지 않았다).
+      expect(find.text(AppStrings.pickTimeFirst), findsOneWidget);
     });
 
     testWidgets('읽는 중에도 저장할 수 있다', (tester) async {

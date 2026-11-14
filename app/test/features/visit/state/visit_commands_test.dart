@@ -1,4 +1,5 @@
 import 'package:chagocnote/core/error/api_exception.dart';
+import 'package:chagocnote/core/plugs/care_marks_plug.dart';
 import 'package:chagocnote/features/auth/state/session_controller.dart';
 import 'package:chagocnote/features/customer/state/customer_list_controller.dart';
 import 'package:chagocnote/features/customer/state/customer_providers.dart';
@@ -7,6 +8,7 @@ import 'package:chagocnote/features/visit/api/visit_models.dart';
 import 'package:chagocnote/features/visit/state/feed_controller.dart';
 import 'package:chagocnote/features/visit/state/visit_commands.dart';
 import 'package:chagocnote/features/visit/state/visit_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/customer_fixtures.dart';
@@ -314,5 +316,41 @@ void main() {
       setup.calls,
       containsAll(['GET /v1/shops/3/visits', 'GET /v1/shops/3/visits/101']),
     );
+  });
+
+  test('careMarksChanged 는 방문 상세·하루 목록·미리 보기를 다시 읽게 한다 — app.dart 가 플러그에 꽂는다', () async {
+    var checks = 0;
+    final setup = await _watchingEverything((options, body) {
+      expect(
+        '${options.method} ${options.path}',
+        'GET /v1/shops/3/visit-checks',
+      );
+      checks++;
+      return FakeResponse(statusCode: 200, data: checksPreviewJson());
+    });
+    addTearDown(setup.container.dispose);
+    final key = (
+      shopId: _shop,
+      customerId: 7,
+      petIds: '11',
+      date: DateTime(2026, 10, 2),
+    );
+    setup.container.listen(visitChecksProvider(key), (_, _) {});
+    await setup.container.read(visitChecksProvider(key).future);
+    setup.adapter.requests.clear();
+
+    setup.container.read(Provider<CareMarksChanged>(careMarksChanged))();
+    await _settle(setup);
+    await setup.container.read(visitChecksProvider(key).future);
+
+    expect(
+      setup.calls,
+      unorderedEquals([
+        'GET /v1/shops/3/visits',
+        'GET /v1/shops/3/visits/101',
+        'GET /v1/shops/3/visit-checks',
+      ]),
+    );
+    expect(checks, 2);
   });
 }
