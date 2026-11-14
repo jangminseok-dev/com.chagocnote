@@ -62,7 +62,7 @@
 | `auth/adapter/outbound/factory/` | Factory | 설정에 따라 제공자 구현을 만들어 담아 두고 이름으로 골라 준다 |
 | `visit/domain/state/` | State | 방문 상태 전이(예약됨·미용 중·완료·취소·노쇼) |
 | `core/observer/`, `notification/adapter/inbound/observer/` | Observer | 도메인 이벤트 발행과 구독 — `core/observer/in_process_event_bus.py`가 허브 포트 `DomainEventPort`의 구현(같은 프로세스·같은 세션의 동기 버스, 구독자 목록은 `main.py`가 기동 때 채운다), notification 의 `visit_event_subscriber.py`가 구독자 |
-| `visit/domain/chain/` (예정) | Chain of Responsibility | 예약 체크리스트 규칙 |
+| `visit/domain/chain/` (쓰지 않음 — 확인할 것의 판정은 항목마다 독립인 함수들이라 `domain/services/visit_checks.py` 에 뒀다, 결정 기록 012) | Chain of Responsibility | 예약 체크리스트 규칙 |
 | `search/adapter/outbound/decorator/` (예정) | Decorator | LLM 포트를 감싼 개인정보 마스킹 |
 | `visit/app/template/` (예정) | Template Method | 말로 기록하기 절차의 뼈대 |
 | `search/app/facade/` (예정) | Facade | RAG 단일 입구 |

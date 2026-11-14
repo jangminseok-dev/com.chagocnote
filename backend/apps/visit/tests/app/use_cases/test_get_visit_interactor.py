@@ -8,6 +8,7 @@ from visit.domain.errors import VisitNotFoundError
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.domain.services.report_token import read_token
 from visit.tests.helpers.fakes import (
+    FakeChecks,
     FakeDirectory,
     FakeLibrary,
     FakeMenus,
@@ -24,7 +25,7 @@ NO_LINK = ("none", None, None, None, None)
 def _interactor(visits, directory, records, library, reports=None):
     return GetVisitInteractor(
         visits, visits, visits, FakeMenus(), directory, records, library, reports or FakeReportRepository(visits),
-        now=lambda: NOW, link_key=KEY, web_base_url="https://r.example")
+        now=lambda: NOW, link_key=KEY, web_base_url="https://r.example", checks=FakeChecks())
 
 
 def _setup():

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from customer.adapter.inbound.api.schemas.get_customer_schema import PetSchema, PetWithPhotoSchema
+from customer.adapter.inbound.api.schemas.get_customer_schema import (
+    CautionSchema,
+    PetSchema,
+    PetWithPhotoSchema,
+)
 from customer.app.dtos.customer_view_dto import PetDetailView, PetOverviewView
 
 
@@ -23,6 +27,7 @@ class PetDetailSchema(BaseModel):
     pet: PetSchema
     owner: OwnerSummarySchema
     siblings: list[SiblingSchema]
+    caution: CautionSchema | None   # 보호자의 살아 있는 주의 표시(③-B)
 
     @classmethod
     def of(cls, view: PetDetailView) -> PetDetailSchema:
@@ -37,6 +42,10 @@ class PetDetailSchema(BaseModel):
                               passed_away=s.passed_away)
                 for s in view.siblings
             ],
+            caution=(
+                None if view.caution is None
+                else CautionSchema(reason=view.caution.reason, until=view.caution.until)
+            ),
         )
 
 
@@ -49,4 +58,4 @@ class PetOverviewSchema(PetDetailSchema):
     def of_overview(cls, view: PetOverviewView) -> PetOverviewSchema:
         detail = PetDetailSchema.of(view.detail)
         return cls(pet=PetWithPhotoSchema.with_photo(view.detail.pet, view.photo), owner=detail.owner,
-                   siblings=detail.siblings)
+                   siblings=detail.siblings, caution=detail.caution)

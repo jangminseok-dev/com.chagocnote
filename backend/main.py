@@ -23,6 +23,10 @@ from auth.dependencies.guard_active_user_provider import get_guard_active_user_u
 from auth.dependencies.hub_ports import get_membership_directory
 from customer.adapter.inbound.api.error_map import CUSTOMER_ERROR_STATUS
 from customer.adapter.inbound.api.v1.add_pet_router import add_pet_router
+from customer.adapter.inbound.api.v1.clear_customer_caution_router import clear_customer_caution_router
+from customer.adapter.inbound.api.v1.clear_pet_grooming_consent_router import (
+    clear_pet_grooming_consent_router,
+)
 from customer.adapter.inbound.api.v1.customer_myself_router import customer_myself_router
 from customer.adapter.inbound.api.v1.delete_customer_router import delete_customer_router
 from customer.adapter.inbound.api.v1.delete_pet_router import delete_pet_router
@@ -35,6 +39,10 @@ from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
 from customer.adapter.inbound.api.v1.lookup_customer_router import lookup_customer_router
 from customer.adapter.inbound.api.v1.mark_pet_passed_away_router import mark_pet_passed_away_router
 from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
+from customer.adapter.inbound.api.v1.set_customer_caution_router import set_customer_caution_router
+from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
+    set_pet_grooming_consent_router,
+)
 from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
     unmark_pet_passed_away_router,
 )
@@ -114,6 +122,7 @@ from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_s
 from visit.adapter.inbound.api.v1.get_sales_goal_router import get_sales_goal_router
 from visit.adapter.inbound.api.v1.get_sales_summary_router import get_sales_summary_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
+from visit.adapter.inbound.api.v1.get_visit_checks_router import get_visit_checks_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
 from visit.adapter.inbound.api.v1.get_visit_report_router import get_visit_report_router
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
@@ -195,6 +204,10 @@ app.include_router(register_customer_router)
 app.include_router(update_customer_router)
 app.include_router(delete_customer_router)
 app.include_router(list_customers_router)
+app.include_router(set_customer_caution_router)
+app.include_router(clear_customer_caution_router)
+app.include_router(set_pet_grooming_consent_router)
+app.include_router(clear_pet_grooming_consent_router)
 app.include_router(add_pet_router)
 app.include_router(update_pet_router)
 app.include_router(mark_pet_passed_away_router)
@@ -224,6 +237,7 @@ app.include_router(get_visit_calendar_router)
 app.include_router(list_visit_feed_router)
 app.include_router(list_visit_slots_router)
 app.include_router(get_visit_defaults_router)
+app.include_router(get_visit_checks_router)
 app.include_router(list_day_visits_router)
 app.include_router(register_visit_router)
 app.include_router(reschedule_visits_router)

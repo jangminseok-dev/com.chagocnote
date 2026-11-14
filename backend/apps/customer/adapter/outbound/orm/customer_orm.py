@@ -35,6 +35,13 @@ class CustomerOrm(Base):
             "deleted_at IS NOT NULL OR (name IS NOT NULL AND phone IS NOT NULL)",
             name="ck_customers_alive_has_name_phone",
         ),
+        # 주의 표시의 칸 넷은 함께 있거나 함께 없다(③-B).
+        CheckConstraint(
+            "(caution_reason IS NULL) = (caution_until IS NULL) "
+            "AND (caution_reason IS NULL) = (caution_set_at IS NULL) "
+            "AND (caution_reason IS NULL) = (caution_set_by_member_id IS NULL)",
+            name="ck_customers_caution_all_or_none",
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -51,12 +58,21 @@ class CustomerOrm(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 주의 표시(③-B) — 사유와 끝나는 날. 기한이 지나도 지우지 않고 읽을 때 거른다. 익명화하면 비운다.
+    caution_reason: Mapped[str | None] = mapped_column(String(100))
+    caution_until: Mapped[date | None] = mapped_column(Date)
+    caution_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    caution_set_by_member_id: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class PetOrm(Base):
     __tablename__ = "pets"
     __table_args__ = (
         CheckConstraint("species IN ('dog', 'cat')", name="ck_pets_species"),
+        CheckConstraint(
+            "(grooming_consent_on IS NULL) = (grooming_consent_by_member_id IS NULL)",
+            name="ck_pets_grooming_consent_all_or_none",
+        ),
         CheckConstraint("sex IN ('female', 'male')", name="ck_pets_sex"),
         CheckConstraint("weight_kg > 0", name="ck_pets_weight_positive"),
         CheckConstraint("birth_date IS NULL OR birth_year IS NULL", name="ck_pets_one_birth_field"),
@@ -76,6 +92,9 @@ class PetOrm(Base):
     no_known_conditions: Mapped[bool] = mapped_column(Boolean)
     memo: Mapped[str | None] = mapped_column(String(500))
     passed_away_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 미용 동의를 가장 최근에 받은 날과 적은 멤버(③-B). 이력은 두지 않는다.
+    grooming_consent_on: Mapped[date | None] = mapped_column(Date)
+    grooming_consent_by_member_id: Mapped[int | None] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

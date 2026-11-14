@@ -12,6 +12,7 @@ from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_check_repository import VisitCheckRepository
 from visit.app.ports.output.visit_feed_repository import VisitFeedRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
@@ -19,6 +20,7 @@ from visit.app.ports.output.visit_lookup_repository import VisitLookupRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.tests.helpers.fakes import (
+    FakeChecks,
     FakeDirectory,
     FakeEvents,
     FakeLibrary,
@@ -37,6 +39,7 @@ def test_스텁은_포트를_상속하고_추상_메서드가_남아_있지_않�
     assert isinstance(FakeSchedule(), ScheduleRepository)
     assert isinstance(FakeMenus(), MenuRepository)
     assert isinstance(FakeDirectory(), CustomerDirectoryPort)
+    assert isinstance(FakeChecks(), VisitCheckRepository)
     assert isinstance(FakeLibrary(), MediaLibraryPort)
     assert isinstance(FakeShopProfile(), ShopProfilePort)
     assert isinstance(FakeEvents(), DomainEventPort)

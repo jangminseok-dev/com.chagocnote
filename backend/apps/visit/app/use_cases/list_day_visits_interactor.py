@@ -16,10 +16,14 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
+from visit.app.ports.output.visit_check_repository import VisitCheckRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.services.cover_reader import cover_urls
+from visit.app.services.visit_checks import CheckTarget, read_checks
 from visit.app.services.visit_reader import describe_visits
+from visit.domain.entities.visit import ACTIVE_STATUSES
 from visit.domain.errors import VisitInputError
+from visit.domain.services.visit_checks import COUNTED, CUSTOMER, PET
 from visit.domain.services.visit_board import is_unresolved, overlaps_other_group, status_counts
 from visit.domain.services.visit_schedule import day_bounds, is_closed_day, local_date
 
@@ -30,7 +34,7 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
     def __init__(
         self, board: VisitBoardRepository, menus: MenuRepository, schedule: ScheduleRepository,
         directory: CustomerDirectoryPort, records: VisitRecordRepository, library: MediaLibraryPort,
-        reports: ReportRepository, now: Callable[[], datetime],
+        reports: ReportRepository, now: Callable[[], datetime], checks: VisitCheckRepository,
     ) -> None:
         self._board = board
         self._menus = menus
@@ -40,6 +44,7 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
         self._library = library
         self._reports = reports
         self._now = now
+        self._checks = checks
 
     async def list_day_visits(self, query: ListDayVisitsQuery) -> DayVisitsView:
         ctx, tz, day = query.ctx, query.ctx.timezone, query.day
@@ -56,6 +61,19 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
         recorded = await self._records.list_many(ctx, [v.id for v in visits])
         covers = await cover_urls(ctx, recorded, self._library)
         sent = await self._reports.live_visit_ids(ctx, [v.id for v in visits], now)
+        # 확인할 것은 살아 있는 방문에만 있다. 방문이 몇 개든 한 번에 읽는다.
+        checks = (await read_checks(
+            ctx,
+            [
+                CheckTarget(key=v.id, customer_id=v.customer_id, pet_id=v.pet_id, on=day, before=v.starts_at)
+                for v in visits if v.status in ACTIVE_STATUSES
+            ],
+            self._directory, self._checks, today,
+        )).by_key
+
+        def counted(visit_id: int, scope: str) -> int:
+            return sum(1 for c in checks.get(visit_id, ()) if c.code in COUNTED and c.scope == scope)
+
         items = [
             DayVisitItemView(
                 visit=view,
@@ -65,6 +83,8 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
                 has_record=visit.id in recorded,
                 cover=covers.get(visit.id),
                 report_sent=visit.id in sent,
+                customer_check_count=counted(visit.id, CUSTOMER),
+                pet_check_count=counted(visit.id, PET),
             )
             for visit, view in zip(visits, views)
         ]

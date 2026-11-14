@@ -10,6 +10,7 @@ from visit.app.ports.input.get_visit_use_case import GetVisitUseCase
 from visit.app.use_cases.get_visit_interactor import GetVisitInteractor
 from visit.dependencies.hub_ports import get_customer_directory, get_media_library
 from visit.dependencies.visit_wiring import (
+    build_check_repository,
     build_menu_repository,
     build_record_repository,
     build_report_repository,
@@ -27,5 +28,5 @@ def get_get_visit_use_case(
     return GetVisitInteractor(
         visits=visits, history=visits, ledger=visits, menus=build_menu_repository(db), directory=directory,
         records=build_record_repository(db), library=library, reports=build_report_repository(db), now=utc_now,
-        link_key=REPORT_LINK_KEY, web_base_url=REPORT_WEB_BASE_URL,
+        link_key=REPORT_LINK_KEY, web_base_url=REPORT_WEB_BASE_URL, checks=build_check_repository(db),
     )

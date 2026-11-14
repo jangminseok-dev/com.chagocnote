@@ -31,6 +31,7 @@ class Pet:
     memo: str | None
     passed_away_at: datetime | None
     conditions: tuple[PetCondition, ...]
+    grooming_consent_on: date | None = None   # 미용 동의를 가장 최근에 받은 날(③-B)
 
     @property
     def has_conditions(self) -> bool:

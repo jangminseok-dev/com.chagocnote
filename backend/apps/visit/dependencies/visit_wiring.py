@@ -10,6 +10,7 @@ from visit.adapter.outbound.pg.report_settings_pg_repository import ReportSettin
 from visit.adapter.outbound.pg.sales_goal_pg_repository import SalesGoalPgRepository
 from visit.adapter.outbound.pg.sales_pg_repository import SalesPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
+from visit.adapter.outbound.pg.visit_check_pg_repository import VisitCheckPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.adapter.outbound.redis.public_report_redis_limiter import PublicReportRedisLimiter
@@ -19,6 +20,7 @@ from visit.app.ports.output.report_settings_repository import ReportSettingsRepo
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
+from visit.app.ports.output.visit_check_repository import VisitCheckRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 
 
@@ -46,6 +48,10 @@ def build_report_repository(db: AsyncSession) -> ReportPgRepository:
 
 def build_report_settings_repository(db: AsyncSession) -> ReportSettingsRepository:
     return ReportSettingsPgRepository(db)
+
+
+def build_check_repository(db: AsyncSession) -> VisitCheckRepository:
+    return VisitCheckPgRepository(db)
 
 
 def build_sales_repository(db: AsyncSession) -> SalesRepository:

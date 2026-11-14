@@ -91,6 +91,13 @@ class FakeCustomers(CustomerRepository):
         self.journal.append(("update_customer", customer_id, consent_changed))
         return self.rows[customer_id]
 
+    async def set_caution(self, ctx, customer_id, reason, until, member_id):
+        self.rows[customer_id] = replace(
+            self._find(ctx, customer_id), caution_reason=reason, caution_until=until
+        )
+        self.journal.append(("set_caution", customer_id, reason, until, member_id))
+        return self.rows[customer_id]
+
     async def anonymize(self, ctx, customer_id):
         self._find(ctx, customer_id)
         del self.rows[customer_id]
@@ -152,6 +159,11 @@ class FakePets(PetRepository):
     async def set_weight(self, ctx, pet_id, weight_kg):
         self.rows[pet_id] = replace(self._owned(ctx, pet_id), weight_kg=weight_kg)
         self.journal.append(("set_weight", pet_id, weight_kg))
+
+    async def set_grooming_consent(self, ctx, pet_id, received_on, member_id):
+        self.rows[pet_id] = replace(self._owned(ctx, pet_id), grooming_consent_on=received_on)
+        self.journal.append(("set_grooming_consent", pet_id, received_on, member_id))
+        return self.rows[pet_id]
 
     async def count_for_customer(self, ctx, customer_id):
         return len([p for p in self.rows.values() if p.customer_id == customer_id])

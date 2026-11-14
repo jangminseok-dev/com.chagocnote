@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from customer.domain.entities.customer import Customer
 from customer.domain.entities.pet import Pet
+from customer.domain.services.care_marks import caution_active
 from customer.domain.services.pet_age import age_label
 from customer.domain.services.phone_number import mask_phone
 
@@ -16,6 +17,20 @@ class ConditionView:
     label: str
     custom_label: str | None
     note: str | None
+
+
+@dataclass(frozen=True)
+class CautionView:
+    """살아 있는 주의 표시(③-B). 기한이 지난 것은 뷰가 되지 않는다."""
+
+    reason: str
+    until: date
+
+    @classmethod
+    def of(cls, customer: Customer, today: date) -> CautionView | None:
+        if customer.caution_reason is None or not caution_active(customer.caution_until, today):
+            return None
+        return cls(reason=customer.caution_reason, until=customer.caution_until)
 
 
 @dataclass(frozen=True)
@@ -36,6 +51,7 @@ class PetView:
     conditions: list[ConditionView]
     memo: str | None
     passed_away_at: datetime | None
+    grooming_consent_on: date | None = None   # 미용 동의를 받은 날(③-B)
 
     @classmethod
     def of(cls, pet: Pet, today: date) -> PetView:
@@ -51,6 +67,7 @@ class PetView:
                 for c in pet.conditions
             ],
             memo=pet.memo, passed_away_at=pet.passed_away_at,
+            grooming_consent_on=pet.grooming_consent_on,
         )
 
 
@@ -65,13 +82,15 @@ class CustomerView:
     marketing_consent: bool
     marketing_consent_changed_at: datetime
     memo: str | None
+    caution: CautionView | None = None
 
     @classmethod
-    def of(cls, customer: Customer) -> CustomerView:
+    def of(cls, customer: Customer, today: date) -> CustomerView:
         return cls(
             customer_id=customer.id, name=customer.name, phone=customer.phone,
             phone_alt=customer.phone_alt, marketing_consent=customer.marketing_consent,
             marketing_consent_changed_at=customer.marketing_consent_changed_at, memo=customer.memo,
+            caution=CautionView.of(customer, today),
         )
 
 
@@ -126,6 +145,7 @@ class PetDetailView:
     pet: PetView
     owner: OwnerSummaryView
     siblings: list[SiblingView]
+    caution: CautionView | None = None   # 보호자의 살아 있는 주의 표시 — [보호자] 탭이 이 응답으로 그린다
 
 
 @dataclass(frozen=True)

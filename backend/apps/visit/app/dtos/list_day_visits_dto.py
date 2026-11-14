@@ -47,6 +47,9 @@ class DayVisitItemView:
     has_record: bool    # 미용 기록이 있다
     cover: str | None   # 대표 사진 썸네일
     report_sent: bool   # 살아 있는 알림장 링크가 있다
+    # 확인할 것의 수(③-B) — 지병은 세지 않는다. 가족 묶음에서 보호자 항목은 한 번만 세라고 둘로 나눠 준다.
+    customer_check_count: int = 0
+    pet_check_count: int = 0
 
 
 @dataclass(frozen=True)

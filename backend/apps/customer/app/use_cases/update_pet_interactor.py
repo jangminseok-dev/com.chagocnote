@@ -11,6 +11,7 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.detail_reader import read_pet_detail
+from customer.domain.services.care_marks import conditions_added
 
 
 class UpdatePetInteractor(UpdatePetUseCase):
@@ -29,7 +30,11 @@ class UpdatePetInteractor(UpdatePetUseCase):
         codes = frozenset(t.code for t in await self._condition_types.list_all())
         profile = command.pet.to_profile(codes, self._today())
         customer_id = await self._pets.lock_owner(command.ctx, command.pet_id)
+        before = await self._pets.get(command.ctx, command.pet_id)
         await self._pets.update(command.ctx, command.pet_id, profile)
+        # 앞서 받은 미용 동의는 새로 적힌 지병을 덮지 않는다 — 지병이 늘면 다시 받게 한다(③-B 3.2).
+        if before.grooming_consent_on is not None and conditions_added(before.conditions, profile.conditions):
+            await self._pets.set_grooming_consent(command.ctx, command.pet_id, None, None)
         await self._search.rebuild_search_entry(command.ctx, customer_id)
         return await read_pet_detail(
             command.ctx, command.pet_id, self._customers, self._pets, self._today()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(frozen=True)
@@ -16,3 +16,6 @@ class Customer:
     marketing_consent: bool
     marketing_consent_changed_at: datetime
     memo: str | None
+    # 주의 표시(③-B). 기한이 지났어도 그대로 실린다 — 살아 있는지는 care_marks.caution_active 가 정한다.
+    caution_reason: str | None = None
+    caution_until: date | None = None

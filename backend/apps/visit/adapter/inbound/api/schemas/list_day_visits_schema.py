@@ -26,6 +26,8 @@ class DayVisitItemSchema(BaseModel):
     has_record: bool
     cover: str | None   # 대표 사진 썸네일 URL
     report_sent: bool   # 살아 있는 알림장 링크가 있다
+    customer_check_count: int   # 확인할 것 가운데 보호자 항목의 수(가족 묶음에서는 한 번만 센다)
+    pet_check_count: int        # 아이 항목의 수(지병은 세지 않는다)
 
 
 class DayVisitsSchema(BaseModel):

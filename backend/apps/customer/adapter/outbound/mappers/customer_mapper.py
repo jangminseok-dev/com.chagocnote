@@ -16,6 +16,8 @@ def to_customer(orm: CustomerOrm) -> Customer:
         marketing_consent=orm.marketing_consent,
         marketing_consent_changed_at=orm.marketing_consent_changed_at,
         memo=orm.memo,
+        caution_reason=orm.caution_reason,
+        caution_until=orm.caution_until,
     )
 
 
@@ -36,4 +38,5 @@ def to_pet(orm: PetOrm, conditions: list[PetCondition]) -> Pet:
         memo=orm.memo,
         passed_away_at=orm.passed_away_at,
         conditions=tuple(conditions),
+        grooming_consent_on=orm.grooming_consent_on,
     )

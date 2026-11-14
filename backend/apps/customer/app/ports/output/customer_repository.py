@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import date
 
 from customer.domain.entities.customer import Customer
 from customer.domain.value_objects.customer_profile import CustomerProfile
@@ -33,6 +34,13 @@ class CustomerRepository(ABC):
         self, ctx: ShopContext, customer_id: int, profile: CustomerProfile, consent_changed: bool
     ) -> Customer:
         """consent_changed 일 때만 동의 시각을 새로 찍는다. 번호가 겹치면 CustomerPhoneTakenError."""
+
+    @abstractmethod
+    async def set_caution(
+        self, ctx: ShopContext, customer_id: int, reason: str | None, until: date | None,
+        member_id: int | None,
+    ) -> Customer:
+        """주의 표시를 단다(단 시각은 지금). 셋 다 None 이면 푼다. 소속이 아니면 CustomerNotFoundError."""
 
     @abstractmethod
     async def anonymize(self, ctx: ShopContext, customer_id: int) -> None:

@@ -5,6 +5,7 @@ from datetime import date
 
 from customer.app.dtos.customer_view_dto import (
     CustomerDetailView,
+    CautionView,
     CustomerView,
     OwnerSummaryView,
     PetDetailView,
@@ -23,7 +24,7 @@ async def read_customer_detail(
     customer = await customers.get_active(ctx, customer_id)
     family = await pets.list_for_customers(ctx, [customer_id])
     return CustomerDetailView(
-        customer=CustomerView.of(customer), pets=[PetView.of(pet, today) for pet in family]
+        customer=CustomerView.of(customer, today), pets=[PetView.of(pet, today) for pet in family]
     )
 
 
@@ -40,4 +41,5 @@ async def read_pet_detail(
             SiblingView(pet_id=p.id, name=p.name, species=p.species, passed_away=p.passed_away)
             for p in family if p.id != pet.id
         ],
+        caution=CautionView.of(owner, today),
     )

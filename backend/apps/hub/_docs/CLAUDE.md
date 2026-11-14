@@ -19,6 +19,7 @@
 | `MembershipLifecyclePort.apply_withdrawal(user_id, close_sole_owned)` | tenancy `apply_withdrawal` | auth `withdraw` (인증 프로세스) |
 | `CustomerDirectoryPort.lock_family · briefs · set_last_visit · set_pet_weight · find_draft_candidates(ctx, words) → list[DraftCandidate]` | customer `customer_directory` | visit (방문 쓰기의 가족 잠금, 이름 표시, 최근 방문순, 기록의 몸무게, 카톡 초안 후보) |
 | `CustomerDirectoryPort.contact(ctx, customer_id) → CustomerContact \| None` (이름·번호(숫자만)·마케팅 동의, 익명화면 None) | customer `customer_directory` | notification 만 (보내는 순간의 연락처 — `briefs` 는 가린 번호라 못 쓴다) |
+| `CustomerDirectoryPort.care_facts(ctx, customer_ids, pet_ids, today) → CareFacts` (살아 있는 고객, 살아 있는 주의 표시, 아이의 나이·지병·미용 동의·무지개다리. 익명화한 고객과 그 아이는 틀도 없이 빠진다) | customer `customer_directory` | visit 만 (확인할 것 ③-B — 방문이 몇 개든 한 번) |
 | `DomainEventPort.publish(event)` | core `observer/in_process_event_bus.py` (같은 프로세스·같은 세션의 동기 버스, 구독자 목록은 `main.py` 가 기동 때 채운다) | 발행 visit (등록·수정·일정 변경·전이·알림장 보내기), 구독 notification (`adapter/inbound/observer/`) |
 | `VisitLedgerPort` (방문 유무·앞으로의 예약·노쇼 횟수·메모 비우기(`clear_customer_memos` — 알림장 링크도 끊는다)·`latest_covers`) | visit `visit_ledger` | customer (삭제·익명화·무지개다리 규칙, 고객 상세, 반려동물 프로필 사진) |
 | `MediaLibraryPort.claim(ctx, ids) → {id: kind} · release · read_urls(ctx, ids) → {id: MediaUrls}` | media `media_library` | visit (기록의 사진·영상, 알림장), customer (프로필 사진) |
