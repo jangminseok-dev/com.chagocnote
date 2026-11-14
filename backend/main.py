@@ -51,6 +51,7 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.customer_search_source_provider import get_customer_search_source_use_case
 from customer.dependencies.hub_ports import get_domain_events as get_customer_domain_events
 from customer.dependencies.hub_ports import get_guardian_lifecycle as get_customer_guardian_lifecycle
 from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
@@ -101,7 +102,10 @@ from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
 from platform_admin.dependencies.hub_ports import get_operator_directory, get_shop_provisioning
 from search.adapter.inbound.observer.source_changed_subscriber import handle_source_changed
+from search.app.services.indexer_wakeup import wake as wake_indexer
 from search.dependencies.forget_customer_provider import get_forget_customer_use_case
+from search.dependencies.indexer_ports import IndexerPorts, configure_indexer_ports
+from search.dependencies.indexer_provider import start_indexer
 from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
 from tenancy.adapter.inbound.api.v1.accept_invite_router import accept_invite_router
 from tenancy.adapter.inbound.api.v1.change_member_role_router import change_member_role_router
@@ -159,6 +163,7 @@ from visit.dependencies.hub_ports import get_customer_directory, get_domain_even
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
+from visit.dependencies.visit_search_source_provider import get_visit_search_source_use_case
 from visit.adapter.inbound.api.v1.guardian_reports_router import (
     list_guardian_pets_router,
     list_guardian_reports_router,
@@ -174,12 +179,17 @@ async def lifespan(app: FastAPI):
     get_message_gateway()
     # 디스패처 — 프로세스에 asyncio 작업 하나(설계 3.2). 끝낼 때 정지를 알리고 깨워서 기다림을 끊는다.
     task, stop = start_dispatcher()
+    # 검색 색인기 — 같은 모양의 작업 하나(⑨ 설계 3.4). 임베딩 프로세스가 죽어 있어도 기동한다.
+    indexer_task, indexer_stop = start_indexer()
     try:
         yield
     finally:
         stop.set()
+        indexer_stop.set()
         wake()
+        wake_indexer()
         await task
+        await indexer_task
         await dispose_engine()
         await dispose_redis()
 
@@ -332,6 +342,11 @@ subscribe(handle_source_changed, SearchSourceChanged)
 configure_dispatcher_ports(DispatcherPorts(
     shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,
     visit_ledger=get_visit_ledger_use_case,
+))
+# 검색 색인기도 요청 밖이다 — 글은 visit·customer 가 구현한 SearchSourcePort 로 읽는다.
+configure_indexer_ports(IndexerPorts(
+    shop_profile=get_shop_profile_use_case, customer_directory=get_customer_directory_use_case,
+    visit_source=get_visit_search_source_use_case, customer_source=get_customer_search_source_use_case,
 ))
 
 

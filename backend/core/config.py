@@ -65,3 +65,7 @@ SOLAPI_API_SECRET: str = _m.get("SOLAPI_API_SECRET", "") or ""
 # 잔액이 이 아래로 내려가면 경고 로그. 매장별 하루 발송 상한 — 넘으면 보내지 않고 대기에 둔다(설계 9.4).
 SOLAPI_BALANCE_WARN_KRW: int = int(_m.get("SOLAPI_BALANCE_WARN_KRW", "") or 30000)
 NOTIFICATION_DAILY_CAP: int = int(_m.get("NOTIFICATION_DAILY_CAP", "") or 300)
+
+# 기록 검색(⑨)의 임베딩 프로세스 — compose 의 embed. 게이트웨이에 싣지 않는 안쪽 주소다. 빈 값을 넣으면 뜻 검색을
+# 끄고 글자 검색만 한다. 프로세스가 죽어 있어도 검색은 된다(글자만) — 기동을 막지 않는다.
+EMBED_BASE_URL: str = (_m.get("EMBED_BASE_URL", "http://embed:8100") or "").rstrip("/")
