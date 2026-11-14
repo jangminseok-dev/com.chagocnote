@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -13,6 +13,8 @@ class PetCondition:
     label: str
     custom_label: str | None
     note: str | None
+    # 지병 행의 ID — 검색 문서의 원본 ID 로 쓴다(⑨). 같은 지병인지 견줄 때는 보지 않는다(수정하면 행이 새로 생긴다).
+    condition_id: int = field(default=0, compare=False)
 
 
 @dataclass(frozen=True)

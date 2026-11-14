@@ -100,3 +100,12 @@ async def test_옮긴_방문마다_VisitRescheduled_를_옮긴_뒤에_발행한�
         (VisitRescheduled, ctx(), bori.id, 1, 102, kst(10, 2, 14), kst(10, 3, 15), NOW, (101, 102))]
     names = [entry[0] for entry in journal]
     assert names.index("reschedule") < names.index("publish")
+
+
+async def test_옮긴_방문마다_다시_색인하라고_알린다():
+    """날짜가 바뀌면 검색 문서의 날짜도 바뀐다."""
+    _, visits, interactor, events = _setup()
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 2, 14))
+    bori = visits.seed(customer_id=1, pet_id=102, starts_at=kst(10, 2, 14))
+    await interactor.reschedule_visits(_move([kong.id, bori.id]))
+    assert events.changed == [("visit", kong.id), ("visit", bori.id)]

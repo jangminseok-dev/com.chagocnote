@@ -11,7 +11,7 @@ from customer.app.use_cases.update_pet_interactor import UpdatePetInteractor
 from customer.domain.entities.pet import PetCondition
 from customer.domain.errors import CustomerInputError, PetNotFoundError
 from customer.domain.value_objects.condition_entry import ConditionEntry
-from customer.tests.helpers.fakes import TODAY, family, today
+from customer.tests.helpers.fakes import FakeEvents, TODAY, family, today
 from customer.tests.helpers.inputs import pet_input
 from customer.tests.helpers.profiles import ctx
 
@@ -97,7 +97,7 @@ def _allergy():
 
 
 async def _update(customers, pets, types, search, pet_id, conditions):
-    return await UpdatePetInteractor(customers, pets, types, search, today).update_pet(
+    return await UpdatePetInteractor(customers, pets, types, search, today, events=FakeEvents()).update_pet(
         UpdatePetCommand(
             ctx=ctx(), pet_id=pet_id,
             pet=pet_input(no_known_conditions=not conditions, conditions=tuple(conditions)),

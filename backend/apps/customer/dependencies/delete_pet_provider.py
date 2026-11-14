@@ -9,13 +9,16 @@ from customer.dependencies.customer_wiring import (
     build_customer_search,
     build_pet_repository,
 )
-from customer.dependencies.hub_ports import get_visit_ledger
+from customer.dependencies.hub_ports import get_domain_events, get_visit_ledger
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 
 def get_delete_pet_use_case(
-    db: DbSession, ledger: VisitLedgerPort = Depends(get_visit_ledger)
+    db: DbSession, ledger: VisitLedgerPort = Depends(get_visit_ledger),
+    events: DomainEventPort = Depends(get_domain_events),
 ) -> DeletePetUseCase:
     return DeletePetInteractor(
         pets=build_pet_repository(db), search=build_customer_search(db), ledger=ledger,
+        events=events,
     )

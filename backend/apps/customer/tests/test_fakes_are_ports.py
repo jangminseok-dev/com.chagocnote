@@ -6,13 +6,17 @@ from customer.app.ports.output.pet_repository import PetRepository
 from customer.tests.helpers.fakes import (
     FakeConditionTypes,
     FakeCustomers,
+    FakeEvents,
     FakeLedger,
     FakeLibrary,
     FakePets,
     FakeSearch,
+    FakeSearchIndex,
     Journal,
 )
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
+from hub.app.ports.search_index_port import SearchIndexPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 
@@ -25,3 +29,5 @@ def test_스텁은_포트를_상속하고_추상_메서드가_남아_있지_않�
     assert isinstance(FakeSearch(journal), CustomerSearchPort)
     assert isinstance(FakeLedger(journal), VisitLedgerPort)
     assert isinstance(FakeLibrary(), MediaLibraryPort)
+    assert isinstance(FakeEvents(), DomainEventPort)
+    assert isinstance(FakeSearchIndex(journal), SearchIndexPort)

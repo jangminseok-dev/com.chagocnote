@@ -14,6 +14,7 @@ from customer.tests.helpers.profiles import customer_profile, pet_profile
 from media.adapter.outbound.pg.media_pg_repository import MediaPgRepository
 from media.app.use_cases.media_library_interactor import MediaLibraryInteractor
 from media.tests.helpers.fakes import FakeStorage
+from tests.integration.support import NoEvents
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
@@ -36,7 +37,7 @@ def _put(session):
                                             FamilyBriefPgRepository(session), CustomerSearchPgAdapter(session))
     library = MediaLibraryInteractor(MediaPgRepository(session), FakeStorage(), now=lambda: kst(9, 23, 15))
     return PutVisitRecordInteractor(visits, visits, VisitRecordPgRepository(session), MenuPgRepository(session),
-                                    directory, library)
+                                    directory, library, events=NoEvents())
 
 
 def _record(note):

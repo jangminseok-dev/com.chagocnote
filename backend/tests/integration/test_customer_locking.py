@@ -31,7 +31,7 @@ from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
 from visit.domain.services.visit_schedule import utc_now
-from tests.integration.support import NoGuardians
+from tests.integration.support import NoEvents, NoGuardians, NoSearchIndex
 
 pytestmark = pytest.mark.integration
 
@@ -52,7 +52,7 @@ def _ledger(session):
 
 def _register(session, name):
     customers, pets, types, search = _repos(session)
-    return RegisterCustomerInteractor(customers, pets, types, search, today).register_customer(
+    return RegisterCustomerInteractor(customers, pets, types, search, today, events=NoEvents()).register_customer(
         RegisterCustomerCommand(ctx=SHOP, customer=customer_input(name=name), pet=pet_input())
     )
 
@@ -101,11 +101,11 @@ async def test_익명화가_고객을_쥔_동안_반려동물_추가는_기다�
 
     async with factory() as deleting, factory() as adding:
         customers, _, _, search = _repos(deleting)
-        await DeleteCustomerInteractor(customers, search, _ledger(deleting), NoGuardians()).delete_customer(
+        await DeleteCustomerInteractor(customers, search, _ledger(deleting), NoGuardians(), index=NoSearchIndex()).delete_customer(
             DeleteCustomerCommand(ctx=SHOP, customer_id=customer_id)
         )
         customers, pets, types, search = _repos(adding)
-        add = asyncio.create_task(AddPetInteractor(customers, pets, types, search, today).add_pet(
+        add = asyncio.create_task(AddPetInteractor(customers, pets, types, search, today, events=NoEvents()).add_pet(
             AddPetCommand(ctx=SHOP, customer_id=customer_id, pet=pet_input(name="두부"))
         ))
         assert await _still_waiting(add)
@@ -152,10 +152,10 @@ async def test_마지막_두_마리를_동시에_지우면_하나는_LAST_PET_�
 
     async with factory() as first, factory() as second:
         _, pets, _, search = _repos(first)
-        await DeletePetInteractor(pets, search, _ledger(first)).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=kong))
+        await DeletePetInteractor(pets, search, _ledger(first), events=NoEvents()).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=kong))
         _, pets, _, search = _repos(second)
         late = asyncio.create_task(
-            DeletePetInteractor(pets, search, _ledger(second)).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=dubu))
+            DeletePetInteractor(pets, search, _ledger(second), events=NoEvents()).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=dubu))
         )
         assert await _still_waiting(late)
 

@@ -51,8 +51,10 @@ from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
 from customer.adapter.inbound.api.v1.update_customer_router import update_customer_router
 from customer.adapter.inbound.api.v1.update_pet_router import update_pet_router
 from customer.dependencies.customer_directory_provider import get_customer_directory_use_case
+from customer.dependencies.hub_ports import get_domain_events as get_customer_domain_events
 from customer.dependencies.hub_ports import get_guardian_lifecycle as get_customer_guardian_lifecycle
 from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
+from customer.dependencies.hub_ports import get_search_index as get_customer_search_index
 from customer.dependencies.hub_ports import get_visit_ledger
 from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
 from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_router
@@ -99,6 +101,7 @@ from platform_admin.adapter.inbound.api.v1.create_shop_router import create_shop
 from platform_admin.adapter.inbound.api.v1.platform_myself_router import platform_myself_router
 from platform_admin.dependencies.hub_ports import get_operator_directory, get_shop_provisioning
 from search.adapter.inbound.observer.source_changed_subscriber import handle_source_changed
+from search.dependencies.forget_customer_provider import get_forget_customer_use_case
 from tenancy.adapter.inbound.api.error_map import TENANCY_ERROR_STATUS
 from tenancy.adapter.inbound.api.v1.accept_invite_router import accept_invite_router
 from tenancy.adapter.inbound.api.v1.change_member_role_router import change_member_role_router
@@ -319,6 +322,9 @@ app.dependency_overrides[get_notification_shop_profile] = get_shop_profile_use_c
 app.dependency_overrides[get_notification_customer_directory] = get_customer_directory_use_case
 # 도메인 이벤트 — visit 이 발행하고 core 의 같은 세션 동기 버스가 구독자에 넘긴다. 구독자는 여기서 꽂는다.
 app.dependency_overrides[get_domain_events] = get_event_bus
+# customer 도 발행한다(검색되는 글이 바뀌었다). 고객 익명화는 검색 문서를 그 트랜잭션에서 곧바로 지운다.
+app.dependency_overrides[get_customer_domain_events] = get_event_bus
+app.dependency_overrides[get_customer_search_index] = get_forget_customer_use_case
 subscribe(handle_visit_event, VisitEvent)
 # 검색 — 글이 바뀐 대상을 다시 색인할 줄에 넣는다(같은 트랜잭션). 글은 요청 밖의 색인기가 읽는다.
 subscribe(handle_source_changed, SearchSourceChanged)

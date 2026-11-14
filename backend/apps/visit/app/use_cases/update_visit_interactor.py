@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
+from hub.app.dtos.search_events import SearchSourceChanged
 from hub.app.dtos.visit_events import VisitRescheduled
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.domain_event_port import DomainEventPort
@@ -68,6 +69,8 @@ class UpdateVisitInteractor(UpdateVisitUseCase):
                 ctx=ctx, visit_id=updated.id, customer_id=updated.customer_id, pet_id=updated.pet_id,
                 starts_at=updated.starts_at, occurred_at=now, previous_starts_at=current.starts_at,
                 family_pet_ids=(updated.pet_id,) if updated.pet_id is not None else ()))
+        # 예약 메모와 방문 날짜가 검색에 든다(⑨) — 시각이 그대로여도 알린다.
+        await self._events.publish(SearchSourceChanged(ctx=ctx, scope="visit", ref_id=updated.id))
         warnings = []
         if updated.is_active:
             settings = await self._schedule.ensure(ctx)

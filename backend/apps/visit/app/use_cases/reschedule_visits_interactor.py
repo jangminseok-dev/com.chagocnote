@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
+from hub.app.dtos.search_events import SearchSourceChanged
 from hub.app.dtos.visit_events import VisitRescheduled
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.domain_event_port import DomainEventPort
@@ -50,6 +51,8 @@ class RescheduleVisitsInteractor(RescheduleVisitsUseCase):
                 ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
                 starts_at=visit.starts_at, occurred_at=now, previous_starts_at=previous[visit.id],
                 family_pet_ids=family))
+        for visit in moved:   # 검색 문서의 날짜를 새 방문 날로(⑨)
+            await self._events.publish(SearchSourceChanged(ctx=ctx, scope="visit", ref_id=visit.id))
         settings = await self._schedule.ensure(ctx)
         warnings = await warnings_after_save(
             ctx, locked[0].customer_id, command.starts_at, longest, settings, self._board, self._schedule

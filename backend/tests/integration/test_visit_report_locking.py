@@ -15,6 +15,7 @@ from hub.app.dtos.shop_profile import ShopProfile
 from media.adapter.outbound.pg.media_pg_repository import MediaPgRepository
 from media.app.use_cases.media_library_interactor import MediaLibraryInteractor
 from media.tests.helpers.fakes import FakeStorage
+from tests.integration.support import NoEvents
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
 from visit.adapter.outbound.pg.report_settings_pg_repository import ReportSettingsPgRepository
@@ -75,7 +76,7 @@ def _revert(session, visit_id):
 def _delete_record(session, visit_id):
     return DeleteVisitRecordInteractor(
         VisitPgRepository(session), VisitRecordPgRepository(session), ReportPgRepository(session),
-        _directory(session), _library(session), now=_now,
+        _directory(session), _library(session), now=_now, events=NoEvents(),
     ).delete_visit_record(DeleteVisitRecordCommand(ctx=SHOP, visit_id=visit_id))
 
 

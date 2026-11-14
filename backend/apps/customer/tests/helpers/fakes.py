@@ -19,7 +19,9 @@ from customer.domain.entities.customer import Customer
 from customer.domain.entities.pet import Pet, PetCondition
 from customer.domain.errors import CustomerNotFoundError, CustomerPhoneTakenError, PetNotFoundError
 from hub.app.dtos.media_urls import MediaUrls
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
+from hub.app.ports.search_index_port import SearchIndexPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 TODAY = date(2026, 9, 22)
@@ -275,3 +277,23 @@ def family():
     customers = FakeCustomers(journal)
     pets = FakePets(journal, customers)
     return journal, customers, pets, FakeConditionTypes(), FakeSearch(journal)
+
+
+class FakeEvents(DomainEventPort):
+    """DomainEventPort 스텁 — 검색 이벤트의 (scope, ref_id) 를 changed 에 모은다."""
+
+    def __init__(self) -> None:
+        self.changed: list[tuple[str, int]] = []
+
+    async def publish(self, event):
+        self.changed.append((event.scope, event.ref_id))
+
+
+class FakeSearchIndex(SearchIndexPort):
+    """SearchIndexPort 스텁 — 부른 것을 journal 에 남긴다."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+
+    async def forget_customer(self, ctx, customer_id):
+        self.journal.append(("forget_search", customer_id))

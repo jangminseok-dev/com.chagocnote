@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from hub.app.dtos.search_events import SearchSourceChanged
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.dtos.put_visit_record_dto import PutVisitRecordCommand
 from visit.app.dtos.record_view_dto import RecordView
@@ -36,6 +38,7 @@ class PutVisitRecordInteractor(PutVisitRecordUseCase):
     def __init__(
         self, visits: VisitLookupRepository, history: VisitHistoryRepository, records: VisitRecordRepository,
         menus: MenuRepository, directory: CustomerDirectoryPort, library: MediaLibraryPort,
+        events: DomainEventPort,
     ) -> None:
         self._visits = visits
         self._history = history
@@ -43,6 +46,7 @@ class PutVisitRecordInteractor(PutVisitRecordUseCase):
         self._menus = menus
         self._directory = directory
         self._library = library
+        self._events = events
 
     async def put_visit_record(self, command: PutVisitRecordCommand) -> RecordView:
         ctx, wanted = command.ctx, command.record
@@ -77,4 +81,6 @@ class PutVisitRecordInteractor(PutVisitRecordUseCase):
         # 몸무게를 적거나 바꿨을 때만 현재 몸무게가 된다 — 메모만 고친 저장이 반려동물 쪽에서 고친 값을 덮지 않게.
         if current is None or current.weight_kg != saved.weight_kg:
             await sync_pet_weight(ctx, visit, saved.weight_kg, self._history, self._directory)
+        # 케어 노트·내부 메모가 검색에 든다 — 다시 색인할 줄을 같은 트랜잭션에 넣게 한다(⑨).
+        await self._events.publish(SearchSourceChanged(ctx=ctx, scope="visit", ref_id=visit.id))
         return await describe_record(ctx, saved, self._menus, self._library)

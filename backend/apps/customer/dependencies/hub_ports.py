@@ -4,8 +4,10 @@
 """
 from __future__ import annotations
 
+from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.guardian_lifecycle_port import GuardianLifecyclePort
 from hub.app.ports.media_library_port import MediaLibraryPort
+from hub.app.ports.search_index_port import SearchIndexPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 
@@ -19,3 +21,11 @@ def get_media_library() -> MediaLibraryPort:
 
 def get_guardian_lifecycle() -> GuardianLifecyclePort:
     raise RuntimeError("GuardianLifecyclePort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
+
+
+def get_domain_events() -> DomainEventPort:
+    raise RuntimeError("DomainEventPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
+
+
+def get_search_index() -> SearchIndexPort:
+    raise RuntimeError("SearchIndexPort 자리가 비어 있습니다. 진입점에서 조립해야 합니다.")
