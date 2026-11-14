@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:go_router/go_router.dart';
 
+import 'core/plugs/care_marks_plug.dart';
 import 'core/plugs/pet_records_plug.dart';
 import 'core/proxy/shared_text_channel.dart';
 import 'core/router/app_router.dart';
@@ -12,6 +13,7 @@ import 'features/auth/state/session.dart';
 import 'features/auth/state/session_controller.dart';
 import 'features/visit/screens/feed_view.dart';
 import 'features/visit/state/feed_controller.dart';
+import 'features/visit/state/visit_providers.dart';
 
 /// 공유로 받은 글 가운데 지금 열 수 있는 것 — 로그인했고 매장을 골랐을 때만.
 /// 콜드 스타트에서 로그인 뒤에, 또는 앱이 떠 있을 때 바로 열린다(③-A3).
@@ -101,6 +103,7 @@ Widget buildRoot({List<Override> overrides = const []}) {
         (petId) => PetRecordsView(petId: petId),
       ),
       petRecordsRefreshPlugProvider.overrideWith(petRecordsRefresher),
+      careMarksChangedPlugProvider.overrideWith(careMarksChanged),
       ...overrides,
     ],
     child: wrapWithGlass(const App()),

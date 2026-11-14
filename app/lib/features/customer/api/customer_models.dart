@@ -49,6 +49,7 @@ class FamilyCard {
     required this.name,
     required this.phoneMasked,
     required this.pets,
+    this.caution = false,
   });
 
   factory FamilyCard.fromJson(Map<String, dynamic> json) => FamilyCard(
@@ -58,6 +59,7 @@ class FamilyCard {
     pets: (json['pets'] as List)
         .map((e) => PetSummary.fromJson(e as Map<String, dynamic>))
         .toList(),
+    caution: json['caution'] as bool? ?? false,
   );
 
   final int customerId;
@@ -66,6 +68,27 @@ class FamilyCard {
   /// `010-12··-5678` 모양.
   final String phoneMasked;
   final List<PetSummary> pets;
+
+  /// 살아 있는 주의 표시가 있다(③-B). 사유는 목록에 오지 않는다.
+  final bool caution;
+}
+
+/// 주의 고객 표시(③-B) — 이 매장만 본다. [until]까지 보이고 그 뒤에는 서버가 거른다.
+/// 사유가 로그에 찍히지 않도록 `toString`을 오버라이드하지 않는다.
+class Caution {
+  const Caution({required this.reason, required this.until});
+
+  factory Caution.fromJson(Map<String, dynamic> json) => Caution(
+    reason: json['reason'] as String,
+    until: DateTime.parse(json['until'] as String),
+  );
+
+  /// 칸이 없거나 null 이면 null.
+  static Caution? maybe(Object? json) =>
+      json == null ? null : Caution.fromJson(json as Map<String, dynamic>);
+
+  final String reason;
+  final DateTime until;
 }
 
 /// 목록 한 페이지.
@@ -163,6 +186,7 @@ class Pet {
     required this.memo,
     required this.passedAwayAt,
     required this.photo,
+    this.groomingConsentOn,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) => Pet(
@@ -189,6 +213,9 @@ class Pet {
         ? null
         : DateTime.parse(json['passed_away_at'] as String),
     photo: json['photo'] as String?,
+    groomingConsentOn: json['grooming_consent_on'] == null
+        ? null
+        : DateTime.parse(json['grooming_consent_on'] as String),
   );
 
   final int petId;
@@ -217,6 +244,9 @@ class Pet {
   /// 프로필 사진 썸네일 서명 URL — 상세 조회에만 온다(등록·수정 응답에는 없어 null).
   final String? photo;
 
+  /// 미용 동의서를 받은 날(③-B). 받은 적이 없거나 지병을 더해 비워졌으면 null.
+  final DateTime? groomingConsentOn;
+
   bool get passedAway => passedAwayAt != null;
 }
 
@@ -230,6 +260,7 @@ class Customer {
     required this.marketingConsent,
     required this.marketingConsentChangedAt,
     required this.memo,
+    this.caution,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) => Customer(
@@ -242,6 +273,7 @@ class Customer {
       json['marketing_consent_changed_at'] as String,
     ),
     memo: json['memo'] as String?,
+    caution: Caution.maybe(json['caution']),
   );
 
   final int customerId;
@@ -253,6 +285,9 @@ class Customer {
   final bool marketingConsent;
   final DateTime marketingConsentChangedAt;
   final String? memo;
+
+  /// 살아 있는 주의 표시. 없거나 기한이 지났으면 null.
+  final Caution? caution;
 }
 
 /// 고객 상세의 다가오는 예약 한 줄(오늘 이후 시작, 최대 3건).
@@ -355,6 +390,7 @@ class PetDetail {
     required this.pet,
     required this.owner,
     required this.siblings,
+    this.caution,
   });
 
   factory PetDetail.fromJson(Map<String, dynamic> json) => PetDetail(
@@ -363,11 +399,15 @@ class PetDetail {
     siblings: (json['siblings'] as List)
         .map((e) => Sibling.fromJson(e as Map<String, dynamic>))
         .toList(),
+    caution: Caution.maybe(json['caution']),
   );
 
   final Pet pet;
   final OwnerSummary owner;
   final List<Sibling> siblings;
+
+  /// 보호자의 주의 표시.
+  final Caution? caution;
 }
 
 /// 정해진 질병 종류 하나.

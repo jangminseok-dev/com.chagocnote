@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../customer/state/customer_commands.dart';
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
 import '../../auth/state/shop_scoped.dart';
@@ -113,6 +114,18 @@ class VisitCommands {
 
   Future<Menu> archiveMenu(int shopId, int menuId) =>
       _menuWrite(() => _api.archiveMenu(shopId, menuId));
+
+  /// 방문 상세의 [받았어요] — 그 아이의 미용 동의를 오늘로 적는다(③-B). 쓰기는 customer 의
+  /// 명령이 하고(목록·상세를 다시 읽는다), 여기서는 성공하든 실패하든 확인할 것을 다시 읽는다.
+  Future<void> consentReceived(int shopId, int petId) async {
+    try {
+      await _ref.read(customerCommandsProvider).setGroomingConsent(shopId, petId);
+    } finally {
+      _ref.invalidate(visitDetailProvider);
+      _ref.invalidate(dayVisitsProvider);
+      _ref.invalidate(visitChecksProvider);
+    }
+  }
 
   Future<T> _visitWrite<T>(Future<T> Function() action) async {
     try {

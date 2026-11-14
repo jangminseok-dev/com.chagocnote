@@ -269,4 +269,50 @@ void main() {
       );
     },
   );
+
+  test('[받았어요]는 동의를 적고 하루·상세와 고객 쪽을 다시 불러온다', () async {
+    final setup = await _watchingEverything((options, body) {
+      expect(
+        '${options.method} ${options.path}',
+        'PUT /v1/shops/3/pets/11/grooming-consent',
+      );
+      return FakeResponse(statusCode: 200, data: petDetailJson());
+    });
+    addTearDown(setup.container.dispose);
+
+    await setup.container.read(visitCommandsProvider).consentReceived(_shop, 11);
+    await _settle(setup);
+
+    expect(
+      setup.calls,
+      containsAll([
+        'PUT /v1/shops/3/pets/11/grooming-consent',
+        'GET /v1/shops/3/visits',
+        'GET /v1/shops/3/visits/101',
+        'GET /v1/shops/3/pets/11',
+        'GET /v1/shops/3/customers',
+      ]),
+    );
+  });
+
+  test('[받았어요]가 실패해도 하루·상세를 다시 불러온다', () async {
+    final setup = await _watchingEverything(
+      (options, body) => const FakeResponse(
+        statusCode: 404,
+        data: {'code': 'PET_NOT_FOUND', 'message': 'x'},
+      ),
+    );
+    addTearDown(setup.container.dispose);
+
+    await expectLater(
+      setup.container.read(visitCommandsProvider).consentReceived(_shop, 11),
+      throwsA(isA<ApiException>()),
+    );
+    await _settle(setup);
+
+    expect(
+      setup.calls,
+      containsAll(['GET /v1/shops/3/visits', 'GET /v1/shops/3/visits/101']),
+    );
+  });
 }

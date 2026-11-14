@@ -432,4 +432,105 @@ void main() {
       ),
     );
   });
+
+  test('미용 동의를 적는다 — 날짜를 주지 않으면 received_on 은 null', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: petDetailJson(pet: petJson(groomingConsentOn: '2026-11-14')),
+      ),
+    );
+
+    final detail = await s.api.setGroomingConsent(3, 11);
+
+    final request = s.adapter.requests.single;
+    expect(
+      '${request.method} ${request.path}',
+      'PUT /v1/shops/3/pets/11/grooming-consent',
+    );
+    expect(_json(s.adapter.lastBodyByPath[request.path]), {'received_on': null});
+    expect(detail.pet.groomingConsentOn, DateTime(2026, 11, 14));
+  });
+
+  test('미용 동의에 받은 날을 주면 날짜만 보낸다', () async {
+    final s = _build(
+      (options, body) => FakeResponse(statusCode: 200, data: petDetailJson()),
+    );
+
+    await s.api.setGroomingConsent(3, 11, receivedOn: DateTime(2026, 11, 3));
+
+    expect(
+      _json(s.adapter.lastBodyByPath['/v1/shops/3/pets/11/grooming-consent']),
+      {'received_on': '2026-11-03'},
+    );
+  });
+
+  test('미용 동의를 지운다', () async {
+    final s = _build(
+      (options, body) => FakeResponse(statusCode: 200, data: petDetailJson()),
+    );
+
+    final detail = await s.api.clearGroomingConsent(3, 11);
+
+    expect(s.adapter.requests.map((r) => '${r.method} ${r.path}'), [
+      'DELETE /v1/shops/3/pets/11/grooming-consent',
+    ]);
+    expect(detail.pet.groomingConsentOn, isNull);
+  });
+
+  test('주의 표시를 적고 사유·기한을 읽는다', () async {
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: customerDetailJson(
+          customer: customerJson(caution: cautionJson(reason: '노쇼 2번')),
+        ),
+      ),
+    );
+
+    final detail = await s.api.setCaution(3, 7, '노쇼 2번');
+
+    final request = s.adapter.requests.single;
+    expect(
+      '${request.method} ${request.path}',
+      'PUT /v1/shops/3/customers/7/caution',
+    );
+    expect(_json(s.adapter.lastBodyByPath[request.path]), {'reason': '노쇼 2번'});
+    expect(detail.customer.caution!.reason, '노쇼 2번');
+    expect(detail.customer.caution!.until, DateTime(2027, 11, 14));
+  });
+
+  test('주의 표시를 지운다', () async {
+    final s = _build(
+      (options, body) =>
+          FakeResponse(statusCode: 200, data: customerDetailJson()),
+    );
+
+    final detail = await s.api.clearCaution(3, 7);
+
+    expect(s.adapter.requests.map((r) => '${r.method} ${r.path}'), [
+      'DELETE /v1/shops/3/customers/7/caution',
+    ]);
+    expect(detail.customer.caution, isNull);
+  });
+
+  test('주의 칸이 없는 옛 응답도 읽는다 — 목록은 false, 상세는 null', () {
+    final family = familyJson()..remove('caution');
+    final customer = customerJson()..remove('caution');
+    final petDetail = petDetailJson()..remove('caution');
+    final pet = petJson()..remove('grooming_consent_on');
+
+    expect(FamilyCard.fromJson(family).caution, isFalse);
+    expect(Customer.fromJson(customer).caution, isNull);
+    expect(PetDetail.fromJson(petDetail).caution, isNull);
+    expect(Pet.fromJson(pet).groomingConsentOn, isNull);
+  });
+
+  test('목록 줄과 반려동물 상세의 주의를 읽는다', () {
+    expect(FamilyCard.fromJson(familyJson(caution: true)).caution, isTrue);
+    expect(
+      PetDetail.fromJson(petDetailJson(caution: cautionJson())).caution!.reason,
+      '노쇼 2번',
+    );
+  });
 }

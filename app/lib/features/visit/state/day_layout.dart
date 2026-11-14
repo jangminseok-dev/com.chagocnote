@@ -34,6 +34,14 @@ class DayGroup {
     return completed.isNotEmpty && completed.every((i) => i.reportSent);
   }
 
+  /// 확인할 것의 수(③-B) — 보호자 항목은 구성원마다 같은 값이 오므로 한 번만(가장 큰 값),
+  /// 아이 항목은 더한다.
+  int get checkCount =>
+      items
+          .map((i) => i.customerCheckCount)
+          .reduce((a, b) => a > b ? a : b) +
+      items.fold(0, (sum, i) => sum + i.petCheckCount);
+
   /// 시간을 차지하는 방문이 있는가(취소·노쇼만이면 빈 시간이다).
   bool get occupiesTime => items.any((i) => i.visit.occupiesTime);
 

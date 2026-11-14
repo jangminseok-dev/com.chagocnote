@@ -6,6 +6,7 @@ library;
 
 // 매장 시각·날짜 문자열 도우미는 core/time 에 있다. 이 모듈을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
 import '../../../core/time/shop_time.dart';
+import 'check_models.dart';
 import 'record_models.dart';
 import 'report_models.dart';
 
@@ -208,6 +209,8 @@ class DayVisitItem {
     required this.hasRecord,
     required this.cover,
     required this.reportSent,
+    this.customerCheckCount = 0,
+    this.petCheckCount = 0,
   });
 
   factory DayVisitItem.fromJson(Map<String, dynamic> json) => DayVisitItem(
@@ -218,6 +221,8 @@ class DayVisitItem {
     hasRecord: json['has_record'] as bool,
     cover: json['cover'] as String?,
     reportSent: json['report_sent'] as bool,
+    customerCheckCount: json['customer_check_count'] as int? ?? 0,
+    petCheckCount: json['pet_check_count'] as int? ?? 0,
   );
 
   final Visit visit;
@@ -233,6 +238,11 @@ class DayVisitItem {
 
   /// 살아 있는 알림장 링크가 있다.
   final bool reportSent;
+
+  /// 확인할 것의 수(③-B) — 보호자 항목과 아이 항목을 따로 준다. 가족 묶음에서 보호자 수는
+  /// 구성원마다 같은 값이 오므로 한 번만 센다(`DayGroup.checkCount`). 지병은 세지 않는다.
+  final int customerCheckCount;
+  final int petCheckCount;
 }
 
 /// 하루 목록 — 취소·노쇼까지 모두, 시작 순.
@@ -408,6 +418,7 @@ class VisitDetail {
     required this.noShowCount,
     required this.record,
     required this.report,
+    this.checks = const [],
   });
 
   factory VisitDetail.fromJson(Map<String, dynamic> json) => VisitDetail(
@@ -425,6 +436,7 @@ class VisitDetail {
         ? null
         : VisitRecord.fromJson(json['record'] as Map<String, dynamic>),
     report: ReportLink.fromJson(json['report'] as Map<String, dynamic>),
+    checks: parseChecks(json['checks']),
   );
 
   final Visit visit;
@@ -437,6 +449,9 @@ class VisitDetail {
 
   /// 알림장 링크의 상태. 서버가 늘 준다 — 안 보냈으면 `live` 가 false 다.
   final ReportLink report;
+
+  /// 확인할 것(③-B). 예약됨·미용 중에만 온다. 모르는 항목은 이미 버렸다.
+  final List<VisitCheck> checks;
 }
 
 /// 다음 예약 초안. 저장하지 않은 값이다.

@@ -315,6 +315,28 @@ class AppStrings {
   static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해져요.';
 
   static String noShowCount(int count) => '노쇼 $count회';
+
+  // 확인할 것(③-B) — 서버가 판정한 항목의 글. 막지 않고 알리기만 한다.
+  static const checksTitle = '확인할 것';
+  static String checkCount(int count) => '확인 $count';
+  static String checkCaution(String reason) => '주의 고객이에요 · $reason';
+  static String checkNoShow(int count) => '지난 1년 동안 노쇼 $count번';
+  static const checkFirstVisit = '처음 오는 아이예요';
+  static const consentReasonSenior = '노령';
+  static const consentReasonConditions = '지병';
+  static String checkConsentMissing(List<String> reasons) => reasons.isEmpty
+      ? '미용 동의서를 받아 주세요'
+      : '미용 동의서를 받아 주세요 (${reasons.join(' · ')})';
+  static String checkConsentExpired(DateTime receivedOn) =>
+      '미용 동의서를 다시 받아 주세요 · 지난번 ${fullDate(receivedOn)}';
+  static String checkConditions(List<String> labels) =>
+      '지병 · ${labels.join(', ')}';
+  static String checkLongAbsence(int days, DateTime lastVisitOn) =>
+      '$days일 만에 와요 · 지난 방문 ${lastVisitOn.month}월 ${lastVisitOn.day}일';
+  static String checkConditionNote(String label, String note) =>
+      '$label — $note';
+  static const consentReceived = '받았어요';
+  static String fullDate(DateTime d) => '${d.year}년 ${d.month}월 ${d.day}일';
   static const noShowCountLabel = '노쇼 횟수';
   static String timesCount(int count) => '$count회';
 

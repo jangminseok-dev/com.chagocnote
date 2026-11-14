@@ -76,6 +76,8 @@ Map<String, dynamic> dayItemJson(
   bool hasRecord = false,
   String? cover,
   bool reportSent = false,
+  int customerCheckCount = 0,
+  int petCheckCount = 0,
 }) => {
   'visit': visit,
   'group_key':
@@ -86,6 +88,8 @@ Map<String, dynamic> dayItemJson(
   'has_record': hasRecord,
   'cover': cover,
   'report_sent': reportSent,
+  'customer_check_count': customerCheckCount,
+  'pet_check_count': petCheckCount,
 };
 
 Map<String, dynamic> dayJson({
@@ -202,6 +206,7 @@ Map<String, dynamic> visitDetailJson({
   int noShowCount = 0,
   Map<String, dynamic>? record,
   Map<String, dynamic>? report,
+  List<Map<String, dynamic>> checks = const [],
 }) {
   final v = visit ?? visitJson();
   return {
@@ -213,6 +218,7 @@ Map<String, dynamic> visitDetailJson({
     'record': record,
     'cover': null,
     'report': report ?? reportLinkJson(),
+    'checks': checks,
   };
 }
 
@@ -570,4 +576,22 @@ Map<String, dynamic> draftCandidateJson({
 Map<String, dynamic> draftPetJson({int petId = 11, String name = '두부'}) => {
   'pet_id': petId,
   'name': name,
+};
+
+/// 확인할 것 한 줄(③-B) — `{code, scope, detail}`.
+Map<String, dynamic> checkJson(
+  String code, {
+  String scope = 'customer',
+  Map<String, dynamic> detail = const {},
+}) => {'code': code, 'scope': scope, 'detail': detail};
+
+/// 예약 등록의 미리 보기 응답.
+Map<String, dynamic> checksPreviewJson({
+  List<Map<String, dynamic>> customer = const [],
+  Map<int, List<Map<String, dynamic>>> pets = const {},
+}) => {
+  'customer': customer,
+  'pets': [
+    for (final e in pets.entries) {'pet_id': e.key, 'checks': e.value},
+  ],
 };
