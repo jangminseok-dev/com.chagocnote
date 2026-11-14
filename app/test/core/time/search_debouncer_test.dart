@@ -1,4 +1,4 @@
-import 'package:chagocnote/features/customer/state/search_debouncer.dart';
+import 'package:chagocnote/core/time/search_debouncer.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

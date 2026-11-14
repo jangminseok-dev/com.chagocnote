@@ -14,7 +14,7 @@ import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../state/customer_list_controller.dart';
 import '../state/customer_view_mode.dart';
-import '../state/search_debouncer.dart';
+import '../../../core/time/search_debouncer.dart';
 import 'family_card_view.dart';
 
 /// 홈의 "고객" 탭 — 제목과 반려동물 수, 보기 전환, 정렬, 무지개다리 포함,
