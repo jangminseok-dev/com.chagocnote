@@ -198,6 +198,8 @@ void main() {
       await tap(p(AppStrings.cautionMore));
       await waitFor(p(AppStrings.cautionClear));
       await tap(p(AppStrings.cautionClear));
+      await waitFor(find.text(AppStrings.cautionClearConfirm));
+      await tap(btn(AppStrings.cautionClear));
       await waitFor(find.text(AppStrings.cautionNone));
       await shot('C7-cleared');
       final detail = await container

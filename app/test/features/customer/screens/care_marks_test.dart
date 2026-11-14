@@ -384,13 +384,31 @@ void main() {
       expect(find.text('노쇼 4번'), findsOneWidget);
     });
 
-    testWidgets('··· 의 [주의 표시 지우기]는 지우고 줄이 "표시하지 않았어요"로 돌아간다', (tester) async {
+    testWidgets('[주의 표시 지우기]는 한 번 묻고, [취소]하면 지우지 않는다', (tester) async {
       final server = _Server(caution: cautionJson());
       final setup = await _openPet(tester, server, ownerTab: true);
 
       await tester.tap(find.bySemanticsLabel(AppStrings.cautionMore));
       await tester.pumpAndSettle();
       await tester.tap(find.text(AppStrings.cautionClear));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.cautionClearConfirm), findsOneWidget);
+      await tester.tap(_button(AppStrings.cancel));
+      await _settle(tester);
+
+      expect(_count(setup, 'DELETE $_cautionPath'), 0);
+      expect(find.text('노쇼 2번'), findsOneWidget);
+    });
+
+    testWidgets('··· 의 [주의 표시 지우기]는 확인한 뒤 지우고 줄이 "표시하지 않았어요"로 돌아간다', (tester) async {
+      final server = _Server(caution: cautionJson());
+      final setup = await _openPet(tester, server, ownerTab: true);
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.cautionMore));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(AppStrings.cautionClear));
+      await tester.pumpAndSettle();
+      await tester.tap(_button(AppStrings.cautionClear));
       await _settle(tester);
 
       expect(_count(setup, 'DELETE $_cautionPath'), 1);
@@ -405,6 +423,8 @@ void main() {
       await tester.tap(find.bySemanticsLabel(AppStrings.cautionMore));
       await tester.pumpAndSettle();
       await tester.tap(find.text(AppStrings.cautionClear));
+      await tester.pumpAndSettle();
+      await tester.tap(_button(AppStrings.cautionClear));
       await _settle(tester);
 
       expect(find.text(_serverError()), findsOneWidget);

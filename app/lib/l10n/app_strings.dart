@@ -355,6 +355,7 @@ class AppStrings {
   static const cautionMore = '주의 고객 더 보기';
   static const cautionEdit = '사유 고치기';
   static const cautionClear = '주의 표시 지우기';
+  static const cautionClearConfirm = '주의 표시를 지울까요? 적어 둔 사유도 함께 지워져요.';
   static const cautionSheetTitle = '주의 고객으로 표시해요';
   static const cautionReasonHint = '사유를 한 줄로 적어 주세요';
   static const cautionSheetNote = '우리 매장에서만 보여요. 1년 뒤에 저절로 지워져요.';
