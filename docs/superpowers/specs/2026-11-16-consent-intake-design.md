@@ -16,7 +16,7 @@
 
 - **만들어 둘 것이 없다.** 기본 문안과 기본 문진표 항목이 채워져 있어 첫날부터 보낸다. **그리고 전부 바꿀 수 있다** — 문안 전체, 문진표의 항목과 질문, 링크 기간, 보내는 글.
 - 예약을 잡으면 그 예약에 필요한 서류 링크가 **보낼 것 묶음에 이미 들어 있다.** 공유 한 번이다.
-- 보호자는 **한 번 서명하면 기한(365일) 동안 다시 서명하지 않는다.** 노령이 되거나 지병이 더해졌을 때 **바뀐 토막만** 다시 읽고 서명한다.
+- 보호자는 **한 번 서명하면 기한(기본 365일 — 매장이 바꾼다, 10절) 동안 다시 서명하지 않는다.** 노령이 되거나 지병이 더해졌을 때 **바뀐 토막만** 다시 읽고 서명한다.
 - 첫 방문은 **링크 하나**에서 문진표와 동의서가 끝난다. 매장에 와 있는 보호자는 **사장 폰에서 바로** 서명한다.
 - 서명한 것이 남는다 — 읽은 문안의 판, 그때 보인 사실(아이 이름·지병 이름), 적은 이름, 손가락 서명, 시각.
 - 새 손님이 문진표를 적어 보내면 사장은 **확인만** 하고 등록한다. 다시 치지 않는다. 0원이다.
@@ -31,7 +31,6 @@
 | 문진표의 답을 저절로 고객 정보에 반영 | 사람이 확인한다(공통 2절). 앱은 번호가 같은 고객을 찾아 **연결만 미리** 해 둔다. |
 | 예방접종 증명, 사진 첨부(원하는 스타일 사진) | 로그인 없는 경로에 파일 올리기를 열지 않는다. 글로만 받는다. 요청이 나오면. |
 | 호텔·유치원용 동의서, 마취·의료 행위 동의 | 범위 밖이다. 매장이 기본 토막의 글을 고쳐 넣을 수는 있다. |
-| 토막이 붙는 기준(10살)·기한(365일)을 매장이 바꾸기 | ③-B 의 판정과 한 몸이라 이 묶음만으로 바꿀 수 없다(10절 질문 2). |
 | 서명한 접속 주소(IP)·기기 정보 저장 | 개인정보를 더 쌓지 않는다. 횟수 제한에만 쓰고 버린다. |
 | 히스하우스 신청서 옮기기 | 별도 프로젝트다. 건드리지 않는다 — 나중에 이 문진표로 옮길 수 있다. |
 | 받은 문진표 알림(푸시) | 푸시가 없다. 고객 탭을 열 때 보인다. |
@@ -154,6 +153,7 @@
    - `문진표에서 물어볼 것` → 항목 켜고 끄기, 질문 더하기, 미리 보기.
    - `보호자에게 보내는 글` → 토막별 템플릿.
    - `링크를 열 수 있는 기간` 14일 · `확인하지 않은 문진표를 지우는 때` 30일 · `첫 방문 문진표에서 모든 아이에게 동의서 받기`.
+   - `노령으로 보는 나이` 10살 · `동의를 다시 받는 기간` 365일(10절 — ③-B 의 판정이 이 값을 읽는다).
    - 아무것도 건드리지 않아도 기본값으로 돈다.
 7. 서명 그림은 앱이 받은 바이트를 그대로 그린다(네이티브 이미지). 현장 서명 칸은 `CustomPainter` 다. 웹뷰가 없다.
 
@@ -202,7 +202,7 @@
   - `customer_form_pets(form_id, pet_id)` — 동의서가 담는 아이들.
   - "아이 하나에 살아 있는 동의서 요청은 하나"는 색인이 아니라 발급 유스케이스가 고객 행을 잠근 안에서 지킨다(요청이 아이 여럿을 담아 부분 유일 색인으로 쓸 수 없다). (다)의 문진표는 `(intake_pet_id) WHERE kind='intake' AND revoked_at IS NULL AND submitted_at IS NULL` 부분 유일.
 - `shop_consent_texts` — 매장이 고친 글. `id`, `shop_id`, `part`(`basic`·`senior`·`condition`), `version int`, `body varchar(2000)`, `created_by_member_id`, `created_at`. 쌓기만 한다. `(shop_id, part, version)` 유일. [기본 글로 되돌리기]는 `body null` 인 판을 하나 쌓는다.
-- `shop_form_settings` — `shop_id` PK, `link_days smallint`(1~30), `intake_keep_days smallint`(7~90), `consent_for_all bool`, 문진표에서 끈 항목(`intake_hidden_fields`), 보내는 글의 템플릿. 행이 없으면 기본값이다.
+- `shop_form_settings` — `shop_id` PK, `link_days smallint`(1~30), `intake_keep_days smallint`(7~90), `consent_for_all bool`, `senior_age smallint`(기본 10, 5~20), `consent_days smallint`(기본 365, 30~1095), 문진표에서 끈 항목(`intake_hidden_fields`), 보내는 글의 템플릿. 행이 없으면 기본값이다.
   - `shop_intake_questions(id, shop_id, position, label varchar(100), required bool, removed_at)` — 지운 질문도 받은 답이 가리키므로 행은 남긴다.
 - `consent_signatures` — 한 번의 서명. `id`, `shop_id`, `form_id null unique`(현장 서명은 없다), `intake_answer_id null`(맡아 둔 서명), `customer_id null`, `channel`(`link`·`in_shop`), `signer_name varchar(50)`, `signature_png bytea`(CHECK `octet_length <= 65536`), `signed_at`, `by_member_id`.
   - `consent_signature_pets(id, signature_id, pet_id null, shown_pet_name)` — 맡아 둔 서명은 `pet_id` 가 비어 있다가 등록 때 채워진다.
