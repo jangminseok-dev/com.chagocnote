@@ -76,7 +76,7 @@ async def _staff(wired, shop_id, owner):
 
 async def test_직원이_알림장을_미리_보고_설정과_링크가_그대로_비친다(wired, media_storage):
     from core.config import REPORT_LINK_KEY, REPORT_WEB_BASE_URL
-    from visit.domain.services.report_token import read_token
+    from core.link_token import read_token
 
     shop_id, owner, o = await _shop(wired, await make_operator(wired), "Hiss Haus", "사장님")
     staff = await wired.login("직원")

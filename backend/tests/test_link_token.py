@@ -3,7 +3,7 @@ import string
 
 import pytest
 
-from visit.domain.services.report_token import TOKEN_LENGTH, make_token, new_public_id, read_token
+from core.link_token import TOKEN_LENGTH, make_token, new_public_id, read_token
 
 KEY = b"k" * 32
 OTHER_KEY = b"o" * 32
@@ -87,3 +87,15 @@ def test_public_id_는_16바이트이고_만들_때마다_다르다():
     first, second = new_public_id(), new_public_id()
     assert (len(first), len(second)) == (16, 16)
     assert first != second
+
+
+def test_용도가_다르면_같은_public_id_의_토큰이_서로_읽히지_않는다():
+    report, form = make_token(PUBLIC_ID, KEY), make_token(PUBLIC_ID, KEY, b"form:")
+    assert report != form
+    assert read_token(report, KEY) == PUBLIC_ID and read_token(form, KEY, b"form:") == PUBLIC_ID
+    assert read_token(report, KEY, b"form:") is None and read_token(form, KEY) is None
+
+
+def test_용도를_주지_않은_토큰은_옮기기_전과_글자가_같다():
+    # 옮기기 전(visit.domain.services.report_token)의 구현으로 계산해 둔 값 — 보호자에게 이미 나간 링크가 그대로 열려야 한다.
+    assert make_token(PUBLIC_ID, KEY) == "AAECAwQFBgcICQoLDA0ODyyWUpTxv06d4AU2gLSYWxU"

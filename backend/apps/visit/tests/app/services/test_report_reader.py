@@ -19,7 +19,7 @@ from visit.app.services.report_reader import describe_link, describe_report
 from visit.domain.entities.visit_record import RecordItem
 from visit.domain.entities.visit_report import VisitReport
 from visit.domain.services.report_rules import hide
-from visit.domain.services.report_token import read_token
+from core.link_token import read_token
 from visit.domain.value_objects.report_settings import ReportSettings
 from visit.tests.helpers.builders import ctx, kst, record, visit
 from visit.tests.helpers.fakes import FakeDirectory, FakeLibrary, FakeMenus

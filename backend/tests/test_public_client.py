@@ -3,8 +3,8 @@ import pytest
 from fastapi import Depends, FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from visit.dependencies import public_client
-from visit.dependencies.public_client import get_public_client
+from core import public_client
+from core.public_client import get_public_client
 
 SECRET = "web-secret-for-test"
 

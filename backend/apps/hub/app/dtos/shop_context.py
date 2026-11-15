@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from hub.app.dtos.shop_profile import ShopProfile
+
 
 @dataclass(frozen=True)
 class ShopContext:
@@ -28,3 +30,13 @@ def system_context(shop_id: int, timezone: str = "Asia/Seoul") -> ShopContext:
     저장(status 바꾸기)만이면 기본값으로 둔다.
     """
     return ShopContext(shop_id=shop_id, member_id=0, role="system", permissions=frozenset(), timezone=timezone)
+
+
+def public_context(shop: ShopProfile) -> ShopContext:
+    """매장 멤버가 아닌 요청 경로(로그인 없는 공개 알림장·공개 서류, 로그인한 보호자의 읽기)가 쓰는 매장 컨텍스트.
+
+    권한이 비어 있다. 포트 읽기와, 공개 서류 제출이 쓰는 표에만 쓴다(루트 CLAUDE.md).
+    멤버가 없어 member_id 는 0 이다. 매장은 서명을 확인한 토큰의 링크(또는 가드가 확인한 연결)에서 읽은 것이어야 한다.
+    """
+    return ShopContext(
+        shop_id=shop.shop_id, member_id=0, role="public", permissions=frozenset(), timezone=shop.timezone)

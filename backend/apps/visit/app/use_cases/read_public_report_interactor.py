@@ -10,11 +10,11 @@ from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.read_public_report_dto import PublicReportView, ReadPublicReportQuery
 from visit.app.ports.input.read_public_report_use_case import ReadPublicReportUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
-from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
+from hub.app.ports.public_limiter_port import PublicLimiterPort
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
-from visit.app.services.public_context import public_context
+from hub.app.dtos.shop_context import public_context
 from visit.app.services.public_report_gate import open_report
 from visit.app.services.report_reader import describe_report
 from visit.domain.errors import ReportClosedError
@@ -26,7 +26,7 @@ class ReadPublicReportInteractor(ReadPublicReportUseCase):
     def __init__(
         self, reports: PublicReportRepository, records: VisitRecordRepository, settings: ReportSettingsRepository,
         menus: MenuRepository, directory: CustomerDirectoryPort, library: MediaLibraryPort, shops: ShopProfilePort,
-        limiter: PublicReportLimiterPort, now: Callable[[], datetime], link_key: bytes,
+        limiter: PublicLimiterPort, now: Callable[[], datetime], link_key: bytes,
     ) -> None:
         self._reports = reports
         self._records = records

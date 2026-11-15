@@ -8,7 +8,7 @@ from datetime import datetime
 class VisitReport:
     """알림장 링크 하나(설계 4.1). 방문의 기록을 비추는 창이고 내용을 갖지 않는다.
 
-    토큰은 저장하지 않는다 — public_id 와 서버 키로 그때마다 계산한다(domain/services/report_token.py).
+    토큰은 저장하지 않는다 — public_id 와 서버 키로 그때마다 계산한다(core/link_token.py).
     """
 
     id: int

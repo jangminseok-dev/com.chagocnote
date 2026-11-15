@@ -320,7 +320,7 @@ async def test_이상한_토큰은_404_다(wired, headers):
 async def test_패딩을_붙이거나_다른_키로_서명한_토큰은_404_다(wired):
     """R13"""
     from core.config import REPORT_LINK_KEY
-    from visit.domain.services.report_token import make_token, read_token
+    from core.link_token import make_token, read_token
 
     shop_id, o = await _shop(wired)
     visit, _, _ = await _completed_visit(wired, shop_id, o)
@@ -359,7 +359,7 @@ async def test_1분에_61번째_요청부터_429_다(wired):
 async def test_실패가_20번이어도_맞는_토큰은_열리고_틀린_토큰은_접속_주소_헤더를_바꿔도_429_다(wired, monkeypatch):
     """R1·R17 — 검토 지적: 실패 수 차단은 서명이 틀린 요청에만 건다. 맞는 토큰은 남의 실패로 막히지 않는다.
     비밀값 없이 보낸 X-Report-Client-IP 는 믿지 않는다. 틀린 토큰은 모두 연결된 주소 하나로 센다."""
-    from visit.dependencies import public_client
+    from core import public_client
 
     monkeypatch.setattr(public_client, "REPORT_WEB_SECRET", "web-secret-for-test")
     shop_id, o = await _shop(wired)

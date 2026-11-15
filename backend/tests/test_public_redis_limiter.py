@@ -6,7 +6,7 @@ from redis.asyncio import from_url
 from redis.exceptions import ConnectionError as RedisConnectionError
 
 from core.config import REDIS_URL
-from visit.adapter.outbound.redis.public_report_redis_limiter import PublicReportRedisLimiter
+from core.public_redis_limiter import PublicRedisLimiter
 
 pytestmark = pytest.mark.integration
 
@@ -29,13 +29,13 @@ async def redis():
 
 async def test_1분에_60번까지_받고_61번째부터_막는다(redis):
     """R1"""
-    limiter = PublicReportRedisLimiter(redis)
+    limiter = PublicRedisLimiter(redis, "visit:report")
     assert [await limiter.allow(CLIENT) for _ in range(62)] == [True] * 60 + [False, False]
 
 
 async def test_실패가_20번_쌓여도_allow_는_막지_않는다(redis):
     """검토 지적 — 실패 수는 allow 가 아니라 missed_too_much 가 본다. 서명이 맞는 토큰은 남의 실패로 막히지 않는다."""
-    limiter = PublicReportRedisLimiter(redis)
+    limiter = PublicRedisLimiter(redis, "visit:report")
     for _ in range(20):
         await limiter.note_miss(CLIENT)
     assert await limiter.allow(CLIENT) is True
@@ -43,7 +43,7 @@ async def test_실패가_20번_쌓여도_allow_는_막지_않는다(redis):
 
 async def test_실패가_19번까지는_차지_않고_20번이면_찼다(redis):
     """R1"""
-    limiter = PublicReportRedisLimiter(redis)
+    limiter = PublicRedisLimiter(redis, "visit:report")
     for _ in range(19):
         await limiter.note_miss(CLIENT)
     assert await limiter.missed_too_much(CLIENT) is False
@@ -52,7 +52,7 @@ async def test_실패가_19번까지는_차지_않고_20번이면_찼다(redis):
 
 
 async def test_접속_주소마다_따로_센다(redis):
-    limiter = PublicReportRedisLimiter(redis)
+    limiter = PublicRedisLimiter(redis, "visit:report")
     for _ in range(61):
         await limiter.allow(CLIENT)
     for _ in range(20):
@@ -64,7 +64,7 @@ async def test_접속_주소마다_따로_센다(redis):
 
 
 async def test_창은_처음_셀_때_잡히고_이후_요청이_늘리지_않는다(redis):
-    limiter = PublicReportRedisLimiter(redis)
+    limiter = PublicRedisLimiter(redis, "visit:report")
     await limiter.allow(CLIENT)
     await limiter.note_miss(CLIENT)
     assert 0 < await redis.ttl(_key("hits")) <= 60
@@ -79,7 +79,7 @@ async def test_창은_처음_셀_때_잡히고_이후_요청이_늘리지_않는
 
 async def test_창이_지나면_다시_받는다(redis):
     """기다리지 않는다 — 창이 끝난 것은 키가 사라진 것이다."""
-    limiter = PublicReportRedisLimiter(redis)
+    limiter = PublicRedisLimiter(redis, "visit:report")
     for _ in range(61):
         await limiter.allow(CLIENT)
     for _ in range(20):
@@ -93,7 +93,7 @@ async def test_창이_지나면_다시_받는다(redis):
 
 
 async def test_아주_긴_접속_주소도_키는_짧다(redis):
-    limiter = PublicReportRedisLimiter(redis)
+    limiter = PublicRedisLimiter(redis, "visit:report")
     await limiter.allow("1" * 5000)
     await limiter.note_miss("1" * 5000)
     keys = sorted(await redis.keys("*"))
@@ -124,10 +124,28 @@ class _DeadRedis:
 
 
 async def test_Redis_에_닿지_못하면_통과시키고_경고를_남긴다(caplog):
-    limiter = PublicReportRedisLimiter(_DeadRedis())
+    limiter = PublicRedisLimiter(_DeadRedis(), "visit:report")
     with caplog.at_level(logging.WARNING):
         assert await limiter.allow(CLIENT) is True
         await limiter.note_miss(CLIENT)
         assert await limiter.missed_too_much(CLIENT) is False
     assert [r.levelname for r in caplog.records] == ["WARNING", "WARNING", "WARNING"]
     assert CLIENT not in caplog.text
+
+
+async def test_쓰기_제한은_10분에_10번까지다(redis):
+    limiter = PublicRedisLimiter(redis, "customer:form")
+    assert [await limiter.allow_write(CLIENT) for _ in range(11)] == [True] * 10 + [False]
+    assert 0 < await redis.ttl(f"customer:form-writes:{hashlib.sha256(CLIENT.encode()).hexdigest()[:32]}") <= 600
+
+
+async def test_이름_공간이_다르면_서로의_수를_세지_않는다(redis):
+    report, form = PublicRedisLimiter(redis, "visit:report"), PublicRedisLimiter(redis, "customer:form")
+    for _ in range(60):
+        await report.allow(CLIENT)
+    assert await report.allow(CLIENT) is False
+    assert await form.allow(CLIENT) is True
+
+
+async def test_Redis_에_닿지_못하면_쓰기도_막지_않는다():
+    assert await PublicRedisLimiter(_DeadRedis(), "customer:form").allow_write(CLIENT) is True

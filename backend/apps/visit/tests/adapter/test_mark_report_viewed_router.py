@@ -3,7 +3,7 @@ import pytest
 from visit.adapter.inbound.api.v1.mark_report_viewed_router import mark_report_viewed_router
 from visit.dependencies.mark_report_viewed_provider import get_mark_report_viewed_use_case
 from visit.domain.errors import ReportClosedError, ReportNotFoundError, TooManyReportRequestsError
-from visit.domain.services.report_token import make_token
+from core.link_token import make_token
 from visit.tests.helpers.api import Recorder, build_app, client, error_of
 
 TOKEN = make_token(bytes(range(16)), bytes(range(32)))

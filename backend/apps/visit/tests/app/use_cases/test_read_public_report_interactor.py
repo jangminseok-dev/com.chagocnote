@@ -6,7 +6,7 @@ from visit.app.dtos.read_public_report_dto import ReadPublicReportQuery
 from visit.app.dtos.report_view_dto import ReportShopView
 from visit.app.use_cases.read_public_report_interactor import ReadPublicReportInteractor
 from visit.domain.errors import ReportClosedError, ReportNotFoundError, TooManyReportRequestsError
-from visit.domain.services.report_token import make_token
+from core.link_token import make_token
 from visit.tests.helpers.public_world import CLIENT, KEY, NOW, SHOP, PublicWorld
 
 

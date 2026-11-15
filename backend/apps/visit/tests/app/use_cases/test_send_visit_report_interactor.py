@@ -17,7 +17,7 @@ from visit.domain.errors import (
     VisitNotFoundError,
 )
 from visit.domain.services.report_rules import hide
-from visit.domain.services.report_token import read_token
+from core.link_token import read_token
 from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import (

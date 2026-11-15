@@ -23,7 +23,7 @@ from visit.domain.entities.visit import Visit
 from visit.domain.entities.visit_record import VisitRecord
 from visit.domain.entities.visit_report import VisitReport
 from visit.domain.services.report_rules import hide, report_cover_media_id, visible_media
-from visit.domain.services.report_token import make_token
+from core.link_token import make_token
 from visit.domain.services.visit_schedule import local_date
 from visit.domain.value_objects.report_settings import ReportSettings
 

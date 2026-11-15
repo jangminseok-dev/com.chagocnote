@@ -6,7 +6,7 @@ from datetime import datetime
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.mark_report_viewed_dto import MarkReportViewedCommand
 from visit.app.ports.input.mark_report_viewed_use_case import MarkReportViewedUseCase
-from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
+from hub.app.ports.public_limiter_port import PublicLimiterPort
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.services.public_report_gate import open_report
 
@@ -18,7 +18,7 @@ class MarkReportViewedInteractor(MarkReportViewedUseCase):
     """
 
     def __init__(
-        self, reports: PublicReportRepository, shops: ShopProfilePort, limiter: PublicReportLimiterPort,
+        self, reports: PublicReportRepository, shops: ShopProfilePort, limiter: PublicLimiterPort,
         now: Callable[[], datetime], link_key: bytes,
     ) -> None:
         self._reports = reports

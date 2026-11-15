@@ -8,8 +8,8 @@ from hub.app.ports.report_link_port import ReportLinkPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
-from visit.app.services.public_context import public_context
-from visit.domain.services.report_token import read_token
+from hub.app.dtos.shop_context import public_context
+from core.link_token import read_token
 
 
 class ResolveReportLinkInteractor(ReportLinkPort):
