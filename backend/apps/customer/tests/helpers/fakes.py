@@ -447,3 +447,9 @@ class FakeConsentSignatures(ConsentSignatureRepository):
                 del self.rows[sid]
         self.journal.append(("delete_signatures_of_pet", pet_id))
         return count
+
+
+def consent_stores(journal: Journal) -> dict:
+    """서류(⑪)의 스텁 한 벌 — 인터랙터에 **로 넘긴다."""
+    return dict(forms=FakeConsentForms(journal), signatures=FakeConsentSignatures(journal), now=lambda: NOW)
+

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 
+from customer.app.ports.output.consent_form_repository import ConsentFormRepository
+from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.family_brief_repository import FamilyBriefRepository
@@ -12,7 +16,7 @@ from customer.domain.services.care_marks import caution_active
 from customer.domain.services.draft_ranking import match_family
 from customer.domain.services.phone_number import mask_phone
 from customer.domain.services.search_terms import parse_query
-from hub.app.dtos.care_facts import CareFacts, CautionFact, ConditionFact, PetCareFact
+from hub.app.dtos.care_facts import CareFacts, CautionFact, ConditionFact, ConsentCover, PetCareFact
 from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
@@ -29,12 +33,17 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
 
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository, briefs: FamilyBriefRepository,
-        search: CustomerSearchPort,
+        search: CustomerSearchPort, signatures: ConsentSignatureRepository | None = None,
+        forms: ConsentFormRepository | None = None, now: Callable[[], datetime] | None = None,
     ) -> None:
         self._customers = customers
         self._pets = pets
         self._briefs = briefs
         self._search = search
+        # 서류(⑪)의 저장소 — care_facts 만 쓴다. 주지 않으면 서명·보낸 날을 싣지 않는다.
+        self._signatures = signatures
+        self._forms = forms
+        self._now = now
 
     async def lock_family(self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...]) -> None:
         # 가족을 바꾸는 customer 유스케이스와 같은 잠금이다 — 익명화와 예약 생성이 서로를 기다린다.
@@ -110,7 +119,9 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
         wanted = set(pet_ids)
         pets: dict[int, PetCareFact] = {}
         if wanted and known:
-            for pet in await self._pets.list_for_customers(ctx, sorted(known)):
+            found = [p for p in await self._pets.list_for_customers(ctx, sorted(known)) if p.id in wanted]
+            covers, sent = await self._consent_marks(ctx, found)
+            for pet in found:
                 if pet.id in wanted:
                     pets[pet.id] = PetCareFact(
                         pet_id=pet.id, customer_id=pet.customer_id, birth_date=pet.birth_date,
@@ -120,8 +131,27 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
                             for c in pet.conditions
                         ),
                         consent_on=pet.grooming_consent_on, passed_away=pet.passed_away,
+                        consent_cover=covers.get(pet.id), consent_form_sent_on=sent.get(pet.id),
                     )
         return CareFacts(known_customers=known, cautions=cautions, pets=pets)
+
+    async def _consent_marks(self, ctx: ShopContext, pets) -> tuple[dict[int, ConsentCover], dict[int, date]]:
+        """아이 → 서명이 덮는 것, 아이 → 살아 있는 동의서 링크를 보낸 날. 아이가 몇이든 질의는 둘이다."""
+        if self._signatures is None or self._forms is None or self._now is None or not pets:
+            return {}, {}
+        signed = {p.id: p.grooming_consent_on for p in pets
+                  if p.grooming_consent_on is not None and p.grooming_consent_signature_id is not None}
+        found = await self._signatures.covers(ctx, signed)
+        covers = {
+            pet_id: ConsentCover(
+                senior=any("senior" in c.parts for c in found.get(pet_id, ())),
+                condition_labels=frozenset().union(*(c.condition_labels for c in found.get(pet_id, ()))),
+            )
+            for pet_id in signed
+        }
+        zone = ZoneInfo(ctx.timezone)
+        sent = await self._forms.sent_on(ctx, tuple(p.id for p in pets), self._now())
+        return covers, {pet_id: at.astimezone(zone).date() for pet_id, at in sent.items()}
 
     async def contact(self, ctx: ShopContext, customer_id: int) -> CustomerContact | None:
         # 익명화한 고객과 다른 매장의 고객은 저장소가 "없음"으로 본다 — 둘 다 None 이다(N8).

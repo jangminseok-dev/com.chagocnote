@@ -268,3 +268,148 @@ async def test_로그에_주소와_적은_이름이_없다(wired, caplog):
         assert (await sign_here(wired, shop_id, headers, pet_id, name="서명한이름")).status_code == 201
     assert url.rsplit("/", 1)[1] not in caplog.text
     assert "서명한이름" not in caplog.text and PNG_B64 not in caplog.text
+
+
+# --- 지금 있는 것과 잇기 ---------------------------------------------------------------------------------------------
+
+async def _pet_row(wired, pet_id) -> tuple:
+    async with wired.engine.connect() as conn:
+        return tuple((await conn.execute(text(
+            "SELECT grooming_consent_on, grooming_consent_signature_id FROM pets WHERE id = :id"), {"id": pet_id})).one())
+
+
+async def test_서명_뒤에_지병을_더하면_받은_날은_남고_바뀐_토막만_다시_받는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet(conditions=[HEART]))
+    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id)
+    first = (await sign_here(wired, shop_id, headers, pet_id)).json()["signature_id"]
+    assert "consent" not in await _checks(wired, shop_id, headers, visit_id)
+
+    updated = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=headers,
+                                  json=_pet(conditions=[HEART, ALLERGY]))
+    assert updated.status_code == 200 and updated.json()["pet"]["grooming_consent_on"] == _day(0).isoformat()
+
+    consent = (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]
+    assert (consent["state"], consent["parts"], consent["received_on"]) == ("partial", ["condition"], _day(0).isoformat())
+    doc = (await document(wired, shop_id, headers, pet_id)).json()
+    assert (doc["pets"][0]["parts"], doc["previous_consent_on"]) == (["condition"], _day(0).isoformat())
+    assert set(doc["texts"]) == {"condition"} and doc["pets"][0]["conditions"] == ["심장 질환", "알레르기"]
+
+    # 부분 서명은 받은 날과 그날을 찍은 서명을 옮기지 않는다.
+    await wired.execute("UPDATE pets SET grooming_consent_on = grooming_consent_on - 30 WHERE id = :id", id=pet_id)
+    await wired.execute("UPDATE consent_signatures SET signed_at = signed_at - interval '30 days'")
+    second = (await sign_here(wired, shop_id, headers, pet_id)).json()["signature_id"]
+    assert await _pet_row(wired, pet_id) == (_day(-30), first) and second != first
+    assert "consent" not in await _checks(wired, shop_id, headers, visit_id)
+    assert error_of(await document(wired, shop_id, headers, pet_id)) == (409, "CONSENT_UP_TO_DATE")
+
+
+async def test_손_표시_뒤에_지병을_더하면_받은_날이_지워진다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    _, pet_id = await _family(wired, shop_id, headers, _pet(conditions=[HEART]))
+    await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}/grooming-consent", headers=headers, json={})
+
+    updated = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=headers,
+                                  json=_pet(conditions=[HEART, ALLERGY]))
+
+    assert updated.json()["pet"]["grooming_consent_on"] is None
+
+
+async def test_손으로_받았어요를_누르면_서명과의_이음이_끊기고_지우면_다시_전부_받는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    _, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR))
+    await sign_here(wired, shop_id, headers, pet_id)
+    pet = (await wired.api.get(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=headers)).json()["pet"]
+    assert pet["grooming_consent_via"] == "signature"
+
+    marked = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}/grooming-consent", headers=headers, json={})
+    assert marked.json()["pet"]["grooming_consent_via"] == "manual"
+    assert (await _pet_row(wired, pet_id))[1] is None
+
+    cleared = await wired.api.delete(f"/v1/shops/{shop_id}/pets/{pet_id}/grooming-consent", headers=headers)
+    assert cleared.json()["pet"]["grooming_consent_via"] is None
+    doc = (await document(wired, shop_id, headers, pet_id)).json()
+    assert doc["pets"][0]["parts"] == ["basic", "senior"] and doc["previous_consent_on"] is None
+
+
+async def test_익명화하면_서명과_요청의_행이_남지_않는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, kong = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR, conditions=[HEART]))
+    bori = await add_pet(wired, shop_id, headers, customer_id, _pet(name="보리", conditions=[ALLERGY]))
+    signature_id = (await sign_here(wired, shop_id, headers, kong)).json()["signature_id"]
+    assert (await send(wired, shop_id, headers, bori)).status_code == 201
+
+    removed = await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)
+
+    assert removed.status_code == 204, removed.text
+    for table in ("consent_signatures", "consent_signature_pets", "consent_signature_parts",
+                  "consent_signature_conditions"):
+        assert await count(wired, table) == 0, table
+    assert await count(wired, "customer_forms", "revoked_at IS NULL") == 0
+    assert await count(wired, "pets", "grooming_consent_signature_id IS NOT NULL") == 0
+    assert error_of(await wired.api.get(
+        f"/v1/shops/{shop_id}/consent-signatures/{signature_id}", headers=headers)) == (404, "SIGNATURE_NOT_FOUND")
+    assert (await wired.api.get(f"/v1/shops/{shop_id}/forms", headers=headers)).json() == {"items": []}
+
+
+async def test_아이를_지우면_그_아이의_서명이_지워지고_링크에서_빠진다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, kong = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR))
+    bori = await add_pet(wired, shop_id, headers, customer_id, _pet(name="보리", conditions=[HEART]))
+    nabi = await add_pet(wired, shop_id, headers, customer_id, _pet(name="나비", conditions=[ALLERGY]))
+    both = (await sign_here(wired, shop_id, headers, kong, bori)).json()["signature_id"]
+    form_id = (await send(wired, shop_id, headers, nabi)).json()["form_id"]
+
+    assert (await wired.api.delete(f"/v1/shops/{shop_id}/pets/{bori}", headers=headers)).status_code == 204
+    one = (await wired.api.get(f"/v1/shops/{shop_id}/consent-signatures/{both}", headers=headers)).json()
+    assert [p["pet_id"] for p in one["pets"]] == [kong]            # 남은 아이의 줄은 그대로다
+
+    assert (await wired.api.delete(f"/v1/shops/{shop_id}/pets/{nabi}", headers=headers)).status_code == 204
+    assert await count(wired, "customer_forms", f"id = {form_id} AND revoked_at IS NOT NULL") == 1
+
+
+async def test_무지개다리는_링크에서만_빠지고_서명은_남는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, kong = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR))
+    bori = await add_pet(wired, shop_id, headers, customer_id, _pet(name="보리", conditions=[HEART]))
+    await sign_here(wired, shop_id, headers, bori)
+    await wired.execute("UPDATE pets SET grooming_consent_on = NULL, grooming_consent_by_member_id = NULL, "
+                        "grooming_consent_signature_id = NULL WHERE id = :id", id=bori)
+    form_id = (await send(wired, shop_id, headers, kong, bori)).json()["form_id"]
+
+    gone = await wired.api.post(f"/v1/shops/{shop_id}/pets/{bori}/passed-away", headers=headers)
+    assert gone.status_code == 200, gone.text
+
+    listed = (await wired.api.get(f"/v1/shops/{shop_id}/forms", headers=headers)).json()["items"]
+    assert [(i["form_id"], [p["pet_id"] for p in i["pets"]]) for i in listed] == [(form_id, [kong])]
+    assert await count(wired, "consent_signature_pets", f"pet_id = {bori}") == 1
+
+
+async def test_보낸_날은_살아_있는_요청이_있을_때만_확인할_것에_실린다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR))
+    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id)
+    assert "form_sent_on" not in (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]
+
+    form_id = (await send(wired, shop_id, headers, pet_id)).json()["form_id"]
+    assert (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]["form_sent_on"] == _day(0).isoformat()
+
+    await wired.api.delete(f"/v1/shops/{shop_id}/forms/{form_id}", headers=headers)
+    assert "form_sent_on" not in (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]
+
+
+async def test_서명_뒤에_노령이_되면_노령_토막만_다시_받는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR + 1))
+    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id)
+    assert (await sign_here(wired, shop_id, headers, pet_id)).status_code == 201      # 아홉 살 — basic 만
+    assert "consent" not in await _checks(wired, shop_id, headers, visit_id)
+
+    older = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=headers, json=_pet(birth_year=SENIOR_YEAR))
+    assert older.status_code == 200, older.text
+
+    consent = (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]
+    assert (consent["state"], consent["parts"]) == ("partial", ["senior"])
+    assert (await document(wired, shop_id, headers, pet_id)).json()["pets"][0]["parts"] == ["senior"]
+    assert (await sign_here(wired, shop_id, headers, pet_id)).status_code == 201
+    assert "consent" not in await _checks(wired, shop_id, headers, visit_id)

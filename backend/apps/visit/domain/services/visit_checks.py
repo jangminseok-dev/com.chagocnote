@@ -1,7 +1,7 @@
 """예약 앞에서 확인할 것의 판정(③-B 설계 3.1). 순수 함수 — DB 도 시계도 모른다.
 
 막지 않는다. 놓치는 것보다 한 번 더 뜨는 편이 낫다(재현율) — 애매하면 낸다. 기준일은 방문의 날이다.
-기준값은 고정이다(매장이 바꾸지 않는다).
+기준값은 고정이다(매장이 바꾸는 것은 ⑪-B).
 """
 from __future__ import annotations
 
@@ -41,11 +41,24 @@ def _consent(pet: PetFacts, on: date) -> Check | None:
         reasons.append("conditions")
     if not reasons:
         return None
+    # 살아 있는 동의서 링크가 있으면 보낸 날을 싣는다(⑪) — "보냈어요 · 서명 전". 없으면 칸이 없다.
+    sent = {} if pet.consent_form_sent_on is None else {"form_sent_on": pet.consent_form_sent_on}
     if pet.consent_on is None:
-        return Check(CONSENT, PET, {"reasons": reasons, "state": "missing", "received_on": None})
+        return Check(CONSENT, PET, {"reasons": reasons, "state": "missing", "received_on": None, **sent})
     # 받은 날이 방문 날보다 뒤여도(지난 채 남은 예약에서 오늘 받았다) 유효다 — 차이가 음수다.
     if (on - pet.consent_on).days > CONSENT_DAYS:
-        return Check(CONSENT, PET, {"reasons": reasons, "state": "expired", "received_on": pet.consent_on})
+        return Check(CONSENT, PET, {"reasons": reasons, "state": "expired", "received_on": pet.consent_on, **sent})
+    # 서명으로 받은 동의는 읽은 토막과 그때 보인 지병이 남아 있다 — 바뀐 토막만 다시 받는다(⑪ 3.3).
+    # 손으로 적은 동의(consent_cover 가 None)는 토막을 가르지 않는다 — ③-B 그대로.
+    if pet.consent_cover is not None:
+        parts = []
+        if "senior" in reasons and not pet.consent_cover.senior:
+            parts.append("senior")
+        if "conditions" in reasons and not {label for label, _ in pet.conditions} <= pet.consent_cover.condition_labels:
+            parts.append("condition")
+        if parts:
+            return Check(CONSENT, PET, {
+                "reasons": reasons, "state": "partial", "received_on": pet.consent_on, "parts": parts, **sent})
     return None
 
 

@@ -52,6 +52,7 @@ class PetView:
     memo: str | None
     passed_away_at: datetime | None
     grooming_consent_on: date | None = None   # 미용 동의를 받은 날(③-B)
+    grooming_consent_via: str | None = None   # signature(서명으로) · manual(손으로 적음) · None(없음) — ⑪
 
     @classmethod
     def of(cls, pet: Pet, today: date) -> PetView:
@@ -68,6 +69,10 @@ class PetView:
             ],
             memo=pet.memo, passed_away_at=pet.passed_away_at,
             grooming_consent_on=pet.grooming_consent_on,
+            grooming_consent_via=(
+                None if pet.grooming_consent_on is None
+                else "signature" if pet.grooming_consent_signature_id is not None else "manual"
+            ),
         )
 
 

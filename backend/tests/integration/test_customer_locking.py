@@ -11,6 +11,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from customer.adapter.outbound.pg.condition_type_pg_repository import ConditionTypePgRepository
+from customer.adapter.outbound.pg.consent_form_pg_repository import ConsentFormPgRepository
+from customer.adapter.outbound.pg.consent_signature_pg_repository import ConsentSignaturePgRepository
 from customer.adapter.outbound.pg.customer_pg_repository import CustomerPgRepository
 from customer.adapter.outbound.pg.customer_search_pg_adapter import CustomerSearchPgAdapter
 from customer.adapter.outbound.pg.pet_pg_repository import PetPgRepository
@@ -42,6 +44,11 @@ BLOCKED = 0.5   # 이만큼 기다려도 끝나지 않으면 잠금에서 기다
 def _repos(session):
     return (CustomerPgRepository(session), PetPgRepository(session),
             ConditionTypePgRepository(session), CustomerSearchPgAdapter(session))
+
+
+def _consent(session) -> dict:
+    """서류(⑪)의 저장소 — 익명화·반려동물 삭제가 함께 정리한다."""
+    return dict(forms=ConsentFormPgRepository(session), signatures=ConsentSignaturePgRepository(session), now=utc_now)
 
 
 def _ledger(session):
@@ -101,7 +108,7 @@ async def test_익명화가_고객을_쥔_동안_반려동물_추가는_기다�
 
     async with factory() as deleting, factory() as adding:
         customers, _, _, search = _repos(deleting)
-        await DeleteCustomerInteractor(customers, search, _ledger(deleting), NoGuardians(), index=NoSearchIndex()).delete_customer(
+        await DeleteCustomerInteractor(customers, search, _ledger(deleting), NoGuardians(), index=NoSearchIndex(), **_consent(deleting)).delete_customer(
             DeleteCustomerCommand(ctx=SHOP, customer_id=customer_id)
         )
         customers, pets, types, search = _repos(adding)
@@ -152,10 +159,10 @@ async def test_마지막_두_마리를_동시에_지우면_하나는_LAST_PET_�
 
     async with factory() as first, factory() as second:
         _, pets, _, search = _repos(first)
-        await DeletePetInteractor(pets, search, _ledger(first), events=NoEvents()).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=kong))
+        await DeletePetInteractor(pets, search, _ledger(first), events=NoEvents(), **_consent(first)).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=kong))
         _, pets, _, search = _repos(second)
         late = asyncio.create_task(
-            DeletePetInteractor(pets, search, _ledger(second), events=NoEvents()).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=dubu))
+            DeletePetInteractor(pets, search, _ledger(second), events=NoEvents(), **_consent(second)).delete_pet(DeletePetCommand(ctx=SHOP, pet_id=dubu))
         )
         assert await _still_waiting(late)
 

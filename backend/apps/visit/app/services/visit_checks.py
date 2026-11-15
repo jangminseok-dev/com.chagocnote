@@ -13,7 +13,7 @@ from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from visit.app.ports.output.visit_check_repository import HistoryAsk, NoShowAsk, VisitCheckRepository
 from visit.domain.services.visit_checks import NO_SHOW_DAYS, checks_for
 from visit.domain.services.visit_schedule import day_bounds, local_date
-from visit.domain.value_objects.check_facts import CautionMark, Check, CheckSubject, PetFacts
+from visit.domain.value_objects.check_facts import CautionMark, Check, CheckSubject, ConsentCoverFact, PetFacts
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,9 @@ async def read_checks(
                 birth_date=fact.birth_date, birth_year=fact.birth_year,
                 conditions=tuple((c.label, c.note) for c in fact.conditions),
                 consent_on=fact.consent_on, passed_away=fact.passed_away,
+                consent_cover=None if fact.consent_cover is None else ConsentCoverFact(
+                    senior=fact.consent_cover.senior, condition_labels=fact.consent_cover.condition_labels),
+                consent_form_sent_on=fact.consent_form_sent_on,
             ),
             caution=None if caution is None else CautionMark(reason=caution.reason, until=caution.until),
             no_show_count=no_shows.get(target.key, 0),

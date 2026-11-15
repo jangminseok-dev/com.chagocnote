@@ -36,7 +36,9 @@ class UpdatePetInteractor(UpdatePetUseCase):
         before = await self._pets.get(command.ctx, command.pet_id)
         await self._pets.update(command.ctx, command.pet_id, profile)
         # 앞서 받은 미용 동의는 새로 적힌 지병을 덮지 않는다 — 지병이 늘면 다시 받게 한다(③-B 3.2).
-        if before.grooming_consent_on is not None and conditions_added(before.conditions, profile.conditions):
+        # 서명으로 받은 동의는 지우지 않는다 — 서명에 그때 보인 지병이 남아 있어 바뀐 토막만 다시 받는다(⑪ 3.3).
+        if (before.grooming_consent_on is not None and before.grooming_consent_signature_id is None
+                and conditions_added(before.conditions, profile.conditions)):
             await self._pets.set_grooming_consent(command.ctx, command.pet_id, None, None)
         await self._search.rebuild_search_entry(command.ctx, customer_id)
         # 특이사항·지병이 기록 검색에 든다(⑨).
