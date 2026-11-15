@@ -56,3 +56,38 @@ class PetPassedAwayError(CustomerError):
     """무지개다리 아이에게 예약을 잡으려 했다."""
 
     code = "PET_PASSED_AWAY"
+
+
+class FormNotFoundError(CustomerError):
+    """서류 요청이 없다(또는 다른 매장의 것, 서명이 틀린 토큰). 오류에 요청·고객의 값을 싣지 않는다."""
+
+    code = "FORM_NOT_FOUND"
+
+
+class FormClosedError(CustomerError):
+    """끊었거나 기간이 지났거나 이미 낸 서류. 닫힌 이유는 가르지 않는다."""
+
+    code = "FORM_CLOSED"
+
+
+class SignatureNotFoundError(CustomerError):
+    code = "SIGNATURE_NOT_FOUND"
+
+
+class ConsentDocumentChangedError(CustomerError):
+    """보호자가 읽은 뒤 동의서의 내용(아이 이름·지병·토막·글의 판)이 바뀌었다 — 다시 읽게 한다."""
+
+    code = "CONSENT_DOCUMENT_CHANGED"
+
+
+class ConsentUpToDateError(CustomerError):
+    """다시 받을 토막이 하나도 없다."""
+
+    code = "CONSENT_UP_TO_DATE"
+
+
+class TooManyFormRequestsError(CustomerError):
+    """공개 서류 경로의 횟수 제한에 걸렸다. 알림장의 것과 같은 code 다 — 웹이 같은 화면으로 받는다."""
+
+    code = "TOO_MANY_ATTEMPTS"
+

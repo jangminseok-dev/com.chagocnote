@@ -40,9 +40,13 @@ class PetRepository(ABC):
 
     @abstractmethod
     async def set_grooming_consent(
-        self, ctx: ShopContext, pet_id: int, received_on: date | None, member_id: int | None
+        self, ctx: ShopContext, pet_id: int, received_on: date | None, member_id: int | None,
+        signature_id: int | None = None,
     ) -> Pet:
-        """미용 동의를 받은 날과 적은 멤버. 둘 다 None 이면 지운다. 소속이 아니면 PetNotFoundError."""
+        """미용 동의를 받은 날과 적은 멤버. 둘 다 None 이면 지운다. 소속이 아니면 PetNotFoundError.
+
+        signature_id 는 그날을 찍은 서명이다(⑪) — 손으로 적은 동의면 None 이고, 부를 때마다 덮어쓴다.
+        """
 
     @abstractmethod
     async def count_for_customer(self, ctx: ShopContext, customer_id: int) -> int: ...

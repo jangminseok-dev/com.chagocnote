@@ -11,13 +11,21 @@ from decimal import Decimal
 
 from customer.app.dtos.customer_search_dto import SearchPage
 from customer.app.ports.output.condition_type_repository import ConditionTypeRepository
+from customer.app.ports.output.consent_form_repository import ConsentFormRepository
+from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.domain.entities.condition_type import ConditionType
+from customer.domain.entities.consent import SignedCover
+from customer.domain.entities.consent_form import (
+    ConsentForm, SignatureBrief, SignatureDetail, SignaturePetDetail,
+)
 from customer.domain.entities.customer import Customer
 from customer.domain.entities.pet import Pet, PetCondition
-from customer.domain.errors import CustomerNotFoundError, CustomerPhoneTakenError, PetNotFoundError
+from customer.domain.errors import (
+    CustomerNotFoundError, CustomerPhoneTakenError, FormNotFoundError, PetNotFoundError, SignatureNotFoundError,
+)
 from hub.app.dtos.media_urls import MediaUrls
 from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
@@ -162,8 +170,9 @@ class FakePets(PetRepository):
         self.rows[pet_id] = replace(self._owned(ctx, pet_id), weight_kg=weight_kg)
         self.journal.append(("set_weight", pet_id, weight_kg))
 
-    async def set_grooming_consent(self, ctx, pet_id, received_on, member_id):
-        self.rows[pet_id] = replace(self._owned(ctx, pet_id), grooming_consent_on=received_on)
+    async def set_grooming_consent(self, ctx, pet_id, received_on, member_id, signature_id=None):
+        self.rows[pet_id] = replace(
+            self._owned(ctx, pet_id), grooming_consent_on=received_on, grooming_consent_signature_id=signature_id)
         self.journal.append(("set_grooming_consent", pet_id, received_on, member_id))
         return self.rows[pet_id]
 
@@ -297,3 +306,144 @@ class FakeSearchIndex(SearchIndexPort):
 
     async def forget_customer(self, ctx, customer_id):
         self.journal.append(("forget_search", customer_id))
+
+
+class FakeConsentForms(ConsentFormRepository):
+    """동의서 요청의 메모리 스텁. 호출이 journal 에 남는다."""
+
+    def __init__(self, journal: Journal) -> None:
+        self.journal = journal
+        self.rows: dict[int, ConsentForm] = {}
+        self._next = 1
+
+    async def create(self, ctx, customer_id, pet_ids, public_id, expires_at):
+        form = ConsentForm(
+            id=self._next, shop_id=ctx.shop_id, public_id=public_id, customer_id=customer_id,
+            pet_ids=tuple(sorted(set(pet_ids))), expires_at=expires_at, revoked_at=None, submitted_at=None,
+            created_by_member_id=ctx.member_id, created_at=NOW)
+        self.rows[form.id] = form
+        self._next += 1
+        self.journal.append(("create_form", form.id, form.pet_ids))
+        return form
+
+    async def live_for_customer(self, ctx, customer_id, now):
+        self.journal.append(("lock_forms", customer_id))
+        return [f for f in self.rows.values()
+                if f.shop_id == ctx.shop_id and f.customer_id == customer_id and f.is_live(now)]
+
+    async def list_live(self, ctx, now):
+        return sorted((f for f in self.rows.values() if f.shop_id == ctx.shop_id and f.is_live(now)),
+                      key=lambda f: f.id, reverse=True)
+
+    async def get(self, ctx, form_id):
+        form = self.rows.get(form_id)
+        if form is None or form.shop_id != ctx.shop_id:
+            raise FormNotFoundError("서류를 찾을 수 없습니다.")
+        return form
+
+    async def revoke(self, ctx, form_id, now):
+        form = self.rows.get(form_id)
+        if form is not None and form.shop_id == ctx.shop_id and form.revoked_at is None and form.submitted_at is None:
+            self.rows[form_id] = replace(form, revoked_at=now)
+            self.journal.append(("revoke_form", form_id))
+
+    async def set_pets(self, ctx, form_id, pet_ids):
+        form = self.rows.get(form_id)
+        if form is not None and form.shop_id == ctx.shop_id:
+            self.rows[form_id] = replace(form, pet_ids=tuple(sorted(set(pet_ids))))
+            self.journal.append(("set_form_pets", form_id, tuple(sorted(set(pet_ids)))))
+
+    async def sent_on(self, ctx, pet_ids, now):
+        found = {}
+        for form in self.rows.values():
+            if form.shop_id == ctx.shop_id and form.is_live(now):
+                for pet_id in form.pet_ids:
+                    if pet_id in pet_ids:
+                        found[pet_id] = form.created_at
+        return found
+
+    async def find_public(self, public_id):
+        return next((f for f in self.rows.values() if f.public_id == public_id), None)
+
+    async def lock(self, form_id):
+        self.journal.append(("lock_form", form_id))
+        return self.rows.get(form_id)
+
+    async def mark_submitted(self, form_id, now):
+        form = self.rows.get(form_id)
+        if form is not None and form.submitted_at is None:
+            self.rows[form_id] = replace(form, submitted_at=now)
+            self.journal.append(("submit_form", form_id))
+
+
+class FakeConsentSignatures(ConsentSignatureRepository):
+    """서명의 메모리 스텁. rows 는 서명 ID → (매장, NewSignature)."""
+
+    def __init__(self, journal: Journal) -> None:
+        self.journal = journal
+        self.rows: dict[int, tuple[int, object]] = {}
+        self._next = 1
+
+    async def add(self, ctx, signature):
+        self.rows[self._next] = (ctx.shop_id, signature)
+        self.journal.append(("add_signature", self._next, tuple(p.pet_id for p in signature.pets)))
+        self._next += 1
+        return self._next - 1
+
+    async def covers(self, ctx, since):
+        found: dict[int, list[SignedCover]] = {}
+        for shop_id, signature in self.rows.values():
+            if shop_id != ctx.shop_id:
+                continue
+            for pet in signature.pets:
+                if pet.pet_id in since and signature.signed_at.date() >= since[pet.pet_id]:
+                    found.setdefault(pet.pet_id, []).append(SignedCover(
+                        frozenset(p.part for p in pet.parts), frozenset(pet.condition_labels)))
+        return {pet_id: tuple(covers) for pet_id, covers in found.items()}
+
+    async def list_for_pet(self, ctx, pet_id):
+        return [
+            SignatureBrief(signature_id=sid, signed_at=sig.signed_at, channel=sig.channel,
+                           signer_name=sig.signer_name, parts=tuple(p.part for p in pet.parts))
+            for sid, (shop_id, sig) in sorted(self.rows.items(), reverse=True) if shop_id == ctx.shop_id
+            for pet in sig.pets if pet.pet_id == pet_id
+        ]
+
+    def _owned(self, ctx, signature_id):
+        found = self.rows.get(signature_id)
+        if found is None or found[0] != ctx.shop_id:
+            raise SignatureNotFoundError("서명을 찾을 수 없습니다.")
+        return found[1]
+
+    async def get(self, ctx, signature_id):
+        sig = self._owned(ctx, signature_id)
+        return SignatureDetail(
+            signature_id=signature_id, signed_at=sig.signed_at, channel=sig.channel, signer_name=sig.signer_name,
+            by_member_id=sig.by_member_id,
+            pets=tuple(SignaturePetDetail(pet_id=p.pet_id, shown_pet_name=p.shown_pet_name,
+                                          condition_labels=p.condition_labels, parts=p.parts) for p in sig.pets))
+
+    async def image(self, ctx, signature_id):
+        return self._owned(ctx, signature_id).signature_png
+
+    async def delete_for_customer(self, ctx, customer_id):
+        gone = [sid for sid, (shop_id, sig) in self.rows.items()
+                if shop_id == ctx.shop_id and sig.customer_id == customer_id]
+        for sid in gone:
+            del self.rows[sid]
+        self.journal.append(("delete_signatures_of_customer", customer_id))
+        return len(gone)
+
+    async def delete_for_pet(self, ctx, pet_id):
+        count = 0
+        for sid, (shop_id, sig) in list(self.rows.items()):
+            if shop_id != ctx.shop_id or all(p.pet_id != pet_id for p in sig.pets):
+                continue
+            left = tuple(p for p in sig.pets if p.pet_id != pet_id)
+            count += len(sig.pets) - len(left)
+            if left:
+                self.rows[sid] = (shop_id, replace(sig, pets=left))
+            else:
+                del self.rows[sid]
+        self.journal.append(("delete_signatures_of_pet", pet_id))
+        return count
