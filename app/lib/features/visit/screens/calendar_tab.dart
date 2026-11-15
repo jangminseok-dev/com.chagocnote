@@ -196,6 +196,13 @@ class _TabHeader extends StatelessWidget {
           if (mode == CalendarViewMode.feed)
             const Text(AppStrings.feedTitleEn, style: AppTypography.titleEn),
           const Spacer(),
+          // 기록 찾기(⑨) — 기록을 볼 때만. 검색 화면은 다른 기능이라 경로로만 간다.
+          if (mode == CalendarViewMode.feed)
+            Pressable(
+              semanticLabel: AppStrings.searchOpen,
+              onTap: () => context.push('/search'),
+              child: const Icon(Icons.search),
+            ),
           AppIconToggle(
             icons: const [Icons.calendar_month, Icons.view_agenda_outlined],
             labels: const [AppStrings.viewAsCalendar, AppStrings.viewAsFeed],

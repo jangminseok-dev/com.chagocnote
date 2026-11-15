@@ -784,4 +784,25 @@ class AppStrings {
     'dev' => providerDev,
     _ => provider,
   };
+
+  // 기록 검색(⑨-1b). "AI"라는 말을 쓰지 않는다 — 찾아 줄 뿐이다.
+  static const searchTitle = '기록 찾기';
+  static const searchOpen = '기록 찾기';
+  static const searchHint = '적어 둔 말로 찾아보세요';
+  static const searchIntro = '기록에 적어 둔 말로 찾아보세요';
+  static const searchExampleA = '예: 귀 만지면 싫어하는 아이';
+  static const searchExampleB = '예: 발톱 짧게';
+  static const searchEmpty = '찾은 기록이 없어요';
+  static const searchNearest = '가까운 기록부터 보여 드려요';
+  static String searchInPet(String name) => '$name의 기록에서';
+  static const searchInThisPet = '이 아이의 기록에서';
+  static const petRecordsSearch = '이 아이의 기록에서 찾기';
+  static const searchKindCareNote = '케어 노트';
+  static const searchKindInternalNote = '내부 메모';
+  static const searchKindVisitMemo = '예약 메모';
+  static const searchKindPetMemo = '특이사항';
+  static const searchKindConditionNote = '지병';
+  static const searchKindCustomerMemo = '보호자 메모';
+  static String searchMeta(String kind, DateTime date) => '$kind · ${date.month}월 ${date.day}일';
+  static String searchRowLabel(String title, String meta, String snippet) => '$title, $meta, $snippet';
 }

@@ -1,4 +1,4 @@
-import 'package:chagocnote/features/customer/state/search_debouncer.dart';
+import 'package:chagocnote/core/time/search_debouncer.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -86,5 +86,20 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(sent, isEmpty);
+  });
+
+  testWidgets('reset 뒤에는 마지막으로 보낸 검색어와 같아도 다시 보낸다', (tester) async {
+    final sent = <String>[];
+    final debouncer = SearchDebouncer(onSearch: sent.add);
+    addTearDown(debouncer.dispose);
+
+    debouncer.onChanged(_typed('발톱'));
+    await tester.pump(const Duration(milliseconds: 300));
+    debouncer.onChanged(_typed('귀'));
+    debouncer.reset(); // 걸려 있던 것도 버린다
+    await tester.pump(const Duration(milliseconds: 300));
+    debouncer.onChanged(_typed('발톱'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(sent, ['발톱', '발톱']);
   });
 }

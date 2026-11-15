@@ -361,6 +361,20 @@ void main() {
       return (setup: setup, images: images);
     }
 
+    testWidgets('기록을 볼 때만 머리에 돋보기가 있고, 누르면 기록 찾기가 열린다', (tester) async {
+      final app = build(feedBackend());
+      await _pumpHome(tester, app.setup);
+      expect(find.bySemanticsLabel(AppStrings.searchOpen), findsNothing); // 달력으로 볼 때는 없다
+
+      await tester.tap(find.bySemanticsLabel(AppStrings.viewAsFeed));
+      await settle(tester);
+      await tester.tap(find.bySemanticsLabel(AppStrings.searchOpen));
+      await settle(tester);
+
+      expect(find.byKey(ScreenKeys.search), findsOneWidget);
+      expect(find.text(AppStrings.searchInThisPet), findsNothing); // 매장 전체에서 찾는다
+    });
+
     testWidgets('[피드]를 누르면 기기에 기억하고 완료 방문을 사진·이름 카드·날짜·메뉴·케어 메모·사진 수로 보인다', (
       tester,
     ) async {

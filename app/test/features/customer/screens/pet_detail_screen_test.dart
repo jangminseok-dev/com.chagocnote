@@ -4,6 +4,8 @@ import 'package:chagocnote/core/plugs/pet_records_plug.dart';
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/app_router.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/features/customer/screens/pet_detail_screen.dart';
+import 'package:chagocnote/design/widgets/app_segment.dart';
 import 'package:chagocnote/design/widgets/app_back_button.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
@@ -542,6 +544,48 @@ void main() {
     await tester.tap(find.text(AppStrings.petTabRecords));
     await tester.pumpAndSettle();
     expect(find.text('기록 자리 11'), findsOneWidget);
+  });
+
+  testWidgets('[기록] 탭 위의 줄을 누르면 그 아이로 좁힌 기록 찾기가 열린다', (tester) async {
+    final setup = CustomerTestSetup(
+      (options, body) => FakeResponse(statusCode: 200, data: petDetailJson()),
+      overrides: [
+        petRecordsPlugProvider.overrideWithValue((petId) => Text('기록 자리 $petId')),
+      ],
+    );
+    addTearDown(setup.container.dispose);
+    await _openPet(tester, setup, 11);
+    expect(find.text(AppStrings.petRecordsSearch), findsNothing); // 다른 탭에는 없다
+
+    await tester.tap(find.text(AppStrings.petTabRecords));
+    await tester.pumpAndSettle();
+    expect(find.text('기록 자리 11'), findsOneWidget);
+    await tester.tap(find.text(AppStrings.petRecordsSearch));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ScreenKeys.search), findsOneWidget);
+    final location = setup.container.read(routerProvider).state.uri;
+    expect(location.path, '/search');
+    expect(location.queryParameters, {'pet_id': '11', 'pet': '콩이'});
+    expect(find.text('콩이의 기록에서'), findsOneWidget);
+  });
+
+  testWidgets('tab=owner 로 열면 [보호자] 탭이 먼저 보인다', (tester) async {
+    final setup = CustomerTestSetup(
+      (options, body) => FakeResponse(statusCode: 200, data: petDetailJson()),
+    );
+    addTearDown(setup.container.dispose);
+    await tester.pumpWidget(customerRouterApp(setup.container));
+    await tester.pumpAndSettle();
+    setup.container.read(routerProvider).push('/pets/11?tab=owner');
+    await tester.pumpAndSettle();
+    expect(tester.widget<AppSegment>(find.byType(AppSegment)).currentIndex, PetDetailScreen.ownerTab);
+
+    setup.container.read(routerProvider).pop();
+    await tester.pumpAndSettle();
+    setup.container.read(routerProvider).push('/pets/11?tab=nonsense');
+    await tester.pumpAndSettle();
+    expect(tester.widget<AppSegment>(find.byType(AppSegment)).currentIndex, 0);
   });
 
   testWidgets('당겨서 새로고침하면 상세와 보호자를 다시 읽고 [기록] 탭도 다시 읽게 한다', (tester) async {
