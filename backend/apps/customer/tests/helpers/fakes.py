@@ -347,6 +347,12 @@ class FakeConsentForms(ConsentFormRepository):
             self.rows[form_id] = replace(form, revoked_at=now)
             self.journal.append(("revoke_form", form_id))
 
+    async def close_for_customer(self, ctx, customer_id, now):
+        for form_id, form in list(self.rows.items()):
+            if form.shop_id == ctx.shop_id and form.customer_id == customer_id and form.revoked_at is None:
+                self.rows[form_id] = replace(form, revoked_at=now)
+        self.journal.append(("close_forms", customer_id))
+
     async def set_pets(self, ctx, form_id, pet_ids):
         form = self.rows.get(form_id)
         if form is not None and form.shop_id == ctx.shop_id:

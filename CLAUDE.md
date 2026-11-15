@@ -53,6 +53,7 @@
     bash ../backend/scripts/check_notification_flow.sh                           # 알림톡 흐름 확인 (dev 는 가짜 게이트웨이, 실제 발송 없음)
     bash ../backend/scripts/check_guardian_flow.sh                               # 보호자 회원 흐름 확인 (웹 세션 로그인 → 잇기 → 지난 알림장 → 끊기)
     bash ../backend/scripts/check_sales_flow.sh                                  # 매출 통계 흐름 확인 (방문 몇 개 → 요약의 숫자를 손계산과 견준다 → 목록 → 목표)
+    bash ../backend/scripts/check_consent_flow.sh                                # 전자 동의서 흐름 확인 (보내기 → 로그인 없이 읽고 서명 → 지병 더하기 → 바뀐 토막만 → 현장 서명 → 끊기 → 익명화)
     bash ../backend/scripts/check_visit_checks_flow.sh                           # 확인할 것 흐름 확인 (노령·지병 아이 예약 → 동의 → 지병 더하기 → 노쇼·주의 → 미리 보기 → 막지 않음)
     docker compose run --rm backend python scripts/reregister_templates.py [--shop <id>] [--refresh]   # 알림톡 템플릿 재등록 / 심사 상태 조회
     bash ../backend/scripts/check_search_flow.sh                                 # 기록 검색 흐름 확인 (적기 → 글자·뜻으로 찾기 → 지우기 → 익명화 → 다른 매장 → embed 멈춤)

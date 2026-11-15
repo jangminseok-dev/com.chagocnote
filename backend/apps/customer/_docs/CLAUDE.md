@@ -25,3 +25,14 @@
   - 주의·동의의 '오늘'은 이 스포크의 다른 곳처럼 `seoul_today` 다(매장 시간대가 아니다).
 - 허브 포트 `CustomerDirectoryPort.care_facts(ctx, customer_ids, pet_ids, today)` — visit 의 "확인할 것"의 재료. 살아 있는 이 매장의 고객(`known_customers`), 살아 있는 주의 표시(`today` 기준), 아이의 생일·출생 연도·지병(이름은 기타면 직접 적은 이름, 메모)·동의 받은 날·무지개다리. **`briefs` 와 달리 익명화한 고객과 그 아이는 틀도 주지 않는다.** 아이는 그 보호자가 `customer_ids` 에 있어야 나온다. 고객이 몇이든 읽는 횟수가 같다(고객 한 번, 아이 한 번, 지병 한 번).
 - **검색되는 글(보호자 메모·반려동물 특이사항·지병)에 닿는 쓰기는 허브 이벤트 `SearchSourceChanged` 를 낸다**(⑨) — `register_customer`(`customer` 와 첫 아이의 `pet`)·`update_customer`(`customer`)·`add_pet`·`update_pet`·`delete_pet`(`pet`). 무지개다리·주의 표시·미용 동의는 내지 않는다(색인되는 글이 아니다 — **주의 사유는 검색에 넣지 않는다**). **고객 익명화는 이벤트 대신 `SearchIndexPort.forget_customer` 를 같은 트랜잭션에서 부른다**(`clear_customer_memos` 다음) — 색인기를 기다리지 않고 검색에서 사라진다. search 가 읽어 갈 글은 `customer_search_source_interactor.py`(허브 포트 `SearchSourcePort`, scope `pet`·`customer`)가 내준다 — 지병은 메모가 없어도 이름만으로 문서가 되고, 원본 ID 는 지병 행의 ID(`PetCondition.condition_id`)다.
+- **전자 동의서**(⑪-A, 0018) — 보호자가 로그인 없이 링크에서, 또는 매장에서 사장의 폰으로 서명한다. 결정 기록 `_docs/decisions/014-consent-intake.md`.
+  - 표: `customer_forms`(서류 요청 — 토큰은 저장하지 않고 `public_id` 와 `REPORT_LINK_KEY` 로 계산한다, 쓰임은 `form:`)·`customer_form_pets`, `consent_signatures`(그림·적은 이름)·`consent_signature_pets`·`_parts`·`_conditions`(읽은 토막과 그 글의 판, 그때 보인 아이 이름·지병 이름의 사본), `pets.grooming_consent_signature_id`(받은 날을 찍은 서명 — 손으로 적은 동의면 비어 있다).
+  - 순수 함수: `domain/services/consent_text.py`(기본 글 셋과 판), `consent_document.py`(조립과 지문), `consent_coverage.py`(무엇이 덮였나), `signature_image.py`(PNG 머리·크기만). 기준값은 `ConsentPolicy` 로 받는다(`dependencies/customer_wiring.consent_policy()`).
+  - **문안은 열 때 조립하고 낼 때 지문을 다시 견준다**(`app/services/consent_reader.py`·`consent_signer.py`). 지문이 다르면 409 이고 아무것도 쓰지 않는다. 전체 서명은 받은 날을 찍고, 바뀐 토막만 받은 서명은 받은 날을 옮기지 않는다.
+  - **잠금: 고객 행 → 서류 요청 행.** 발급·끊기·서명(링크·현장) 모두 고객 행을 먼저 잠근다. 아이 하나에 살아 있는 요청은 하나이고(발급이 지킨다), 서명·삭제·무지개다리가 살아 있는 요청에서 그 아이를 덜어 낸다(`app/services/consent_forms.drop_pets` — 아이가 남지 않으면 끊는다).
+  - **공개 경로 둘**(`GET /v1/public/form`·`POST /v1/public/form/consent`, 헤더 `X-Form-Token`)은 `public_context` 로 돈다. 관문은 `app/services/public_form_gate.py`(알림장의 관문과 같은 순서). 공개 스키마(`public_form_schema.py`)에는 ID·전화번호·메모가 없다. 횟수 제한은 알림장과 같은 규칙·다른 이름 공간(`customer:form`)이고 제출은 10분에 10번이다.
+  - **토큰·주소·서명 그림·적은 이름·지병 이름을 로그·오류 메시지·예외 문자열에 남기지 않는다.**
+  - 익명화는 그 고객의 요청을 전부 닫고(이미 낸 것도) 서명을 지운다. 반려동물 삭제는 그 아이의 서명 줄을 지운다(아이가 남지 않은 서명도). 무지개다리는 링크에서만 뺀다.
+  - 지병이 늘 때: 서명으로 받은 동의는 받은 날을 지우지 않는다(바뀐 토막만 다시 받는다). 손으로 적은 동의는 지금처럼 지운다.
+  - `care_facts` 가 `consent_cover`(서명이 덮는 것)와 `consent_form_sent_on`(살아 있는 링크를 보낸 날)을 싣는다 — 판정은 visit 이 한다.
+

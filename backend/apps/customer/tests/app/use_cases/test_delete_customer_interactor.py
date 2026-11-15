@@ -26,7 +26,7 @@ async def test_잠근_뒤_익명화하고_방문_메모와_검색_줄을_정리�
     ).delete_customer(DeleteCustomerCommand(ctx=ctx(), customer_id=customer.id))
     # 익명화한 뒤 서류를 지우고 보호자 연결을 끝낸다 — 고객 행을 잠근 채다(잠금 순서: 고객 행 → 서류 요청 행 → 보호자 연결 행).
     assert journal == [("lock_customer", customer.id), ("anonymize", customer.id),
-                       ("lock_forms", customer.id), ("delete_signatures_of_customer", customer.id),
+                       ("close_forms", customer.id), ("delete_signatures_of_customer", customer.id),
                        ("end_guardian_links", 1, customer.id),
                        ("clear_visit_memos", customer.id), ("forget_search", customer.id),
                        ("rebuild", customer.id)]

@@ -25,7 +25,9 @@ class ConsentForm:
         return self.revoked_at is None and self.submitted_at is None and now < self.expires_at
 
     def is_closed(self, now: datetime) -> bool:
-        """끊었거나 기간이 지났다. 낸 요청은 닫힌 것이 아니다 — "보냈어요"를 보여야 한다."""
+        """끊었거나 기간이 지났다. 낸 요청은 닫힌 것이 아니다 — "보냈어요"를 보여야 한다.
+
+        다만 낸 뒤에 고객을 익명화하면 끊긴다(revoked_at) — 그때는 낸 요청도 닫힌 것이다."""
         return self.revoked_at is not None or (self.submitted_at is None and now >= self.expires_at)
 
 

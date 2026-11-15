@@ -215,3 +215,15 @@ async def test_링크를_보낸_뒤_손으로_받았다고_적으면_링크는_�
     # 받을 것이 없는 링크에 내면 받지 않는다 — 서명이 남지 않고 링크도 닫히지 않는다.
     assert error_of(await _submit(wired, token, digest=digest)) == (409, "CONSENT_UP_TO_DATE")
     assert await count(wired, "consent_signatures") == 0
+
+
+async def test_이미_낸_링크도_고객을_익명화하면_410_이다(wired):
+    shop_id, headers, customer_id, _, token, _, _ = await _sent(wired)
+    assert (await _submit(wired, token)).status_code == 204
+    assert (await _read(wired, token)).json()["state"] == "submitted"
+
+    removed = await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)
+
+    assert removed.status_code == 204, removed.text
+    assert error_of(await _read(wired, token)) == (410, "FORM_CLOSED")
+    assert await count(wired, "customer_forms", "revoked_at IS NULL") == 0

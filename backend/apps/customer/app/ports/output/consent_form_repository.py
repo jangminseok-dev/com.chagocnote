@@ -36,6 +36,10 @@ class ConsentFormRepository(ABC):
         """끊는다. 이미 끊었거나 낸 요청은 그대로 둔다."""
 
     @abstractmethod
+    async def close_for_customer(self, ctx: ShopContext, customer_id: int, now: datetime) -> None:
+        """그 고객의 요청을 전부 닫는다 — 이미 낸 것도(익명화). 낸 링크가 "보냈어요"로도 열리지 않는다."""
+
+    @abstractmethod
     async def set_pets(self, ctx: ShopContext, form_id: int, pet_ids: tuple[int, ...]) -> None:
         """요청이 담는 아이를 바꾼다."""
 

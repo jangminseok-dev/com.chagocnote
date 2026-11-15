@@ -72,6 +72,14 @@ class ConsentFormPgRepository(ConsentFormRepository):
             .values(revoked_at=now)
         )
 
+    async def close_for_customer(self, ctx: ShopContext, customer_id: int, now: datetime) -> None:
+        await self._session.execute(
+            update(CustomerFormOrm)
+            .where(CustomerFormOrm.shop_id == ctx.shop_id, CustomerFormOrm.customer_id == customer_id,
+                   CustomerFormOrm.kind == _KIND, CustomerFormOrm.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )
+
     async def set_pets(self, ctx: ShopContext, form_id: int, pet_ids: tuple[int, ...]) -> None:
         owned = select(CustomerFormOrm.id).where(
             CustomerFormOrm.id == form_id, CustomerFormOrm.shop_id == ctx.shop_id)
