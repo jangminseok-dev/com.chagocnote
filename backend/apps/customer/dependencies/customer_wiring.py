@@ -1,6 +1,8 @@
 """customer 슬라이스 프로바이더들이 함께 쓰는 조립 함수."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from customer.adapter.outbound.pg.condition_type_pg_repository import ConditionTypePgRepository
@@ -17,6 +19,7 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.family_brief_repository import FamilyBriefRepository
 from customer.app.ports.output.pet_repository import PetRepository
+from customer.domain.entities.consent import ConsentPolicy
 
 
 def build_customer_repository(db: AsyncSession) -> CustomerRepository:
@@ -45,3 +48,12 @@ def build_consent_form_repository(db: AsyncSession) -> ConsentFormRepository:
 
 def build_consent_signature_repository(db: AsyncSession) -> ConsentSignatureRepository:
     return ConsentSignaturePgRepository(db)
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def consent_policy() -> ConsentPolicy:
+    """동의의 기준값. 지금은 기본값뿐이다 — 매장이 바꾼 값은 ⑪-B 가 여기서 읽는다."""
+    return ConsentPolicy()

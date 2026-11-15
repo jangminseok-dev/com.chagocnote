@@ -1,0 +1,10 @@
+from __future__ import annotations
+
+from core.database import DbSession
+from customer.app.ports.input.get_consent_signature_image_use_case import GetConsentSignatureImageUseCase
+from customer.app.use_cases.get_consent_signature_image_interactor import GetConsentSignatureImageInteractor
+from customer.dependencies.customer_wiring import build_consent_signature_repository
+
+
+def get_get_consent_signature_image_use_case(db: DbSession) -> GetConsentSignatureImageUseCase:
+    return GetConsentSignatureImageInteractor(signatures=build_consent_signature_repository(db))

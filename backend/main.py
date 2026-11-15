@@ -33,6 +33,14 @@ from customer.adapter.inbound.api.v1.customer_myself_router import customer_myse
 from customer.adapter.inbound.api.v1.delete_customer_router import delete_customer_router
 from customer.adapter.inbound.api.v1.delete_pet_router import delete_pet_router
 from customer.adapter.inbound.api.v1.get_customer_router import get_customer_router
+from customer.adapter.inbound.api.v1.issue_consent_form_router import issue_consent_form_router
+from customer.adapter.inbound.api.v1.list_forms_router import list_forms_router
+from customer.adapter.inbound.api.v1.revoke_form_router import revoke_form_router
+from customer.adapter.inbound.api.v1.get_consent_document_router import get_consent_document_router
+from customer.adapter.inbound.api.v1.sign_consent_in_shop_router import sign_consent_in_shop_router
+from customer.adapter.inbound.api.v1.list_pet_consent_signatures_router import list_pet_consent_signatures_router
+from customer.adapter.inbound.api.v1.get_consent_signature_router import get_consent_signature_router
+from customer.adapter.inbound.api.v1.get_consent_signature_image_router import get_consent_signature_image_router
 from customer.adapter.inbound.api.v1.get_pet_router import get_pet_router
 from customer.adapter.inbound.api.v1.list_customers_router import list_customers_router
 from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
@@ -232,6 +240,15 @@ app.include_router(set_pet_grooming_consent_router)
 app.include_router(clear_pet_grooming_consent_router)
 app.include_router(add_pet_router)
 app.include_router(update_pet_router)
+# 서류(⑪) — 동의서 보내기·끊기·현장 서명·서명 보기
+app.include_router(issue_consent_form_router)
+app.include_router(list_forms_router)
+app.include_router(revoke_form_router)
+app.include_router(get_consent_document_router)
+app.include_router(sign_consent_in_shop_router)
+app.include_router(list_pet_consent_signatures_router)
+app.include_router(get_consent_signature_router)
+app.include_router(get_consent_signature_image_router)
 app.include_router(mark_pet_passed_away_router)
 app.include_router(unmark_pet_passed_away_router)
 app.include_router(delete_pet_router)

@@ -11,6 +11,7 @@ class ConsentPolicy:
 
     senior_age: int = 10      # 살 — 이 나이부터 노령 토막이 붙는다
     consent_days: int = 365   # 받은 날로부터 이 날 수째까지 유효
+    link_days: int = 14       # 링크를 열 수 있는 날 수
 
 
 @dataclass(frozen=True)
