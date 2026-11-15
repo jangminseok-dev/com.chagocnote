@@ -5,6 +5,9 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.public_redis_limiter import PublicRedisLimiter
+from core.redis import get_redis
+
 from customer.adapter.outbound.pg.condition_type_pg_repository import ConditionTypePgRepository
 from customer.adapter.outbound.pg.consent_form_pg_repository import ConsentFormPgRepository
 from customer.adapter.outbound.pg.consent_signature_pg_repository import ConsentSignaturePgRepository
@@ -20,6 +23,7 @@ from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.family_brief_repository import FamilyBriefRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.domain.entities.consent import ConsentPolicy
+from hub.app.ports.public_limiter_port import PublicLimiterPort
 
 
 def build_customer_repository(db: AsyncSession) -> CustomerRepository:
@@ -57,3 +61,9 @@ def utc_now() -> datetime:
 def consent_policy() -> ConsentPolicy:
     """동의의 기준값. 지금은 기본값뿐이다 — 매장이 바꾼 값은 ⑪-B 가 여기서 읽는다."""
     return ConsentPolicy()
+
+
+def build_public_form_limiter() -> PublicLimiterPort:
+    """공개 서류 경로의 횟수 제한. 알림장과 규칙은 같고 이름 공간이 다르다 — 서로의 수를 세지 않는다."""
+    return PublicRedisLimiter(get_redis(), "customer:form")
+

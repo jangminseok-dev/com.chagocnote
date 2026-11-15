@@ -48,8 +48,10 @@ from customer.adapter.inbound.api.v1.list_pet_condition_types_router import (
 )
 from customer.adapter.inbound.api.v1.lookup_customer_router import lookup_customer_router
 from customer.adapter.inbound.api.v1.mark_pet_passed_away_router import mark_pet_passed_away_router
+from customer.adapter.inbound.api.v1.read_public_form_router import read_public_form_router
 from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
 from customer.adapter.inbound.api.v1.set_customer_caution_router import set_customer_caution_router
+from customer.adapter.inbound.api.v1.submit_public_consent_router import submit_public_consent_router
 from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
     set_pet_grooming_consent_router,
 )
@@ -64,6 +66,7 @@ from customer.dependencies.hub_ports import get_domain_events as get_customer_do
 from customer.dependencies.hub_ports import get_guardian_lifecycle as get_customer_guardian_lifecycle
 from customer.dependencies.hub_ports import get_media_library as get_customer_media_library
 from customer.dependencies.hub_ports import get_search_index as get_customer_search_index
+from customer.dependencies.hub_ports import get_shop_profile as get_customer_shop_profile
 from customer.dependencies.hub_ports import get_visit_ledger
 from media.adapter.inbound.api.error_map import MEDIA_ERROR_STATUS
 from media.adapter.inbound.api.v1.confirm_upload_router import confirm_upload_router
@@ -249,6 +252,8 @@ app.include_router(sign_consent_in_shop_router)
 app.include_router(list_pet_consent_signatures_router)
 app.include_router(get_consent_signature_router)
 app.include_router(get_consent_signature_image_router)
+app.include_router(read_public_form_router)
+app.include_router(submit_public_consent_router)
 app.include_router(mark_pet_passed_away_router)
 app.include_router(unmark_pet_passed_away_router)
 app.include_router(delete_pet_router)
@@ -354,6 +359,7 @@ app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
 app.dependency_overrides[get_customer_media_library] = get_media_library_use_case
 app.dependency_overrides[get_shop_profile] = get_shop_profile_use_case
+app.dependency_overrides[get_customer_shop_profile] = get_shop_profile_use_case
 app.dependency_overrides[get_notification_shop_profile] = get_shop_profile_use_case
 app.dependency_overrides[get_notification_customer_directory] = get_customer_directory_use_case
 # search: 결과 줄의 이름(customer)과 프로필 사진(visit 의 대표 → media 의 주소).
