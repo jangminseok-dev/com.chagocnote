@@ -96,9 +96,11 @@ class ListDayVisitsInteractor(ListDayVisitsUseCase):
             )
             for visit, view in zip(visits, views)
         ]
-        unpaid = sum(is_unpaid(v, recorded.get(v.id)) for v in visits)
+        # 남은 일(⑬)은 지난 날·오늘만이고, 익명화한 고객의 방문은 끝낼 수 없으니 세지 않는다(하루 마무리와 같은 범위).
+        workable = [v for v, view in zip(visits, views) if view.customer.name is not None] if day <= today else []
+        unpaid = sum(is_unpaid(v, recorded.get(v.id)) for v in workable)
         unsent = sum(is_report_unsent(v, recorded.get(v.id), ever_sent=v.id in ever, count=count_unsent)
-                     for v in visits)
+                     for v in workable)
         with_checks = sum(1 for i in items if i.customer_check_count + i.pet_check_count > 0)
         return DayVisitsView(
             date=day,

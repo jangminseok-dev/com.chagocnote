@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import text
 
 from tests.integration.support import error_of
-from tests.integration.test_sales_wiring import _day, _family, _move, _shop, _staff, _visit
+from tests.integration.test_sales_wiring import _at, _day, _family, _move, _shop, _staff, _visit
 
 pytestmark = pytest.mark.integration
 
@@ -385,3 +385,70 @@ async def test_앞날에는_남은_일이_없고_하루의_수에_확인할_것�
     day = await _calendar_day(wired, shop_id, o, days=3)
     assert (day["unpaid_count"], day["report_unsent_count"]) == (0, 0)
     assert not any("amount" in key for key in ahead["counts"]) and not any("amount" in key for key in day)
+
+
+# ── 하루 마무리 ─────────────────────────────────────────────────────
+
+
+def wrap_up_url(shop_id: int, days: int = -1) -> str:
+    return f"/v1/shops/{shop_id}/days/{_day(days).isoformat()}/wrap-up"
+
+
+async def test_하루_마무리는_세_종류를_차례로_내고_결제_장을_채우고_하루_머리의_수와_같다(wired):
+    shop_id, o, operator = await _shop(wired)
+    staff = await _staff(wired, shop_id, o)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    bath = (await wired.api.get(f"/v1/shops/{shop_id}/menus", headers=o)).json()["items"][0]["menu_id"]
+    priced = await wired.api.put(f"/v1/shops/{shop_id}/menus/{bath}", headers=o, json={
+        "name": "목욕", "default_duration_minutes": 60, "sort_order": 0, "price": 25_000})
+    assert priced.status_code == 200, priced.text
+
+    await _done_on(wired, shop_id, o, customer_id, pet_id, -8, record={"total_amount": 1, "payment_method": "transfer"})
+    reserved = await _visit(wired, shop_id, o, customer_id, pet_id, 9, days=-1)          # 정리 안 된 예약
+    paid = await _done_on(wired, shop_id, o, customer_id, pet_id, -1, hour=11,
+                          record={"total_amount": 30_000, "payment_method": "card"})     # 알림장만 남았다
+    itemized = await _done_on(wired, shop_id, o, customer_id, pet_id, -1, hour=13,
+                              record={"items": [{"menu_id": bath, "amount": 28_000}]})   # 결제·알림장
+    booked = await wired.api.post(f"/v1/shops/{shop_id}/visits", headers=o, json={
+        "customer_id": customer_id, "pet_ids": [pet_id], "starts_at": _at(-1, 15), "menu_ids": [bath]})
+    menus_only = booked.json()["visits"][0]["visit_id"]
+    await _move(wired, shop_id, o, menus_only, "start")
+    await _move(wired, shop_id, o, menus_only, "complete")                                # 기록 없음 — 결제만
+
+    got = await wired.api.get(wrap_up_url(shop_id), headers=staff)
+    assert got.status_code == 200, got.text
+    cards = got.json()["cards"]
+    assert [(c["kind"], c["visit"]["visit_id"]) for c in cards] == [
+        ("unresolved", reserved), ("unpaid", itemized), ("unpaid", menus_only),
+        ("report_unsent", paid), ("report_unsent", itemized)]
+    # 결제 장의 채움 — 총액은 기록의 항목 합·메뉴의 정가, 결제 수단은 그 고객이 가장 최근에 적은 것(카드).
+    assert [c["prefill"] for c in cards] == [
+        None, {"total_amount": 28_000, "payment_method": "card"}, {"total_amount": 25_000, "payment_method": "card"},
+        None, None]
+    assert cards[0]["visit"]["pet"]["name"] == "콩이" and set(cards[0]) == {"kind", "visit", "photo_url", "prefill"}
+
+    counts = (await _day_view(wired, shop_id, o))["counts"]
+    assert (counts["unresolved"], counts["unpaid"], counts["report_unsent"]) == (1, 2, 2)
+
+    # [보내지 않음] 한 장은 빠지고, 결제를 적은 장도 빠진다.
+    assert (await wired.api.put(f"/v1/shops/{shop_id}/visits/{paid}/report-skip", headers=staff)).status_code == 204
+    await _record(wired, shop_id, o, itemized, total_amount=28_000, payment_method="card")
+    left = (await wired.api.get(wrap_up_url(shop_id), headers=o)).json()["cards"]
+    assert [(c["kind"], c["visit"]["visit_id"]) for c in left] == [
+        ("unresolved", reserved), ("unpaid", menus_only), ("report_unsent", itemized)]
+
+    # 다른 매장은 이 매장의 하루 마무리를 볼 수 없고, 자기 하루 마무리에도 이 방문이 없다.
+    other_id, other, _ = await _shop(wired, name="다른 매장", owner="다른 사장", operator=operator)
+    assert (await wired.api.get(wrap_up_url(shop_id), headers=other)).status_code in (403, 404)
+    assert (await wired.api.get(wrap_up_url(other_id), headers=other)).json()["cards"] == []
+
+
+async def test_하루_마무리는_앞날에_비고_날짜가_틀리면_422(wired):
+    shop_id, o, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    await _visit(wired, shop_id, o, customer_id, pet_id, 11, days=2)
+    assert (await wired.api.get(wrap_up_url(shop_id, 2), headers=o)).json() == {
+        "date": _day(2).isoformat(), "cards": []}
+    for bad in ("2026-13-01", "1999-12-31"):
+        assert error_of(await wired.api.get(f"/v1/shops/{shop_id}/days/{bad}/wrap-up", headers=o))[0] == 422
+

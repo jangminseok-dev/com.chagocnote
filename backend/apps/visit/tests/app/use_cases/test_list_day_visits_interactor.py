@@ -137,3 +137,13 @@ async def test_알림장을_보낸_방문을_알리고_링크는_한_번에_읽�
     assert [i.report_sent for i in view.items] == [True, False, False, False, False]
     # 방문이 다섯이어도 살아 있는 링크 한 번, 보낸 적이 있는지 한 번(⑬ — 남은 일 '알림장 안 보냄').
     assert reports.reads == ["live_visit_ids", "visit_ids_with_report"]
+
+
+async def test_익명화한_고객의_방문과_앞날은_남은_일로_세지_않는다():
+    visits, interactor = _setup()
+    for customer, pet, day in ((2, 201, 22), (1, 101, 22), (1, 101, 24)):   # 24일은 앞날 — 일찍 끝냈어도
+        at = kst(9, day, 10)
+        visits.seed(customer_id=customer, pet_id=pet, starts_at=at, status="completed", started_at=at,
+                    completed_at=at)
+    assert (await _day(interactor, date(2026, 9, 22))).counts.unpaid == 1
+    assert (await _day(interactor, date(2026, 9, 24))).counts.unpaid == 0

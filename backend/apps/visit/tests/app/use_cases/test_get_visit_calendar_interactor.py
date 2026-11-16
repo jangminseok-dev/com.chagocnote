@@ -9,6 +9,7 @@ from visit.domain.value_objects.closed_date import ClosedDate
 from visit.domain.value_objects.schedule_settings import ScheduleSettings
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import (
+    FakeDirectory,
     FakeLibrary,
     FakeRecords,
     FakeReportRepository,
@@ -23,9 +24,13 @@ NOW = kst(9, 23, 15)
 def _setup():
     visits = FakeVisits()
     schedule = FakeSchedule(settings=ScheduleSettings(time(10), time(19), 120, frozenset({0})))
+    directory = FakeDirectory()
+    directory.family(1, pets=(101,))
+    directory.family(2, pets=(201,), name=None)   # 익명화한 고객
     return visits, schedule, GetVisitCalendarInteractor(visits, schedule, FakeRecords(visits), FakeLibrary(),
                                                         now=lambda: NOW, reports=FakeReportRepository(visits),
-                                                        revisit_settings=FakeRevisitSettingsRepository())
+                                                        revisit_settings=FakeRevisitSettingsRepository(),
+                                                        directory=directory)
 
 
 async def test_날마다_마릿수_완료_예약_정리_안_됨_휴무():
@@ -75,7 +80,8 @@ async def test_완료_방문의_대표_사진을_시작_순으로_최대_네_장
     records, library = FakeRecords(visits), FakeLibrary()
     interactor = GetVisitCalendarInteractor(visits, FakeSchedule(), records, library, now=lambda: NOW,
                                             reports=FakeReportRepository(visits),
-                                            revisit_settings=FakeRevisitSettingsRepository())
+                                            revisit_settings=FakeRevisitSettingsRepository(),
+                                            directory=FakeDirectory())
     done = dict(status="completed", started_at=kst(9, 2, 9), completed_at=kst(9, 2, 18))
     for hour, pet in ((15, 105), (10, 101), (11, 102), (12, 103), (13, 104)):
         v = visits.seed(pet_id=pet, starts_at=kst(9, 2, hour), **done)
@@ -88,3 +94,13 @@ async def test_완료_방문의_대표_사진을_시작_순으로_최대_네_장
     second = view.days[1]
     assert (second.cover, second.covers) == ("t/101", ["t/101", "t/102", "t/103", "t/104"])
     assert (view.days[2].cover, view.days[2].covers) == (None, [])
+
+
+async def test_남은_일은_지난_날과_오늘만이고_익명화한_고객의_방문은_세지_않는다():
+    visits, _, interactor = _setup()
+    for customer, day in ((1, 22), (2, 22), (1, 23), (1, 24)):   # 24일은 앞날 — 일찍 끝냈어도
+        at = kst(9, day, 11)
+        visits.seed(customer_id=customer, pet_id=101 if customer == 1 else 201, starts_at=at, status="completed",
+                    started_at=at, completed_at=at)
+    view = await interactor.get_visit_calendar(GetVisitCalendarQuery(ctx=ctx(), year=2026, month=9))
+    assert [d.unpaid_count for d in view.days[21:24]] == [1, 1, 0]

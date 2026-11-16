@@ -481,6 +481,14 @@ class FakeRecords(VisitRecordRepository):
                 found[visit.pet_id] = visit.id
         return found
 
+    async def latest_payment_methods(self, ctx, customer_ids):
+        found = {}
+        for visit in sorted(self.visits._mine(ctx), key=lambda v: (v.starts_at, v.id)):
+            method = self.rows[visit.id].payment_method if visit.id in self.rows else None
+            if visit.customer_id in customer_ids and method is not None:
+                found[visit.customer_id] = method
+        return found
+
     async def clear_notes(self, ctx, customer_id):
         for visit_id, record in self.rows.items():
             visit = self.visits.rows[visit_id]
