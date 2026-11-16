@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, SmallInteger, String,
-    UniqueConstraint, func,
+    UniqueConstraint, func, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,10 @@ class CustomerFormOrm(Base):
         CheckConstraint("octet_length(public_id) = 16", name="ck_customer_forms_public_id_length"),
         UniqueConstraint("public_id", name="uq_customer_forms_public_id"),
         Index("ix_customer_forms_shop_customer", "shop_id", "customer_id"),
+        Index(
+            "uq_customer_forms_live_intake_pet", "intake_pet_id", unique=True,
+            postgresql_where=text("kind = 'intake' AND revoked_at IS NULL AND submitted_at IS NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -35,6 +39,8 @@ class CustomerFormOrm(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # 문서를 조립하는 기준일(예약 날). 없으면 여는 날이다(0019).
     for_date: Mapped[date | None] = mapped_column(Date)
+    # 이미 있는 아이의 정보를 다시 받는 문진표가 가리키는 아이(0021). 그런 요청은 아이마다 하나만 산다.
+    intake_pet_id: Mapped[int | None] = mapped_column(ForeignKey("pets.id"))
 
 
 class CustomerFormPetOrm(Base):

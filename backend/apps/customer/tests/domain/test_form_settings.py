@@ -51,3 +51,28 @@ def test_오류_글에_매장이_적은_글이_들어가지_않는다():
     with pytest.raises(CustomerInputError) as caught:
         check_form_settings(replace(DEFAULT_FORM_SETTINGS, reservation_text="비밀 글 {이름}"))
     assert "비밀" not in str(caught.value)
+
+
+# --- 문진표의 설정(⑪-C) ---------------------------------------------------------------------------------------------
+
+def test_문진표의_기본값은_30일_보관이고_끈_칸이_없다():
+    assert (DEFAULT_FORM_SETTINGS.intake_keep_days, DEFAULT_FORM_SETTINGS.intake_hidden) == (30, ())
+
+
+@pytest.mark.parametrize("change", [
+    {"intake_keep_days": 7}, {"intake_keep_days": 90},
+    {"intake_hidden": ("species", "breed", "sex", "neutered", "birth", "weight", "dislikes", "style")},
+])
+def test_문진표의_범위_안의_값은_받는다(change):
+    check_form_settings(replace(DEFAULT_FORM_SETTINGS, **change))
+
+
+@pytest.mark.parametrize("change", [
+    {"intake_keep_days": 6}, {"intake_keep_days": 91},
+    {"intake_hidden": ("pet_name",)},       # 아이 이름은 끌 수 없다 — 누구의 답인지 알 수 없다
+    {"intake_hidden": ("conditions",)},     # 지병도 — 동의서의 토막이 이것으로 정해진다
+    {"intake_hidden": ("species", "species")},
+])
+def test_문진표의_범위_밖의_값과_끌_수_없는_칸은_받지_않는다(change):
+    with pytest.raises(CustomerInputError):
+        check_form_settings(replace(DEFAULT_FORM_SETTINGS, **change))

@@ -19,5 +19,5 @@ async def update_form_settings(
     use_case: UpdateFormSettingsUseCase = Depends(get_update_form_settings_use_case),
 ) -> FormSettingsSchema:
     settings = await use_case.update_form_settings(
-        UpdateFormSettingsCommand(ctx=ctx, settings=body.to_settings()))
+        UpdateFormSettingsCommand(ctx=ctx, settings=body.to_settings(), kept=body.kept()))
     return FormSettingsSchema.of(settings)

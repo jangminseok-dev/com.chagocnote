@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from customer.app.dtos.update_form_settings_dto import UpdateFormSettingsCommand
 from customer.app.ports.input.update_form_settings_use_case import UpdateFormSettingsUseCase
 from customer.app.ports.output.form_settings_repository import FormSettingsRepository
@@ -14,5 +16,9 @@ class UpdateFormSettingsInteractor(UpdateFormSettingsUseCase):
         self._settings = settings
 
     async def update_form_settings(self, command: UpdateFormSettingsCommand) -> FormSettings:
-        check_form_settings(command.settings)
-        return await self._settings.put(command.ctx, command.settings)
+        settings = command.settings
+        if command.kept:
+            current = await self._settings.get(command.ctx)
+            settings = replace(settings, **{name: getattr(current, name) for name in command.kept})
+        check_form_settings(settings)
+        return await self._settings.put(command.ctx, settings)
