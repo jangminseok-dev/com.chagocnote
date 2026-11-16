@@ -58,8 +58,9 @@ class FormPetSchema(BaseModel):
 
 class SentFormSchema(BaseModel):
     form_id: int
-    kind: str
-    customer: FormCustomerSchema
+    kind: str                               # consent | intake
+    mode: str | None                        # 문진표의 보내는 곳(new·add_pet·update). 동의서는 null
+    customer: FormCustomerSchema | None     # 새 손님용 문진표는 null
     pets: list[FormPetSchema]
     sent_on: date
     expires_on: date
@@ -73,8 +74,9 @@ class SentFormsSchema(BaseModel):
     def of(cls, views: list[SentFormView]) -> "SentFormsSchema":
         return cls(items=[
             SentFormSchema(
-                form_id=v.form_id, kind=v.kind,
-                customer=FormCustomerSchema(customer_id=v.customer_id, name=v.customer_name),
+                form_id=v.form_id, kind=v.kind, mode=v.mode,
+                customer=None if v.customer_id is None else FormCustomerSchema(
+                    customer_id=v.customer_id, name=v.customer_name),
                 pets=[FormPetSchema(pet_id=p.pet_id, name=p.name) for p in v.pets],
                 sent_on=v.sent_on, expires_on=v.expires_on, url=v.url,
             )

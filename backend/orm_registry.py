@@ -14,3 +14,4 @@ import guardian.adapter.outbound.orm.guardian_orm  # noqa: F401
 import search.adapter.outbound.orm.search_orm  # noqa: F401
 import customer.adapter.outbound.orm.consent_orm  # noqa: F401
 import customer.adapter.outbound.orm.form_settings_orm  # noqa: F401
+import customer.adapter.outbound.orm.intake_orm  # noqa: F401

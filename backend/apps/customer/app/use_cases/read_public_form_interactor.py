@@ -9,7 +9,11 @@ from customer.app.ports.input.read_public_form_use_case import ReadPublicFormUse
 from customer.app.ports.output.consent_form_repository import ConsentFormRepository
 from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.pet_repository import PetRepository
+from customer.app.ports.output.intake_form_repository import IntakeFormRepository
 from customer.app.services.consent_reader import read_document
+from customer.app.services.intake_reader import IntakeReader
+from customer.app.services.public_forms import PublicForms
+from customer.domain.entities.intake import IntakeForm
 from customer.app.services.consent_source import ConsentSource
 from customer.app.services.public_form_gate import open_form
 from customer.app.use_cases.get_consent_document_interactor import document_view
@@ -29,7 +33,7 @@ class ReadPublicFormInteractor(ReadPublicFormUseCase):
     def __init__(
         self, forms: ConsentFormRepository, pets: PetRepository, signatures: ConsentSignatureRepository,
         shops: ShopProfilePort, limiter: PublicLimiterPort, now: Callable[[], datetime], source: ConsentSource,
-        link_key: bytes,
+        link_key: bytes, intakes: IntakeFormRepository | None = None, intake_reader: IntakeReader | None = None,
     ) -> None:
         self._forms = forms
         self._pets = pets
@@ -39,15 +43,23 @@ class ReadPublicFormInteractor(ReadPublicFormUseCase):
         self._now = now
         self._source = source
         self._link_key = link_key
+        self._intakes = intakes              # 문진표(⑪-C) — 주지 않으면 동의서만 연다
+        self._intake_reader = intake_reader
 
     async def read_public_form(self, query: ReadPublicFormQuery) -> PublicFormView:
         now = self._now()
         form, shop = await open_form(
-            query.token, query.client, now, link_key=self._link_key, forms=self._forms, shops=self._shops,
-            limiter=self._limiter,
+            query.token, query.client, now, link_key=self._link_key,
+            forms=self._forms if self._intakes is None else PublicForms(self._forms, self._intakes),
+            shops=self._shops, limiter=self._limiter,
         )
         ctx = public_context(shop)
         zone = ZoneInfo(ctx.timezone)
+        if isinstance(form, IntakeForm):
+            if form.submitted_at is not None:
+                return PublicFormView(shop.name, None, form.submitted_at.astimezone(zone).date(), kind="intake")
+            return PublicFormView(
+                shop.name, None, None, kind="intake", intake=await self._intake_reader.read(ctx, form))
         if form.submitted_at is not None:
             return PublicFormView(shop.name, None, form.submitted_at.astimezone(zone).date())
         policy = await self._source.policy(ctx)

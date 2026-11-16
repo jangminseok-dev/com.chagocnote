@@ -21,5 +21,6 @@ async def add_pet(
     ctx: ShopContext = Depends(require_permission("customer:write")),
     use_case: AddPetUseCase = Depends(get_add_pet_use_case),
 ) -> PetDetailSchema:
-    view = await use_case.add_pet(AddPetCommand(ctx=ctx, customer_id=customer_id, pet=body.to_input()))
+    view = await use_case.add_pet(AddPetCommand(ctx=ctx, customer_id=customer_id, pet=body.to_input(),
+                                                  intake_answer_id=body.intake_answer_id))
     return PetDetailSchema.of(view)

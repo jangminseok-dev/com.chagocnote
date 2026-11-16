@@ -53,8 +53,29 @@ void main() {
       'consent_days': 365,
       'reservation_text': null,
       'consent_text': '서명 부탁드려요\n{링크}',
+      'intake_keep_days': 30,
+      'intake_hidden': <String>[],
     });
     expect(saved.linkDays, 3);
+  });
+
+  test('문진표의 두 칸 — 읽고, 바꾸면 함께 보낸다. 칸이 없는 옛 응답은 기본값이다', () async {
+    late Map<String, dynamic> sent;
+    final s = _build((o, b) {
+      if (o.method == 'PUT') sent = _bodyOf(b);
+      return FakeResponse(statusCode: 200, data: formSettingsJson(intakeKeepDays: 14, intakeHidden: ['weight']));
+    });
+
+    final got = await s.api.settings(3);
+    await s.api.updateSettings(3, got.copyWith(intakeHidden: ['weight', 'style'], intakeKeepDays: 7));
+
+    expect((got.intakeKeepDays, got.defaults.intakeKeepDays), (14, 30));
+    expect(got.intakeHidden, ['weight']);
+    expect(sent['intake_keep_days'], 7);
+    expect(sent['intake_hidden'], ['weight', 'style']);
+    final old = FormSettings.fromJson(formSettingsJson()..remove('intake_keep_days')..remove('intake_hidden'));
+    expect(old.intakeKeepDays, 30);
+    expect(old.intakeHidden, isEmpty);
   });
 
   test('동의서의 글 — 토막의 순서 그대로, 모르는 토막은 버린다', () async {

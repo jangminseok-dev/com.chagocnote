@@ -14,6 +14,8 @@ class FormSettings:
     consent_days: int              # 동의를 다시 받는 기간(30~1095일)
     reservation_text: str | None   # 예약 안내의 템플릿. None 이면 기본 글
     consent_text: str | None       # 동의서 링크를 보내는 글의 템플릿. None 이면 기본 글
+    intake_keep_days: int = 30     # 확인하지 않은 문진표를 지우는 날 수(7~90)
+    intake_hidden: tuple[str, ...] = ()   # 문진표에서 매장이 끈 칸
 
     @property
     def policy(self) -> ConsentPolicy:

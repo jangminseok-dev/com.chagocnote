@@ -22,7 +22,7 @@ _RECENT_LOGIN_PREFIXES = ("/v1/auth/identities", "/v1/auth/account")
 # 로그인 없이 여는 공개 표면(/v1/public/). 여기에 적지 않은 공개 경로는 위반이다.
 _PUBLIC_ROUTES = {
     "GET /v1/public/report", "POST /v1/public/report/viewed",
-    "GET /v1/public/form", "POST /v1/public/form/consent",
+    "GET /v1/public/form", "POST /v1/public/form/consent", "POST /v1/public/form/intake",
 }
 # 로그인한 사용자를 읽는 의존성. require_recent_login 도 get_access_claims 위에 선다.
 _LOGIN = {get_access_claims, get_current_user_id}

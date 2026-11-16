@@ -19,8 +19,16 @@ import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../api/consent_models.dart';
+import '../api/intake_models.dart';
 import '../state/consent_commands.dart';
 import '../state/consent_providers.dart';
+
+/// 보낸 서류 한 줄의 제목 — 동의서는 아이 이름들, 문진표는 누구에게 보냈는지(새 손님·새 아이·그 아이).
+String sentFormTitle(SentForm form) => switch (form.mode) {
+  IntakeMode.newGuest => AppStrings.sentIntakeNew,
+  IntakeMode.addPet => AppStrings.sentIntakeAddPet,
+  _ => [for (final pet in form.pets) pet.name].join(' · '),
+};
 
 /// 고객 탭의 `보낸 서류 N`(⑪ 설계 3.6) — 살아 있는 링크가 있을 때만 보인다.
 /// 읽는 중·읽지 못함·없음이면 줄이 없다(탭의 본문이 아니다).
@@ -167,9 +175,12 @@ class _SentFormsScreenState extends ConsumerState<SentFormsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(AppStrings.sentFormKind, style: AppTypography.caption),
+          Text(
+            form.kind == FormKind.intake ? AppStrings.sentFormKindIntake : AppStrings.sentFormKind,
+            style: AppTypography.caption,
+          ),
           const SizedBox(height: AppSpacing.xs),
-          Text([for (final pet in form.pets) pet.name].join(' · '), style: AppTypography.bodyStrong),
+          Text(sentFormTitle(form), style: AppTypography.bodyStrong),
           const SizedBox(height: AppSpacing.xs),
           Text(
             AppStrings.sentFormMeta(form.customerName, form.sentOn, form.expiresOn),

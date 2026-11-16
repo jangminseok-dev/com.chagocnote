@@ -1,0 +1,249 @@
+/* 문진표(⑪-C). 동의서와 같은 톤 — 무채색, 잉크색 글자, 가는 선. 누르는 자리는 44px 이상이다. */
+
+.form {
+  margin-top: 8px;
+}
+
+.lead {
+  margin: 0 0 6px;
+  color: #555;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.section {
+  margin-top: 26px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ink);
+}
+
+.section h2,
+.privacy h2 {
+  margin: 14px 0 2px;
+  font-family: var(--font-myeongjo);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.group {
+  margin-top: 4px;
+}
+
+.label {
+  display: block;
+  margin: 16px 0 6px;
+  color: #666;
+  font-size: 12.5px;
+}
+
+.label small {
+  color: #999;
+  font-size: 12px;
+}
+
+.hint {
+  margin: 0;
+  color: #999;
+  font-size: 13px;
+}
+
+.input,
+.area {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid #cfcfcf;
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  /* 16px 보다 작으면 아이폰이 칸을 누를 때 화면을 키운다. */
+  font: inherit;
+  font-size: 16px;
+}
+
+.area {
+  resize: vertical;
+}
+
+.input:focus,
+.area:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.input:disabled {
+  background: #f1f1f1;
+  color: #999;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.row .input {
+  flex: 1;
+}
+
+.row .chip {
+  flex: none;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #cfcfcf;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.detail {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.privacy {
+  margin-top: 26px;
+  padding: 2px 16px 10px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+}
+
+.privacy ul {
+  margin: 8px 0 6px;
+  padding-left: 18px;
+  list-style: disc;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.agree {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.agree input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+/* 글자 줄 전체가 누르는 자리다(44px). */
+.agree label {
+  flex: 1;
+  padding: 11px 0;
+}
+
+/* 걸린 칸으로 올라가도 무엇이 빠졌는지가 보이게 화면 아래에 붙는다. */
+.notice {
+  position: sticky;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 1;
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px solid var(--ink);
+  background: #fff;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.closing {
+  margin: 16px 0 0;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.input[aria-invalid='true'],
+.area[aria-invalid='true'] {
+  border-color: var(--ink);
+  border-width: 2px;
+}
+
+/* 고르는 칸(칩 묶음)이 걸렸으면 그 묶음에 선을 긋는다. */
+.form[data-bad] [data-field]:not(input):not(textarea):not(select) {
+  scroll-margin-top: 80px;
+}
+
+.sent {
+  margin: 0 0 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--ink);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.sent:focus,
+.done:focus {
+  outline: none;
+}
+
+.send,
+.more {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 15px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.send {
+  background: var(--ink);
+  color: #fff;
+}
+
+.more {
+  margin-top: 10px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.send:disabled,
+.more:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.done {
+  margin: 30px 0 0;
+  padding: 22px 0 0;
+  border-top: 1px solid var(--ink);
+  font-family: var(--font-myeongjo);
+  font-size: 18px;
+  line-height: 1.6;
+}

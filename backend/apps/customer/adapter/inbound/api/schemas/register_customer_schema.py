@@ -87,6 +87,10 @@ class PetFieldsSchema(BaseModel):
         )
 
 
+IntakeAnswerId = Annotated[int, Field(ge=1, le=9_223_372_036_854_775_807)] | None
+
+
 class RegisterCustomerRequestSchema(BaseModel):
     customer: CustomerFieldsSchema
     pet: PetFieldsSchema
+    intake_answer_id: IntakeAnswerId = None   # 받은 문진표로 등록할 때 — 그 답을 지운다

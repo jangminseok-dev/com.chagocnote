@@ -10,6 +10,10 @@ LINK_DAYS = (1, 30)
 SENIOR_AGE = (5, 20)
 CONSENT_DAYS = (30, 1095)
 TEMPLATE_MAX = 500
+INTAKE_KEEP_DAYS = (7, 90)
+# 문진표에서 매장이 끌 수 있는 칸. 보호자·아이 이름·지병·안내는 끌 수 없다 — 누구의 답인지, 어떤 동의가 필요한지가
+# 여기서 정해진다.
+INTAKE_HIDEABLE = ("species", "breed", "sex", "neutered", "birth", "weight", "dislikes", "style")
 
 # 보내는 글에 넣을 수 있는 자리. 채우는 쪽은 visit 의 묶음 조립이다.
 RESERVATION_SLOTS = frozenset({"{매장}", "{아이}", "{날짜}", "{시간}", "{메뉴}"})
@@ -48,3 +52,7 @@ def check_form_settings(settings: FormSettings) -> None:
     _check_template(settings.consent_text, CONSENT_SLOTS, "동의서를 보내는 글")
     if settings.consent_text is not None and LINK_SLOT not in settings.consent_text:
         raise CustomerInputError("동의서를 보내는 글에는 {링크} 자리가 있어야 합니다.")
+    _check_range(settings.intake_keep_days, INTAKE_KEEP_DAYS, "확인하지 않은 문진표를 지우는 때")
+    hidden = settings.intake_hidden
+    if len(set(hidden)) != len(hidden) or any(code not in INTAKE_HIDEABLE for code in hidden):
+        raise CustomerInputError("문진표에서 끌 수 없는 칸이 있습니다.")

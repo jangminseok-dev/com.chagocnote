@@ -5,6 +5,7 @@
 library;
 
 import '../../../core/time/shop_time.dart';
+import 'intake_models.dart';
 
 /// 동의서의 토막. 문서의 순서 그대로다.
 enum ConsentPart { basic, senior, condition }
@@ -55,10 +56,15 @@ class FormLink {
   final DateTime sentOn;
 }
 
-/// 보낸 서류 한 줄 — 살아 있는 요청.
+/// 서류의 종류.
+enum FormKind { consent, intake }
+
+/// 보낸 서류 한 줄 — 살아 있는 요청(동의서·문진표). **[url] 에는 토큰이 들어 있다 — 로그에 남기지 않는다.**
 class SentForm {
   const SentForm({
     required this.formId,
+    required this.kind,
+    required this.mode,
     required this.customerId,
     required this.customerName,
     required this.pets,
@@ -67,25 +73,43 @@ class SentForm {
     required this.url,
   });
 
-  factory SentForm.fromJson(Map<String, dynamic> json) {
-    final customer = json['customer'] as Map<String, dynamic>;
+  /// 모르는 종류이거나 모양이 깨진 줄이면 `null` — 목록에서 뺀다(나머지는 보인다).
+  static SentForm? tryParse(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final kind = FormKind.values.where((k) => k.name == raw['kind']).firstOrNull;
+    final formId = raw['form_id'];
+    final sentOn = raw['sent_on'];
+    final expiresOn = raw['expires_on'];
+    final url = raw['url'];
+    if (kind == null || formId is! int || sentOn is! String || expiresOn is! String || url is! String) return null;
+    final mode = IntakeMode.parse(raw['mode']);
+    if (kind == FormKind.intake && mode == null) return null;
+    // 새 손님용 문진표에는 고객이 없다.
+    final customer = raw['customer'];
     return SentForm(
-      formId: json['form_id'] as int,
-      customerId: customer['customer_id'] as int,
-      customerName: customer['name'] as String? ?? '',
+      formId: formId,
+      kind: kind,
+      mode: kind == FormKind.intake ? mode : null,
+      customerId: customer is Map<String, dynamic> ? customer['customer_id'] as int? : null,
+      customerName: customer is Map<String, dynamic> ? customer['name'] as String? : null,
       pets: [
-        for (final pet in json['pets'] as List)
-          (petId: (pet as Map)['pet_id'] as int, name: pet['name'] as String? ?? ''),
+        for (final pet in raw['pets'] as List? ?? const [])
+          if (pet is Map<String, dynamic> && pet['pet_id'] is int)
+            (petId: pet['pet_id'] as int, name: pet['name'] as String? ?? ''),
       ],
-      sentOn: parseDay(json['sent_on'] as String),
-      expiresOn: parseDay(json['expires_on'] as String),
-      url: json['url'] as String,
+      sentOn: parseDay(sentOn),
+      expiresOn: parseDay(expiresOn),
+      url: url,
     );
   }
 
+  static List<SentForm> listFrom(List<dynamic> items) => [for (final raw in items) ?tryParse(raw)];
+
   final int formId;
-  final int customerId;
-  final String customerName;
+  final FormKind kind;
+  final IntakeMode? mode; // 문진표를 보낸 곳. 동의서는 null
+  final int? customerId; // 새 손님용 문진표는 null
+  final String? customerName;
   final List<({int petId, String name})> pets;
   final DateTime sentOn;
   final DateTime expiresOn;

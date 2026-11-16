@@ -9,7 +9,8 @@ from tests.integration.test_visit_checks_wiring import (
 
 pytestmark = pytest.mark.integration
 
-KEYS = {"link_days", "senior_age", "consent_days", "reservation_text", "consent_text", "defaults"}
+KEYS = {"link_days", "senior_age", "consent_days", "reservation_text", "consent_text", "intake_keep_days",
+        "intake_hidden", "defaults"}
 
 
 async def read(wired, shop_id, headers):

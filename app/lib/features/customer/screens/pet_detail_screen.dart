@@ -32,6 +32,7 @@ import 'caution_row.dart';
 import 'customer_labels.dart';
 import 'grooming_consent_row.dart';
 import 'guardian_link_row.dart';
+import 'intake_send_button.dart';
 
 /// 반려동물 한 마리 화면 — 큰 프로필 사진(최근 완료 기록의 대표 사진), 이름·요약, 탭 [기본 / 질병 / 보호자 /
 /// 기록](기록은 visit 가 그린다 — `petRecordsPlugProvider`),
@@ -313,7 +314,11 @@ class _DetailBody extends ConsumerWidget {
         switch (tab) {
           0 => _BasicTab(pet: pet),
           1 => _ConditionsTab(pet: pet),
-          2 => _OwnerTab(customerId: detail.owner.customerId),
+          2 => _OwnerTab(
+            customerId: detail.owner.customerId,
+            petId: detail.pet.petId,
+            passedAway: detail.pet.passedAway,
+          ),
           _ => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -434,9 +439,11 @@ class _ConditionsTab extends StatelessWidget {
 
 /// 보호자 탭. 전체 번호는 고객 상세 조회에서만 받는다(설계 8.2).
 class _OwnerTab extends ConsumerWidget {
-  const _OwnerTab({required this.customerId});
+  const _OwnerTab({required this.customerId, required this.petId, required this.passedAway});
 
   final int customerId;
+  final int petId;
+  final bool passedAway;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -499,6 +506,19 @@ class _OwnerTab extends ConsumerWidget {
                       onPressed: () =>
                           context.push('/customers/$customerId/pets/new'),
                     ),
+                    // 문진표(⑪-C) — 보호자가 직접 적어 보낸다. 새 아이를 더할 때와 이 아이의 정보를 다시 받을 때.
+                    IntakeSendButton(
+                      key: const ValueKey('intake-send-customer'),
+                      label: AppStrings.intakeSendAddPet,
+                      customerId: customerId,
+                    ),
+                    // 무지개다리를 건넌 아이의 정보는 다시 받지 않는다(서버도 받지 않는다).
+                    if (!passedAway)
+                      IntakeSendButton(
+                        key: const ValueKey('intake-send-pet'),
+                        label: AppStrings.intakeSendUpdate,
+                        petId: petId,
+                      ),
                   ],
                 ),
               ],

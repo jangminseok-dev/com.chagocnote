@@ -6,7 +6,7 @@ from core.database import DbSession
 from customer.app.ports.input.delete_customer_use_case import DeleteCustomerUseCase
 from customer.app.use_cases.delete_customer_interactor import DeleteCustomerInteractor
 from customer.dependencies.customer_wiring import (
-    build_consent_form_repository,
+    build_intake_answer_repository, build_intake_form_repository, build_consent_form_repository,
     build_consent_signature_repository,
     build_customer_repository,
     build_customer_search,
@@ -26,5 +26,6 @@ def get_delete_customer_use_case(
     return DeleteCustomerInteractor(
         customers=build_customer_repository(db), search=build_customer_search(db), ledger=ledger,
         guardians=guardians, index=index, forms=build_consent_form_repository(db),
-        signatures=build_consent_signature_repository(db), now=utc_now,
+        signatures=build_consent_signature_repository(db), now=utc_now, intakes=build_intake_form_repository(db),
+        answers=build_intake_answer_repository(db),
     )

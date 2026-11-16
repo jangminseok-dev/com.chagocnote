@@ -26,6 +26,7 @@ class FormSettingsPgRepository(FormSettingsRepository):
         return FormSettings(
             link_days=row.link_days, senior_age=row.senior_age, consent_days=row.consent_days,
             reservation_text=row.reservation_text, consent_text=row.consent_text,
+            intake_keep_days=row.intake_keep_days, intake_hidden=tuple(row.intake_hidden),
         )
 
     async def put(self, ctx: ShopContext, settings: FormSettings) -> FormSettings:
@@ -33,6 +34,7 @@ class FormSettingsPgRepository(FormSettingsRepository):
             "link_days": settings.link_days, "senior_age": settings.senior_age,
             "consent_days": settings.consent_days, "reservation_text": settings.reservation_text,
             "consent_text": settings.consent_text,
+            "intake_keep_days": settings.intake_keep_days, "intake_hidden": list(settings.intake_hidden),
         }
         await self._session.execute(
             insert(ShopFormSettingsOrm).values(shop_id=ctx.shop_id, **values)

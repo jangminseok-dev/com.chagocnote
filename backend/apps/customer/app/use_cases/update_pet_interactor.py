@@ -9,8 +9,10 @@ from customer.app.ports.input.update_pet_use_case import UpdatePetUseCase
 from customer.app.ports.output.condition_type_repository import ConditionTypeRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
+from customer.app.ports.output.intake_answer_repository import IntakeAnswerRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.detail_reader import read_pet_detail
+from customer.app.services.intake_answers import consume_answer
 from customer.domain.services.care_marks import conditions_added
 from hub.app.dtos.search_events import SearchSourceChanged
 from hub.app.ports.domain_event_port import DomainEventPort
@@ -20,7 +22,7 @@ class UpdatePetInteractor(UpdatePetUseCase):
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository,
         condition_types: ConditionTypeRepository, search: CustomerSearchPort,
-        today: Callable[[], date], events: DomainEventPort,
+        today: Callable[[], date], events: DomainEventPort, answers: IntakeAnswerRepository | None = None,
     ) -> None:
         self._customers = customers
         self._pets = pets
@@ -28,11 +30,13 @@ class UpdatePetInteractor(UpdatePetUseCase):
         self._search = search
         self._today = today
         self._events = events
+        self._answers = answers
 
     async def update_pet(self, command: UpdatePetCommand) -> PetDetailView:
         codes = frozenset(t.code for t in await self._condition_types.list_all())
         profile = command.pet.to_profile(codes, self._today())
         customer_id = await self._pets.lock_owner(command.ctx, command.pet_id)
+        await consume_answer(command.ctx, command.intake_answer_id, self._answers, pet_id=command.pet_id)   # 다시 받은 문진표를 반영한다(⑪-C)
         before = await self._pets.get(command.ctx, command.pet_id)
         await self._pets.update(command.ctx, command.pet_id, profile)
         # 앞서 받은 미용 동의는 새로 적힌 지병을 덮지 않는다 — 지병이 늘면 다시 받게 한다(③-B 3.2).

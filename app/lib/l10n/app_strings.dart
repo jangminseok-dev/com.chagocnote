@@ -433,8 +433,95 @@ class AppStrings {
   static String sentFormsEntry(int count) => '보낸 서류 $count';
   static const sentFormsTitle = '보낸 서류';
   static const sentFormsEmpty = '보낸 서류가 없어요';
-  static String sentFormMeta(String owner, DateTime sent, DateTime expires) =>
-      '$owner · ${sent.month}월 ${sent.day}일에 보냄 · ${expires.month}월 ${expires.day}일까지';
+  /// 새 손님용 문진표에는 보호자가 없다 — 이름 없이 날짜만 적는다.
+  static String sentFormMeta(String? owner, DateTime sent, DateTime expires) =>
+      '${owner == null || owner.isEmpty ? '' : '$owner · '}${sent.month}월 ${sent.day}일에 보냄 · ${expires.month}월 ${expires.day}일까지';
+  // 문진표(⑪-C) — 보내기.
+  static const intakeSendNew = '문진표 링크 보내기';
+  static const intakeSendNewHint = '보호자가 직접 적어 보내면 받은 문진표로 들어와요. 다시 치지 않고 등록할 수 있어요.';
+  static const intakeSendAddPet = '새 아이 문진표 보내기';
+  static const intakeSendUpdate = '문진표 다시 받기';
+  static const intakeSendFailed = '문진표 링크를 만들지 못했어요. 다시 눌러 주세요.';
+  static const intakeShareFailed = '공유 창을 열지 못했어요. 보낸 서류에서 다시 공유할 수 있어요.';
+  // 서류 설정의 문진표(⑪-C).
+  static const formSectionIntake = '문진표에서 물어볼 것';
+  static const formIntakeAlways = '보호자 이름·전화번호, 아이 이름, 지병, 개인정보 안내는 늘 물어요.';
+  static const formIntakeHiddenHint = '끈 칸은 보호자에게 보이지 않아요. 등록할 때 비어 있으면 그때 채워요.';
+  static const intakeFieldNames = {
+    'species': '종류(강아지·고양이)', 'breed': '품종', 'sex': '성별', 'neutered': '중성화', 'birth': '나이(생일)',
+    'weight': '몸무게', 'dislikes': '싫어하는 것·조심할 것', 'style': '원하는 스타일',
+  };
+  static String formIntakeQuestions(int count) => count == 0 ? '매장이 더한 질문' : '매장이 더한 질문 $count';
+  static const formIntakeQuestionsHint = '우리 매장만 묻고 싶은 것을 다섯 개까지 더할 수 있어요.';
+  static const formIntakeKeepLabel = '확인하지 않은 문진표를 지우는 때';
+  static String formIntakeKeepHint(int days) => '받고 $days일 동안 등록하지 않은 문진표는 지워요.';
+  static const intakeQuestionsTitle = '매장이 더한 질문';
+  static const intakeQuestionAdd = '질문 더하기';
+  static const intakeQuestionHint = '질문을 적어 주세요 (예: 산책은 얼마나 하나요?)';
+  static const intakeQuestionRequired = '꼭 답하기';
+  static const intakeQuestionRemove = '질문 지우기';
+  static const intakeQuestionEmpty = '비어 있는 질문이 있어요. 적거나 지워 주세요.';
+  static const intakeQuestionFull = '질문은 다섯 개까지 더할 수 있어요.';
+  static const intakeQuestionsNone = '더한 질문이 없어요. 기본 칸만 물어요.';
+  static const intakeQuestionsSaved = '저장했어요. 다음에 여는 문진표부터 보여요.';
+
+  static String petMemoOver(int over) => '특이사항이 $over자 넘쳐요. 500자까지 줄여 주세요.';
+  static String formIntakeKeepShorterAsk(int days) => '$days일로 줄이면 받은 지 $days일이 넘은 문진표는 곧 지워져요.';
+  static const formIntakeKeepShorter = '줄이기';
+  static const intakePreviewGuardian = '보호자 이름·전화번호';
+  static const intakePreviewPetName = '아이 이름';
+  static const intakePreviewConditions = '지병';
+  static const intakePreviewPrivacy = '개인정보 안내와 동의';
+
+  // 받은 문진표(⑪-C) — 다시 치지 않고 등록한다.
+  static String receivedIntakeEntry(int count) => '받은 문진표 $count';
+  static const receivedIntakeTitle = '받은 문진표';
+  static const receivedIntakeEmpty = '받은 문진표가 없어요.';
+  static String receivedIntakeMeta(String? guardian, DateTime on) =>
+      '${guardian == null || guardian.isEmpty ? '' : '$guardian · '}${on.month}월 ${on.day}일에 받음';
+  static const intakeMatched = '등록된 고객';
+  static const intakeModeAddPet = '새 아이';
+  static const intakeModeUpdate = '다시 받은 정보';
+  static const intakeNoName = '이름 없음';
+  static const intakeAnswerTitle = '문진표';
+  static const intakeSectionGuardian = '보호자';
+  static const intakeSectionPet = '아이';
+  static const intakeSectionHealth = '건강';
+  static const intakeSectionMore = '미용할 때 알아 둘 것';
+  static const intakeDislikes = '싫어하는 것·조심할 것';
+  static const intakeStyle = '원하는 스타일';
+  static const intakeNotAnswered = '적지 않았어요';
+  static const intakeNoConditions = '지병 없음';
+  static const intakeBirthUnknown = '나이 모름';
+  static String intakeBirthYear(int year) => '$year년생';
+  static String intakeTargetNew(String guardian) => '$guardian 님을 새 고객으로 등록해요.';
+  static String intakeTargetMatched(String customer) => '등록된 고객 · $customer 님의 새 아이로 등록해요.';
+  static String intakeTargetUpdate(String pet) => '$pet의 정보에 반영해요. 적어 낸 것만 바뀌어요.';
+  static String intakeMissing(String fields) => '$fields 칸이 비어 있어요. 등록할 때 채워 주세요.';
+  static String intakeMemoOver(int over) => '메모가 $over자 넘쳐요. 등록할 때 줄여 주세요.';
+  static const intakeRegisterNow = '이대로 등록';
+  static const intakeRegisterEdit = '고쳐서 등록';
+  static const intakeFillAndRegister = '빈 칸 채우고 등록';
+  static const intakeApply = '반영하기';
+  static const intakeDelete = '지우기';
+  static const intakeDeleteAsk = '이 문진표를 지울까요? 보호자가 적은 내용이 사라져요.';
+  static const intakeDeleteConfirm = '지우기';
+  static const intakeKeep = '그대로 두기';
+  static const intakeGone = '이미 등록했거나 지운 문진표예요.';
+  static const intakeRegistered = '등록했어요.';
+  static const intakeApplied = '반영했어요.';
+  static String intakePhoneTaken(String customer) => '이 번호의 고객이 이미 있어요. $customer 님의 새 아이로 더할까요?';
+  static const intakeAddToExisting = '새 아이로 더하기';
+  static const intakeRegisterTitle = '문진표로 등록';
+  static const intakeApplyTitle = '문진표 반영';
+  static String intakeChangedFields(String fields) => '문진표에서 온 값: $fields';
+  static const intakeFieldLabels = {
+    'name': '이름', 'species': '종류', 'breed': '품종', 'sex': '성별', 'neutered': '중성화', 'birth': '나이',
+    'weight': '몸무게', 'conditions': '지병', 'memo': '메모', 'dislikes': '싫어하는 것', 'style': '원하는 스타일',
+  };
+  static const sentFormKindIntake = '문진표';
+  static const sentIntakeNew = '새 손님';
+  static const sentIntakeAddPet = '새 아이';
   static const sentFormKind = '미용 동의서';
   static const sentFormRevoke = '링크 끊기';
   static const sentFormRevokeAsk = '이 링크를 끊을까요? 받은 분이 더는 열 수 없어요.';

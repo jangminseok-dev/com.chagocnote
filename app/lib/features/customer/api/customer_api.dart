@@ -48,15 +48,19 @@ class CustomerApi {
   }
 
   /// 보호자와 첫 반려동물을 한 번에 등록한다.
+  /// 받은 문진표로 등록·반영할 때 함께 보내는 칸(⑪-C) — 서버가 같은 처리 안에서 그 답을 지운다. 없으면 칸이 없다.
+  static Map<String, dynamic> _intake(int? answerId) => answerId == null ? const {} : {'intake_answer_id': answerId};
+
   Future<CustomerDetail> register(
     int shopId, {
     required CustomerFields customer,
     required PetFields pet,
+    int? intakeAnswerId,
   }) async {
     final data =
         await _client.post(
               '/v1/shops/$shopId/customers',
-              data: {'customer': customer.toJson(), 'pet': pet.toJson()},
+              data: {'customer': customer.toJson(), 'pet': pet.toJson(), ..._intake(intakeAnswerId)},
             )
             as Map<String, dynamic>;
     return CustomerDetail.fromJson(data);
@@ -88,11 +92,11 @@ class CustomerApi {
     await _client.delete('/v1/shops/$shopId/customers/$customerId');
   }
 
-  Future<PetDetail> addPet(int shopId, int customerId, PetFields fields) async {
+  Future<PetDetail> addPet(int shopId, int customerId, PetFields fields, {int? intakeAnswerId}) async {
     final data =
         await _client.post(
               '/v1/shops/$shopId/customers/$customerId/pets',
-              data: fields.toJson(),
+              data: {...fields.toJson(), ..._intake(intakeAnswerId)},
             )
             as Map<String, dynamic>;
     return PetDetail.fromJson(data);
@@ -105,11 +109,11 @@ class CustomerApi {
     return PetDetail.fromJson(data);
   }
 
-  Future<PetDetail> updatePet(int shopId, int petId, PetFields fields) async {
+  Future<PetDetail> updatePet(int shopId, int petId, PetFields fields, {int? intakeAnswerId}) async {
     final data =
         await _client.put(
               '/v1/shops/$shopId/pets/$petId',
-              data: fields.toJson(),
+              data: {...fields.toJson(), ..._intake(intakeAnswerId)},
             )
             as Map<String, dynamic>;
     return PetDetail.fromJson(data);
