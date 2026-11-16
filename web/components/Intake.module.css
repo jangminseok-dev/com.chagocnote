@@ -164,11 +164,36 @@
   padding: 11px 0;
 }
 
+/* 걸린 칸으로 올라가도 무엇이 빠졌는지가 보이게 화면 아래에 붙는다. */
 .notice {
+  position: sticky;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 1;
   margin: 14px 0 0;
+  padding: 11px 13px;
+  border: 1px solid var(--ink);
+  background: #fff;
   color: var(--ink);
   font-size: 13.5px;
   font-weight: 600;
+}
+
+.closing {
+  margin: 16px 0 0;
+  color: #555;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.input[aria-invalid='true'],
+.area[aria-invalid='true'] {
+  border-color: var(--ink);
+  border-width: 2px;
+}
+
+/* 고르는 칸(칩 묶음)이 걸렸으면 그 묶음에 선을 긋는다. */
+.form[data-bad] [data-field]:not(input):not(textarea):not(select) {
+  scroll-margin-top: 80px;
 }
 
 .sent {

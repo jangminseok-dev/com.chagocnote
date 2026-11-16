@@ -40,9 +40,32 @@ export function emptyDraft(): IntakeDraft {
 
 export type Problem = { field: string; message: string }
 
-/** 한 줄 칸의 글 — 앞뒤 공백을 없애고, 붙여넣은 줄바꿈·탭은 빈칸으로 바꾼다. */
+/** 한 줄 칸의 글 — 앞뒤 공백을 없애고, 붙여넣은 줄바꿈·탭은 빈칸으로 바꾸고, 그 밖의 제어 문자는 걷어 낸다(서버가 받지 않는다). */
 function line(value: string): string {
-  return value.replace(/\s+/g, ' ').trim()
+  return value.replace(/\s+/g, ' ').replace(/\p{Cc}/gu, '').trim()
+}
+
+// 백엔드 `phone_number.py` 의 규칙과 같다 — 휴대전화, 서울, 지역 번호, 인터넷 전화.
+const PHONE = /^(01[016789]\d{7,8}|02\d{7,8}|0[3-6][1-5]\d{7,8}|070\d{8})$/
+const OLDEST_BIRTH_YEAR = 1990
+
+/** 숫자만 남긴 번호. 나라 번호(+82)는 0 으로 바꾼다 — 자동 채움이 그렇게 넣는다. 번호의 모양이 아니면 null. */
+function phoneDigits(value: string): string | null {
+  let digits = value.replace(/\D/g, '')
+  if (digits.startsWith('82') && !PHONE.test(digits)) digits = `0${digits.slice(2)}`
+  return PHONE.test(digits) ? digits : null
+}
+
+/** 보낼 번호 — 적은 그대로 보내되, 나라 번호가 붙어 있으면 0 으로 바꾼 숫자를 보낸다. */
+function sentPhone(value: string): string {
+  const typed = line(value)
+  return PHONE.test(typed.replace(/\D/g, '')) ? typed : (phoneDigits(typed) ?? typed)
+}
+
+/** 로컬 날짜의 YYYY-MM-DD — `toISOString` 은 UTC 라 한국의 새벽에는 어제가 된다. */
+export function localDay(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 function weightOf(value: string): number | null {
@@ -58,7 +81,7 @@ const OTHER = 'other'
  * 처음 걸리는 칸 하나(화면의 위에서부터). 없으면 null — 있으면 보내지 않고 그 칸을 짚는다.
  * 백엔드의 규칙과 같다: 켜진 칸은 필수, 끈 칸은 보지 않는다, 다시 받기(update)는 전부 선택.
  */
-export function problemOf(form: OpenIntake, draft: IntakeDraft): Problem | null {
+export function problemOf(form: OpenIntake, draft: IntakeDraft, today: Date = new Date()): Problem | null {
   const required = form.mode !== 'update'
   const shown = (code: string) => form.fields.includes(code)
   const need = (field: string, message: string): Problem => ({ field, message })
@@ -66,6 +89,7 @@ export function problemOf(form: OpenIntake, draft: IntakeDraft): Problem | null 
   if (form.guardian_needed) {
     if (line(draft.guardianName) === '') return need('guardianName', '보호자 이름을 적어 주세요')
     if (line(draft.guardianPhone) === '') return need('guardianPhone', '전화번호를 적어 주세요')
+    if (phoneDigits(draft.guardianPhone) === null) return need('guardianPhone', '전화번호를 다시 확인해 주세요')
   }
   if (required && line(draft.petName) === '') return need('petName', '아이 이름을 적어 주세요')
   if (required && shown('species') && draft.species === '') return need('species', '강아지인지 고양이인지 골라 주세요')
@@ -74,14 +98,24 @@ export function problemOf(form: OpenIntake, draft: IntakeDraft): Problem | null 
   if (required && shown('neutered') && draft.neutered === '') return need('neutered', '중성화 여부를 골라 주세요')
   if (shown('birth')) {
     if (required && draft.birthKind === '') return need('birth', '생일을 고르거나 몰라요를 골라 주세요')
-    if (draft.birthKind === 'date' && draft.birthDate === '') return need('birth', '생일을 골라 주세요')
-    if (draft.birthKind === 'year' && !/^\d{4}$/.test(draft.birthYear.trim())) return need('birth', '태어난 해를 골라 주세요')
+    if (draft.birthKind === 'date') {
+      if (draft.birthDate === '') return need('birth', '생일을 골라 주세요')
+      // 서버의 범위와 같다 — 앞날과 치다 만 연도(0020-…)를 여기서 짚는다.
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.birthDate) || draft.birthDate < `${OLDEST_BIRTH_YEAR}-01-01` || draft.birthDate > localDay(today)) {
+        return need('birth', '생일을 다시 확인해 주세요')
+      }
+    }
+    if (draft.birthKind === 'year') {
+      if (!/^\d{4}$/.test(draft.birthYear.trim())) return need('birth', '태어난 해를 골라 주세요')
+      const year = Number(draft.birthYear)
+      if (year < OLDEST_BIRTH_YEAR || year > today.getFullYear()) return need('birth', '태어난 해를 다시 확인해 주세요')
+    }
   }
   if (shown('weight') && !draft.weightUnknown) {
     if (draft.weight.trim() === '') {
       if (required) return need('weight', '몸무게를 적거나 모르겠어요를 골라 주세요')
     } else if (weightOf(draft.weight) === null) {
-      return need('weight', '몸무게를 숫자로 적어 주세요')
+      return need('weight', '몸무게를 숫자로, 소수 첫째 자리까지 적어 주세요')
     }
   }
   const picked = draft.conditions.length > 0
@@ -140,7 +174,9 @@ export function bodyOf(form: OpenIntake, draft: IntakeDraft, done: boolean): { g
   if (shown('style')) put('style', text(draft.style), line(draft.style) !== '')
 
   return {
-    guardian: form.guardian_needed ? { name: line(draft.guardianName), phone: line(draft.guardianPhone) } : null,
+    guardian: form.guardian_needed
+      ? { name: line(draft.guardianName), phone: sentPhone(draft.guardianPhone) }
+      : null,
     pet,
     extras: form.questions
       .map((question) => ({ question_id: question.question_id, body: line(draft.extras[question.question_id] ?? '') }))

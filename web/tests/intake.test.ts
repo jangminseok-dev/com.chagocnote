@@ -150,3 +150,48 @@ test('한 줄 칸에 붙여넣은 줄바꿈은 빈칸으로 바뀐다', () => {
   expect(body.pet.breed).toBe('말티즈 믹스')
   expect(body.pet.dislikes).toBe('발 만지기')
 })
+
+// --- 최종 검토: 서버가 422 로 막는 입력을 브라우저가 먼저 짚는다 ---------------------------------------------------
+
+test.each([
+  ['1234'],
+  ['010-123-45'],
+  ['02-12'],
+  ['전화 없음'],
+])('전화번호의 모양이 아니면(%s) 그 칸을 짚는다', (phone) => {
+  const problem = problemOf(FORM, { ...FULL, guardianPhone: phone })
+  expect(problem).toEqual({ field: 'guardianPhone', message: '전화번호를 다시 확인해 주세요' })
+})
+
+test.each([
+  ['010-1234-5678', '010-1234-5678'],
+  ['01012345678', '01012345678'],
+  ['02-123-4567', '02-123-4567'],
+  ['+82 10-1234-5678', '01012345678'], // 자동 채움이 넣는 나라 번호는 0 으로 바꿔 보낸다
+  ['82-10-1234-5678', '01012345678'],
+])('받는 전화번호 %s', (phone, sent) => {
+  expect(problemOf(FORM, { ...FULL, guardianPhone: phone })).toBeNull()
+  expect(bodyOf(FORM, { ...FULL, guardianPhone: phone }, true).guardian).toEqual({ name: '김민지', phone: sent })
+})
+
+test('생일은 1990년부터 오늘까지다 — 앞날과 치다 만 연도를 짚는다', () => {
+  const today = new Date(2026, 10, 16)
+  const withDate = (birthDate: string) => problemOf(FORM, { ...FULL, birthKind: 'date', birthYear: '', birthDate }, today)
+  expect(withDate('2026-11-16')).toBeNull()
+  expect(withDate('1990-01-01')).toBeNull()
+  expect(withDate('2026-11-17')).toEqual({ field: 'birth', message: '생일을 다시 확인해 주세요' })
+  expect(withDate('0020-03-04')?.field).toBe('birth')
+  expect(withDate('1989-12-31')?.field).toBe('birth')
+  expect(problemOf(FORM, { ...FULL, birthYear: '2027' }, today)?.field).toBe('birth')
+  expect(problemOf(FORM, { ...FULL, birthYear: '1989' }, today)?.field).toBe('birth')
+})
+
+test('몸무게는 소수 첫째 자리까지라고 말한다', () => {
+  expect(problemOf(FORM, { ...FULL, weight: '5.12' })?.message).toBe('몸무게를 숫자로, 소수 첫째 자리까지 적어 주세요')
+})
+
+test('붙여넣은 글의 제어 문자는 걷어 낸다 — 서버가 받지 않는다', () => {
+  const body = bodyOf(FORM, { ...FULL, petName: '콩\u0000이\u001b', dislikes: '발\u007f 만지기' }, true)
+  expect(body.pet.name).toBe('콩이')
+  expect(body.pet.dislikes).toBe('발 만지기')
+})

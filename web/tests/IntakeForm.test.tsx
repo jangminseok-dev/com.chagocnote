@@ -203,6 +203,58 @@ test('다시 받기는 아이 이름을 보이고 바뀐 것만 적어 보낸다
   expect(sentBody().body.pet).toEqual({ weight_kg: 5.1 })
 })
 
+test('빠진 칸을 표시하고 그 칸으로 포커스를 옮긴다', async () => {
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  type('보호자 이름', '김민지')
+
+  await press(/^보내기$/)
+
+  const phone = screen.getByLabelText('전화번호')
+  expect(phone).toHaveAttribute('aria-invalid', 'true')
+  expect(phone).toHaveFocus()
+  type('전화번호', '010-1234-5678')
+  expect(phone).not.toHaveAttribute('aria-invalid', 'true')
+  expect(screen.queryByRole('alert')).toBeNull()
+})
+
+test('422 면 화면을 다시 읽는다 — 매장이 그 사이 더한 필수 질문을 다시 그린 뒤에 짚는다', async () => {
+  respondWith(422)
+  const { rerender } = render(<IntakeForm form={FORM} token={TOKEN} />)
+  fill()
+
+  await press(/^보내기$/)
+  expect(refresh).toHaveBeenCalledTimes(1)
+  expect(screen.getByRole('alert')).toHaveTextContent('적은 내용을 다시 확인해 주세요')
+
+  // 다시 읽은 구성이 props 로 온다 — 적은 것은 남고 새 칸이 생긴다.
+  rerender(<IntakeForm form={{ ...FORM, questions: [{ question_id: 9, label: '새 질문', required: true }] }} token={TOKEN} />)
+  expect(screen.getByLabelText('아이 이름')).toHaveValue('콩이')
+  await press(/^보내기$/)
+  expect(screen.getByRole('alert')).toHaveTextContent('꼭 답해야 하는 질문이 남아 있어요')
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+})
+
+test('보내면 링크가 닫힌다고 버튼 곁에 적혀 있고, 글자 칸의 엔터는 보내지 않는다', async () => {
+  respondWith(204)
+  const { rerender } = render(<IntakeForm form={FORM} token={TOKEN} />)
+  expect(screen.getByText('보내면 이 링크는 닫혀요. 아이가 더 있으면 아래 버튼을 눌러 주세요.')).toBeInTheDocument()
+  fill()
+
+  fireEvent.keyDown(screen.getByLabelText('아이 이름'), { key: 'Enter' })
+  const allowed = fireEvent.keyDown(screen.getByLabelText('아이 이름'), { key: 'Enter' })
+  expect(allowed).toBe(false)                    // 기본 동작(폼 제출)을 막았다
+  expect(fetchMock).not.toHaveBeenCalled()
+
+  rerender(<IntakeForm form={{ ...FORM, mode: 'update', pet_name: '콩이', guardian_needed: false }} token={TOKEN} />)
+  expect(screen.queryByText(/보내면 이 링크는 닫혀요/)).toBeNull()     // 다시 받기는 한 번뿐이라 말이 필요 없다
+})
+
+test('열 마리째에는 다른 아이도 적기가 없다', () => {
+  render(<IntakeForm form={{ ...FORM, answered: 9, guardian_needed: false }} token={TOKEN} />)
+  expect(screen.queryByRole('button', { name: /다른 아이도 적기/ })).toBeNull()
+  expect(screen.queryByText(/보내면 이 링크는 닫혀요/)).toBeNull()
+})
+
 test.each([
   [410, null],
   [404, null],

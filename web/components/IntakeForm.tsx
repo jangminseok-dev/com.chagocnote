@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import type { OpenIntake } from '../lib/form'
-import { BREEDS, bodyOf, emptyDraft, type IntakeDraft, problemOf } from '../lib/intake'
+import { BREEDS, bodyOf, emptyDraft, type IntakeDraft, localDay, problemOf } from '../lib/intake'
 import styles from './Intake.module.css'
 
 const NOTICE_CHECK = '적은 내용을 다시 확인해 주세요'
@@ -47,6 +47,7 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
   const [draft, setDraft] = useState<IntakeDraft>(emptyDraft)
   const [customBreed, setCustomBreed] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [bad, setBad] = useState<string | null>(null) // 걸린 칸 — 표시하고 포커스를 옮긴다
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState<string | null>(null) // 방금 낸 아이의 이름 — 다음 아이를 적을 때 알려 준다
   const [done, setDone] = useState(false)
@@ -63,8 +64,13 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
   const set = (change: Partial<IntakeDraft>) => {
     setDraft((now) => ({ ...now, ...change }))
     setNotice(null)
+    setBad(null)
   }
   const breeds = draft.species === '' ? [] : BREEDS[draft.species]
+  // 다른 아이를 이어 적을 수 있나 — 다시 받기는 한 번뿐이고, 한 링크에 열 마리까지다.
+  const more = !update && form.answered < 9
+  /** 걸린 칸의 표시. */
+  const invalid = (field: string) => (bad === field ? { 'aria-invalid': true as const } : {})
 
   const toggleCondition = (code: string) => {
     const picked = draft.conditions.some((c) => c.code === code)
@@ -81,7 +87,12 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
     const problem = problemOf(form, draft)
     if (problem !== null) {
       setNotice(problem.message)
-      formRef.current?.querySelector(`[data-field="${problem.field}"]`)?.scrollIntoView?.({ block: 'center' })
+      setBad(problem.field)
+      // 그 칸으로 올라가 포커스를 준다. 안내 글은 화면 아래에 붙어 따라온다(.notice 가 sticky 다).
+      const field = formRef.current?.querySelector<HTMLElement>(`[data-field="${problem.field}"]`)
+      field?.scrollIntoView?.({ block: 'center' })
+      const target = field?.matches('input, select, textarea, button') ? field : field?.querySelector<HTMLElement>('input, select, textarea, button')
+      target?.focus({ preventScroll: true })
       return
     }
     setSending(true)
@@ -112,7 +123,9 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
       // 그 사이 닫혔거나 끊겼다 — 오류 글이 아니라 다시 읽은 화면(보냈어요·닫힘)이 말한다.
       router.refresh()
     } else if (status === 413 || status === 422) {
+      // 낡은 화면일 수 있다(매장이 그 사이 칸을 켜거나 꼭 답할 질문을 더했다) — 다시 읽어 새 구성을 그린다. 적은 것은 남는다.
       setNotice(NOTICE_CHECK)
+      router.refresh()
     } else {
       setNotice(NOTICE_LATER)
     }
@@ -128,7 +141,10 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
 
   return (
     // method 는 스크립트 없이 나갈 때를 위한 것이다 — GET 이면 칸의 값이 주소에 실린다.
-    <form ref={formRef} className={styles.form} method="post" noValidate onSubmit={(event: FormEvent) => { event.preventDefault(); void send(false) }}>
+    <form ref={formRef} className={styles.form} method="post" noValidate data-bad={bad ?? undefined}
+      onSubmit={(event: FormEvent) => { event.preventDefault(); void send(false) }}
+      // 글자 칸의 엔터는 보내지 않는다 — [보내기]는 링크를 닫는다. 버튼으로만 보낸다.
+      onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault() }}>
       <noscript>
         <p className={styles.notice}>문진표를 적으려면 자바스크립트를 켜 주세요</p>
       </noscript>
@@ -143,10 +159,10 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
         <section className={styles.section} data-section="guardian">
           <h2>보호자</h2>
           <label className={styles.label} htmlFor={`${id}-gn`}>보호자 이름</label>
-          <input id={`${id}-gn`} className={styles.input} type="text" name="guardian_name" data-field="guardianName" data-required-text="true"
+          <input id={`${id}-gn`} className={styles.input} type="text" name="guardian_name" data-field="guardianName" data-required-text="true" {...invalid('guardianName')}
             value={draft.guardianName} maxLength={50} autoComplete="name" onChange={(e) => set({ guardianName: e.target.value })} />
           <label className={styles.label} htmlFor={`${id}-gp`}>전화번호</label>
-          <input id={`${id}-gp`} className={styles.input} type="tel" name="guardian_phone" data-field="guardianPhone" data-required-text="true"
+          <input id={`${id}-gp`} className={styles.input} type="tel" name="guardian_phone" data-field="guardianPhone" data-required-text="true" {...invalid('guardianPhone')}
             value={draft.guardianPhone} maxLength={20} inputMode="tel" autoComplete="tel" onChange={(e) => set({ guardianPhone: e.target.value })} />
         </section>
       )}
@@ -154,7 +170,7 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
       <section className={styles.section} data-section="pet">
         <h2>아이</h2>
         <label className={styles.label} htmlFor={`${id}-pn`}>아이 이름</label>
-        <input id={`${id}-pn`} className={styles.input} type="text" name="pet_name" data-field="petName" data-required-text={update ? undefined : 'true'}
+        <input id={`${id}-pn`} className={styles.input} type="text" name="pet_name" data-field="petName" data-required-text={update ? undefined : 'true'} {...invalid('petName')}
           value={draft.petName} maxLength={50} placeholder={update ? (form.pet_name ?? '') : undefined} onChange={(e) => set({ petName: e.target.value })} />
         {shown('species') && (
           <Choice label="종" field="species" options={[['dog', '강아지'], ['cat', '고양이']]} value={draft.species}
@@ -196,7 +212,7 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
               value={draft.birthKind} onPick={(birthKind) => set({ birthKind })} />
             {draft.birthKind === 'date' && (
               <input className={styles.input} type="date" name="birth_date" aria-label="생일" value={draft.birthDate}
-                max={new Date().toISOString().slice(0, 10)} onChange={(e) => set({ birthDate: e.target.value })} />
+                min="1990-01-01" max={localDay(new Date())} onChange={(e) => set({ birthDate: e.target.value })} />
             )}
             {draft.birthKind === 'year' && (
               <select className={styles.input} name="birth_year" aria-label="태어난 해" value={draft.birthYear} onChange={(e) => set({ birthYear: e.target.value })}>
@@ -300,10 +316,11 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
           {notice}
         </p>
       )}
+      {more && <p className={styles.closing}>보내면 이 링크는 닫혀요. 아이가 더 있으면 아래 버튼을 눌러 주세요.</p>}
       <button className={styles.send} type="submit" disabled={!ready || sending}>
         {sending ? '보내는 중…' : '보내기'}
       </button>
-      {!update && form.answered < 9 && (
+      {more && (
         <button className={styles.more} type="button" disabled={!ready || sending} onClick={() => void send(true)}>
           보내고 다른 아이도 적기
         </button>

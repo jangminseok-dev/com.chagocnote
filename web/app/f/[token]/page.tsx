@@ -24,7 +24,9 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const requestHeaders = await headers()
   const proto = requestHeaders.get('x-forwarded-proto') ?? 'https'
   // 미리보기에는 매장 이름과 서류의 이름("미용 동의서"·"문진표")뿐이다 — 아이 이름·지병을 싣지 않는다. og:url·canonical 도 넣지 않는다.
+  // 모르는 종류의 서류(웹보다 새 백엔드)에는 미리보기를 달지 않는다.
   const title = TITLES[result.form.kind]
+  if (title === undefined) return {}
   return {
     title,
     openGraph: {
@@ -43,5 +45,7 @@ export default async function FormPage(props: Props) {
   const { form } = result
   if (form.state === 'submitted') return <FormSubmitted shopName={form.shop.name} submittedOn={form.submitted_on} />
   if (form.kind === 'intake') return <IntakeView form={form} token={token} />
-  return <ConsentView form={form} token={token} />
+  if (form.kind === 'consent') return <ConsentView form={form} token={token} />
+  // 이 웹이 모르는 종류의 서류다(백엔드가 먼저 나갔다) — 깨진 화면 대신 잠시 후를 보인다.
+  return <ErrorScreen kind="unavailable" what="form" />
 }
