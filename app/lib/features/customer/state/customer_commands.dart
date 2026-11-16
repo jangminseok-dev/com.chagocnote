@@ -6,6 +6,7 @@ import '../api/customer_api.dart';
 import '../api/customer_models.dart';
 import 'customer_list_controller.dart';
 import 'customer_providers.dart';
+import 'intake_providers.dart';
 
 /// 고객·반려동물 쓰기와 번호 조회. 모든 호출은 매장 범위 공통 처리
 /// (`NOT_A_MEMBER` → 내 정보 재조회)를 거친다.
@@ -26,7 +27,11 @@ class CustomerCommands {
     int shopId, {
     required CustomerFields customer,
     required PetFields pet,
-  }) => _write(() => _api.register(shopId, customer: customer, pet: pet));
+    int? intakeAnswerId,
+  }) => _write(
+    () => _api.register(shopId, customer: customer, pet: pet, intakeAnswerId: intakeAnswerId),
+    intakeAnswerId: intakeAnswerId,
+  );
 
   Future<CustomerDetail> updateCustomer(
     int shopId,
@@ -34,11 +39,17 @@ class CustomerCommands {
     CustomerFields fields,
   ) => _write(() => _api.updateCustomer(shopId, customerId, fields));
 
-  Future<PetDetail> addPet(int shopId, int customerId, PetFields fields) =>
-      _write(() => _api.addPet(shopId, customerId, fields));
+  /// [intakeAnswerId] — 받은 문진표로 등록·반영한다(⑪-C). 서버가 같은 처리 안에서 그 답을 지운다. 성공하든
+  /// 실패하든 받은 문진표를 다시 읽는다(다른 기기가 먼저 썼으면 404 다).
+  Future<PetDetail> addPet(int shopId, int customerId, PetFields fields, {int? intakeAnswerId}) => _write(
+    () => _api.addPet(shopId, customerId, fields, intakeAnswerId: intakeAnswerId),
+    intakeAnswerId: intakeAnswerId,
+  );
 
-  Future<PetDetail> updatePet(int shopId, int petId, PetFields fields) =>
-      _write(() => _api.updatePet(shopId, petId, fields));
+  Future<PetDetail> updatePet(int shopId, int petId, PetFields fields, {int? intakeAnswerId}) => _write(
+    () => _api.updatePet(shopId, petId, fields, intakeAnswerId: intakeAnswerId),
+    intakeAnswerId: intakeAnswerId,
+  );
 
   Future<PetDetail> markPassedAway(int shopId, int petId) =>
       _write(() => _api.markPassedAway(shopId, petId));
@@ -123,8 +134,17 @@ class CustomerCommands {
     Future<T> Function() action, {
     bool refreshPetDetails = true,
     bool refreshCustomerDetails = true,
+    int? intakeAnswerId,
   }) async {
-    final result = await runShopScoped(_ref, action);
+    final T result;
+    try {
+      result = await runShopScoped(_ref, action);
+    } finally {
+      if (intakeAnswerId != null) {
+        _ref.invalidate(receivedIntakeProvider);
+        _ref.invalidate(intakeAnswerProvider);
+      }
+    }
     _ref.invalidate(customerListControllerProvider);
     if (refreshPetDetails) _ref.invalidate(petDetailProvider);
     if (refreshCustomerDetails) _ref.invalidate(customerDetailProvider);

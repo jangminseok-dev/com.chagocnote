@@ -433,8 +433,12 @@ class AppStrings {
   static String sentFormsEntry(int count) => '보낸 서류 $count';
   static const sentFormsTitle = '보낸 서류';
   static const sentFormsEmpty = '보낸 서류가 없어요';
-  static String sentFormMeta(String owner, DateTime sent, DateTime expires) =>
-      '$owner · ${sent.month}월 ${sent.day}일에 보냄 · ${expires.month}월 ${expires.day}일까지';
+  /// 새 손님용 문진표에는 보호자가 없다 — 이름 없이 날짜만 적는다.
+  static String sentFormMeta(String? owner, DateTime sent, DateTime expires) =>
+      '${owner == null || owner.isEmpty ? '' : '$owner · '}${sent.month}월 ${sent.day}일에 보냄 · ${expires.month}월 ${expires.day}일까지';
+  static const sentFormKindIntake = '문진표';
+  static const sentIntakeNew = '새 손님';
+  static const sentIntakeAddPet = '새 아이';
   static const sentFormKind = '미용 동의서';
   static const sentFormRevoke = '링크 끊기';
   static const sentFormRevokeAsk = '이 링크를 끊을까요? 받은 분이 더는 열 수 없어요.';

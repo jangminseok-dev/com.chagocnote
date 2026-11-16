@@ -35,6 +35,8 @@ class _Server {
         consentDays: sent['consent_days'] as int,
         reservationText: sent['reservation_text'] as String? ?? defaultReservationText,
         consentText: sent['consent_text'] as String? ?? defaultConsentText,
+        intakeKeepDays: sent['intake_keep_days'] as int? ?? 30,
+        intakeHidden: [...(sent['intake_hidden'] as List? ?? const []).cast<String>()],
       );
       return FakeResponse(statusCode: 200, data: settings);
     },
@@ -98,6 +100,7 @@ void main() {
 
     expect(server.puts.single, {
       'link_days': 14, 'senior_age': 8, 'consent_days': 365, 'reservation_text': null, 'consent_text': null,
+      'intake_keep_days': 30, 'intake_hidden': <String>[],
     });
     expect(_chip(tester, '8살').selected, isTrue);
     expect(find.text(AppStrings.formPartWhenSenior(8)), findsOneWidget);

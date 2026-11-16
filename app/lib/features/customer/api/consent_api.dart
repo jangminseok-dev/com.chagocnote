@@ -29,7 +29,7 @@ class ConsentApi {
   /// 보낸 서류 — 살아 있는 링크, 보낸 날 내림차순.
   Future<List<SentForm>> forms(int shopId) async {
     final data = await _client.get('/v1/shops/$shopId/forms') as Map<String, dynamic>;
-    return [for (final item in data['items'] as List) SentForm.fromJson(item as Map<String, dynamic>)];
+    return SentForm.listFrom(data['items'] as List);
   }
 
   /// 링크를 끊는다. 이미 닫힌 링크도 조용히 끝난다.

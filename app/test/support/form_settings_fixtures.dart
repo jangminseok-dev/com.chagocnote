@@ -8,18 +8,24 @@ Map<String, dynamic> formSettingsJson({
   int consentDays = 365,
   String reservationText = defaultReservationText,
   String consentText = defaultConsentText,
+  int intakeKeepDays = 30,
+  List<String> intakeHidden = const [],
 }) => {
   'link_days': linkDays,
   'senior_age': seniorAge,
   'consent_days': consentDays,
   'reservation_text': reservationText,
   'consent_text': consentText,
+  'intake_keep_days': intakeKeepDays,
+  'intake_hidden': intakeHidden,
   'defaults': {
     'link_days': 14,
     'senior_age': 10,
     'consent_days': 365,
     'reservation_text': defaultReservationText,
     'consent_text': defaultConsentText,
+    'intake_keep_days': 30,
+    'intake_hidden': <String>[],
   },
 };
 

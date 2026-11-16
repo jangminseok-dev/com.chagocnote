@@ -8,6 +8,8 @@ class FormSettingsValues {
     required this.consentDays,
     required this.reservationText,
     required this.consentText,
+    this.intakeKeepDays = 30,
+    this.intakeHidden = const [],
   });
 
   factory FormSettingsValues.fromJson(Map<String, dynamic> json) => FormSettingsValues(
@@ -16,6 +18,12 @@ class FormSettingsValues {
     consentDays: json['consent_days'] as int,
     reservationText: json['reservation_text'] as String,
     consentText: json['consent_text'] as String,
+    // 문진표의 두 칸(⑪-C) — 이 칸을 모르는 옛 서버면 기본값이다.
+    intakeKeepDays: json['intake_keep_days'] as int? ?? 30,
+    intakeHidden: [
+      for (final code in json['intake_hidden'] as List? ?? const [])
+        if (code is String) code,
+    ],
   );
 
   final int linkDays; // 링크를 열 수 있는 날 수(1~30)
@@ -23,6 +31,8 @@ class FormSettingsValues {
   final int consentDays; // 동의를 다시 받는 날 수(30~1095)
   final String reservationText; // 예약 안내의 템플릿 — 지금 쓰는 글(고치지 않았으면 기본 글)
   final String consentText; // 동의서 링크를 보내는 글의 템플릿
+  final int intakeKeepDays; // 확인하지 않은 문진표를 지우는 날 수(7~90)
+  final List<String> intakeHidden; // 문진표에서 매장이 끈 칸
 }
 
 /// 매장의 서류 설정 — 지금 값과 기본값([defaults]). 화면에 빈칸이 없다.
@@ -33,6 +43,8 @@ class FormSettings extends FormSettingsValues {
     required super.consentDays,
     required super.reservationText,
     required super.consentText,
+    super.intakeKeepDays,
+    super.intakeHidden,
     required this.defaults,
   });
 
@@ -44,6 +56,8 @@ class FormSettings extends FormSettingsValues {
       consentDays: now.consentDays,
       reservationText: now.reservationText,
       consentText: now.consentText,
+      intakeKeepDays: now.intakeKeepDays,
+      intakeHidden: now.intakeHidden,
       defaults: FormSettingsValues.fromJson(json['defaults'] as Map<String, dynamic>),
     );
   }
@@ -56,12 +70,16 @@ class FormSettings extends FormSettingsValues {
     int? consentDays,
     String? reservationText,
     String? consentText,
+    int? intakeKeepDays,
+    List<String>? intakeHidden,
   }) => FormSettings(
     linkDays: linkDays ?? this.linkDays,
     seniorAge: seniorAge ?? this.seniorAge,
     consentDays: consentDays ?? this.consentDays,
     reservationText: reservationText ?? this.reservationText,
     consentText: consentText ?? this.consentText,
+    intakeKeepDays: intakeKeepDays ?? this.intakeKeepDays,
+    intakeHidden: intakeHidden ?? this.intakeHidden,
     defaults: defaults,
   );
 
@@ -72,6 +90,8 @@ class FormSettings extends FormSettingsValues {
     'consent_days': consentDays,
     'reservation_text': reservationText == defaults.reservationText ? null : reservationText,
     'consent_text': consentText == defaults.consentText ? null : consentText,
+    'intake_keep_days': intakeKeepDays,
+    'intake_hidden': intakeHidden,
   };
 }
 
@@ -79,6 +99,7 @@ class FormSettings extends FormSettingsValues {
 const linkDaysRange = (1, 30);
 const seniorAgeRange = (5, 20);
 const consentDaysRange = (30, 1095);
+const intakeKeepDaysRange = (7, 90);
 const consentBodyMax = 2000;
 const bundleTextMax = 500;
 
