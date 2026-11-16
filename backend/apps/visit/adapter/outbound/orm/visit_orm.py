@@ -70,6 +70,9 @@ class VisitShopSettingsOrm(Base):
     report_show_shop_info: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     report_show_weight: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     report_show_amount: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    # 알림장 끝의 리뷰 남기기 줄(0024, ⑫) — 주소가 없으면 줄이 없다, 문구가 없으면 기본 문구.
+    report_review_url: Mapped[str | None] = mapped_column(String(300))
+    report_review_text: Mapped[str | None] = mapped_column(String(60))
     # ⑧ 매출 — 월 목표 금액(원). NULL 이면 목표가 없다.
     sales_monthly_goal: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -285,3 +288,4 @@ class VisitReportOrm(Base):
     first_viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_member_id: Mapped[int] = mapped_column(BigInteger)   # tenancy 의 멤버 ID
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    show_review: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))   # 리뷰 줄을 넣는가(0024)

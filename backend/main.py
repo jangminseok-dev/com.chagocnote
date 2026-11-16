@@ -90,7 +90,9 @@ from guardian.adapter.inbound.api.v1.claim_guardian_link_router import claim_gua
 from guardian.adapter.inbound.api.v1.end_customer_guardian_link_router import end_customer_guardian_link_router
 from guardian.adapter.inbound.api.v1.end_guardian_link_router import end_guardian_link_router
 from guardian.adapter.inbound.api.v1.get_customer_guardian_link_router import get_customer_guardian_link_router
+from guardian.adapter.inbound.api.v1.guardian_family_router import guardian_family_router
 from guardian.adapter.inbound.api.v1.guardian_myself_router import guardian_myself_router
+from guardian.adapter.inbound.api.v1.guardian_settings_router import guardian_settings_router
 from guardian.adapter.inbound.api.v1.list_guardian_links_router import list_guardian_links_router
 from guardian.dependencies.end_guardian_links_provider import get_end_guardian_links_use_case
 from guardian.dependencies.hub_ports import get_active_user_guard as get_guardian_active_user_guard
@@ -197,9 +199,11 @@ from customer.dependencies.guardian_form_provider import get_guardian_form_use_c
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 from visit.dependencies.visit_search_source_provider import get_visit_search_source_use_case
 from visit.adapter.inbound.api.v1.guardian_reports_router import (
+    list_guardian_media_router,
     list_guardian_pets_router,
     list_guardian_reports_router,
     read_guardian_report_router,
+    read_guardian_weights_router,
 )
 from visit.dependencies.resolve_report_link_provider import get_resolve_report_link_use_case
 
@@ -350,10 +354,14 @@ app.include_router(list_guardian_links_router)
 app.include_router(end_guardian_link_router)
 app.include_router(get_customer_guardian_link_router)
 app.include_router(end_customer_guardian_link_router)
+app.include_router(guardian_family_router)
+app.include_router(guardian_settings_router)
 # 보호자용 읽기는 visit 이 소유한다(알림장은 visit 의 것이다) — 보호자 가드를 거친다.
 app.include_router(list_guardian_pets_router)
 app.include_router(list_guardian_reports_router)
 app.include_router(read_guardian_report_router)
+app.include_router(list_guardian_media_router)
+app.include_router(read_guardian_weights_router)
 
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)

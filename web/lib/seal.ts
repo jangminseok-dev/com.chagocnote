@@ -1,7 +1,7 @@
 import { sessionSecret } from './config'
 
 /** 무엇을 봉하는가. 용도마다 키가 달라 한쪽으로 봉한 값은 다른 쪽에서 열리지 않는다. */
-export type Purpose = 'session' | 'claim'
+export type Purpose = 'session' | 'claim' | 'join'
 
 const IV_BYTES = 12
 

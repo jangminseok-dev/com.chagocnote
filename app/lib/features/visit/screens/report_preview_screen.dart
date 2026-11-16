@@ -18,6 +18,7 @@ import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_pick_tile.dart';
 import '../../../design/widgets/app_snack_bar.dart';
+import '../../../design/widgets/app_switch.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
@@ -65,6 +66,10 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
   final _buttonKey = GlobalKey();
 
   bool _busy = false;
+
+  /// 이 알림장에 리뷰 남기기 줄을 넣을지(⑫) — 누르지 않았으면 null 이고, 보낼 때 명령이 다시 읽은 링크의
+  /// 값(없으면 넣음)으로 채운다.
+  bool? _showReview;
 
   /// 링크를 만든 뒤 알림톡 결과를 기다리는 중 — 단추는 돌지만 뒤로 갈 수 있다.
   bool _awaiting = false;
@@ -115,6 +120,7 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
             widget.visitId,
             changes: _changes,
             onlyIfLive: widget.picking,
+            showReview: _showReview,
           );
     } catch (e) {
       // 실패해도 `send`가 미리보기를 다시 읽게 한다 — 누른 것은 그대로 두고 문구만 보인다.
@@ -329,6 +335,9 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
                   ),
                 ],
               ),
+              // 리뷰 남기기 줄(⑫) — 매장이 주소를 넣었을 때만. 주소가 없으면 아무것도 더하지 않는다(권하는 줄을
+              // 미리보기에 끼워 넣지 않는다 — 설정에서 한다).
+              if (preview.reviewUrl != null) ..._review(preview),
               const SizedBox(height: AppSpacing.md),
               Text(
                 '${_period(preview, today)} ${AppStrings.reportReflectsEdits}',
@@ -364,6 +373,56 @@ class _ReportPreviewScreenState extends ConsumerState<ReportPreviewScreen> {
         ),
       ],
     );
+  }
+
+  /// 리뷰 남기기 줄의 스위치와, 켰을 때 줄의 본(누르지 않는다). 처음 값은 그 링크의 값(없으면 넣음)이다.
+  List<Widget> _review(VisitReportPreview preview) {
+    final on = _showReview ?? preview.link.showReview ?? true;
+    return [
+      const SizedBox(height: AppSpacing.lg),
+      Row(
+        children: [
+          const Expanded(
+            child: ExcludeSemantics(
+              child: Text(
+                AppStrings.reportReviewSwitch,
+                style: AppTypography.body,
+              ),
+            ),
+          ),
+          AppSwitch(
+            key: const ValueKey('report-preview-review'),
+            value: on,
+            semanticLabel: AppStrings.reportReviewSwitch,
+            onChanged: _busy ? null : (v) => setState(() => _showReview = v),
+          ),
+        ],
+      ),
+      const Text(
+        AppStrings.reportReviewSwitchHint,
+        style: AppTypography.caption,
+      ),
+      if (on && preview.reviewText != null) ...[
+        const SizedBox(height: AppSpacing.sm),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.sm,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: AppColors.ink),
+            ),
+            child: Text(
+              preview.reviewText!,
+              style: AppTypography.body,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
+    ];
   }
 
   /// 3열 정사각 격자 — 서버가 준 순서 그대로(후 → 전). 순번은 전·후를 따로 센다.

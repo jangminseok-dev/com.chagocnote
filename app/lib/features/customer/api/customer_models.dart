@@ -534,18 +534,27 @@ class PetFields {
 /// 고객 카드와 보호자 계정의 연결. 매장에는 여부와 이은 날만 온다 — 보호자가
 /// 누구인지는 없다(매장은 고객이 다른 매장의 사장인지 알 수 없다).
 class GuardianLink {
-  const GuardianLink({required this.linked, required this.linkedAt});
+  const GuardianLink({
+    required this.linked,
+    required this.linkedAt,
+    this.familyCount = 0,
+  });
 
   final bool linked;
 
   /// 이은 시각(매장 시간대 ISO). 연결이 없으면 null.
   final String? linkedAt;
 
+  /// 보호자와 함께 보는 가족의 수(⑫) — 수만 온다(누구인지는 없다). 없거나 깨졌으면 0.
+  final int familyCount;
+
   factory GuardianLink.fromJson(Map<String, dynamic> json) {
     final linkedAt = json['linked_at'];
+    final familyCount = json['family_count'];
     return GuardianLink(
       linked: json['linked'] == true,
       linkedAt: linkedAt is String ? linkedAt : null,
+      familyCount: familyCount is int && familyCount > 0 ? familyCount : 0,
     );
   }
 }

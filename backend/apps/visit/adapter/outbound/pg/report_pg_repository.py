@@ -2,19 +2,24 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import exists, insert, or_, select, tuple_, update
+from decimal import Decimal
+
+from sqlalchemy import case, exists, extract, func, insert, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hub.app.dtos.shop_context import ShopContext
 from visit.adapter.outbound.mappers.visit_mapper import to_visit
 from visit.adapter.outbound.mappers.visit_report_mapper import to_report
-from visit.adapter.outbound.orm.visit_orm import VisitMenuOrm, VisitOrm, VisitRecordOrm, VisitReportOrm
-from visit.app.dtos.guardian_report_dto import SentReport
+from visit.adapter.outbound.orm.visit_orm import (
+    VisitMenuOrm, VisitOrm, VisitRecordMediaOrm, VisitRecordOrm, VisitReportOrm,
+)
+from visit.app.dtos.guardian_report_dto import SentMedia, SentReport
 from visit.app.dtos.report_target_dto import ReportTarget
 from visit.app.ports.output.guardian_report_repository import GuardianReportRepository
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.domain.entities.visit_report import VisitReport
+from visit.domain.services.guardian_cursor import MediaCursor
 
 
 def _live(now: datetime) -> tuple:
@@ -76,6 +81,10 @@ class ReportPgRepository(ReportRepository, PublicReportRepository, GuardianRepor
             )
         ).scalar_one()
         return to_report(row)
+
+    async def set_show_review(self, ctx: ShopContext, report_id: int, show_review: bool) -> None:
+        await self._session.execute(
+            update(VisitReportOrm).where(VisitReportOrm.id == report_id, _of_shop(ctx)).values(show_review=show_review))
 
     async def revoke(self, ctx: ShopContext, visit_id: int, now: datetime) -> bool:
         revoked = await self._session.execute(
@@ -175,3 +184,72 @@ class ReportPgRepository(ReportRepository, PublicReportRepository, GuardianRepor
             .order_by(VisitOrm.pet_id)
         )
         return list(rows.scalars())
+
+    # --- 모아 보기(⑫) -------------------------------------------------------------------------------------------
+
+    def _shown_media(self, ctx: ShopContext, customer_id: int, pet_id: int | None) -> list:
+        """보호자가 볼 수 있는 알림장(`_sent_to`)의, 알림장에서 빼지 않은 미디어 — 한 장의 조립(`visible_media`)과 같다."""
+        conditions = [*self._sent_to(ctx, customer_id), VisitRecordMediaOrm.hidden_from_report.is_(False)]
+        if pet_id is not None:
+            conditions.append(VisitOrm.pet_id == pet_id)
+        return conditions
+
+    @staticmethod
+    def _year(ctx: ShopContext):
+        return extract("year", func.timezone(ctx.timezone, VisitOrm.starts_at))
+
+    async def list_media(
+        self, ctx: ShopContext, customer_id: int, *, pet_id: int | None, year: int | None, phase: str | None,
+        before: MediaCursor | None, limit: int,
+    ) -> list[SentMedia]:
+        M = VisitRecordMediaOrm
+        conditions = self._shown_media(ctx, customer_id, pet_id)
+        if year is not None:
+            conditions.append(self._year(ctx) == year)
+        if phase is not None:
+            conditions.append(M.phase == phase)
+        # 한 방문 안에서는 후 → 전, 순서대로 — 모두 내림차순으로 견주게 후를 1·전을 0 으로, 순서는 음수로 바꾼다.
+        rank = case((M.phase == "after", 1), else_=0)
+        if before is not None:
+            starts_at, visit_id, phase_at, sort_order = before
+            conditions.append(tuple_(VisitOrm.starts_at, VisitOrm.id, rank, -M.sort_order)
+                              < tuple_(starts_at, visit_id, 1 if phase_at == "after" else 0, -sort_order))
+        rows = await self._session.execute(
+            select(VisitReportOrm.id, VisitOrm.id, VisitOrm.starts_at, M.media_id, M.kind, M.phase, M.sort_order)
+            .join(VisitOrm, VisitOrm.id == VisitReportOrm.visit_id)
+            .join(M, M.visit_id == VisitOrm.id)
+            .where(*conditions)
+            .order_by(VisitOrm.starts_at.desc(), VisitOrm.id.desc(), rank.desc(), M.sort_order.asc())
+            .limit(limit)
+        )
+        return [SentMedia(report_id=r, visit_id=v, starts_at=at, media_id=m, kind=k, phase=p, sort_order=o)
+                for r, v, at, m, k, p, o in rows.all()]
+
+    async def media_years(self, ctx: ShopContext, customer_id: int, *, pet_id: int | None) -> list[int]:
+        year = self._year(ctx)
+        rows = await self._session.execute(
+            select(year)
+            .select_from(VisitReportOrm)
+            .join(VisitOrm, VisitOrm.id == VisitReportOrm.visit_id)
+            .join(VisitRecordMediaOrm, VisitRecordMediaOrm.visit_id == VisitOrm.id)
+            .where(*self._shown_media(ctx, customer_id, pet_id))
+            .group_by(year)
+            .order_by(year.desc())
+        )
+        return [int(y) for y in rows.scalars()]
+
+    async def weights(self, ctx: ShopContext, customer_id: int, pet_id: int, limit: int) -> list[tuple[datetime, Decimal]]:
+        rows = await self._session.execute(
+            select(VisitOrm.starts_at, VisitRecordOrm.weight_kg)
+            .select_from(VisitReportOrm)
+            .join(VisitOrm, VisitOrm.id == VisitReportOrm.visit_id)
+            .join(VisitRecordOrm, VisitRecordOrm.visit_id == VisitOrm.id)
+            # 기록 표를 바로 잇는다 — `_sent_to` 의 "기록이 있다"(exists)와 같은 조건이다.
+            .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id,
+                   VisitReportOrm.revoked_at.is_(None), VisitOrm.pet_id == pet_id,
+                   VisitRecordOrm.weight_kg.is_not(None))
+            .order_by(VisitOrm.starts_at.desc(), VisitOrm.id.desc())
+            .limit(limit)
+        )
+        return [(at, kg) for at, kg in rows.all()]
+

@@ -100,7 +100,7 @@ async def test_남의_연결은_끊지_못하고_그_연결은_살아_있다(wir
     assert (await wired.api.get(LINKS, headers=stranger)).json() == {"items": []}
     listed = (await wired.api.get(LINKS, headers=mine)).json()["items"]
     assert [(i["link_id"], i["shop_name"]) for i in listed] == [(link_id, "Hiss Haus")]
-    assert set(listed[0]) == {"link_id", "shop_name", "linked_at"}
+    assert set(listed[0]) == {"link_id", "shop_name", "linked_at", "role", "family_count", "family_max"}   # ⑫
 
 
 async def test_보호자가_끊으면_목록에서_사라지고_같은_링크로_다시_이으면_새_연결이다(wired):
@@ -119,11 +119,11 @@ async def test_매장은_연결_여부와_날짜만_보고_끊을_수_있으며_
     path = f"/v1/shops/{shop_id}/customers/{customer_id}/guardian-link"
 
     seen = await wired.api.get(path, headers=headers)
-    assert seen.status_code == 200 and set(seen.json()) == {"linked", "linked_at"}
+    assert seen.status_code == 200 and set(seen.json()) == {"linked", "linked_at", "family_count"}   # 가족은 수만(⑫)
     assert seen.json()["linked"] is True and seen.json()["linked_at"].endswith("+09:00")
 
     assert (await wired.api.delete(path, headers=headers)).status_code == 204
-    assert (await wired.api.get(path, headers=headers)).json() == {"linked": False, "linked_at": None}
+    assert (await wired.api.get(path, headers=headers)).json() == {"linked": False, "linked_at": None, "family_count": 0}
     assert error_of(await wired.api.delete(path, headers=headers)) == (404, "GUARDIAN_LINK_NOT_FOUND")
     assert (await wired.api.get(LINKS, headers=mine)).json() == {"items": []}
 
@@ -138,7 +138,7 @@ async def test_다른_매장의_멤버는_403_이고_다른_매장의_고객_번
     assert error_of(await wired.api.delete(path, headers=other_headers)) == (403, "NOT_A_MEMBER")
     # 자기 매장 경로에 남의 매장 고객 번호를 넣어도 그 연결이 보이거나 끊기지 않는다.
     crossed = f"/v1/shops/{other_shop}/customers/{customer_id}/guardian-link"
-    assert (await wired.api.get(crossed, headers=other_headers)).json() == {"linked": False, "linked_at": None}
+    assert (await wired.api.get(crossed, headers=other_headers)).json() == {"linked": False, "linked_at": None, "family_count": 0}
     assert error_of(await wired.api.delete(crossed, headers=other_headers)) == (404, "GUARDIAN_LINK_NOT_FOUND")
     assert (await wired.api.get(path, headers=headers)).json()["linked"] is True
 

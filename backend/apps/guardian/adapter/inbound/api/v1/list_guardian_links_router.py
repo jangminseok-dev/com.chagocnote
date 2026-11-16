@@ -16,4 +16,5 @@ async def list_guardian_links(
 ) -> GuardianLinkListSchema:
     items = await use_case.list_links(ListGuardianLinksQuery(user_id=user_id))
     return GuardianLinkListSchema(items=[
-        GuardianLinkItemSchema(link_id=i.link_id, shop_name=i.shop_name, linked_at=i.linked_at) for i in items])
+        GuardianLinkItemSchema(link_id=i.link_id, shop_name=i.shop_name, linked_at=i.linked_at, role=i.role,
+                               family_count=i.family_count, family_max=i.family_max) for i in items])

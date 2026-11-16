@@ -381,6 +381,18 @@ void main() {
     }
   });
 
+  test('함께 보는 가족의 수를 읽고, 없거나 숫자가 아니면 0 이다(⑫)', () {
+    expect(GuardianLink.fromJson(guardianLinkJson(familyCount: 2)).familyCount, 2);
+    for (final json in <Map<String, dynamic>>[
+      {'linked': true},
+      {'linked': true, 'family_count': null},
+      {'linked': true, 'family_count': '2'},
+      {'linked': true, 'family_count': -1},
+    ]) {
+      expect(GuardianLink.fromJson(json).familyCount, 0, reason: '$json');
+    }
+  });
+
   test('linked 가 true 가 아니면(없음·글자·null) 연결 없음이다', () {
     for (final json in <Map<String, dynamic>>[
       {},

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
+import { BackToList } from '../../../../components/BackToList'
 import { ErrorScreen } from '../../../../components/ErrorScreen'
 import styles from '../../../../components/Member.module.css'
 import { ReportView } from '../../../../components/ReportView'
@@ -21,7 +22,7 @@ async function load({ params }: Props) {
   if (linkId === null || reportId === null) notFound()
   const here = `/me/${linkId}/${reportId}`
   const { accessToken } = await requireSession(here)
-  return { linkId, here, result: await getReport(accessToken, linkId, reportId) }
+  return { linkId, reportId, here, result: await getReport(accessToken, linkId, reportId) }
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
@@ -32,14 +33,13 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
 /** 로그인한 보호자의 알림장 한 장. 받은 링크의 화면과 같되 열람 신호·로그인 버튼·기간 문구가 없다. */
 export default async function GuardianReportPage(props: Props) {
-  const { linkId, here, result } = await load(props)
+  const { linkId, reportId, here, result } = await load(props)
   if (result.kind !== 'ok') return <ErrorScreen kind={screenFor(result, here)} />
   return (
     <>
       <nav className={styles.bar} data-section="back">
-        <a className={styles.back} href={`/me/${linkId}`}>
-          지난 알림장
-        </a>
+        {/* 보던 자리로 — 목록에서 왔으면 그 쪽의 그 줄, 아니면 첫 쪽(⑫ 설계 3.2). */}
+        <BackToList className={styles.back} linkId={linkId} reportId={reportId} />
       </nav>
       <ReportView report={result.report} />
     </>

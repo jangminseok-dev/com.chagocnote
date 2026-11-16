@@ -357,3 +357,10 @@
   font-size: 14px;
   text-align: center;
 }
+
+/* 알림장 끝의 리뷰 남기기 줄(⑫) — 매장 카드 아래. 알약 단추 하나. */
+.review {
+  margin: 18px 0 0;
+  text-align: center;
+}
+

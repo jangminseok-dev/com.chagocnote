@@ -7,6 +7,7 @@ from visit.tests.helpers.api import STAFF, Recorder, build_app, client, error_of
 
 BODY = {"link_days": 7, "show_menus": False, "show_shop_info": True, "show_weight": True, "show_amount": False}
 FLAGS = ("show_menus", "show_shop_info", "show_weight", "show_amount")
+REVIEW_NONE = {"review_url": None, "review_text": None, "review_text_default": "미용이 마음에 드셨다면 후기를 남겨 주세요"}   # 리뷰 남기기 줄(⑫) — 보내지 않은 칸은 지금 값(여기서는 없음)
 
 
 def _without(key: str) -> dict:
@@ -23,7 +24,7 @@ async def test_사장은_알림장_설정을_바꾼다(link_days):
     stub = Recorder(saved)
     async with client(_app(stub)) as c:
         response = await c.put("/v1/shops/3/report-settings", json={**BODY, "link_days": link_days})
-    assert (response.status_code, response.json()) == (200, {**BODY, "link_days": link_days})
+    assert (response.status_code, response.json()) == (200, {**BODY, "link_days": link_days, **REVIEW_NONE})
     assert (stub.calls[0].ctx.shop_id, stub.calls[0].settings) == (3, saved)
 
 

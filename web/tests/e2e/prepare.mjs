@@ -5,6 +5,8 @@
 // 위의 살아 있는 링크는 "아직 아무도 열지 않았다"를 보는 데 쓰므로 보호자 흐름과 나눠 쓰지 않는다.
 // 동의서 흐름(consent.spec.ts)이 쓸 고객 둘도 만든다 — 서명할 동의서 링크 하나와 끊은 링크 하나.
 // 문진표 흐름(intake.spec.ts)이 쓸 링크 셋도 만든다 — 새 손님용, 있는 아이의 다시 받기, 끊은 링크.
+// 기록 모아 보기·가족 흐름(archive.spec.ts)이 쓸 셋째 고객(콩이)도 만든다 — 날이 다른 알림장 둘(리뷰 줄 있음·뺌), 로그인할 이름 셋.
+// 이 매장의 알림장 설정은 몸무게가 켜지고 리뷰 주소가 들어간다.
 // 사용: infra/ 에서 개발 스택과 web 을 띄운 뒤 web/ 에서 pnpm e2e:prepare → pnpm e2e.
 // e2e 는 살아 있는 링크를 아직 아무도 열지 않았다고 보므로 e2e 를 돌릴 때마다 먼저 이것을 돌린다.
 // 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크가 남는다.
@@ -150,6 +152,39 @@ const revoked = await consentFamily('라떼', 3)
 const twice = await consentFamily('두유', 4) // 두 탭에서 같은 링크를 내는 테스트가 쓴다
 await call('DELETE', `${S}/forms/${revoked.sent.form_id}`, staff)
 
+// 6a. 기록 모아 보기·가족 흐름(archive.spec.ts, ⑫) — 셋째 고객(반려동물 콩이)의 방문 둘.
+//     매장의 몸무게를 켜고 리뷰 주소를 넣는다(다른 칸은 그대로). 여드레 전 방문은 사진 둘(후·전)과 리뷰 줄,
+//     어제 방문은 사진 하나이고 그 알림장만 리뷰 줄을 뺀다.
+const REVIEW_URL = 'https://m.place.naver.com/place/1/review'
+const { review_text_default: _defaultText, ...reportSettings } = await call('GET', `${S}/report-settings`, owner.access_token)
+await call('PUT', `${S}/report-settings`, owner.access_token, { ...reportSettings, show_weight: true, review_url: REVIEW_URL })
+const third = await call('POST', `${S}/customers`, staff, {
+  customer: { name: '김사진', phone: `010${String((STAMP + 7) % 100000000).padStart(8, '0')}`, marketing_consent: true },
+  pet: { name: '콩이', species: 'dog', breed: '비숑', sex: 'female', neutered: true, birth_year: 2022, weight_kg: 5.0, no_known_conditions: true },
+})
+function daysAgoAt(days, hour) {
+  const seoul = new Date(Date.now() + 9 * 3600_000 - days * 24 * 3600_000)
+  return `${seoul.toISOString().slice(0, 10)}T${hour}:00:00+09:00`
+}
+async function archiveReport(starts, weight, phases, showReview) {
+  const id = (await call('POST', `${S}/visits`, staff, {
+    customer_id: third.customer.customer_id, pet_ids: [third.pets[0].pet_id], starts_at: starts,
+  })).visits[0].visit_id
+  await call('POST', `${S}/visits/transitions`, staff, { visit_ids: [id], action: 'start' })
+  const media = []
+  for (const phase of phases) {
+    media.push({ media_id: await photo(S, staff), phase, sort_order: media.filter((m) => m.phase === phase).length })
+  }
+  await call('PUT', `${S}/visits/${id}/record`, staff, {
+    weight_kg: weight, care_note: '콩이가 잘 참았어요.', payment_method: 'card', total_amount: 25000,
+    items: [{ menu_id: menu, amount: 25000 }], media,
+  })
+  await call('POST', `${S}/visits/transitions`, staff, { visit_ids: [id], action: 'complete' })
+  return (await call('PUT', `${S}/visits/${id}/report`, staff, { hidden_media_ids: [], show_review: showReview })).link.url
+}
+const archiveReview = await archiveReport(daysAgoAt(8, '11'), 4.8, ['after', 'before'], true)
+const archiveNoReview = await archiveReport(daysAgoAt(1, '19'), 5.1, ['after'], false)
+
 // 7. 문진표 흐름(intake.spec.ts) — 새 손님용 링크, 있는 아이의 다시 받기 링크, 보낸 뒤 끊은 링크.
 const intakeFamily = await call('POST', `${S}/customers`, staff, {
   customer: { name: '김문진', phone: `010${String((STAMP + 5) % 100000000).padStart(8, '0')}`, marketing_consent: false },
@@ -175,6 +210,8 @@ writeFileSync('test-results/e2e-links.json', JSON.stringify(
     consentPetName: '초코', consentPetBody: consentPet('초코'),
     intakeNew: intakeNew.url, intakeUpdate: intakeUpdate.url, intakeClosed: intakeGone.url, intakeAnswers: `${S}/intake-answers`,
     intakeConsent: intakeConsent.url,
+    archiveReview, archiveNoReview, reviewUrl: REVIEW_URL, archiveShop: shop.name,
+    archiveLogin: `e2e-archive-${STAMP}`, familyA: `e2e-family-a-${STAMP}`, familyB: `e2e-family-b-${STAMP}`,
     intakePetName: '보리', intakePhone: `010-${String((STAMP + 6) % 100000000).padStart(8, '0').replace(/(\d{4})(\d{4})/, '$1-$2')}`,
   }, null, 2,
 ))

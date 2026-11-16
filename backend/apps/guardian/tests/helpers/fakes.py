@@ -65,6 +65,51 @@ class FakeLinks(GuardianLinkRepository):
         return await self._end_many(
             [r for r in self._live() if (r.shop_id, r.customer_id) == (shop_id, customer_id)], "anonymized", now)
 
+    # --- 가족(⑫) — 단위 테스트는 기본 연결만 쓴다. 가족의 동작은 통합 테스트가 본다.
+
+    async def lock_primary(self, link_id):
+        found = await self.lock_primaries([link_id])
+        return found[0] if found else None
+
+    async def lock_primaries(self, link_ids):
+        self.journal.append(("lock_primaries", tuple(sorted(link_ids))))
+        return [self.rows[i] for i in sorted(link_ids)
+                if i in self.rows and self.rows[i].is_live and not self.rows[i].is_family]
+
+    async def primaries_reached_by(self, user_id):
+        return sorted({r.parent_link_id or r.id for r in self._live() if r.user_id == user_id})
+
+    async def create_family(self, user_id, primary, now):
+        row = GuardianLink(id=len(self.rows) + 1, user_id=user_id, shop_id=primary.shop_id,
+                           customer_id=primary.customer_id, verified_by="family_invite", created_at=now,
+                           ended_at=None, ended_by=None, parent_link_id=primary.id)
+        self.rows[row.id] = row
+        return row
+
+    async def find_family(self, primary_id, user_id):
+        return next((r for r in self._live() if r.parent_link_id == primary_id and r.user_id == user_id), None)
+
+    async def get_family(self, primary_id, family_id):
+        return next((r for r in self._live() if r.parent_link_id == primary_id and r.id == family_id), None)
+
+    async def list_family(self, primary_id):
+        return sorted((r for r in self._live() if r.parent_link_id == primary_id), key=lambda r: (r.created_at, r.id))
+
+    async def family_counts(self, primary_ids):
+        counts: dict[int, int] = {}
+        for r in self._live():
+            if r.parent_link_id in primary_ids:
+                counts[r.parent_link_id] = counts.get(r.parent_link_id, 0) + 1
+        return counts
+
+    async def end_family(self, primary_ids, ended_by, now):
+        return await self._end_many([r for r in self._live() if r.parent_link_id in primary_ids], ended_by, now)
+
+    async def mark_family_seen(self, primary_id, now):
+        for r in self._live():
+            if r.parent_link_id == primary_id and r.seen_by_primary_at is None:
+                self.rows[r.id] = replace(r, seen_by_primary_at=now)
+
 
 class FakeReportLinks(ReportLinkPort):
     """ReportLinkPort 스텁 — 토큰 글자 → 대상. 없는 토큰은 None."""

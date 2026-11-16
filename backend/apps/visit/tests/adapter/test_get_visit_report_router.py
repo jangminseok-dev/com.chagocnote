@@ -65,11 +65,12 @@ async def test_권한이_없는_멤버도_알림장을_미리_본다():
             "cover": {"url": "d/52", "width": 3000, "height": 2000},
             "menus": [{"name": "목욕", "amount": 30000}], "total_amount": 30000, "weight_kg": 3.4,
             "shop": {"name": "Hiss Haus", "phone": "02-123-4567", "address": None},
+            "review_url": None, "review_text": None,
         },
         "link": {"status": "live", "url": "https://r.example/r/token", "expires_at": "2026-09-30T15:00:00+09:00",
-                 "first_viewed_at": None, "created_at": "2026-09-23T15:00:00+09:00"},
+                 "first_viewed_at": None, "created_at": "2026-09-23T15:00:00+09:00", "show_review": None},
         "settings": {"link_days": 7, "show_menus": True, "show_shop_info": True, "show_weight": True,
-                     "show_amount": True},
+                     "show_amount": True, "review_url": None, "review_text": None, "review_text_default": "미용이 마음에 드셨다면 후기를 남겨 주세요"},
     }
     assert (stub.calls[0].ctx.shop_id, stub.calls[0].visit_id) == (3, 1)
 
@@ -78,12 +79,12 @@ async def test_끈_항목의_칸은_null_이다():
     body = (await _get(Recorder(HIDDEN))).json()
     assert body["report"] == {
         "pet_name": None, "visit_date": "2026-09-23", "care_note": None, "media": [], "cover": None,
-        "menus": None, "total_amount": None, "weight_kg": None, "shop": None,
+        "menus": None, "total_amount": None, "weight_kg": None, "shop": None, "review_url": None, "review_text": None,
     }
     assert body["link"] == {"status": "none", "url": None, "expires_at": None, "first_viewed_at": None,
-                            "created_at": None}
+                            "created_at": None, "show_review": None}
     assert body["settings"] == {"link_days": None, "show_menus": False, "show_shop_info": False,
-                                "show_weight": False, "show_amount": False}
+                                "show_weight": False, "show_amount": False, "review_url": None, "review_text": None, "review_text_default": "미용이 마음에 드셨다면 후기를 남겨 주세요"}
 
 
 async def test_없는_방문은_404_기록이_없으면_409_다():

@@ -43,6 +43,6 @@ class ReadGuardianReportInteractor(ReadGuardianReportUseCase):
             raise ReportNotFoundError("알림장을 찾을 수 없습니다.")
         report = await describe_report(
             ctx, sent.visit, record, await self._settings.get(ctx), shop, self._menus, self._directory,
-            self._library, include_hidden=False,
+            self._library, include_hidden=False, show_review=sent.report.show_review,
         )
         return PublicReportView(report=report, expires_at=None)

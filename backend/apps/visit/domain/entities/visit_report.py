@@ -19,6 +19,7 @@ class VisitReport:
     first_viewed_at: datetime | None  # 보호자가 처음 연 시각
     created_by_member_id: int
     created_at: datetime              # 보낸 시각
+    show_review: bool = True          # 이 알림장에 리뷰 남기기 줄을 넣는가(⑫ — 알림장마다 뺄 수 있다)
 
     def is_live(self, now: datetime) -> bool:
         """끊지 않았고 기간이 지나지 않았다. 기간이 끝나는 바로 그 시각에는 닫힌 것이다."""

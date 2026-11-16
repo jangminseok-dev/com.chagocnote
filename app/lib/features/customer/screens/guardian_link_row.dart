@@ -17,7 +17,8 @@ import '../state/customer_commands.dart';
 import '../state/customer_providers.dart';
 
 /// 보호자 탭의 한 줄 — 이 고객 카드가 보호자 계정에 이어져 있으면 "보호자 계정
-/// 연결됨 · 11월 13일"과 `···`의 [연결 끊기](설계 ⑦ 4.5).
+/// 연결됨 · 11월 13일"과 `···`의 [연결 끊기](설계 ⑦ 4.5). 보호자와 함께 보는 가족이
+/// 있으면 ` · 가족 N명`(⑫ — 수만 온다).
 ///
 /// 고객 상세와 따로 읽는다. 읽는 중·읽지 못함·이어지지 않음이면 줄이 없다 —
 /// 탭의 본문이 아니라 덧붙는 표시라 실패를 알리지 않는다. 매장에는 여부와
@@ -34,7 +35,7 @@ class GuardianLinkRow extends ConsumerStatefulWidget {
 class _GuardianLinkRowState extends ConsumerState<GuardianLinkRow> {
   bool _busy = false;
 
-  Future<void> _openActions(int shopId) async {
+  Future<void> _openActions(int shopId, {required int familyCount}) async {
     final end = await AppSheet.show<bool>(
       context,
       builder: (context) => AppSheetAction(
@@ -43,19 +44,22 @@ class _GuardianLinkRowState extends ConsumerState<GuardianLinkRow> {
       ),
     );
     if (end != true || !mounted) return;
-    final confirmed = await _confirm();
+    final confirmed = await _confirm(familyCount: familyCount);
     if (confirmed != true || !mounted) return;
     await _end(shopId);
   }
 
-  Future<bool?> _confirm() {
+  /// 끊으면 함께 보던 가족도 끝난다(⑫) — 가족이 있으면 그것도 말한다.
+  Future<bool?> _confirm({required int familyCount}) {
     return AppSheet.show<bool>(
       context,
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            AppStrings.endGuardianLinkConfirm,
+          Text(
+            familyCount > 0
+                ? AppStrings.endGuardianLinkConfirmFamily
+                : AppStrings.endGuardianLinkConfirm,
             style: AppTypography.body,
             textAlign: TextAlign.center,
           ),
@@ -115,11 +119,18 @@ class _GuardianLinkRowState extends ConsumerState<GuardianLinkRow> {
           child: Row(
             children: [
               Expanded(
-                child: Text(_label(link.linkedAt), style: AppTypography.body),
+                child: Text(
+                  link.familyCount > 0
+                      ? '${_label(link.linkedAt)} · ${AppStrings.guardianFamilyCount(link.familyCount)}'
+                      : _label(link.linkedAt),
+                  style: AppTypography.body,
+                ),
               ),
               Pressable(
                 semanticLabel: AppStrings.guardianLinkMore,
-                onTap: _busy ? null : () => _openActions(shopId),
+                onTap: _busy
+                    ? null
+                    : () => _openActions(shopId, familyCount: link.familyCount),
                 child: const Icon(Icons.more_horiz),
               ),
             ],

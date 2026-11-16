@@ -58,6 +58,8 @@ class PublicReportSchema(_Public):
     total_amount: int | None = None                 # 금액을 켰을 때만 있다
     weight_kg: float | None = None                  # 몸무게를 켰을 때만 있다
     shop: PublicShopSchema | None = None            # 매장 정보를 켰을 때만 있다
+    review_url: str | None = None                   # 리뷰 남기기 줄(⑫) — 매장이 주소를 넣었고 이 알림장이 빼지 않았을 때만 있다
+    review_text: str | None = None                  # 그 줄의 문구(매장의 글이거나 기본 문구)
     expires_at: datetime | None      # 매장 시간대. null 이면 기간이 없다
 
     @classmethod
@@ -68,8 +70,12 @@ class PublicReportSchema(_Public):
             pet_name=report.pet_name, visit_date=report.visit_date, care_note=report.care_note,
             media=list(report.media), cover=report.cover, menus=report.menus, total_amount=report.total_amount,
             weight_kg=report.weight_kg, shop=report.shop, expires_at=view.expires_at,
+            review_url=report.review_url, review_text=report.review_text,
         )
-        return schema.model_dump(mode="json", exclude=_turned_off(report.settings))
+        off = _turned_off(report.settings)
+        if report.review_url is None:
+            off |= {"review_url": True, "review_text": True}   # 빈 줄이 나가지 않는다 — 칸째 없다
+        return schema.model_dump(mode="json", exclude=off)
 
 
 def _turned_off(settings: ReportSettings) -> dict:

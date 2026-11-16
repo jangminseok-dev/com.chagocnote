@@ -40,8 +40,17 @@ const MALFORMED_TOKENS = {
 /** 검사에 쓴 토큰 전부 — 웹 서버의 기록에 남으면 안 된다(R18). */
 const USED_TOKENS = [
   ...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken', 'part', 'sent', 'chg', 'big', 'bad', 'iok', 'iupd', 'isent', 'ibad', 'ichg'].map(token),
+  ...['fam', 'used', 'full'].map(token), // 가족 초대 코드(⑫)
   ...Object.values(MALFORMED_TOKENS),
 ]
+
+/** 가짜 백엔드가 만들어 주는 가족 초대 코드(⑫). */
+const FAMILY_CODE = token('fam')
+
+/** 같은 출처의 본문 없는 POST — 가족 초대 만들기(브라우저 스크립트가 부른다). */
+function post(headers = {}) {
+  return { method: 'POST', headers: { 'Sec-Fetch-Site': 'same-origin', ...headers } }
+}
 
 /** 동의서 검사에서 보낸 이름과 서명 — 웹 서버의 기록에 남으면 안 된다. */
 const SIGNER = '서명한이름'
@@ -502,6 +511,9 @@ const loginChecks = [
       // 맡겨 둔 알림장 토큰도 버린다 — 같은 브라우저에서 다음에 로그인하는 사람의 계정에 이어지지 않게.
       const claim = res.headers.getSetCookie().find((value) => value.startsWith('cn_claim='))
       assert.ok(claim && isDeletion(claim), '잇기 쿠키를 지우지 않았다')
+      // 맡겨 둔 가족 초대 코드도 같다(⑫).
+      const join = res.headers.getSetCookie().find((value) => value.startsWith('cn_join='))
+      assert.ok(join && isDeletion(join), '가족 잇기 쿠키를 지우지 않았다')
       assert.equal((await stats()).count, before, '로그아웃이 백엔드를 불렀다')
     },
   },
@@ -538,6 +550,13 @@ const loginChecks = [
         const claim = await fetch(`${base}/r/${token('ok')}/claim`, { redirect: 'manual', ...form({}) })
         assert.equal(claim.status, 404)
         assert.equal(claim.headers.getSetCookie().length, 0, '잇기 쿠키를 썼다')
+        // 가족 초대(⑫)도 같다 — 받은 화면에 버튼이 없고 잇기 경로는 404 다.
+        const invited = await fetch(`${base}/j/${FAMILY_CODE}`)
+        assert.equal(invited.status, 200)
+        assert.ok(!(await invited.text()).includes('<form'), '초대 받은 화면에 폼이 있다')
+        const join = await fetch(`${base}/j/${FAMILY_CODE}/join`, { redirect: 'manual', ...form({}) })
+        assert.equal(join.status, 404)
+        assert.equal(join.headers.getSetCookie().length, 0, '가족 잇기 쿠키를 썼다')
         assertBackendNotCalled(await stats())
       } finally {
         await stop(child)
@@ -701,6 +720,7 @@ const loginChecks = [
     async run({ get, stats, reset }) {
       const { session } = await loginAs(get, 'ok')
       const claim = pair(setCookie(await get(`/r/${token('ok')}/claim`, form({})), 'cn_claim'))
+      const join = pair(setCookie(await get(`/j/${FAMILY_CODE}/join`, form({})), 'cn_join'))
       await reset()
       const broken = [
         'cn_session=garbage',
@@ -708,6 +728,7 @@ const loginChecks = [
         `cn_session=${'A'.repeat(4000)}`,
         session.slice(0, -6), // 잘린 값
         `cn_session=${claim.slice('cn_claim='.length)}`, // 다른 용도로 봉한 값
+        `cn_session=${join.slice('cn_join='.length)}`, // 가족 초대로 봉한 값(⑫)
       ]
       for (const cookie of broken) goesToLogin(await get('/me', { headers: { cookie } }), '/me')
       assertBackendNotCalled(await stats())
@@ -731,9 +752,17 @@ const loginChecks = [
       assert.match(html, /<a href="\/me\/11\?pet=8">우리 아이<\/a>/)
       assert.match(html, /<form[^>]*action="\/me\/11\/unlink"/)
       assert.ok(!html.includes('아직 이어진 기록이 없어요'), '연결이 있는데 빈 안내가 있다')
-      // 연결 목록 한 번 + 연결 둘의 아이들
-      const { guardian, count } = await stats()
-      assert.deepEqual([guardian, count], [3, 3])
+      // 함께 보는 가족(⑫) — 기본 연결(11)에만. 가족으로 이은 연결(12)에는 그 한 줄이다.
+      assert.ok(html.includes('가족 1 · 11월 15일에 이음'), '가족 줄이 없다')
+      assert.ok(html.includes('11월 15일에 가족 한 명이 함께 보기 시작했어요'), '새 가족 알림이 없다')
+      assert.match(html, /<form[^>]*action="\/me\/11\/family-unlink"/)
+      assert.ok(html.includes('value="21"'), '끊을 가족의 번호가 없다')
+      assert.ok(html.includes('가족으로 함께 보는 기록이에요'), '가족 연결의 안내가 없다')
+      assert.ok(!html.includes('/me/12/family-unlink'), '가족 연결에 가족 끊기가 있다')
+      // 연결 목록 한 번 + 연결 둘의 아이들 + 기본 연결의 가족
+      const { guardian, count, paths } = await stats()
+      assert.deepEqual([guardian, count], [4, 4])
+      assert.ok(paths.includes('GET /v1/me/guardian/links/11/family'), '가족을 읽지 않았다')
       assert.ok(!html.includes(backend), '첫 HTML 에 백엔드 주소가 있다')
       assert.ok(!html.includes('tok-'), '첫 HTML 에 액세스 토큰이 있다')
     },
@@ -765,6 +794,17 @@ const loginChecks = [
       const text = '이미 다른 계정에 이어져 있어요'
       assert.ok((await (await get('/me?notice=taken', { headers: { cookie: session } })).text()).includes(text))
       for (const path of ['/me', '/me?notice=%3Cscript%3E', '/me?notice=taken&notice=x']) {
+        assert.ok(!(await (await get(path, { headers: { cookie: session } })).text()).includes(text), path)
+      }
+    },
+  },
+  {
+    name: '/me?notice=invite 에만 초대가 끝났다는 안내가 있다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'ok')
+      const text = '초대가 끝났거나 이미 쓰였어요'
+      assert.ok((await (await get('/me?notice=invite', { headers: { cookie: session } })).text()).includes(text))
+      for (const path of ['/me', '/me?notice=taken', '/me?notice=invite&notice=x']) {
         assert.ok(!(await (await get(path, { headers: { cookie: session } })).text()).includes(text), path)
       }
     },
@@ -962,7 +1002,7 @@ const loginChecks = [
       }
     },
   },
-  ...['/me/11', '/me/11/501'].map((path) => ({
+  ...['/me/11', '/me/11/501', '/me/11/photos?pet=7'].map((path) => ({
     name: `백엔드가 매달리면 ${path} 는 5초 뒤 200 "잠시 후 다시 열어 주세요" 다`,
     async run({ get }) {
       const { session } = await loginAs(get, 'slow')
@@ -971,6 +1011,332 @@ const loginChecks = [
       assert.match(body, /<h1[^>]*>잠시 후 다시 열어 주세요<\/h1>/)
     },
   })),
+  // ── 사진 모아 보기(⑫) ──────────────────────────────────────────────
+  {
+    name: '세션 없는 사진 모아 보기는 로그인으로 가고 거르기를 싣는다(쪽 표시는 싣지 않는다)',
+    async run({ get, stats }) {
+      goesToLogin(await get('/me/11/photos'), '/me/11/photos')
+      goesToLogin(await get('/me/11/photos?pet=7&year=2026&phase=after&cursor=m2'), '/me/11/photos?pet=7&year=2026&phase=after')
+      goesToLogin(await get('/me/11/photos?phase=before&year=2025'), '/me/11/photos?year=2025&phase=before')
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '사진 모아 보기는 200 이고 헤더 셋이 있으며 날짜 묶음·거르기·저장·더 보기가 있고 조회는 한 번이다',
+    async run({ get, stats, reset, backend }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get('/me/11/photos', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = plain(await res.text())
+      assert.match(html, /<h1[^>]*>사진 모아 보기<\/h1>/)
+      for (const section of ['tabs', 'filter', 'save-all', 'grid', 'more']) {
+        assert.ok(html.includes(`data-section="${section}"`), `${section} 구역이 없다`)
+      }
+      assert.ok(!html.includes('data-section="weights"'), '아이를 고르지 않았는데 몸무게가 있다')
+      assert.ok(html.includes('href="/me/11/photos?year=2026"') && html.includes('href="/me/11/photos?year=2025"'), '연도 거르기가 없다')
+      assert.ok(html.includes('href="/me/11/photos?phase=after"'), '전후 거르기가 없다')
+      assert.match(html, /<a [^>]*href="\/me\/11\/photos\?cursor=m2"[^>]*>더 보기<\/a>/)
+      assert.ok(html.includes('이 쪽의 4개를 받아요'), '저장 안내가 없다')
+      const { count, last } = await stats()
+      assert.equal(count, 1)
+      assert.equal(last.path, '/v1/me/guardian/links/11/media')
+      assert.ok(!html.includes(backend), '첫 HTML 에 백엔드 주소가 있다')
+      assert.ok(!html.includes('tok-'), '첫 HTML 에 액세스 토큰이 있다')
+    },
+  },
+  {
+    name: '아이를 고르면 몸무게도 읽고 거르기를 질의에 싣는다. 몸무게를 읽지 못하면 그 구역만 없다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get('/me/11/photos?pet=7&year=2026&phase=after', { headers: { cookie: session } })
+      assert.equal(res.status, 200)
+      const html = plain(await res.text())
+      assert.ok(html.includes('data-section="weights"'), '몸무게 구역이 없다')
+      assert.ok(html.includes('href="/me/11?pet=7"'), '알림장 탭이 그 아이를 지키지 않는다')
+      const { count, paths } = await stats()
+      assert.equal(count, 2)
+      assert.ok(paths.includes('GET /v1/me/guardian/links/11/media?pet_id=7&year=2026&phase=after'), '거르기가 질의에 없다')
+      assert.ok(paths.includes('GET /v1/me/guardian/links/11/pets/7/weights'), '몸무게를 읽지 않았다')
+      // 받은 적 없는 아이(백엔드 404)는 몸무게 구역만 없고 화면은 그린다.
+      const unknown = await get('/me/11/photos?pet=9', { headers: { cookie: session } })
+      assert.equal(unknown.status, 200)
+      assert.ok(!(await unknown.text()).includes('data-section="weights"'))
+    },
+  },
+  {
+    name: '다음 쪽은 그 쪽의 사진만 있고 "더 보기" 가 없다. 모양이 틀린 거르기 값은 없는 것으로 친다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      const next = plain(await (await get('/me/11/photos?cursor=m2', { headers: { cookie: session } })).text())
+      assert.ok(next.includes('m-old') && !next.includes('m-after-1'), '다음 쪽의 사진이 아니다')
+      assert.ok(!next.includes('data-section="more"'), '마지막 쪽에 더 보기가 있다')
+      for (const query of ['year=abc', 'year=1989', 'phase=side', 'pet=0', 'cursor=%3Cscript%3E', 'year=2026&year=2025']) {
+        await reset()
+        const res = await get(`/me/11/photos?${query}`, { headers: { cookie: session } })
+        assert.equal(res.status, 200, query)
+        assert.equal((await stats()).last.path, '/v1/me/guardian/links/11/media', query)
+      }
+    },
+  },
+  {
+    name: '빈 연결의 사진은 "아직 받은 사진이 없어요", 없는 연결은 404, 숫자가 아닌 연결은 백엔드를 부르지 않고 404 다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      const empty = await get('/me/12/photos', { headers: { cookie: session } })
+      assert.equal(empty.status, 200)
+      const html = await empty.text()
+      assert.ok(html.includes('아직 받은 사진이 없어요'))
+      assert.ok(!html.includes('data-section="save-all"'), '빈 화면에 저장 버튼이 있다')
+      assert.equal((await get('/me/99/photos', { headers: { cookie: session } })).status, 404)
+      await reset()
+      for (const id of ['abc', '0', '1e3']) assert.equal((await get(`/me/${id}/photos`, { headers: { cookie: session } })).status, 404, id)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '끝난 토큰의 사진 모아 보기는 로그인으로 가고, 정지된 계정은 "이 계정으로는 볼 수 없어요" 다',
+    async run({ get }) {
+      const { session: expired } = await loginAs(get, 'expired')
+      goesToLogin(await get('/me/11/photos?pet=7', { headers: { cookie: expired } }), '/me/11/photos?pet=7')
+      const { session: suspended } = await loginAs(get, 'susp')
+      const res = await get('/me/11/photos', { headers: { cookie: suspended } })
+      assert.equal(res.status, 200)
+      assert.match(await res.text(), /<h1[^>]*>이 계정으로는 볼 수 없어요<\/h1>/)
+    },
+  },
+  // ── 가족 초대 만들기(⑫) ────────────────────────────────────────────
+  {
+    name: '초대 만들기는 200 JSON { path: /j/<코드> } 이고 저장하지 않으며 초대를 한 번 부른다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get('/me/11/family-invite', post({ cookie: session }))
+      assert.equal(res.status, 200)
+      assert.match(res.headers.get('content-type') ?? '', /application\/json/)
+      assert.ok((res.headers.get('cache-control') ?? '').includes('no-store'), '응답이 저장될 수 있다')
+      assert.deepEqual(await res.json(), { path: `/j/${FAMILY_CODE}` })
+      assert.equal(res.headers.getSetCookie().length, 0, '쿠키를 썼다')
+      const { count, last } = await stats()
+      assert.equal(count, 1)
+      assert.deepEqual([last.method, last.path, last.bearer], ['POST', '/v1/me/guardian/links/11/family-invites', true])
+    },
+  },
+  {
+    name: '가족이 다 찼으면 409, 가족으로 이은 연결·없는 연결은 404 이고 본문이 없다',
+    async run({ get }) {
+      const { session: full } = await loginAs(get, 'full')
+      const res = await get('/me/11/family-invite', post({ cookie: full }))
+      assert.equal(res.status, 409)
+      assert.equal(await res.text(), '')
+      const { session } = await loginAs(get, 'ok')
+      for (const id of ['12', '99']) assert.equal((await get(`/me/${id}/family-invite`, post({ cookie: session }))).status, 404, id)
+    },
+  },
+  {
+    name: '세션 없는 초대 만들기는 401, 끝난 세션은 세션 쿠키를 지우고 401, 다른 출처는 403, GET 은 405, 숫자가 아닌 연결은 404 이다',
+    async run({ get, stats, reset }) {
+      assert.equal((await get('/me/11/family-invite', post())).status, 401)
+      const { session: expired } = await loginAs(get, 'expired')
+      const ended = await get('/me/11/family-invite', post({ cookie: expired }))
+      assert.equal(ended.status, 401)
+      const cleared = ended.headers.getSetCookie().find((value) => value.startsWith('cn_session='))
+      assert.ok(cleared && isDeletion(cleared), '세션 쿠키를 지우지 않았다')
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      assert.equal((await get('/me/11/family-invite', post({ cookie: session, 'Sec-Fetch-Site': 'cross-site' }))).status, 403)
+      assert.equal((await get('/me/11/family-invite', { headers: { cookie: session } })).status, 405)
+      for (const id of ['abc', '0', '-1']) assert.equal((await get(`/me/${id}/family-invite`, post({ cookie: session }))).status, 404, id)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  // ── 초대 받은 화면과 가족으로 잇기(⑫) ──────────────────────────────
+  {
+    name: '초대 받은 화면은 200 이고 헤더 셋이 있으며 백엔드를 부르지 않고 미리보기 정보가 없다',
+    async run({ get, stats }) {
+      const res = await get(`/j/${FAMILY_CODE}`)
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = plain(await res.text())
+      assert.match(html, /<h1[^>]*>가족의 미용 기록을 함께 볼 수 있어요<\/h1>/)
+      assert.match(html, new RegExp(`<form[^>]*action="/j/${FAMILY_CODE}/join"`))
+      for (const key of ['og:title', 'og:image', 'og:description', 'og:url']) assert.equal(meta(html, key), null, key)
+      assert.ok(!html.includes('rel="canonical"'), 'canonical 이 있다')
+      assertBackendNotCalled(await stats())
+    },
+  },
+  ...Object.entries(MALFORMED_TOKENS).map(([name, value]) => ({
+    name: `모양이 틀린 초대 코드(${name})는 화면·잇기 모두 404 이고 쿠키를 쓰지 않으며 백엔드를 부르지 않는다`,
+    async run({ get, stats }) {
+      assert.equal((await get(`/j/${value}`)).status, 404)
+      const res = await get(`/j/${value}/join`, form({}))
+      assert.equal(res.status, 404)
+      assert.equal(res.headers.getSetCookie().length, 0)
+      assertBackendNotCalled(await stats())
+    },
+  })),
+  {
+    name: '세션 없이 함께 보기를 누르면 303 /login 이고 가족 잇기 쿠키가 HttpOnly·Secure·SameSite=lax·Max-Age=600 이며 값에 코드가 없고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      const res = await get(`/j/${FAMILY_CODE}/join`, form({}))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/login')
+      hasHeaderSet(res)
+      const line = setCookie(res, 'cn_join')
+      assert.ok(line, '가족 잇기 쿠키가 없다')
+      hasAttributes(line, ['HttpOnly', 'Secure', 'SameSite=lax', 'Path=/', 'Max-Age=600'])
+      assert.ok(!line.includes(FAMILY_CODE), '쿠키에 코드가 그대로 있다')
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '가족 잇기 쿠키를 들고 로그인하면 303 /me 이고 가족 잇기를 한 번 부르며(코드는 헤더로) 그 쿠키를 지운다',
+    async run({ get, stats, reset }) {
+      const join = pair(setCookie(await get(`/j/${FAMILY_CODE}/join`, form({})), 'cn_join'))
+      await reset()
+      const { res, session } = await loginAs(get, 'ok', { cookie: join, next: '/me/12' })
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/me')
+      assert.ok(session, '세션 쿠키가 없다')
+      const cleared = res.headers.getSetCookie().find((value) => value.startsWith('cn_join='))
+      assert.ok(cleared && isDeletion(cleared), '가족 잇기 쿠키를 지우지 않았다')
+      const { auth, claims, guardian, count, last } = await stats()
+      assert.deepEqual([auth, claims, guardian, count], [1, 0, 1, 2])
+      assert.deepEqual([last.method, last.path], ['POST', '/v1/me/guardian/family-links'])
+      assert.equal(last.family_invite, true, '초대 코드 헤더가 없다')
+      assert.equal(last.bearer, true, '액세스 토큰이 없다')
+    },
+  },
+  ...['used', 'full', 'rate'].map((prefix) => ({
+    name: `잇지 못하는 초대(${prefix})의 가족 잇기 쿠키로 로그인하면 303 /me?notice=invite 이고 그 쿠키를 지운다`,
+    async run({ get }) {
+      const join = pair(setCookie(await get(`/j/${token(prefix)}/join`, form({})), 'cn_join'))
+      const { res, session } = await loginAs(get, 'ok', { cookie: join })
+      assert.equal(res.headers.get('location'), '/me?notice=invite')
+      assert.ok(session, '세션 쿠키가 없다')
+      const cleared = res.headers.getSetCookie().find((value) => value.startsWith('cn_join='))
+      assert.ok(cleared && isDeletion(cleared), '가족 잇기 쿠키를 지우지 않았다')
+    },
+  })),
+  {
+    name: '알림장 잇기 쿠키와 가족 잇기 쿠키를 함께 들고 로그인하면 둘 다 쓰고 둘 다 지운다',
+    async run({ get, stats, reset }) {
+      const claim = pair(setCookie(await get(`/r/${token('ok')}/claim`, form({})), 'cn_claim'))
+      const join = pair(setCookie(await get(`/j/${FAMILY_CODE}/join`, form({})), 'cn_join'))
+      await reset()
+      const { res } = await loginAs(get, 'ok', { cookie: `${claim}; ${join}` })
+      assert.equal(res.headers.get('location'), '/me')
+      for (const name of ['cn_claim', 'cn_join']) {
+        const cleared = res.headers.getSetCookie().find((value) => value.startsWith(`${name}=`))
+        assert.ok(cleared && isDeletion(cleared), `${name} 를 지우지 않았다`)
+      }
+      const { claims, guardian } = await stats()
+      assert.deepEqual([claims, guardian], [1, 1])
+    },
+  },
+  {
+    name: '가족 잇기 쿠키를 들고 로그인이 실패하면 잇지 않고 그 쿠키를 건드리지 않는다',
+    async run({ get, stats }) {
+      const join = pair(setCookie(await get(`/j/${FAMILY_CODE}/join`, form({})), 'cn_join'))
+      const { res } = await loginAs(get, 'bad', { cookie: join })
+      assert.equal(res.headers.get('location'), '/login?error=1')
+      assert.equal(res.headers.getSetCookie().length, 0, '쿠키를 건드렸다')
+      assert.equal((await stats()).guardian, 0)
+    },
+  },
+  {
+    name: '로그인한 채 함께 보기를 누르면 303 /me 이고 쿠키를 쓰지 않는다. 잇지 못하면 /me?notice=invite',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const res = await get(`/j/${FAMILY_CODE}/join`, form({}, { cookie: session }))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/me')
+      assert.equal(res.headers.getSetCookie().length, 0)
+      const { guardian, last } = await stats()
+      assert.equal(guardian, 1)
+      assert.equal(last.family_invite, true)
+      for (const prefix of ['used', 'full', 'rate']) {
+        const failed = await get(`/j/${token(prefix)}/join`, form({}, { cookie: session }))
+        assert.equal(failed.headers.get('location'), '/me?notice=invite', prefix)
+      }
+    },
+  },
+  {
+    name: '끝난 세션으로 함께 보기를 누르면 303 /login 이고 세션 쿠키를 지우고 가족 잇기 쿠키를 쓴다',
+    async run({ get }) {
+      const { session } = await loginAs(get, 'expired')
+      const res = await get(`/j/${FAMILY_CODE}/join`, form({}, { cookie: session }))
+      assert.equal(res.status, 303)
+      assert.equal(res.headers.get('location'), '/login')
+      const cleared = res.headers.getSetCookie().find((value) => value.startsWith('cn_session='))
+      assert.ok(cleared && isDeletion(cleared), '세션 쿠키를 지우지 않았다')
+      assert.ok(setCookie(res, 'cn_join'), '가족 잇기 쿠키가 없다')
+    },
+  },
+  {
+    name: '다른 출처의 함께 보기는 403 이고 쿠키를 쓰지 않으며 백엔드를 부르지 않는다. GET 은 405 다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      for (const cookie of [undefined, session]) {
+        const res = await get(`/j/${FAMILY_CODE}/join`, form({}, { 'Sec-Fetch-Site': 'cross-site', ...(cookie && { cookie }) }))
+        assert.equal(res.status, 403)
+        assert.equal(res.headers.getSetCookie().length, 0)
+      }
+      assert.equal((await get(`/j/${FAMILY_CODE}/join`)).status, 405)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  // ── 가족 끊기(⑫) ───────────────────────────────────────────────────
+  {
+    name: '가족 끊기는 303 /me 이고 그 한 명(family_id), 없으면 모두를 지운다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      const one = await get('/me/11/family-unlink', form({ family_id: '21' }, { cookie: session }))
+      assert.deepEqual([one.status, one.headers.get('location')], [303, '/me'])
+      const first = (await stats()).last
+      assert.deepEqual([first.method, first.path], ['DELETE', '/v1/me/guardian/links/11/family/21'])
+      await reset()
+      const all = await get('/me/11/family-unlink', form({}, { cookie: session }))
+      assert.deepEqual([all.status, all.headers.get('location')], [303, '/me'])
+      const { count, last } = await stats()
+      assert.equal(count, 1)
+      assert.deepEqual([last.method, last.path], ['DELETE', '/v1/me/guardian/links/11/family'])
+    },
+  },
+  {
+    name: '숫자가 아닌 가족·연결의 끊기는 404 이고 백엔드를 부르지 않는다',
+    async run({ get, stats, reset }) {
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      for (const value of ['abc', '0', '-1', '21%0a', '9'.repeat(16)]) {
+        assert.equal((await get('/me/11/family-unlink', form({ family_id: decodeURIComponent(value) }, { cookie: session }))).status, 404, value)
+      }
+      assert.equal((await get('/me/abc/family-unlink', form({}, { cookie: session }))).status, 404)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '세션 없는 가족 끊기는 303 /login, 끝난 세션은 세션 쿠키를 지우고 303 /login, 다른 출처는 403, GET 은 405 다',
+    async run({ get, stats, reset }) {
+      const none = await get('/me/11/family-unlink', form({ family_id: '21' }))
+      assert.deepEqual([none.status, none.headers.get('location')], [303, '/login'])
+      const { session: expired } = await loginAs(get, 'expired')
+      const ended = await get('/me/11/family-unlink', form({ family_id: '21' }, { cookie: expired }))
+      assert.deepEqual([ended.status, ended.headers.get('location')], [303, '/login'])
+      const cleared = ended.headers.getSetCookie().find((value) => value.startsWith('cn_session='))
+      assert.ok(cleared && isDeletion(cleared), '세션 쿠키를 지우지 않았다')
+      const { session } = await loginAs(get, 'ok')
+      await reset()
+      assert.equal((await get('/me/11/family-unlink', form({ family_id: '21' }, { cookie: session, 'Sec-Fetch-Site': 'cross-site' }))).status, 403)
+      assert.equal((await get('/me/11/family-unlink')).status, 405)
+      assertBackendNotCalled(await stats())
+    },
+  },
   // (보호자 검사는 이 위에 더한다)
 ]
 
@@ -1296,6 +1662,7 @@ const checks = [
       for (const value of [...USED_TOKENS, ...USED_TOKENS.map(decodeURIComponent)]) {
         assert.ok(!text.includes(value), '기록에 검사에 쓴 토큰이 있다')
       }
+      assert.ok(!text.includes('/j/'), '기록에 가족 초대 주소가 있다')
       assert.ok(!text.includes(WEB_SECRET) && !text.includes(SESSION_SECRET), '기록에 비밀값이 있다')
       // 가짜 인증이 내주는 액세스 토큰은 tok- 으로 시작한다.
       assert.ok(!text.includes('tok-'), '기록에 액세스 토큰이 있다')

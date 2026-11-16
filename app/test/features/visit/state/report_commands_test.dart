@@ -105,10 +105,52 @@ void main() {
         .send(_shop, 101, changes: {1: true});
 
     expect(setup.calls, ['GET $_reportPath', 'PUT $_reportPath']);
+    // 리뷰 줄(⑫)은 고르지 않았고 링크가 없다 — 넣는다(서버의 기본과 같다).
     expect(bodyOf(setup.adapter.lastBodyByPath[_reportPath]), {
       'hidden_media_ids': [1, 2],
+      'show_review': true,
     });
     expect(sent.link.live, isTrue);
+  });
+
+  test('보내기는 고른 리뷰 줄(showReview)을 싣는다', () async {
+    final setup = _setup({
+      'PUT $_reportPath': (o, b) =>
+          FakeResponse(statusCode: 200, data: _preview(live: true)),
+    });
+
+    await setup.container
+        .read(reportCommandsProvider)
+        .send(_shop, 101, changes: {}, showReview: false);
+
+    expect(bodyOf(setup.adapter.lastBodyByPath[_reportPath]), {
+      'hidden_media_ids': [2],
+      'show_review': false,
+    });
+  });
+
+  test('리뷰 줄을 고르지 않았으면 다시 읽은 링크의 값을 그대로 싣는다 — 앞서 뺀 줄이 되살아나지 않게', () async {
+    final setup = _setup({
+      'GET $_reportPath': (o, b) => FakeResponse(
+        statusCode: 200,
+        data: visitReportJson(
+          media: [reportMediaJson(mediaId: 1)],
+          link: reportLinkJson(live: true, showReview: false),
+          reviewUrl: 'https://naver.me/abc',
+        ),
+      ),
+      'PUT $_reportPath': (o, b) =>
+          FakeResponse(statusCode: 200, data: _preview(live: true)),
+    });
+
+    await setup.container
+        .read(reportCommandsProvider)
+        .send(_shop, 101, changes: {}, onlyIfLive: true);
+
+    expect(bodyOf(setup.adapter.lastBodyByPath[_reportPath]), {
+      'hidden_media_ids': <int>[],
+      'show_review': false,
+    });
   });
 
   test('onlyIfLive 로 보낼 때 다시 읽은 링크가 닫혀 있으면 PUT 을 보내지 않고 REPORT_NOT_FOUND 로 끝난다', () async {
@@ -152,6 +194,7 @@ void main() {
     expect(setup.calls, ['GET $_reportPath', 'PUT $_reportPath']);
     expect(bodyOf(setup.adapter.lastBodyByPath[_reportPath]), {
       'hidden_media_ids': [1, 2],
+      'show_review': true,
     });
     expect(sent.link.live, isTrue);
   });
@@ -285,6 +328,42 @@ void main() {
         'GET $_reportPath',
       ]),
     );
+  });
+
+  test('가족 수 바꾸기는 family_max 를 보내고, 성공하든 실패하든 가족 설정을 다시 읽는다', () async {
+    const path = '/v1/shops/3/guardian-settings';
+    var fail = false;
+    final setup = _setup({
+      'GET $path': (o, b) =>
+          FakeResponse(statusCode: 200, data: guardianSettingsJson()),
+      'PUT $path': (o, b) => fail
+          ? _error(403, 'PERMISSION_DENIED')
+          : FakeResponse(
+              statusCode: 200,
+              data: guardianSettingsJson(familyMax: 4),
+            ),
+    });
+    final c = setup.container;
+    c.listen(guardianSettingsProvider(_shop), (_, _) {});
+    await c.read(guardianSettingsProvider(_shop).future);
+    setup.adapter.requests.clear();
+
+    final saved = await c
+        .read(reportCommandsProvider)
+        .updateGuardianSettings(_shop, familyMax: 4);
+    await c.read(guardianSettingsProvider(_shop).future);
+    expect(saved.familyMax, 4);
+    expect(bodyOf(setup.adapter.lastBodyByPath[path]), {'family_max': 4});
+    expect(setup.calls, ['PUT $path', 'GET $path']);
+
+    fail = true;
+    setup.adapter.requests.clear();
+    await expectLater(
+      c.read(reportCommandsProvider).updateGuardianSettings(_shop, familyMax: 5),
+      throwsA(isA<ApiException>()),
+    );
+    await c.read(guardianSettingsProvider(_shop).future);
+    expect(setup.calls, ['PUT $path', 'GET $path']);
   });
 
   test('알림장 읽기·쓰기가 NOT_A_MEMBER 면 내 정보를 다시 불러온다', () async {

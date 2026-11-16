@@ -3,6 +3,7 @@ import { CareNote } from './CareNote'
 import { MediaGallery } from './MediaGallery'
 import { ReportFoot } from './ReportFoot'
 import { ReportHead } from './ReportHead'
+import { ReviewLine } from './ReviewLine'
 import styles from './ReportView.module.css'
 import { SaveAllButton } from './SaveAllButton'
 import { ShopCard } from './ShopCard'
@@ -24,6 +25,7 @@ export function ReportView({ report, token, login = false }: { report: Report; t
       <TodaysCare menus={report.menus} totalAmount={report.total_amount} weightKg={report.weight_kg} />
       {media.length > 0 && <SaveAllButton media={media} />}
       {report.shop && <ShopCard shop={report.shop} />}
+      <ReviewLine url={report.review_url} text={report.review_text} />
       <ReportFoot expiresAt={report.expires_at} claimAction={token !== undefined && login ? `/r/${token}/claim` : undefined} />
       {token !== undefined && <ViewedSignal token={token} />}
     </main>

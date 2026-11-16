@@ -602,6 +602,10 @@ class AppStrings {
   static const endGuardianLinkConfirm =
       '보호자가 지난 기록을 더는 볼 수 없어요. 알림장을 다시 보내면 다시 이을 수 있어요.';
   static const guardianLinkEnded = '보호자 연결을 끊었어요.';
+  // 함께 보는 가족(⑫) — 수만 온다.
+  static String guardianFamilyCount(int count) => '가족 $count명';
+  static const endGuardianLinkConfirmFamily =
+      '보호자가 지난 기록을 더는 볼 수 없어요. 함께 보던 가족도 볼 수 없어요. 알림장을 다시 보내면 다시 이을 수 있어요.';
 
   // 매출(⑧) — 홈의 매출 탭. 비교·목표 문장은 features/sales/state/sales_rules.dart 가 만든다.
   static const salesOwnerOnly = '매출은 사장님만 볼 수 있어요.';
@@ -967,6 +971,40 @@ class AppStrings {
   static const reportItemAmountHint = '메뉴별 금액과 합계';
   static const reportItemWeightHint = '기록에 적은 날만 보여요';
   static const reportItemShopInfoHint = '이름 · 전화 · 주소';
+
+  // 알림장 설정의 보호자가 받는 모습·리뷰 남기기 줄·가족 수(⑫ 설계 3.3·3.6·8절).
+  static const reportGuardianSees = '보호자가 받는 모습';
+  static const reportWeightOff = '꺼져 있어요 — 보호자에게 몸무게와 몸무게 변화가 보이지 않아요';
+  static const reportWeightSample = '몸무게 4.2 kg';
+  static const reportTail = '차곡노트';
+  static const reviewSectionLabel = '알림장 끝에 리뷰 남기기 줄 넣기';
+  static const reviewSectionHint =
+      '네이버 플레이스·카카오맵 등 리뷰를 받는 곳의 주소를 붙여 넣어 주세요. 비우면 줄이 없어요. '
+      '알림장마다 보내기 전에 뺄 수도 있어요.';
+  static const reviewUrlHint = 'https:// 로 시작하는 리뷰 주소';
+  static const reviewTextHint = '줄에 쓸 문구';
+  static const reviewOpen = '열어 보기';
+  static const reviewEmptyPreview = '주소를 넣으면 알림장 끝에 이렇게 나와요';
+  static const reviewOpenFailed = '주소를 열지 못했어요. 주소를 다시 확인해 주세요.';
+  static const familyLabel = '가족과 함께 보기';
+  static String familyMaxLine(int count) => '고객 한 명당 $count명까지';
+  static const familyLess = '가족 수 줄이기';
+  static const familyMore = '가족 수 늘리기';
+  static const familyHint =
+      '보호자가 가족을 초대하면 같은 알림장·사진을 함께 봐요. 초대는 하루 동안, 한 사람만 쓸 수 있어요.';
+  static const familyKeep = '줄여도 이미 함께 보는 가족은 그대로예요. 새 초대만 막아요.';
+  static const familyNone = '0명이면 보호자가 가족을 초대할 수 없어요.';
+  // 보내기 전 미리보기의 리뷰 줄(⑫ 설계 8절 — 알림장마다 뺄 수 있다).
+  static const reportReviewSwitch = '리뷰 남기기 줄 넣기';
+  static const reportReviewSwitchHint = '이 알림장에만 적용돼요. 주소와 문구는 알림장 설정에서 바꿔요.';
+
+  // 리뷰 남기기 줄(⑫ 설계 3.6) — 칸 아래의 까닭.
+  static const reviewUrlNotHttps = 'https:// 로 시작하는 주소를 넣어 주세요.';
+  static const reviewUrlTooLong = '주소가 너무 길어요. 300자까지 넣을 수 있어요.';
+  static const reviewUrlInvalid = '주소를 다시 확인해 주세요. 띄어쓰기나 @ 가 들어가면 안 돼요.';
+  static const reviewTextTooLong = '60자까지 쓸 수 있어요.';
+  static const reviewTextOneLine = '줄을 바꾸지 말고 한 줄로 써 주세요.';
+  static const reviewTextNoLink = '문구에는 주소를 넣을 수 없어요.';
 
   /// 링크 기간 칩 — '7일'·'30일', 기간이 없으면(null) '계속'.
   static String reportLinkDays(int? days) => days == null ? '계속' : '$days일';

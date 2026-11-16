@@ -15,6 +15,8 @@ _COLUMNS = (
     VisitShopSettingsOrm.report_show_shop_info,
     VisitShopSettingsOrm.report_show_weight,
     VisitShopSettingsOrm.report_show_amount,
+    VisitShopSettingsOrm.report_review_url,
+    VisitShopSettingsOrm.report_review_text,
 )
 
 
@@ -41,6 +43,8 @@ class ReportSettingsPgRepository(ReportSettingsRepository):
                     report_show_shop_info=settings.show_shop_info,
                     report_show_weight=settings.show_weight,
                     report_show_amount=settings.show_amount,
+                    report_review_url=settings.review_url,
+                    report_review_text=settings.review_text,
                 )
                 .returning(*_COLUMNS)
             )

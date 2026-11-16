@@ -60,6 +60,8 @@ class ReportView:
     weight_kg: Decimal | None                 # 몸무게를 켰을 때만
     shop: ReportShopView | None               # 매장 정보를 켰을 때만
     settings: ReportSettings                  # 공개 응답이 끈 항목의 칸을 아예 빼는 데 쓴다
+    review_url: str | None = None             # 리뷰 남기기 줄(⑫) — 주소가 없거나 그 알림장이 뺐으면 None
+    review_text: str | None = None            # 그 줄의 문구(기본 문구로 채워져 있다)
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,7 @@ class ReportLinkView:
     expires_at: datetime | None       # None 이면 기간이 없다
     first_viewed_at: datetime | None
     created_at: datetime | None       # 보낸 시각
+    show_review: bool | None = None   # 이 알림장에 리뷰 줄을 넣는가(⑫) — 링크가 없으면 None
 
     def in_zone(self, zone: ZoneInfo) -> ReportLinkView:
         """시각을 매장 시간대로 바꾼 것 — 응답으로 내보내기 전에 부른다."""

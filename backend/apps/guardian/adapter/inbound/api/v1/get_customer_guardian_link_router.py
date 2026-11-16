@@ -21,4 +21,4 @@ async def get_customer_guardian_link(
     use_case: GetCustomerGuardianLinkUseCase = Depends(get_get_customer_guardian_link_use_case),
 ) -> CustomerGuardianLinkSchema:
     view = await use_case.get_link(GetCustomerGuardianLinkQuery(ctx=ctx, customer_id=customer_id))
-    return CustomerGuardianLinkSchema(linked=view.linked, linked_at=view.linked_at)
+    return CustomerGuardianLinkSchema(linked=view.linked, linked_at=view.linked_at, family_count=view.family_count)

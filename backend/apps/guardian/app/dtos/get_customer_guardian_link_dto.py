@@ -18,3 +18,4 @@ class CustomerGuardianLinkView:
 
     linked: bool
     linked_at: datetime | None   # 매장 시간대
+    family_count: int = 0        # 함께 보는 가족의 수(⑫)

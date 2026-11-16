@@ -166,7 +166,7 @@ async def test_내부_메모와_결제_수단과_예약_메모와_보호자_정�
 def test_알림장에는_정해_둔_칸만_있다():
     assert [f.name for f in fields(ReportView)] == [
         "pet_name", "visit_date", "care_note", "media", "cover", "menus", "total_amount", "weight_kg", "shop",
-        "settings"]
+        "settings", "review_url", "review_text"]
 
 
 def _report(**overrides) -> VisitReport:

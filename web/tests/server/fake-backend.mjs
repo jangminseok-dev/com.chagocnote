@@ -22,6 +22,11 @@
 //   tok-expired 401   tok-susp 403   tok-slow 매달린다   tok-empty 연결이 없다   그 밖 아래의 표준 자료
 //   tok-stale 표준 자료에 연결 13 이 하나 더 있는데 그 연결의 아이들·알림장은 404 다(목록을 읽은 직후 끊긴 연결)
 // POST /v1/me/guardian/links(잇기)는 X-Report-Token 의 앞머리 — ok 201, gone 410, taken 409, rate 429, 그 밖 404.
+// 가족(⑫): 연결 11 은 기본(가족 한 명 · 최대 3), 12 는 가족으로 이은 연결이다.
+//   POST /links/11/family-invites  201 { code: FAMILY_CODE } — tok-full 이면 409, 연결 12 는 404
+//   POST /family-links             X-Family-Invite 의 앞머리 — fam·ok 201, full 409, rate 429, 그 밖(used 등) 404
+//   GET /links/11/family · DELETE /links/11/family(/21) — 가족 한 명(21)
+//   GET /links/11/media            사진 모아 보기(첫 쪽 next_cursor m2), /links/11/pets/7/weights 몸무게 둘, pets/8 은 빈 목록
 import http from 'node:http'
 
 const port = Number(process.argv[2])
@@ -39,6 +44,8 @@ let forms = 0 // GET /v1/public/form
 let consents = 0 // POST /v1/public/form/consent
 let intakes = 0 // POST /v1/public/form/intake
 let last = null
+let paths = [] // 받은 요청의 "메서드 경로" — 토큰은 헤더에만 있어 경로에는 없다
+
 
 const photo = (name, phase) => ({
   kind: 'photo',
@@ -98,11 +105,23 @@ const ERRORS = {
   boom: [500, 'INTERNAL_ERROR'],
 }
 
-// 로그인한 보호자의 표준 자료 — 연결 둘(11 은 아이 둘·알림장 셋, 12 는 비어 있다).
+// 로그인한 보호자의 표준 자료 — 연결 둘(11 은 아이 둘·알림장 셋·가족 한 명, 12 는 가족으로 이은 빈 연결).
 const LINKS = [
-  { link_id: 11, shop_name: 'Hiss Haus', linked_at: '2026-11-01T10:00:00+09:00' },
-  { link_id: 12, shop_name: '둘째 매장', linked_at: '2026-11-05T15:30:00+09:00' },
+  { link_id: 11, shop_name: 'Hiss Haus', linked_at: '2026-11-01T10:00:00+09:00', role: 'primary', family_count: 1, family_max: 3 },
+  { link_id: 12, shop_name: '둘째 매장', linked_at: '2026-11-05T15:30:00+09:00', role: 'family', family_count: 0, family_max: 0 },
 ]
+/** 만든 가족 초대의 코드(43글자) — 검사는 이 값이 웹 서버의 기록에 없는지 본다. */
+const FAMILY_CODE = 'fam'.padEnd(43, 'A')
+const FAMILY = [{ family_id: 21, linked_at: '2026-11-15T20:00:00+09:00', unseen: true }]
+const mediaOf = (base, report_id, visit_date) => ({ ...base, report_id, visit_date })
+const MEDIA_FIRST = [
+  mediaOf(photo('m-after-1', 'after'), 501, '2026-09-28'),
+  mediaOf(photo('m-after-2', 'after'), 501, '2026-09-28'),
+  mediaOf(photo('m-before-1', 'before'), 501, '2026-09-28'),
+  mediaOf(video('m-video', 'after'), 504, '2025-12-20'),
+]
+const MEDIA_NEXT = [mediaOf(photo('m-old', 'after'), 505, '2025-07-01')]
+const WEIGHTS = { 7: [{ visit_date: '2025-12-20', weight_kg: 4.0 }, { visit_date: '2026-09-28', weight_kg: 4.2 }], 8: [] }
 const PETS = { 11: [{ pet_id: 7, name: '두부' }, { pet_id: 8, name: null }], 12: [] }
 const item = (report_id, extra) => ({ report_id, visit_date: '2026-09-28', pet_id: null, pet_name: null, cover: null, media_count: 0, ...extra })
 const ITEM_501 = item(501, { pet_id: 7, pet_name: '두부', cover: FULL.cover, media_count: 4 })
@@ -158,6 +177,13 @@ function guardianApi(req, url, send) {
     if (token.startsWith('rate')) return error(429, 'GUARDIAN_RATE_LIMITED')
     return error(404, 'REPORT_NOT_FOUND')
   }
+  if (req.method === 'POST' && path === '/family-links') {
+    const code = String(req.headers['x-family-invite'] ?? '')
+    if (code.startsWith('fam') || code.startsWith('ok')) return send(201, { link_id: 21 })
+    if (code.startsWith('full')) return error(409, 'GUARDIAN_FAMILY_FULL')
+    if (code.startsWith('rate')) return error(429, 'GUARDIAN_RATE_LIMITED')
+    return error(404, 'GUARDIAN_INVITE_NOT_FOUND')
+  }
   const stale = bearer.startsWith('tok-stale') ? [{ link_id: 13, shop_name: '방금 끊긴 매장', linked_at: '2026-11-07T09:00:00+09:00' }] : []
   if (req.method === 'GET' && path === '/links') return send(200, { items: empty ? [] : [...LINKS, ...stale] })
 
@@ -165,7 +191,24 @@ function guardianApi(req, url, send) {
   const linkId = Number(id)
   if (empty || !(linkId in PETS)) return error(404, 'GUARDIAN_LINK_NOT_FOUND')
   if (req.method === 'DELETE' && rest === undefined) return linkId === 11 ? send(204) : error(404, 'GUARDIAN_LINK_NOT_FOUND')
+  // 가족(⑫) — 기본 연결(11)만. 가족 연결(12)에는 없는 것처럼 404 다.
+  if (req.method === 'POST' && rest === '/family-invites') {
+    if (linkId !== 11) return error(404, 'GUARDIAN_LINK_NOT_FOUND')
+    if (bearer.startsWith('tok-full')) return error(409, 'GUARDIAN_FAMILY_FULL')
+    return send(201, { code: FAMILY_CODE, expires_at: '2026-11-17T10:00:00+09:00' })
+  }
+  if (req.method === 'DELETE' && (rest === '/family' || rest === '/family/21')) {
+    return linkId === 11 ? send(204) : error(404, 'GUARDIAN_LINK_NOT_FOUND')
+  }
   if (req.method !== 'GET') return error(404, 'NOT_FOUND')
+  if (rest === '/family') return linkId === 11 ? send(200, { items: FAMILY }) : error(404, 'GUARDIAN_LINK_NOT_FOUND')
+  if (rest === '/media') {
+    if (linkId !== 11) return send(200, { items: [], next_cursor: null, years: [] })
+    if (url.searchParams.get('cursor') === 'm2') return send(200, { items: MEDIA_NEXT, next_cursor: null, years: [2026, 2025] })
+    return send(200, { items: MEDIA_FIRST, next_cursor: 'm2', years: [2026, 2025] })
+  }
+  const weights = rest?.match(/^\/pets\/(\d+)\/weights$/)
+  if (weights) return linkId === 11 && weights[1] in WEIGHTS ? send(200, { items: WEIGHTS[weights[1]] }) : error(404, 'REPORT_NOT_FOUND')
   if (rest === '/pets') return send(200, { items: PETS[linkId] })
   if (rest === '/reports') {
     if (linkId !== 11) return send(200, { items: [], next_cursor: null })
@@ -264,14 +307,16 @@ http
       res.writeHead(status, { 'content-type': 'application/json' })
       res.end(body === undefined ? '' : JSON.stringify(body))
     }
-    if (req.url === '/__stats') return send(200, { count, reports, viewed, auth, claims, guardian, forms, consents, intakes, last })
+    if (req.url === '/__stats') return send(200, { count, reports, viewed, auth, claims, guardian, forms, consents, intakes, last, paths })
     if (req.url === '/__reset') {
       count = reports = viewed = auth = claims = guardian = forms = consents = intakes = 0
       last = null
+      paths = []
       return send(200, {})
     }
 
     count += 1
+    paths.push(`${req.method} ${req.url}`)
     if (req.method === 'GET' && req.url === '/v1/public/report') reports += 1
     if (req.method === 'POST' && req.url === '/v1/public/report/viewed') viewed += 1
     // 토큰은 적지 않는다. 웹이 붙인 두 헤더와, 토큰 헤더가 있었는지만 남긴다.
@@ -283,6 +328,7 @@ http
       bearer: req.headers.authorization !== undefined,
       report_token: req.headers['x-report-token'] !== undefined,
       form_token: req.headers['x-form-token'] !== undefined,
+      family_invite: req.headers['x-family-invite'] !== undefined,
       body_keys: null, // 서명 본문의 칸 이름
       session: null, // 로그인 본문의 session
     }

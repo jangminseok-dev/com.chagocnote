@@ -22,7 +22,8 @@ SEOUL = ZoneInfo("Asia/Seoul")
 CUSTOMER = {"name": "김민지", "phone": "010-1234-5678", "marketing_consent": True}
 PET = {"name": "콩이", "species": "dog", "breed": "말티즈", "sex": "female", "neutered": True, "birth_year": 2021,
        "weight_kg": 3.2, "no_known_conditions": True}
-NO_LINK = {"status": "none", "url": None, "expires_at": None, "first_viewed_at": None, "created_at": None}
+NO_LINK = {"status": "none", "url": None, "expires_at": None, "first_viewed_at": None, "created_at": None,
+           "show_review": None}
 YESTERDAY = datetime.now(SEOUL).date() - timedelta(days=1)
 
 
@@ -99,10 +100,11 @@ async def test_직원이_알림장을_미리_보고_설정과_링크가_그대�
             "media": [media], "cover": {"url": media["display_url"], "width": 3000, "height": 2000},
             "menus": [], "total_amount": None, "weight_kg": None,
             "shop": {"name": "Hiss Haus", "phone": None, "address": None},
+            "review_url": None, "review_text": None,
         },
         "link": NO_LINK,
         "settings": {"link_days": 30, "show_menus": True, "show_shop_info": True, "show_weight": False,
-                     "show_amount": False},
+                     "show_amount": False, "review_url": None, "review_text": None, "review_text_default": "미용이 마음에 드셨다면 후기를 남겨 주세요"},
     }
     assert (media["media_id"], media["hidden"], media["kind"], media["phase"]) == (photo, False, "photo", "after")
     assert "response-content-disposition" in media["download_url"]

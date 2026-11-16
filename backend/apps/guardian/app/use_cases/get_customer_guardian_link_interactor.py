@@ -21,4 +21,5 @@ class GetCustomerGuardianLinkInteractor(GetCustomerGuardianLinkUseCase):
         if link is None:
             return CustomerGuardianLinkView(linked=False, linked_at=None)
         return CustomerGuardianLinkView(
-            linked=True, linked_at=link.created_at.astimezone(ZoneInfo(query.ctx.timezone)))
+            linked=True, linked_at=link.created_at.astimezone(ZoneInfo(query.ctx.timezone)),
+            family_count=(await self._links.family_counts([link.id])).get(link.id, 0))

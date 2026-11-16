@@ -33,6 +33,10 @@ class ReportRepository(ABC):
         """새 줄을 넣는다. 만든 사람은 ctx 의 멤버, 보낸 시각은 now."""
 
     @abstractmethod
+    async def set_show_review(self, ctx: ShopContext, report_id: int, show_review: bool) -> None:
+        """그 알림장에 리뷰 남기기 줄을 넣는가(⑫). 다시 보낼 때 바뀐다."""
+
+    @abstractmethod
     async def revoke(self, ctx: ShopContext, visit_id: int, now: datetime) -> bool:
         """그 방문의 살아 있는 줄을 끊는다. 끊은 것이 있으면 True."""
 

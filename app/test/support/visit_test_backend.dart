@@ -24,6 +24,9 @@ class VisitTestBackend {
   final Map<String, FakeHandler> routes = {
     'GET /v1/shops/3/visit-settings': (o, b) =>
         FakeResponse(statusCode: 200, data: settingsJson()),
+    // 알림장 설정 화면이 함께 읽는 가족 수(⑫).
+    'GET /v1/shops/3/guardian-settings': (o, b) =>
+        FakeResponse(statusCode: 200, data: guardianSettingsJson()),
     'GET /v1/shops/3/menus': (o, b) =>
         FakeResponse(statusCode: 200, data: {'items': defaultMenusJson()}),
     'GET /v1/shops/3/customers': (o, b) =>

@@ -5,6 +5,7 @@ import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_pick_tile.dart';
+import 'package:chagocnote/design/widgets/app_switch.dart';
 import 'package:chagocnote/features/visit/state/report_providers.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
@@ -31,6 +32,9 @@ class _Server {
   String? careNote;
   Map<String, dynamic> link;
   Map<String, dynamic> settings = reportSettingsJson();
+
+  /// 매장이 넣은 리뷰 주소(⑫) — 있으면 미리보기에 리뷰 줄의 두 칸이 온다.
+  String? reviewUrl;
   FakeResponse? getError;
   FakeResponse? putError;
   Completer<void>? putGate;
@@ -43,6 +47,8 @@ class _Server {
       careNote: careNote,
       link: link,
       settings: settings,
+      reviewUrl: reviewUrl,
+      reviewText: '후기 한 줄 부탁드려요',
     ),
   );
 
@@ -57,7 +63,10 @@ class _Server {
       media = [
         for (final m in media) {...m, 'hidden': hidden.contains(m['media_id'])},
       ];
-      link = reportLinkJson(live: true);
+      link = reportLinkJson(
+        live: true,
+        showReview: sent['show_review'] as bool,
+      );
       return _preview();
     },
     // [고치기]가 여는 기록 화면.
@@ -218,6 +227,7 @@ void main() {
 
       expect(server.puts.single, {
         'hidden_media_ids': [1, 2],
+        'show_review': true,
       });
       expect(app.setup.shareSheet.shared, [_url]);
       // 아이패드의 말풍선이 붙을 자리 — 버튼의 화면 사각형.
@@ -247,6 +257,7 @@ void main() {
 
     expect(server.puts.single, {
       'hidden_media_ids': [1],
+      'show_review': true,
     });
   });
 
@@ -271,6 +282,7 @@ void main() {
     await _tap(tester, _button('보내기'));
     expect(server.puts.single, {
       'hidden_media_ids': [51],
+      'show_review': true,
     });
     expect(closed.closed, isTrue);
   });
@@ -331,6 +343,7 @@ void main() {
 
     expect(server.puts.single, {
       'hidden_media_ids': [51],
+      'show_review': true,
     });
     expect(app.setup.shareSheet.shared, isEmpty);
     expect(closed.closed, isTrue);
@@ -529,6 +542,46 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, -5000));
     await tester.pumpAndSettle();
     expect(tester.getRect(_button(AppStrings.save)), before);
+  });
+
+  // ── ⑫ 리뷰 남기기 줄 — 알림장마다 뺄 수 있다(설계 8절) ───────────────────
+
+  testWidgets('매장이 리뷰 주소를 넣지 않았으면 미리보기에 리뷰 줄도 스위치도 없다', (tester) async {
+    await _open(tester, _Server(media: _five(), careNote: _note));
+
+    expect(find.byKey(const ValueKey('report-preview-review')), findsNothing);
+    expect(find.text(AppStrings.reportReviewSwitch), findsNothing);
+  });
+
+  testWidgets('주소가 있으면 스위치(기본 켬)와 줄의 본이 있고, 끄고 보내면 이 알림장만 줄을 뺀다', (tester) async {
+    final server = _Server(media: _five(), careNote: _note)
+      ..reviewUrl = 'https://naver.me/abc';
+    await _open(tester, server);
+
+    final review = find.byKey(const ValueKey('report-preview-review'));
+    expect(review, findsOneWidget);
+    expect(tester.widget<AppSwitch>(review).value, isTrue);
+    expect(find.text('후기 한 줄 부탁드려요'), findsOneWidget);
+
+    await _tap(tester, review);
+    expect(tester.widget<AppSwitch>(review).value, isFalse);
+    expect(find.text('후기 한 줄 부탁드려요'), findsNothing);
+
+    await _tap(tester, _button('보내기'));
+    expect(server.puts.single['show_review'], isFalse);
+  });
+
+  testWidgets('보낸 뒤 고르기는 그 링크의 값으로 시작하고, 건드리지 않고 저장하면 그 값을 그대로 보낸다', (tester) async {
+    final server = _Server(media: _five(), careNote: _note, live: true)
+      ..reviewUrl = 'https://naver.me/abc'
+      ..link = reportLinkJson(live: true, showReview: false);
+    await _open(tester, server, picking: true);
+
+    final review = find.byKey(const ValueKey('report-preview-review'));
+    expect(tester.widget<AppSwitch>(review).value, isFalse);
+
+    await _tap(tester, _button(AppStrings.save));
+    expect(server.puts.single['show_review'], isFalse);
   });
 
   testWidgets('미리보기 골든', (tester) async {

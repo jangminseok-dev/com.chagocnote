@@ -50,7 +50,7 @@ class ReadPublicReportInteractor(ReadPublicReportUseCase):
             raise ReportClosedError("닫힌 알림장입니다.")
         report = await describe_report(
             ctx, target.visit, record, await self._settings.get(ctx), shop, self._menus, self._directory,
-            self._library, include_hidden=False,
+            self._library, include_hidden=False, show_review=target.report.show_review,
         )
         expires_at = target.report.expires_at
         return PublicReportView(

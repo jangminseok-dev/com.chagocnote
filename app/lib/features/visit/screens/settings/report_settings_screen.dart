@@ -16,6 +16,9 @@ import '../../../auth/state/shop_selection.dart';
 import '../../api/report_models.dart';
 import '../../state/report_commands.dart';
 import '../../state/report_providers.dart';
+import 'report_family_section.dart';
+import 'report_guardian_previews.dart';
+import 'report_review_section.dart';
 
 /// 켜고 끄는 항목 넷(목업 ⑤의 순서) — 서버의 칸 이름, 이름, 설명.
 const _items = [
@@ -30,10 +33,11 @@ const _items = [
 ];
 
 /// 설정 → 알림장(⑤ 설계 2절·9.1, 목업 ⑤) — 링크가 열려 있는 기간(7일·30일·계속)과 알림장에 보여 줄
-/// 항목 넷.
+/// 항목 넷, 그리고 ⑫ 의 리뷰 남기기 줄·가족과 함께 보기.
 ///
-/// [저장] 버튼이 없다 — 누르면 바로 다섯 칸 전체를 보낸다. 낙관적으로 그리지 않고, 다시 읽은 서버 값으로
-/// 그린다. 바꾸는 것은 사장만이고(`shop:update`) 직원에게는 읽기 전용이다.
+/// 칩·스위치는 [저장] 없이 누르면 바로 일곱 칸 전체를 보낸다(글을 치는 리뷰 구역만 [저장]이 있다).
+/// 낙관적으로 그리지 않고, 다시 읽은 서버 값으로 그린다. 바꾸는 것은 사장만이고(`shop:update`) 직원에게는
+/// 읽기 전용이다.
 class ReportSettingsScreen extends ConsumerStatefulWidget {
   const ReportSettingsScreen({super.key});
 
@@ -48,9 +52,13 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
 
   int? get _shopId => ref.read(selectedShopIdProvider);
 
-  /// 화면이 보이는 서버 값 [shown]에서 [field] 한 칸만 바꿔 전체를 보낸다. 성공하든 실패하든
-  /// `updateSettings`가 설정을 다시 읽게 하고, 화면은 그 값으로 다시 그린다.
-  Future<void> _set(ReportSettings shown, String field, Object? value) async {
+  /// 화면이 보이는 서버 값 [shown]에서 [field] 한 칸만 바꿔 전체를 보낸다.
+  Future<void> _set(ReportSettings shown, String field, Object? value) =>
+      _save(ReportSettings.fromJson({...shown.toJson(), field: value}));
+
+  /// [next] 로 전체(일곱 칸)를 보낸다. 성공하든 실패하든 `updateSettings`가 설정을 다시 읽게 하고, 화면은
+  /// 그 값으로 다시 그린다.
+  Future<void> _save(ReportSettings next) async {
     final shopId = _shopId;
     if (shopId == null || _busy) return;
     // 화면의 값이 방금 읽은 것이 아니면(다시 읽는 중, 다시 읽기 실패로 이전 내용) 누르지 않은 것으로
@@ -63,12 +71,7 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
     });
     String? error;
     try {
-      await ref
-          .read(reportCommandsProvider)
-          .updateSettings(
-            shopId,
-            ReportSettings.fromJson({...shown.toJson(), field: value}),
-          );
+      await ref.read(reportCommandsProvider).updateSettings(shopId, next);
     } catch (e) {
       error = messageFor(e);
     }
@@ -116,7 +119,11 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
                   value: settings,
                   onRetry: () =>
                       ref.invalidate(reportSettingsProvider(shopId!)),
-                  builder: (data) => _body(data, canEdit: canEdit),
+                  builder: (data) => _body(
+                    data,
+                    canEdit: canEdit,
+                    locked: _busy || settings.isLoading || settings.hasError,
+                  ),
                 ),
               ),
             ],
@@ -126,7 +133,11 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
     );
   }
 
-  Widget _body(ReportSettings shown, {required bool canEdit}) {
+  Widget _body(
+    ReportSettings shown, {
+    required bool canEdit,
+    required bool locked,
+  }) {
     final json = shown.toJson();
     // 맨 위 한 줄 — 직원에게는 읽기 전용 안내, 사장에게는 마지막 실패 문구.
     final notice = canEdit ? _errorText : AppStrings.reportSettingsOwnerOnly;
@@ -138,11 +149,15 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
         AppSpacing.xxl,
       ),
       children: [
+        // 자리는 늘 둔다 — 안내가 생기고 사라질 때 아래 구역의 순번이 밀리면 리뷰 구역이 다시 만들어져
+        // 적던 글을 잃는다.
         if (notice != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Text(notice, style: AppTypography.caption),
-          ),
+          )
+        else
+          const SizedBox.shrink(),
         const Text(
           AppStrings.reportLinkDaysLabel,
           style: AppTypography.caption,
@@ -177,7 +192,7 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
           ),
           child: Column(
             children: [
-              for (final (field, label, hint) in _items)
+              for (final (field, label, hint) in _items) ...[
                 Row(
                   children: [
                     Expanded(
@@ -201,6 +216,10 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
                     ),
                   ],
                 ),
+                // 몸무게는 기본이 꺼짐이라 대부분의 매장에서 보호자에게 안 보인다 — 왜 안 보이는지와 켜면 무엇이
+                // 보이는지를 스위치 바로 아래에서 보인다(⑫ 설계 3.3).
+                if (field == 'show_weight') WeightPreview(on: shown.showWeight),
+              ],
             ],
           ),
         ),
@@ -209,6 +228,23 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
           AppStrings.reportShowItemsHint,
           style: AppTypography.caption,
         ),
+        const SizedBox(height: AppSpacing.xl),
+        ReportReviewSection(
+          key: const ValueKey('report-review-section'),
+          shown: shown,
+          shopName: ref.watch(shopNameProvider),
+          canEdit: canEdit,
+          locked: locked,
+          onSave: _save,
+        ),
+        if (_shopId case final shopId?) ...[
+          const SizedBox(height: AppSpacing.xl),
+          ReportFamilySection(
+            key: const ValueKey('report-family-section'),
+            shopId: shopId,
+            canEdit: canEdit,
+          ),
+        ],
       ],
     );
   }

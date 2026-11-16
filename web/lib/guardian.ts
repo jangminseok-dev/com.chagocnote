@@ -1,12 +1,19 @@
 import { apiBaseUrl } from './config'
-import type { Cover, Report } from './report'
+import type { Cover, Media, Report } from './report'
 
 // 로그인한 보호자의 읽기와 잇기·끊기. 전부 웹 서버가 세션의 액세스 토큰으로 부른다.
 
 /** 401 | 403 | 404·422 | 그 밖(연결 실패·시간 초과·5xx·깨진 JSON) */
 export type Failure = { kind: 'unauthenticated' | 'forbidden' | 'not_found' | 'unavailable' }
 
-export type GuardianLink = { link_id: number; shop_name: string; linked_at: string }
+export type GuardianLink = {
+  link_id: number
+  shop_name: string
+  linked_at: string
+  role?: 'primary' | 'family' // ⑫ — 받은 알림장으로 이었다 · 가족 초대로 이었다(옛 서버면 없다 = primary)
+  family_count?: number // 기본 연결이면 함께 보는 가족의 수
+  family_max?: number // 기본 연결이면 매장이 정한 가족 수(0 이면 초대가 없다)
+}
 export type GuardianPet = { pet_id: number; name: string | null }
 export type ReportItem = {
   report_id: number
@@ -17,12 +24,21 @@ export type ReportItem = {
   media_count: number
 }
 export type ReportPage = { items: ReportItem[]; next_cursor: string | null }
+/** 사진 모아 보기의 한 칸(⑫) — 한 장의 미디어와 같은 칸에 어느 알림장의 것인지가 붙는다. 서명 주소는 저장하지 않는다. */
+export type MediaItem = Media & { report_id: number; visit_date: string }
+export type MediaPage = { items: MediaItem[]; next_cursor: string | null; years: number[] }
+export type MediaFilter = { petId: number | null; year: number | null; phase: 'after' | 'before' | null; cursor: string | null }
+export type WeightItem = { visit_date: string; weight_kg: number }
+/** 함께 보는 가족 한 사람(⑫) — 이름·계정은 오지 않는다. */
+export type FamilyMember = { family_id: number; linked_at: string; unseen: boolean }
 
 const TIMEOUT_MS = 5000
 const PREFIX = '/v1/me/guardian'
 
-function call(method: 'GET' | 'POST' | 'DELETE', path: string, accessToken: string, reportToken?: string): Promise<Response> {
-  const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` }
+function call(
+  method: 'GET' | 'POST' | 'DELETE', path: string, accessToken: string, reportToken?: string, extra: Record<string, string> = {},
+): Promise<Response> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}`, ...extra }
   if (reportToken !== undefined) headers['X-Report-Token'] = reportToken
   return fetch(`${apiBaseUrl()}${PREFIX}${path}`, {
     method,
@@ -80,6 +96,32 @@ export async function getGuardianReport(
   return 'ok' in result ? { kind: 'ok', report: result.ok } : result
 }
 
+/** 아이의 사진·영상 모아 보기 한 쪽(최신순 60개). 고른 거르기만 질의에 싣는다. */
+export async function getMedia(
+  accessToken: string,
+  linkId: number,
+  filter: MediaFilter,
+): Promise<{ kind: 'ok'; page: MediaPage } | Failure> {
+  const params = new URLSearchParams()
+  if (filter.petId !== null) params.set('pet_id', String(filter.petId))
+  if (filter.year !== null) params.set('year', String(filter.year))
+  if (filter.phase !== null) params.set('phase', filter.phase)
+  if (filter.cursor !== null) params.set('cursor', filter.cursor)
+  const suffix = params.size > 0 ? `?${params}` : ''
+  const result = await read<MediaPage>(`/links/${linkId}/media${suffix}`, accessToken)
+  return 'ok' in result ? { kind: 'ok', page: result.ok } : result
+}
+
+/** 아이의 몸무게 변화(오래된 것부터). 매장이 몸무게를 껐으면 빈 목록이다. */
+export async function getWeights(
+  accessToken: string,
+  linkId: number,
+  petId: number,
+): Promise<{ kind: 'ok'; weights: WeightItem[] } | Failure> {
+  const result = await read<{ items: WeightItem[] }>(`/links/${linkId}/pets/${petId}/weights`, accessToken)
+  return 'ok' in result ? { kind: 'ok', weights: result.ok.items } : result
+}
+
 /** 200·201 | 410 | 409 | 404 | 429 | 401 | 그 밖 */
 export type ClaimResult = 'linked' | 'closed' | 'taken' | 'not_found' | 'busy' | 'unauthenticated' | 'unavailable'
 
@@ -116,3 +158,54 @@ export async function endLink(accessToken: string, linkId: number): Promise<EndR
     return 'unavailable'
   }
 }
+
+// --- 가족(⑫) — 초대 코드는 백엔드로 헤더(X-Family-Invite)로만 넘기고 기록하지 않는다 ---
+
+export type InviteResult =
+  | { kind: 'ok'; code: string; expiresAt: string }
+  | { kind: 'full' | 'busy' | 'not_found' | 'unauthenticated' | 'unavailable' }
+
+/** 기본 연결이 가족 초대를 만든다. 앞의 안 쓴 초대는 백엔드가 죽인다. */
+export async function createInvite(accessToken: string, linkId: number): Promise<InviteResult> {
+  try {
+    const res = await call('POST', `/links/${linkId}/family-invites`, accessToken)
+    if (res.status === 201) {
+      const body = (await res.json()) as { code: string; expires_at: string }
+      return { kind: 'ok', code: body.code, expiresAt: body.expires_at }
+    }
+    const kinds: Record<number, InviteResult['kind']> = { 409: 'full', 429: 'busy', 404: 'not_found', 401: 'unauthenticated' }
+    return { kind: (kinds[res.status] ?? 'unavailable') as 'full' }
+  } catch {
+    return { kind: 'unavailable' }
+  }
+}
+
+export type JoinResult = 'joined' | 'not_found' | 'full' | 'busy' | 'unauthenticated' | 'unavailable'
+const JOINS: Record<number, JoinResult> = { 200: 'joined', 201: 'joined', 404: 'not_found', 409: 'full', 429: 'busy', 401: 'unauthenticated' }
+
+/** 초대를 받은 가족이 잇는다. */
+export async function joinFamily(accessToken: string, code: string): Promise<JoinResult> {
+  try {
+    const res = await call('POST', '/family-links', accessToken, undefined, { 'X-Family-Invite': code })
+    return JOINS[res.status] ?? 'unavailable'
+  } catch {
+    return 'unavailable'
+  }
+}
+
+/** 기본 보호자가 보는 함께 보는 가족(이은 순서). 읽으면 새 줄의 알림이 거둬진다. */
+export async function getFamily(accessToken: string, linkId: number): Promise<{ kind: 'ok'; family: FamilyMember[] } | Failure> {
+  const result = await read<{ items: FamilyMember[] }>(`/links/${linkId}/family`, accessToken)
+  return 'ok' in result ? { kind: 'ok', family: result.ok.items } : result
+}
+
+/** 가족 한 명(familyId), 없으면 모두를 끊는다. */
+export async function endFamily(accessToken: string, linkId: number, familyId: number | null): Promise<EndResult> {
+  try {
+    const res = await call('DELETE', familyId === null ? `/links/${linkId}/family` : `/links/${linkId}/family/${familyId}`, accessToken)
+    return ENDS[res.status] ?? 'unavailable'
+  } catch {
+    return 'unavailable'
+  }
+}
+

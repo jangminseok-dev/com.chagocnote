@@ -12,3 +12,4 @@ class UpdateReportSettingsCommand:
 
     ctx: ShopContext
     settings: ReportSettings
+    kept: frozenset[str] = frozenset()   # 보내지 않은 칸 — 지금 값을 둔다(review_url·review_text)

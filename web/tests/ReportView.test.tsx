@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { ReportView } from '../components/ReportView'
@@ -26,7 +26,7 @@ function show(report: Report) {
 test('모든 항목이 있는 알림장은 구역 열이 순서대로 있다', () => {
   const { sections, section } = show(makeFullReport())
 
-  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'care', 'save-all', 'shop', 'claim', 'foot'])
+  expect(sections()).toEqual(['head', 'date', 'title', 'hero', 'strip', 'note', 'care', 'save-all', 'shop', 'review', 'claim', 'foot'])
   expect(section('head')).toHaveTextContent('Grooming Note')
   expect(section('head')).toHaveTextContent('Hiss Haus')
   expect(section('date')).toHaveTextContent('28')
@@ -254,3 +254,27 @@ test('토큰이 없으면(로그인한 보호자의 한 장) 버튼도 열람 �
   expect(fetch).not.toHaveBeenCalled()
   expect(container.querySelector('[data-section="foot"]')).not.toBeNull()
 })
+
+// ── 알림장 끝의 리뷰 줄(⑫ 설계 3.6) ─────────────────────────────────────────────
+
+test('리뷰 줄은 매장 카드 아래에 새 창으로 열리는 링크이고 알림장 주소를 넘기지 않는다', () => {
+  const { section } = show(makeFullReport())
+  const link = section('review')?.querySelector('a')
+
+  expect(link).toHaveAttribute('href', 'https://m.place.naver.com/place/1/review')
+  expect(link).toHaveAttribute('target', '_blank')
+  expect(link).toHaveAttribute('rel', 'noopener noreferrer nofollow')
+  expect(link).toHaveTextContent('미용이 마음에 드셨다면 후기를 남겨 주세요')
+})
+
+test('리뷰 줄이 없거나 https 가 아니면 그리지 않고, 대문자 스킴은 그린다', () => {
+  const { review_url: _u, review_text: _t, ...plain } = makeFullReport()
+  expect(show(plain).section('review')).toBeNull()
+  cleanup()
+  expect(show({ ...makeFullReport(), review_url: 'javascript:alert(1)' }).section('review')).toBeNull()
+  cleanup()
+  expect(show({ ...makeFullReport(), review_url: 'http://naver.me/x' }).section('review')).toBeNull()
+  cleanup()
+  expect(show({ ...makeFullReport(), review_url: 'HTTPS://naver.me/x' }).section('review')).not.toBeNull()
+})
+

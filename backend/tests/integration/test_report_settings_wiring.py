@@ -14,6 +14,8 @@ pytestmark = pytest.mark.integration
 
 DEFAULT = {"link_days": 30, "show_menus": True, "show_shop_info": True, "show_weight": False, "show_amount": False}
 CHANGED = {"link_days": None, "show_menus": False, "show_shop_info": True, "show_weight": True, "show_amount": True}
+# 응답에는 리뷰 남기기 줄의 칸이 함께 온다(⑫) — 보내지 않았으니 없음이고 기본 문구가 곁에 있다.
+REVIEW = {"review_url": None, "review_text": None, "review_text_default": "미용이 마음에 드셨다면 후기를 남겨 주세요"}
 
 
 async def test_사장이_바꾼_알림장_설정을_직원도_보지만_직원은_바꾸지_못한다(wired):
@@ -26,14 +28,14 @@ async def test_사장이_바꾼_알림장_설정을_직원도_보지만_직원�
     path = f"/v1/shops/{shop_id}/report-settings"
 
     changed = await wired.api.put(path, json=CHANGED, headers=o)
-    assert (changed.status_code, changed.json()) == (200, CHANGED)
+    assert (changed.status_code, changed.json()) == (200, {**CHANGED, **REVIEW})
 
     assert error_of(await wired.api.put(path, json=DEFAULT, headers=s)) == (403, "PERMISSION_DENIED")
     seen = await wired.api.get(path, headers=s)
-    assert (seen.status_code, seen.json()) == (200, CHANGED)
+    assert (seen.status_code, seen.json()) == (200, {**CHANGED, **REVIEW})
     assert error_of(await wired.api.put(path, json={**CHANGED, "link_days": 8}, headers=o)) == (
         422, "VALIDATION_ERROR")
-    assert (await wired.api.get(path, headers=o)).json() == CHANGED
+    assert (await wired.api.get(path, headers=o)).json() == {**CHANGED, **REVIEW}
 
 
 async def test_다른_매장의_알림장_설정은_보지도_바꾸지도_못한다(wired):
@@ -49,7 +51,7 @@ async def test_다른_매장의_알림장_설정은_보지도_바꾸지도_못�
     ]
     assert [error_of(r) for r in their_shop] == [(403, "NOT_A_MEMBER")] * 2
     # 설정을 정한 적이 없는 B 매장은 기본값이고, 조회만으로는 설정 행이 생기지 않는다.
-    assert (await wired.api.get(f"/v1/shops/{b_shop}/report-settings", headers=b)).json() == DEFAULT
+    assert (await wired.api.get(f"/v1/shops/{b_shop}/report-settings", headers=b)).json() == {**DEFAULT, **REVIEW}
     async with wired.engine.connect() as conn:
         shops = (await conn.exec_driver_sql("SELECT shop_id FROM visit_shop_settings")).scalars().all()
     assert shops == [a_shop]

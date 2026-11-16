@@ -14,6 +14,8 @@ class ReportSettings:
     show_shop_info: bool
     show_weight: bool
     show_amount: bool
+    review_url: str | None = None    # 알림장 끝의 리뷰 남기기 줄(⑫) — 없으면 줄이 없다
+    review_text: str | None = None   # 그 줄의 문구 — 없으면 기본 문구
 
 
 DEFAULT_REPORT_SETTINGS = ReportSettings(

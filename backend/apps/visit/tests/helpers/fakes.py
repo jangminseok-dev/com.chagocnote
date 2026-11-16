@@ -529,6 +529,19 @@ class FakeReportRepository(ReportRepository, PublicReportRepository, GuardianRep
         self.journal.append(("create_report", visit_id))
         return report
 
+    # 모아 보기(⑫) — 질의의 조건은 통합 테스트의 같음 테스트가 본다.
+    async def list_media(self, ctx, customer_id, *, pet_id, year, phase, before, limit):
+        return []
+
+    async def media_years(self, ctx, customer_id, *, pet_id):
+        return []
+
+    async def weights(self, ctx, customer_id, pet_id, limit):
+        return []
+
+    async def set_show_review(self, ctx, report_id, show_review):
+        self.journal.append(("report_set_show_review", report_id, show_review))
+
     async def revoke(self, ctx, visit_id, now):
         live = [r for r in self._open(ctx, id=visit_id) if r.is_live(now)]
         self._revoke(live, now)

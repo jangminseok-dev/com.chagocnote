@@ -31,7 +31,7 @@ async def test_직원도_방문_상세를_본다():
     assert (body["record"], body["cover"]) == (None, None)
     assert body["report"] == {
         "status": "live", "url": "https://r.example/r/abc", "expires_at": "2026-10-09T18:00:00+09:00",
-        "first_viewed_at": None, "created_at": "2026-09-09T18:00:00+09:00"}
+        "first_viewed_at": None, "created_at": "2026-09-09T18:00:00+09:00", "show_review": None}
     assert stub.calls[0].visit_id == 1
 
 
