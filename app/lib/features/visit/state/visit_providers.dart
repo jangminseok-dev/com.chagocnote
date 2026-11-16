@@ -5,8 +5,10 @@ import '../../../core/plugs/care_marks_plug.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/check_models.dart';
 import '../api/media_api.dart';
+import '../api/revisit_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
+import '../api/wrap_up_models.dart';
 
 final mediaApiProvider = Provider<MediaApi>(
   (ref) => MediaApi(ref.watch(apiClientProvider)),
@@ -148,4 +150,29 @@ CareMarksChanged careMarksChanged(Ref ref) => () {
   ref.invalidate(visitDetailProvider);
   ref.invalidate(dayVisitsProvider);
   ref.invalidate(visitChecksProvider);
+  // 아이의 주기·안내한 날(⑬)도 이 자리로 알린다 — 다시 올 때의 수가 바뀐다.
+  ref.invalidate(revisitCountsProvider);
 };
+
+/// 다시 올 때가 된 아이의 곧·지남 수(⑬) — 캘린더 탭의 줄과 목록 화면의 세그먼트.
+final revisitCountsProvider = FutureProvider.autoDispose.family<RevisitCounts, int>(
+  (ref, shopId) =>
+      runShopScoped(ref, () => ref.read(visitApiProvider).revisitCounts(shopId)),
+);
+
+/// 매장의 다시 올 때 설정(⑬).
+final revisitSettingsProvider = FutureProvider.autoDispose
+    .family<RevisitSettings, int>(
+      (ref, shopId) => runShopScoped(
+        ref,
+        () => ref.read(visitApiProvider).revisitSettings(shopId),
+      ),
+    );
+
+/// 하루 마무리의 장(⑬).
+final dayWrapUpProvider = FutureProvider.autoDispose.family<DayWrapUp, DayKey>(
+  (ref, key) => runShopScoped(
+    ref,
+    () => ref.read(visitApiProvider).dayWrapUp(key.shopId, key.date),
+  ),
+);

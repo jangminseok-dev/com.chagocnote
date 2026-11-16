@@ -2,6 +2,7 @@
 /// 오버라이드하지 않는다.
 library;
 
+import 'visit_marks.dart';
 import 'visit_models.dart';
 
 /// 피드 한 장 — 완료 방문 하나.
@@ -16,6 +17,7 @@ class FeedItem {
     required this.careNote,
     required this.mediaCount,
     required this.reportSent,
+    this.marks = const [],
   });
 
   factory FeedItem.fromJson(Map<String, dynamic> json) => FeedItem(
@@ -30,6 +32,7 @@ class FeedItem {
     careNote: json['care_note'] as String?,
     mediaCount: json['media_count'] as int,
     reportSent: json['report_sent'] as bool,
+    marks: parseMarks(json['marks']),
   );
 
   final int visitId;
@@ -51,6 +54,9 @@ class FeedItem {
 
   /// 살아 있는 알림장 링크가 있다.
   final bool reportSent;
+
+  /// 끝낸 일의 낱말(⑬).
+  final List<VisitMark> marks;
 }
 
 /// 피드 한 쪽. [nextCursor]가 null 이면 마지막 쪽이다.

@@ -5,10 +5,12 @@
 library;
 
 // 매장 시각·날짜 문자열 도우미는 core/time 에 있다. 이 모듈을 import 하던 곳이 그대로 쓰게 다시 내보낸다.
+import '../../../core/time/grooming_cycle.dart';
 import '../../../core/time/shop_time.dart';
 import 'check_models.dart';
 import 'record_models.dart';
 import 'report_models.dart';
+import 'visit_marks.dart';
 
 export '../../../core/time/shop_time.dart';
 
@@ -178,6 +180,9 @@ class DayCounts {
     required this.canceled,
     required this.noShow,
     required this.unresolved,
+    this.unpaid = 0,
+    this.reportUnsent = 0,
+    this.checks = 0,
   });
 
   factory DayCounts.fromJson(Map<String, dynamic> json) => DayCounts(
@@ -188,6 +193,9 @@ class DayCounts {
     canceled: json['canceled'] as int,
     noShow: json['no_show'] as int,
     unresolved: json['unresolved'] as int,
+    unpaid: json['unpaid'] as int? ?? 0,
+    reportUnsent: json['report_unsent'] as int? ?? 0,
+    checks: json['checks'] as int? ?? 0,
   );
 
   /// 마릿수 — 예약됨·미용 중·완료.
@@ -198,6 +206,13 @@ class DayCounts {
   final int canceled;
   final int noShow;
   final int unresolved;
+
+  /// 남은 일(⑬) — 결제 안 적음·알림장 안 보냄. 지난 날·오늘만 0 이 아니다(서버가 센다).
+  final int unpaid;
+  final int reportUnsent;
+
+  /// 확인할 것이 있는 살아 있는 방문의 수 — 앞날을 고른 달력 카드의 `확인 N`.
+  final int checks;
 }
 
 class DayVisitItem {
@@ -211,6 +226,7 @@ class DayVisitItem {
     required this.reportSent,
     this.customerCheckCount = 0,
     this.petCheckCount = 0,
+    this.marks = const [],
   });
 
   factory DayVisitItem.fromJson(Map<String, dynamic> json) => DayVisitItem(
@@ -223,6 +239,7 @@ class DayVisitItem {
     reportSent: json['report_sent'] as bool,
     customerCheckCount: json['customer_check_count'] as int? ?? 0,
     petCheckCount: json['pet_check_count'] as int? ?? 0,
+    marks: parseMarks(json['marks']),
   );
 
   final Visit visit;
@@ -243,6 +260,9 @@ class DayVisitItem {
   /// 구성원마다 같은 값이 오므로 한 번만 센다(`DayGroup.checkCount`). 지병은 세지 않는다.
   final int customerCheckCount;
   final int petCheckCount;
+
+  /// 끝낸 일의 낱말(⑬) — 아는 코드만, 정해 둔 차례로.
+  final List<VisitMark> marks;
 }
 
 /// 하루 목록 — 취소·노쇼까지 모두, 시작 순.
@@ -279,6 +299,8 @@ class CalendarDay {
     required this.closedDay,
     required this.cover,
     required this.covers,
+    this.unpaidCount = 0,
+    this.reportUnsentCount = 0,
   });
 
   factory CalendarDay.fromJson(Map<String, dynamic> json) => CalendarDay(
@@ -290,6 +312,8 @@ class CalendarDay {
     closedDay: json['closed_day'] as bool,
     cover: json['cover'] as String?,
     covers: [for (final c in json['covers'] as List) c as String],
+    unpaidCount: json['unpaid_count'] as int? ?? 0,
+    reportUnsentCount: json['report_unsent_count'] as int? ?? 0,
   );
 
   final DateTime date;
@@ -306,6 +330,13 @@ class CalendarDay {
 
   /// 미리보기 카드에 겹쳐 보일 사진 — 최대 4장.
   final List<String> covers;
+
+  /// 남은 일(⑬) — 결제 안 적음·알림장 안 보냄. 지난 날·오늘만 0 이 아니다.
+  final int unpaidCount;
+  final int reportUnsentCount;
+
+  /// 칸 오른쪽 위의 숫자 — 그날의 남은 일(정리 안 된 예약 + 결제 안 적음 + 알림장 안 보냄, 설계 3.8).
+  int get remainingCount => unresolvedCount + unpaidCount + reportUnsentCount;
 }
 
 /// 월 요약. [days]는 그달의 모든 날이다.
@@ -419,6 +450,8 @@ class VisitDetail {
     required this.record,
     required this.report,
     this.checks = const [],
+    this.marks = const [],
+    this.reportSkipped = false,
   });
 
   factory VisitDetail.fromJson(Map<String, dynamic> json) => VisitDetail(
@@ -437,6 +470,8 @@ class VisitDetail {
         : VisitRecord.fromJson(json['record'] as Map<String, dynamic>),
     report: ReportLink.fromJson(json['report'] as Map<String, dynamic>),
     checks: parseChecks(json['checks']),
+    marks: parseMarks(json['marks']),
+    reportSkipped: json['report_skipped'] as bool? ?? false,
   );
 
   final Visit visit;
@@ -452,6 +487,12 @@ class VisitDetail {
 
   /// 확인할 것(③-B). 예약됨·미용 중에만 온다. 모르는 항목은 이미 버렸다.
   final List<VisitCheck> checks;
+
+  /// 끝낸 일의 낱말(⑬).
+  final List<VisitMark> marks;
+
+  /// 하루 마무리에서 "알림장을 보내지 않음"으로 넘겼다 — 방문 상세에서 되돌린다.
+  final bool reportSkipped;
 }
 
 /// 다음 예약 초안. 저장하지 않은 값이다.
@@ -463,7 +504,9 @@ class NextVisitDraft {
     required this.durationMinutes,
     required this.menus,
     required this.intervalWeeks,
-  });
+    int? cycleWeeks,
+    this.cycleSource = CycleSource.none,
+  }) : cycleWeeks = cycleWeeks ?? intervalWeeks;
 
   factory NextVisitDraft.fromJson(Map<String, dynamic> json) => NextVisitDraft(
     customerId: json['customer_id'] as int,
@@ -472,6 +515,8 @@ class NextVisitDraft {
     durationMinutes: json['duration_minutes'] as int,
     menus: _menus(json['menus']),
     intervalWeeks: json['interval_weeks'] as int,
+    cycleWeeks: json['cycle_weeks'] as int?,
+    cycleSource: CycleSource.parse(json['cycle_source']),
   );
 
   final int customerId;
@@ -480,6 +525,28 @@ class NextVisitDraft {
   final int durationMinutes;
   final List<MenuBrief> menus;
   final int intervalWeeks;
+
+  /// 날짜에 쓴 주(⑬) — 직접·계산이면 그 값, 어림이면 매장의 기본 간격. 옛 응답이면 [intervalWeeks].
+  final int cycleWeeks;
+  final CycleSource cycleSource;
+
+  /// 같은 벽시계 시각의 [day] 로 옮긴 초안(다시 올 때 목록의 [예약] — 지난 날을 옮긴다).
+  NextVisitDraft movedTo(DateTime day) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final w = startsAt.wall;
+    return NextVisitDraft(
+      customerId: customerId,
+      petIds: petIds,
+      startsAt: ShopTime.parse(
+        '${isoDay(day)}T${two(w.hour)}:${two(w.minute)}:${two(w.second)}',
+      ),
+      durationMinutes: durationMinutes,
+      menus: menus,
+      intervalWeeks: intervalWeeks,
+      cycleWeeks: cycleWeeks,
+      cycleSource: cycleSource,
+    );
+  }
 }
 
 /// 등록·수정·옮기기의 결과 — 방문들과 막지 않는 경고.

@@ -8,6 +8,7 @@ import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/record_models.dart';
+import '../api/revisit_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
 import 'feed_controller.dart';
@@ -170,12 +171,43 @@ class VisitCommands {
     _ref.invalidate(visitChecksProvider);
   }
 
+  /// 알림장을 보내지 않음으로 넘긴다(⑬ 하루 마무리). 남은 일의 수가 바뀐다.
+  Future<void> skipReport(int shopId, int visitId) =>
+      _visitWrite(() => _api.skipReport(shopId, visitId));
+
+  /// 넘긴 것을 되돌린다(방문 상세).
+  Future<void> unskipReport(int shopId, int visitId) =>
+      _visitWrite(() => _api.unskipReport(shopId, visitId));
+
+  /// 매장의 다시 올 때 설정(⑬) — 보낸 칸만 바뀐다. 사장만(서버가 403). 묶음·남은 일의 수·하루 마무리가
+  /// 이 값으로 정해지므로 **성공하든 실패하든** 함께 다시 읽는다.
+  Future<RevisitSettings> updateRevisitSettings(
+    int shopId,
+    Map<String, Object?> changes,
+  ) async {
+    try {
+      return await runShopScoped(
+        _ref,
+        () => _api.updateRevisitSettings(shopId, changes),
+      );
+    } finally {
+      _ref.invalidate(revisitSettingsProvider);
+      _ref.invalidate(revisitCountsProvider);
+      _ref.invalidate(dayVisitsProvider);
+      _ref.invalidate(calendarMonthProvider);
+      _ref.invalidate(dayWrapUpProvider);
+    }
+  }
+
   Future<T> _visitWrite<T>(Future<T> Function() action) async {
     try {
       return await runShopScoped(_ref, action);
     } finally {
       _ref.invalidate(dayVisitsProvider);
       _ref.invalidate(calendarMonthProvider);
+      // 남은 일(⑬)·다시 올 때가 방문에 따라 바뀐다.
+      _ref.invalidate(dayWrapUpProvider);
+      _ref.invalidate(revisitCountsProvider);
       _ref.invalidate(visitDetailProvider);
       _ref.invalidate(visitSlotsProvider);
       _ref.invalidate(feedControllerProvider);

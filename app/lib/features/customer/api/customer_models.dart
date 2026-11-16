@@ -4,6 +4,8 @@
 /// 로그에 찍히지 않도록 `toString`을 오버라이드하지 않는다.
 library;
 
+import '../../../core/time/grooming_cycle.dart';
+
 /// 목록의 반려동물 한 줄.
 class PetSummary {
   const PetSummary({
@@ -404,6 +406,7 @@ class PetDetail {
     required this.owner,
     required this.siblings,
     this.caution,
+    this.revisit,
   });
 
   factory PetDetail.fromJson(Map<String, dynamic> json) => PetDetail(
@@ -413,6 +416,7 @@ class PetDetail {
         .map((e) => Sibling.fromJson(e as Map<String, dynamic>))
         .toList(),
     caution: Caution.maybe(json['caution']),
+    revisit: PetRevisit.maybe(json['revisit']),
   );
 
   final Pet pet;
@@ -421,6 +425,60 @@ class PetDetail {
 
   /// 보호자의 주의 표시.
   final Caution? caution;
+
+  /// 미용 주기(⑬) — 서버(visit)가 계산한다. 옛 응답이면 null.
+  final PetRevisit? revisit;
+}
+
+/// 반려동물 상세의 미용 주기(⑬ 설계 3.1). customer 는 계산 규칙을 모른다 — 받은 값을 글로만 바꾼다.
+class PetRevisit {
+  const PetRevisit({
+    required this.cycleWeeks,
+    required this.cycleSource,
+    required this.intervalCount,
+    required this.lastIntervalWeeks,
+    required this.lastVisitDate,
+    required this.dueDate,
+    required this.estimated,
+    required this.hasUpcoming,
+    required this.nudgedOn,
+  });
+
+  /// 없거나 모양이 깨졌으면 null — 줄이 없다(상세의 나머지는 보인다).
+  static PetRevisit? maybe(Object? json) {
+    if (json is! Map<String, dynamic>) return null;
+    try {
+      DateTime? day(Object? v) => v == null ? null : DateTime.parse(v as String);
+      return PetRevisit(
+        cycleWeeks: json['cycle_weeks'] as int,
+        cycleSource: CycleSource.parse(json['cycle_source']),
+        intervalCount: json['interval_count'] as int,
+        lastIntervalWeeks: json['last_interval_weeks'] as int?,
+        lastVisitDate: day(json['last_visit_date']),
+        dueDate: day(json['due_date']),
+        estimated: json['estimated'] as bool,
+        hasUpcoming: json['has_upcoming'] as bool,
+        nudgedOn: day(json['nudged_on']),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 날짜에 쓰는 주(어림이면 매장의 기본 간격).
+  final int cycleWeeks;
+  final CycleSource cycleSource;
+  final int intervalCount;
+  final int? lastIntervalWeeks;
+
+  /// 마지막 완료 방문의 날 — 없으면 아직 완료 방문이 없다.
+  final DateTime? lastVisitDate;
+  final DateTime? dueDate;
+  final bool estimated;
+  final bool hasUpcoming;
+
+  /// 안내한 날(마지막 완료 방문보다 뒤일 때만 온다).
+  final DateTime? nudgedOn;
 }
 
 /// 정해진 질병 종류 하나.

@@ -155,6 +155,24 @@ class CustomerApi {
     );
   }
 
+  /// 아이의 미용 주기를 직접 정한다(⑬, 1~52주). 204 — 상세를 다시 읽는다.
+  Future<void> setGroomingCycle(int shopId, int petId, int weeks) async {
+    await _client.put(
+      '/v1/shops/$shopId/pets/$petId/grooming-cycle',
+      data: {'weeks': weeks},
+    );
+  }
+
+  /// 직접 정한 주기를 지워 계산한 값으로 돌아간다(⑬).
+  Future<void> clearGroomingCycle(int shopId, int petId) async {
+    await _client.delete('/v1/shops/$shopId/pets/$petId/grooming-cycle');
+  }
+
+  /// 다시 올 때라고 안내한 날을 오늘로 적는다(⑬ — 공유 시트를 연 날).
+  Future<void> markRevisitNudged(int shopId, int petId) async {
+    await _client.put('/v1/shops/$shopId/pets/$petId/revisit-nudge');
+  }
+
   /// 미용 동의서를 받았다고 적는다(③-B). [receivedOn]이 없으면 서버가 오늘로 적는다.
   Future<PetDetail> setGroomingConsent(
     int shopId,
