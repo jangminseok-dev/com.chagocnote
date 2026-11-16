@@ -7,8 +7,8 @@ import type { OpenForm } from '../lib/form'
 
 // 서명 구역은 따로 본다(ConsentSubmit.test.tsx) — 여기서는 자리만 확인한다.
 vi.mock('../components/ConsentSubmit', () => ({
-  ConsentSubmit: ({ token, digest }: { token: string; digest: string }) => (
-    <div data-testid="submit" data-token={token} data-digest={digest} />
+  ConsentSubmit: ({ token, digest, shopName }: { token: string; digest: string; shopName: string }) => (
+    <div data-testid="submit" data-token={token} data-digest={digest} data-shop={shopName} />
   ),
 }))
 
@@ -116,6 +116,7 @@ test('서명 구역에 토큰과 지문을 넘긴다', () => {
   const submit = screen.getByTestId('submit')
   expect(submit.dataset.token).toBe(TOKEN)
   expect(submit.dataset.digest).toBe('d'.repeat(64))
+  expect(submit.dataset.shop).toBe('Hiss Haus')
 })
 
 test('화면에 효력을 말하는 글이 없다', () => {

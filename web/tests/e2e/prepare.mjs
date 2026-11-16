@@ -146,6 +146,7 @@ async function consentFamily(name, offset) {
 }
 const signing = await consentFamily('초코', 2)
 const revoked = await consentFamily('라떼', 3)
+const twice = await consentFamily('두유', 4) // 두 탭에서 같은 링크를 내는 테스트가 쓴다
 await call('DELETE', `${S}/forms/${revoked.sent.form_id}`, staff)
 
 mkdirSync('test-results', { recursive: true })
@@ -154,7 +155,7 @@ writeFileSync('test-results/e2e-links.json', JSON.stringify(
     live, closed, long, visitDate: startsAt.slice(0, 10), api: BASE, staffLogin, visitPath: V,
     guardianLive, guardianClosed, guardianShop: shop.name,
     guardianLogin: `e2e-guardian-${STAMP}`, guardianOther: `e2e-guardian-other-${STAMP}`,
-    consentLive: signing.sent.url, consentClosed: revoked.sent.url, consentPetPath: `${S}/pets/${signing.petId}`,
+    consentLive: signing.sent.url, consentClosed: revoked.sent.url, consentTwice: twice.sent.url, consentPetPath: `${S}/pets/${signing.petId}`,
     consentPetName: '초코', consentPetBody: consentPet('초코'),
   }, null, 2,
 ))

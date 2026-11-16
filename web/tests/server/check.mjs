@@ -157,6 +157,9 @@ const formChecks = [
       }
       assert.ok(!html.includes(backend), '첫 HTML 에 백엔드 주소가 있다')
       assert.ok(!/법적|효력/.test(html), '첫 HTML 에 효력을 말하는 글이 있다')
+      // 스크립트가 오기 전에는 낼 수 없다 — 그때 누르면 적은 이름이 주소에 실린다.
+      assert.match(html, /<button[^>]*type="submit"[^>]*disabled|<button[^>]*disabled[^>]*type="submit"/, '첫 HTML 의 보내기 버튼이 잠겨 있지 않다')
+      assert.match(html, /<form[^>]*method="post"/, '폼이 GET 으로 나갈 수 있다')
       const seen = await stats()
       assert.equal(seen.forms, 1, `백엔드 조회가 한 번이 아니다: ${seen.forms}`)
       assert.equal(seen.count, 1)

@@ -55,7 +55,7 @@ export function ConsentView({ form, token }: { form: OpenForm; token: string }) 
         </section>
       ))}
       <section data-section="sign">
-        <ConsentSubmit token={token} digest={form.doc_digest} />
+        <ConsentSubmit token={token} digest={form.doc_digest} shopName={form.shop.name} />
       </section>
       <footer className={styles.foot} data-section="foot">
         <i>차곡노트</i>

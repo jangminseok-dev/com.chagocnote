@@ -7,6 +7,7 @@ type Links = {
   staffLogin: string
   consentLive: string
   consentClosed: string
+  consentTwice: string
   consentPetPath: string
   consentPetName: string
   consentPetBody: Record<string, unknown>
@@ -42,6 +43,37 @@ async function sign(page: Page) {
 
 /** 서명 구역의 안내 한 줄. Next 의 경로 알림(role=alert)과 섞이지 않게 구역 안에서 찾는다. */
 const notice = (page: Page) => page.locator('[data-section="sign"] [role="alert"]')
+
+/** 서명 칸의 잉크 — 어두운 점의 수와, 캔버스 좌표 (x, y) 둘레에 잉크가 있는가. 바탕은 희다. */
+async function ink(page: Page, at?: { x: number; y: number }) {
+  return page.getByLabel('서명하는 곳').evaluate((el, target) => {
+    const canvas = el as HTMLCanvasElement
+    const { data } = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height)
+    let dark = 0
+    let near = false
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        if (data[(y * canvas.width + x) * 4] < 120) {
+          dark += 1
+          if (target && Math.abs(x - target.x) <= 12 && Math.abs(y - target.y) <= 12) near = true
+        }
+      }
+    }
+    return { dark, near }
+  }, at ?? null)
+}
+
+/** 손가락으로 긋는다(CDP 의 터치). points 는 화면 좌표의 [손가락마다의 길]이다 — 길이가 같아야 한다. */
+async function touch(page: Page, paths: { x: number; y: number }[][]) {
+  const cdp = await page.context().newCDPSession(page)
+  const frame = (index: number) => paths.map((path, id) => ({ x: path[index].x, y: path[index].y, id }))
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: frame(0) })
+  for (let index = 1; index < paths[0].length; index += 1) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: frame(index) })
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+}
 
 const send = (page: Page) => page.getByRole('button', { name: '동의하고 보내기' }).click()
 
@@ -86,6 +118,50 @@ test('폭 320 에서도 옆으로 넘치지 않고, 서명하는 손가락을 �
   expect(Math.round(((box?.width ?? 0) / (box?.height ?? 1)) * 10)).toBe(25) // 5:2
 })
 
+test('폭 320 에서 손가락으로 그으면 그은 자리에 선이 남고 화면이 구르지 않는다', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 })
+  await page.goto(links.consentLive)
+  const canvas = page.getByLabel('서명하는 곳')
+  await canvas.scrollIntoViewIfNeeded()
+  const box = (await canvas.boundingBox())!
+  const scrollBefore = await page.evaluate(() => window.scrollY)
+  expect((await ink(page)).dark).toBe(0)
+  await expect(page.getByText('여기에 서명해 주세요')).toBeVisible()
+
+  // 칸의 왼쪽 위 1/4 지점에서 오른쪽 아래 3/4 지점까지 — 세로로도 움직인다(화면을 굴리는 손짓과 같다).
+  const path = Array.from({ length: 9 }, (_, i) => ({
+    x: box.x + box.width * (0.25 + (0.5 * i) / 8),
+    y: box.y + box.height * (0.25 + (0.5 * i) / 8),
+  }))
+  await touch(page, [path])
+
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrollBefore)
+  // 화면의 좌표가 600×240 캔버스의 좌표로 맞게 옮겨진다 — 가운데(300, 120)를 지난다.
+  const drawn = await ink(page, { x: 300, y: 120 })
+  expect(drawn.dark).toBeGreaterThan(200)
+  expect(drawn.near).toBe(true)
+  expect((await ink(page, { x: 560, y: 30 })).near).toBe(false)
+  await expect(page.getByText('여기에 서명해 주세요')).toHaveCount(0)
+})
+
+test('서명하는 중에 닿은 둘째 손가락은 선을 긋지 않는다', async ({ page }) => {
+  await page.goto(links.consentLive)
+  const canvas = page.getByLabel('서명하는 곳')
+  await canvas.scrollIntoViewIfNeeded()
+  const box = (await canvas.boundingBox())!
+  const at = (fx: number, fy: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * fy })
+  // 첫 손가락은 왼쪽 위에서 짧게, 둘째 손가락(손바닥)은 오른쪽 아래에 닿아 조금 움직인다.
+  const first = [at(0.1, 0.2), at(0.15, 0.25), at(0.2, 0.2), at(0.25, 0.25)]
+  const second = [at(0.85, 0.8), at(0.86, 0.82), at(0.87, 0.8), at(0.88, 0.82)]
+
+  await touch(page, [first, second])
+
+  // 두 손가락 사이(가운데)에도, 둘째 손가락의 자리에도 잉크가 없다.
+  expect((await ink(page, { x: 300, y: 120 })).near).toBe(false)
+  expect((await ink(page, { x: 516, y: 194 })).near).toBe(false)
+  expect((await ink(page, { x: 105, y: 54 })).near).toBe(true)
+})
+
 test('빠진 것이 있으면 보내지 않고 무엇이 빠졌는지 말한다', async ({ page }) => {
   let submits = 0
   page.on('request', (req) => {
@@ -126,6 +202,14 @@ test('자바스크립트가 꺼져 있어도 문안은 읽히고, 켜 달라는 
   expect(await page.locator('[data-section="sign"] noscript').evaluate((el) => el.textContent)).toContain(
     '서명하려면 자바스크립트를 켜 주세요',
   )
+
+  // 버튼은 잠겨 있고, 이름을 치고 Enter 를 눌러도 나가지 않는다 — 적은 이름이 주소에 실리지 않는다.
+  await expect(page.getByRole('button', { name: '동의하고 보내기' })).toBeDisabled()
+  await page.getByLabel('이름').fill('김동의')
+  await page.getByLabel('이름').press('Enter')
+  await page.waitForTimeout(300)
+  expect(page.url()).toBe(links.consentLive)
+  expect(page.url()).not.toContain('signer_name')
   await context.close()
 })
 
@@ -152,8 +236,13 @@ test('읽는 사이 지병이 더해지면 다시 읽게 하고, 다시 서명�
   await expect(page.getByLabel('위 내용을 읽었고 동의합니다')).not.toBeChecked()
   expect((await pet(request)).grooming_consent_on).toBeNull()
 
-  await sign(page)
+  // 서명 칸은 비워졌다 — 다시 서명하지 않고 보내면 보내지 않는다.
+  expect((await ink(page)).dark).toBe(0)
   await page.getByLabel('위 내용을 읽었고 동의합니다').check()
+  await send(page)
+  await expect(notice(page)).toHaveText('서명해 주세요')
+
+  await sign(page)
   await send(page)
 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('보냈어요')
@@ -187,4 +276,33 @@ test('알림장 링크의 토큰을 동의서 주소에 넣어도 열리지 않�
   const res = await page.goto(`/f/${live.split('/').pop()}`)
 
   expect(res?.status()).toBe(404)
+})
+
+test('두 탭에서 같은 링크를 내면 둘째도 오류가 아니라 보냈어요다', async ({ page, context }) => {
+  const other = await context.newPage()
+  for (const tab of [page, other]) {
+    await tab.goto(links.consentTwice)
+    await tab.getByLabel('이름').fill('김동의')
+    await sign(tab)
+    await tab.getByLabel('위 내용을 읽었고 동의합니다').check()
+  }
+
+  // 화면을 다시 읽는 요청을 잠깐 붙들어 둔다 — 그 사이에도 보냈다는 것이 보여야 한다(느린 망).
+  await page.route('**/f/**', async (route) => {
+    if (route.request().method() === 'GET' && route.request().headers().rsc !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+    }
+    await route.continue()
+  })
+  await send(page)
+  await expect(page.locator('[data-section="sign"] [role="status"]')).toContainText('보냈어요.')
+  await expect(page.locator('[data-section="sign"] [role="status"]')).toBeFocused()
+  await expect(page.getByRole('button', { name: '동의하고 보내기' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('보냈어요')
+
+  // 둘째 탭은 이미 낸 링크에 낸다(410) — 닫힌 서류나 오류가 아니라 보냈어요로 바뀐다.
+  await other.bringToFront()
+  await send(other)
+  await expect(other.getByRole('heading', { level: 1 })).toHaveText('보냈어요')
+  await expect(other.locator('body')).not.toContainText('닫힌 서류')
 })
