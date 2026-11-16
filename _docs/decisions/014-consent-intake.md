@@ -15,7 +15,7 @@
 5. **서명은 읽은 토막과 그때 보인 사실의 사본을 남긴다.** 그래서 뒤에 노령이 되거나 지병이 늘면 **바뀐 토막만** 다시 받는다. 부분 서명은 받은 날을 옮기지 않는다 — 기한은 처음 전체를 받은 날부터 365일이다.
 6. **판정은 지금처럼 `visit` 이 방문의 날로 한다.** `customer` 는 사실만 준다 — 허브 DTO `PetCareFact` 에 `consent_cover`(서명이 덮는 것)와 `consent_form_sent_on`(살아 있는 링크를 보낸 날). 확인할 것의 `consent` 에 상태 `partial` 과 `parts`, `form_sent_on` 이 더해졌다(값이 있을 때만 칸이 있다).
 7. **서명으로 받은 동의는 지병이 늘어도 받은 날을 지우지 않는다.** 손으로 적은 동의(③-B 의 [받았어요])는 지금처럼 지운다.
-8. **아이 하나에 살아 있는 동의서 요청은 하나다.** 요청이 아이 여럿을 담아 부분 유일 색인으로 쓸 수 없다 — 발급이 고객 행을 잠근 안에서 지킨다. 같은 아이들에게 다시 보내면 같은 링크(200), 새로 만들면 201.
+8. **아이 하나에 살아 있는 동의서 요청은 하나다.** 요청이 아이 여럿을 담아 부분 유일 색인으로 쓸 수 없다 — 발급이 고객 행을 잠근 안에서 지킨다. 그 아이들을 모두 담은 살아 있는 요청이 있으면 같은 링크(200), 새로 만들면 201.
 9. **서명을 받으면 그 아이는 살아 있는 다른 링크에서 빠진다.** 아이가 남지 않은 링크는 끊긴다 — 같은 것을 두 번 서명받지 않는다.
 10. **서명 그림은 DB 에 둔다**(64KB 이하의 PNG 한 장). 로그인 없는 경로에 업로드 발급을 열지 않는다. 서버는 그림을 풀지 않고 머리·폭·높이·크기만 본다.
 11. **기준값은 `ConsentPolicy` 로 받는다**(노령 10살·기한 365일·링크 14일). 지금은 기본값뿐이고 `customer/dependencies/customer_wiring.consent_policy()` 가 준다 — 매장이 바꾼 값은 ⑪-B 가 여기서 읽는다. 다만 **`visit` 의 판정은 아직 자기 상수(10·365)를 쓴다** — ⑪-B 가 매장 설정을 읽게 할 때 두 곳을 함께 바꿔야 한다.
@@ -29,13 +29,36 @@
 - **익명화는 이미 낸 링크도 닫는다.** 흐름 스크립트가 잡았다 — 낸 링크가 익명화 뒤에도 "보냈어요"로 열렸다. 개인정보는 없었지만 알림장과 같게 410 으로 맞췄다.
 - 라우터별 스텁 테스트는 쓰지 않고 실제 배선 통합 테스트로 덮었다. 통합 테스트 일부는 구현 뒤에 처음 돌렸고, 대신 변이 33개로 판별력을 확인했다(살아남은 둘은 테스트를 더해 잡았고, 하나는 같은 결과인 변이다).
 
+## 최종 검토에서 고친 것 (2026-11-16)
+
+새 맥락의 검토자가 브랜치 전체를 보았다. Critical 은 없었고 Important 넷과 Minor 하나(다시 매겨 올렸다)를 테스트 먼저 쓰고 고쳤다.
+
+1. **문서를 예약 날로 조립할 수 있다(`for_date`).** 판정은 방문의 날로 하는데 문서는 오늘로 조립해서, 예약 날에는 기한이 지나거나 노령이 되는 아이에게 [동의서 보내기]가 409 였다(받을 것이 없다고). 발급·현장 문서·현장 서명이 선택 `for_date` 를 받고, 링크는 그날을 요청에 적어 둔다(0019). 그날로 필요한 토막을 계산하고 받은 날은 오늘로 찍는다. 지난 날은 오늘로, 기한(365일)보다 먼 날은 422.
+2. **같은 링크의 규칙은 "포함"이다.** 그 아이들을 모두 담은 살아 있는 요청이 있으면 그것을 돌려준다 — 가족 링크의 한 아이만 다시 보내도 링크가 쪼개지지 않는다. 더 먼 예약 날로 다시 보내면 링크의 기준일을 그날로 맞춘다.
+3. **공개 제출은 본문을 읽기 전에 크기와 횟수를 본다**(`adapter/inbound/api/public_form_guard.py`). FastAPI 는 의존성보다 본문을 먼저 읽어서, 경로의 처리기를 감쌌다. 131,072바이트를 넘거나 길이가 없으면 413, 틀린 본문(422)도 제출 횟수에 든다.
+4. **덮는 것은 날짜가 아니라 서명 ID 로 거른다.** 같은 날 지우고 다시 받으면 지우기 전의 서명이 끼었고, 시각과 날짜를 따로 읽어 자정에 걸치면 방금 받은 서명이 세어지지 않을 수 있었다.
+5. **잠금의 순서를 테스트가 지킨다**(`tests/integration/test_consent_locking.py`). 다른 트랜잭션이 고객 행을 쥔 채 지병을 더하면 서명이 409 로 거절된다. "기다리는지"만 보아서는 모자랐다 — 잠금이 없어도 서명 행의 외래 키 검사가 같은 자리에서 기다린다. 동시 제출·현장과 링크·익명화와 제출이 겹치는 테스트도 더했다.
+
+## ⑪-A 백엔드에서 남는 것 (미룬 Minor)
+
+- 기준값(10살·365일)이 `visit` 과 `customer` 두 곳에 있고 둘이 같다는 테스트가 없다 — ⑪-B 가 매장 설정으로 바꿀 때 함께 고친다.
+- 알림장 토큰 ↔ 서류 토큰 테스트의 한쪽은 "그 `public_id` 의 알림장이 없어서"도 404 다(반대쪽과 단위 테스트는 가른다).
+- `pets.grooming_consent_signature_id` 에 FK 가 없다 — 지금은 없는 서명을 가리키는 길이 없지만 ⑪-C 의 주기 삭제가 들어오면 막아 줄 것이 없다.
+- `delete_for_pet` 의 남은 줄 찾기가 표 전체를 훑는다.
+- `expires_on` 은 날짜인데 링크는 그날 보낸 시각에 닫힌다 — "11월 30일까지"로 읽히지만 30일 낮에 닫힌다.
+- 손 표시된 아이는 [지우기]를 먼저 눌러야 서명을 받을 수 있다 — 앱(⑪-A3)이 안내해야 한다.
+- 서류 저장소를 주지 않으면 `care_facts` 가 조용히 서명을 손 표시로 본다(실제 프로바이더는 꽂는다).
+- `read_public_form_interactor` 가 다른 유스케이스 모듈의 `document_view` 를 쓴다 — `app/services/` 로 옮길 것.
+- 횟수 제한의 경고 문구가 서류 이름 공간에서도 "알림장"이다.
+- 이름·그림 검사가 잠금 뒤다. 서류 쪽에 운영 로그(매장·요청·결과)가 없다.
+
 ## ⑪-A 의 API 계약 (웹·앱이 기댄다)
 
 매장(`/v1/shops/{shop_id}/…`):
 
-- `POST consent-forms {pet_ids}` → `{form_id, url, expires_on, sent_on}` (201 새로 / 200 같은 링크). `customer:write`.
+- `POST consent-forms {pet_ids, for_date?}` → `{form_id, url, expires_on, sent_on}` (201 새로 / 200 같은 링크 — 그 아이들을 모두 담은 살아 있는 요청). `customer:write`. `for_date` 는 예약 날이다 — 그날에 유효한 동의를 받는다.
 - `GET forms` → `{items: [{form_id, kind, customer: {customer_id, name}, pets: [{pet_id, name}], sent_on, expires_on, url}]}` · `DELETE forms/{form_id}` → 204.
-- `GET consent-document?pet_ids=1&pet_ids=2` → `{pets: [{pet_id, name, conditions, parts}], texts: {part: {body}}, previous_consent_on, doc_digest}` · `POST consent-signatures {pet_ids, doc_digest, signer_name, signature_png(base64)}` → 201 `{signature_id}`.
+- `GET consent-document?pet_ids=1&pet_ids=2&for_date=` → `{pets: [{pet_id, name, conditions, parts}], texts: {part: {body}}, previous_consent_on, doc_digest}` · `POST consent-signatures {pet_ids, doc_digest, signer_name, signature_png(base64), for_date?}` → 201 `{signature_id}` (`for_date` 는 문서를 읽을 때 준 것과 같아야 지문이 맞는다).
 - `GET pets/{pet_id}/consent-signatures` · `GET consent-signatures/{id}` · `GET consent-signatures/{id}/image`(`image/png`).
 - 반려동물 상세의 `pet.grooming_consent_via`: `signature`·`manual`·`null`.
 - 오류: 404 `FORM_NOT_FOUND`·`SIGNATURE_NOT_FOUND` · 409 `CONSENT_DOCUMENT_CHANGED`·`CONSENT_UP_TO_DATE` · 410 `FORM_CLOSED` · 429 `TOO_MANY_ATTEMPTS`.
@@ -43,7 +66,7 @@
 공개(로그인 없음, 헤더 `X-Form-Token`):
 
 - `GET /v1/public/form` → 열림 `{kind, state: "open", shop: {name}, previous_consent_on, pets: [{name, conditions, parts}], texts, doc_digest}` / 냄 `{kind, state: "submitted", shop: {name}, submitted_on}`.
-- `POST /v1/public/form/consent {doc_digest, signer_name, signature_png}` → 204 / 409 / 410 / 404 / 422 / 429(10분에 10번).
+- `POST /v1/public/form/consent {doc_digest, signer_name, signature_png}` → 204 / 409 / 410 / 404 / 413(본문 131,072바이트 초과) / 422 / 429(10분에 10번 — 틀린 본문도 센다).
 
 ## 받아들인 한계
 

@@ -48,10 +48,10 @@ def facts_of(pet: Pet, signed=()) -> PetConsentFacts:
 
 
 async def read_document(
-    ctx: ShopContext, pet_ids: tuple[int, ...], today: date, policy: ConsentPolicy, *,
+    ctx: ShopContext, pet_ids: tuple[int, ...], on: date, policy: ConsentPolicy, *,
     pets: PetRepository, signatures: ConsentSignatureRepository,
 ) -> ConsentDocument:
-    """그 아이들의 동의서. 없는 아이·익명화한 고객의 아이·다른 매장의 아이면 PetNotFoundError,
+    """그 아이들의 동의서를 기준일(on — 오늘이거나 예약 날)로 조립한다. 없는 아이·익명화한 고객의 아이·다른 매장의 아이면 PetNotFoundError,
     한 가족이 아니면 CustomerInputError. 다시 받을 것이 없으면 pets 가 비어 있다."""
     found = [await pets.get(ctx, pet_id) for pet_id in sorted(set(pet_ids))]
     if not found:
@@ -59,10 +59,10 @@ async def read_document(
     owners = {pet.customer_id for pet in found}
     if len(owners) != 1:
         raise CustomerInputError("한 가족의 아이만 함께 보낼 수 있습니다.")
-    since = {pet.id: pet.grooming_consent_on for pet in found
+    since = {pet.id: pet.grooming_consent_signature_id for pet in found
              if pet.grooming_consent_on is not None and pet.grooming_consent_signature_id is not None}
     covers = await signatures.covers(ctx, since)
-    doc = build_document([facts_of(pet, covers.get(pet.id, ())) for pet in found], today, policy)
+    doc = build_document([facts_of(pet, covers.get(pet.id, ())) for pet in found], on, policy)
     texts = current_texts(ctx)
     used = [part for part in PARTS if any(part in pet.parts for pet in doc)]
     partial = [pet.grooming_consent_on for pet in found

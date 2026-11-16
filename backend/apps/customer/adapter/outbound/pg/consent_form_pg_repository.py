@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,13 +20,13 @@ class ConsentFormPgRepository(ConsentFormRepository):
 
     async def create(
         self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...], public_id: bytes,
-        expires_at: datetime,
+        expires_at: datetime, for_date: date | None = None,
     ) -> ConsentForm:
         form_id = (
             await self._session.execute(
                 insert(CustomerFormOrm).values(
                     shop_id=ctx.shop_id, kind=_KIND, public_id=public_id, customer_id=customer_id,
-                    expires_at=expires_at, created_by_member_id=ctx.member_id,
+                    expires_at=expires_at, created_by_member_id=ctx.member_id, for_date=for_date,
                 ).returning(CustomerFormOrm.id)
             )
         ).scalar_one()
@@ -70,6 +70,13 @@ class ConsentFormPgRepository(ConsentFormRepository):
             .where(CustomerFormOrm.id == form_id, CustomerFormOrm.shop_id == ctx.shop_id,
                    CustomerFormOrm.revoked_at.is_(None), CustomerFormOrm.submitted_at.is_(None))
             .values(revoked_at=now)
+        )
+
+    async def set_for_date(self, ctx: ShopContext, form_id: int, for_date: date) -> None:
+        await self._session.execute(
+            update(CustomerFormOrm)
+            .where(CustomerFormOrm.id == form_id, CustomerFormOrm.shop_id == ctx.shop_id)
+            .values(for_date=for_date)
         )
 
     async def close_for_customer(self, ctx: ShopContext, customer_id: int, now: datetime) -> None:
@@ -153,7 +160,7 @@ class ConsentFormPgRepository(ConsentFormRepository):
                 id=row.id, shop_id=row.shop_id, public_id=bytes(row.public_id), customer_id=row.customer_id,
                 pet_ids=tuple(pets[row.id]), expires_at=row.expires_at, revoked_at=row.revoked_at,
                 submitted_at=row.submitted_at, created_by_member_id=row.created_by_member_id,
-                created_at=row.created_at,
+                created_at=row.created_at, for_date=row.for_date,
             )
             for row in rows
         ]

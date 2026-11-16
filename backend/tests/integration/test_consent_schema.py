@@ -108,7 +108,7 @@ async def test_다른_매장의_요청과_서명은_못_찾고_못_끊는다(fam
         assert await signatures.list_for_pet(_ctx(other_shop), pet_id) == []
         assert await signatures.delete_for_customer(_ctx(other_shop), customer_id) == 0
         assert await signatures.delete_for_pet(_ctx(other_shop), pet_id) == 0
-        assert await signatures.covers(_ctx(other_shop), {pet_id: NOW.date()}) == {}
+        assert await signatures.covers(_ctx(other_shop), {pet_id: signature_id}) == {}
 
 
 async def test_서명을_쓰고_그대로_읽는다(family):
@@ -127,18 +127,20 @@ async def test_서명을_쓰고_그대로_읽는다(family):
         assert (brief.signature_id, brief.parts) == (signature_id, ("basic", "condition"))
 
 
-async def test_covers_는_받은_날_앞의_서명을_세지_않는다(family):
+async def test_covers_는_받은_날을_찍은_서명부터_센다(family):
     wired, shop_id, customer_id, pet_id, _ = family
     async with _session(wired) as session:
         signatures = ConsentSignaturePgRepository(session)
-        await signatures.add(_ctx(shop_id), _signature(
-            customer_id, pet_id, "basic", "senior", signed_at=NOW - timedelta(days=400)))
-        # 서울 11월 16일 00:30 — UTC 로는 15일이다. 매장 시간대의 날로 견준다.
-        await signatures.add(_ctx(shop_id), _signature(
-            customer_id, pet_id, "basic", "condition", labels=("심장 질환",),
-            signed_at=datetime(2026, 11, 15, 15, 30, tzinfo=timezone.utc)))
-        covers = await signatures.covers(_ctx(shop_id), {pet_id: NOW.date()})
-        assert covers == {pet_id: (SignedCover(frozenset({"basic", "condition"}), frozenset({"심장 질환"})),)}
+        await signatures.add(_ctx(shop_id), _signature(customer_id, pet_id, "basic", "senior"))     # 지금의 동의 앞
+        current = await signatures.add(_ctx(shop_id), _signature(
+            customer_id, pet_id, "basic", "condition", labels=("심장 질환",)))
+        later = await signatures.add(_ctx(shop_id), _signature(customer_id, pet_id, "condition", labels=("피부",)))
+        covers = await signatures.covers(_ctx(shop_id), {pet_id: current})
+        assert later > current
+        assert covers == {pet_id: (
+            SignedCover(frozenset({"basic", "condition"}), frozenset({"심장 질환"})),
+            SignedCover(frozenset({"condition"}), frozenset({"피부"})),
+        )}
 
 
 async def test_아이의_서명을_지우면_아이가_남지_않은_서명도_지워진다(family):

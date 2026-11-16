@@ -18,6 +18,6 @@ async def sign_consent_in_shop(
 ) -> SignedSchema:
     signature_id = await use_case.sign_consent_in_shop(SignConsentInShopCommand(
         ctx=ctx, pet_ids=tuple(body.pet_ids), doc_digest=body.doc_digest, signer_name=body.signer_name,
-        signature_png=body.png(),
+        signature_png=body.png(), for_date=body.for_date,
     ))
     return SignedSchema(signature_id=signature_id)

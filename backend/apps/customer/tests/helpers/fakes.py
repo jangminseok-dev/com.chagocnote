@@ -316,11 +316,11 @@ class FakeConsentForms(ConsentFormRepository):
         self.rows: dict[int, ConsentForm] = {}
         self._next = 1
 
-    async def create(self, ctx, customer_id, pet_ids, public_id, expires_at):
+    async def create(self, ctx, customer_id, pet_ids, public_id, expires_at, for_date=None):
         form = ConsentForm(
             id=self._next, shop_id=ctx.shop_id, public_id=public_id, customer_id=customer_id,
             pet_ids=tuple(sorted(set(pet_ids))), expires_at=expires_at, revoked_at=None, submitted_at=None,
-            created_by_member_id=ctx.member_id, created_at=NOW)
+            created_by_member_id=ctx.member_id, created_at=NOW, for_date=for_date)
         self.rows[form.id] = form
         self._next += 1
         self.journal.append(("create_form", form.id, form.pet_ids))
@@ -346,6 +346,11 @@ class FakeConsentForms(ConsentFormRepository):
         if form is not None and form.shop_id == ctx.shop_id and form.revoked_at is None and form.submitted_at is None:
             self.rows[form_id] = replace(form, revoked_at=now)
             self.journal.append(("revoke_form", form_id))
+
+    async def set_for_date(self, ctx, form_id, for_date):
+        form = self.rows.get(form_id)
+        if form is not None and form.shop_id == ctx.shop_id:
+            self.rows[form_id] = replace(form, for_date=for_date)
 
     async def close_for_customer(self, ctx, customer_id, now):
         for form_id, form in list(self.rows.items()):
@@ -398,11 +403,11 @@ class FakeConsentSignatures(ConsentSignatureRepository):
 
     async def covers(self, ctx, since):
         found: dict[int, list[SignedCover]] = {}
-        for shop_id, signature in self.rows.values():
+        for signature_id, (shop_id, signature) in sorted(self.rows.items()):
             if shop_id != ctx.shop_id:
                 continue
             for pet in signature.pets:
-                if pet.pet_id in since and signature.signed_at.date() >= since[pet.pet_id]:
+                if pet.pet_id in since and signature_id >= since[pet.pet_id]:
                     found.setdefault(pet.pet_id, []).append(SignedCover(
                         frozenset(p.part for p in pet.parts), frozenset(pet.condition_labels)))
         return {pet_id: tuple(covers) for pet_id, covers in found.items()}

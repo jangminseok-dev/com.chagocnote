@@ -139,7 +139,7 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
         """아이 → 서명이 덮는 것, 아이 → 살아 있는 동의서 링크를 보낸 날. 아이가 몇이든 질의는 둘이다."""
         if self._signatures is None or self._forms is None or self._now is None or not pets:
             return {}, {}
-        signed = {p.id: p.grooming_consent_on for p in pets
+        signed = {p.id: p.grooming_consent_signature_id for p in pets
                   if p.grooming_consent_on is not None and p.grooming_consent_signature_id is not None}
         found = await self._signatures.covers(ctx, signed)
         covers = {

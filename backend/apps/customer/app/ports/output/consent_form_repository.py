@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import date, datetime
 
 from customer.domain.entities.consent_form import ConsentForm
 from hub.app.dtos.shop_context import ShopContext
@@ -16,7 +16,7 @@ class ConsentFormRepository(ABC):
     @abstractmethod
     async def create(
         self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...], public_id: bytes,
-        expires_at: datetime,
+        expires_at: datetime, for_date: date | None = None,
     ) -> ConsentForm: ...
 
     @abstractmethod
@@ -34,6 +34,10 @@ class ConsentFormRepository(ABC):
     @abstractmethod
     async def revoke(self, ctx: ShopContext, form_id: int, now: datetime) -> None:
         """끊는다. 이미 끊었거나 낸 요청은 그대로 둔다."""
+
+    @abstractmethod
+    async def set_for_date(self, ctx: ShopContext, form_id: int, for_date: date) -> None:
+        """기준일을 바꾼다 — 같은 링크를 더 먼 예약 날로 다시 보낼 때."""
 
     @abstractmethod
     async def close_for_customer(self, ctx: ShopContext, customer_id: int, now: datetime) -> None:

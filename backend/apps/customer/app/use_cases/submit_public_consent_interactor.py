@@ -13,9 +13,7 @@ from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.consent_signer import SigningInput, sign
 from customer.app.services.public_form_gate import open_form
 from customer.domain.entities.consent import ConsentPolicy
-from customer.domain.errors import (
-    CustomerNotFoundError, FormClosedError, PetNotFoundError, TooManyFormRequestsError,
-)
+from customer.domain.errors import CustomerNotFoundError, FormClosedError, PetNotFoundError
 from hub.app.dtos.shop_context import public_context
 from hub.app.ports.public_limiter_port import PublicLimiterPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
@@ -24,7 +22,8 @@ from hub.app.ports.shop_profile_port import ShopProfilePort
 class SubmitPublicConsentInteractor(SubmitPublicConsentUseCase):
     """보호자가 링크에서 서명해 보낸다. 로그인이 없다 — public_context 로 서류의 표와 동의 칸만 쓴다.
 
-    잠금은 고객 행 → 서류 요청 행. 한 번 내면 닫힌다.
+    잠금은 고객 행 → 서류 요청 행. 한 번 내면 닫힌다. 제출 횟수와 본문 크기는 경로의 문이 본문을 읽기 전에 본다
+    (adapter/inbound/api/public_form_guard.py).
     """
 
     def __init__(
@@ -48,8 +47,6 @@ class SubmitPublicConsentInteractor(SubmitPublicConsentUseCase):
             command.token, command.client, now, link_key=self._link_key, forms=self._forms, shops=self._shops,
             limiter=self._limiter,
         )
-        if not await self._limiter.allow_write(command.client):
-            raise TooManyFormRequestsError("요청이 너무 잦습니다. 잠시 뒤에 다시 보내 주세요.")
         ctx = public_context(shop)
         try:
             await self._customers.lock_active(ctx, found.customer_id)
@@ -67,6 +64,7 @@ class SubmitPublicConsentInteractor(SubmitPublicConsentUseCase):
                     pet_ids=form.pet_ids, doc_digest=command.doc_digest, signer_name=command.signer_name,
                     signature_png=command.signature_png, channel="link", form_id=form.id,
                     by_member_id=form.created_by_member_id,     # 받은 멤버는 링크를 보낸 멤버다
+                    for_date=form.for_date,
                 ),
                 now, now.astimezone(ZoneInfo(ctx.timezone)).date(), self._policy,
                 pets=self._pets, signatures=self._signatures, forms=self._forms,

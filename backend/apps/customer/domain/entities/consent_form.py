@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,7 @@ class ConsentForm:
     submitted_at: datetime | None
     created_by_member_id: int
     created_at: datetime
+    for_date: date | None = None          # 문서를 조립하는 기준일(예약 날). 없으면 여는 날
 
     def is_live(self, now: datetime) -> bool:
         """끊지 않았고, 내지 않았고, 기간 안이다."""

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,21 +64,19 @@ class ConsentSignaturePgRepository(ConsentSignatureRepository):
                 ])
         return signature_id
 
-    async def covers(self, ctx: ShopContext, since: Mapping[int, date]) -> dict[int, tuple[SignedCover, ...]]:
+    async def covers(self, ctx: ShopContext, since: Mapping[int, int]) -> dict[int, tuple[SignedCover, ...]]:
         if not since:
             return {}
-        zone = ZoneInfo(ctx.timezone)
         rows = (
             await self._session.execute(
-                select(ConsentSignaturePetOrm.id, ConsentSignaturePetOrm.pet_id, ConsentSignatureOrm.signed_at)
+                select(ConsentSignaturePetOrm.id, ConsentSignaturePetOrm.pet_id, ConsentSignatureOrm.id)
                 .join(ConsentSignatureOrm, ConsentSignatureOrm.id == ConsentSignaturePetOrm.signature_id)
                 .where(ConsentSignatureOrm.shop_id == ctx.shop_id, ConsentSignaturePetOrm.pet_id.in_(since))
-                .order_by(ConsentSignatureOrm.signed_at, ConsentSignaturePetOrm.id)
+                .order_by(ConsentSignatureOrm.id, ConsentSignaturePetOrm.id)
             )
         ).all()
-        # 받은 날 앞의 서명은 지금의 동의가 아니다 — 세지 않는다.
-        kept = [(sp_id, pet_id) for sp_id, pet_id, signed_at in rows
-                if signed_at.astimezone(zone).date() >= since[pet_id]]
+        # 받은 날을 찍은 서명보다 앞의 것은 지금의 동의가 아니다 — 세지 않는다.
+        kept = [(sp_id, pet_id) for sp_id, pet_id, signature_id in rows if signature_id >= since[pet_id]]
         parts, labels = await self._children([sp_id for sp_id, _ in kept])
         found: dict[int, list[SignedCover]] = {}
         for sp_id, pet_id in kept:

@@ -1,10 +1,10 @@
 """서류 요청과 동의서 서명의 표(⑪-A, 마이그레이션 0018)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
-    BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, LargeBinary, SmallInteger, String,
+    BigInteger, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, LargeBinary, SmallInteger, String,
     UniqueConstraint, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -33,6 +33,8 @@ class CustomerFormOrm(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_member_id: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # 문서를 조립하는 기준일(예약 날). 없으면 여는 날이다(0019).
+    for_date: Mapped[date | None] = mapped_column(Date)
 
 
 class CustomerFormPetOrm(Base):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from hub.app.dtos.shop_context import ShopContext
 
@@ -9,3 +10,4 @@ from hub.app.dtos.shop_context import ShopContext
 class GetConsentDocumentQuery:
     ctx: ShopContext
     pet_ids: tuple[int, ...]
+    for_date: date | None = None

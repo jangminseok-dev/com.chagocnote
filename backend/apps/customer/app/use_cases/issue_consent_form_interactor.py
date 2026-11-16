@@ -16,6 +16,7 @@ from customer.app.services.consent_reader import read_document
 from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.entities.consent_form import ConsentForm
 from customer.domain.errors import ConsentUpToDateError, CustomerInputError
+from customer.domain.services.consent_document import base_date
 
 
 class IssueConsentFormInteractor(IssueConsentFormUseCase):
@@ -42,18 +43,23 @@ class IssueConsentFormInteractor(IssueConsentFormUseCase):
         now = self._now()
         # 고객 행을 먼저 잠근다 — 같은 가족에게 동시에 보내도 요청이 하나만 생긴다(고객 행 → 서류 요청 행).
         customer_id = await self._pets.lock_owner(ctx, min(command.pet_ids))
-        doc = await read_document(
-            ctx, command.pet_ids, self._today(), self._policy, pets=self._pets, signatures=self._signatures)
+        on = base_date(self._today(), command.for_date, self._policy)
+        doc = await read_document(ctx, command.pet_ids, on, self._policy, pets=self._pets, signatures=self._signatures)
         if not doc.pets:
             raise ConsentUpToDateError("이미 받은 동의입니다.")
         wanted = tuple(pet.pet_id for pet in doc.pets)
         live = await self._forms.live_for_customer(ctx, customer_id, now)
-        same = next((form for form in live if form.pet_ids == wanted), None)
+        # 그 아이들을 모두 담은 살아 있는 요청이 있으면 그것이다 — 가족 링크의 한 아이만 다시 보내도 링크가 쪼개지지 않는다.
+        same = next((form for form in live if set(wanted) <= set(form.pet_ids)), None)
         if same is not None:
+            # 더 먼 예약 날로 다시 보냈으면 링크의 기준일을 그날로 맞춘다.
+            if command.for_date is not None and (same.for_date is None or same.for_date < on):
+                await self._forms.set_for_date(ctx, same.id, on)
             return self._view(ctx.timezone, same, created=False)
         await drop_pets(ctx, customer_id, wanted, now, self._forms)
         form = await self._forms.create(
-            ctx, customer_id, wanted, new_public_id(), now + timedelta(days=self._policy.link_days))
+            ctx, customer_id, wanted, new_public_id(), now + timedelta(days=self._policy.link_days),
+            for_date=None if command.for_date is None else on)
         return self._view(ctx.timezone, form, created=True)
 
     def _view(self, timezone: str, form: ConsentForm, *, created: bool) -> FormLinkView:

@@ -227,3 +227,25 @@ async def test_이미_낸_링크도_고객을_익명화하면_410_이다(wired):
     assert removed.status_code == 204, removed.text
     assert error_of(await _read(wired, token)) == (410, "FORM_CLOSED")
     assert await count(wired, "customer_forms", "revoked_at IS NULL") == 0
+
+
+
+# --- 본문 앞의 문 (최종 검토 I2) -------------------------------------------------------------------------------------
+
+async def test_큰_본문은_읽기_전에_413_이다(wired):
+    *_, token, _, _ = await _sent(wired)
+    huge = {"doc_digest": "0" * 64, "signer_name": "김민지", "signature_png": "A" * 200_000}
+
+    blocked = await wired.api.post("/v1/public/form/consent", headers=_with(token), json=huge)
+
+    assert error_of(blocked) == (413, "PAYLOAD_TOO_LARGE")
+    assert (await _read(wired, token)).json()["state"] == "open"
+
+
+async def test_틀린_본문도_제출_횟수에_든다(wired):
+    *_, token, _, _ = await _sent(wired)
+
+    codes = [(await wired.api.post("/v1/public/form/consent", headers=_with(token), json={"nope": 1})).status_code
+             for _ in range(11)]
+
+    assert codes == [422] * 10 + [429]

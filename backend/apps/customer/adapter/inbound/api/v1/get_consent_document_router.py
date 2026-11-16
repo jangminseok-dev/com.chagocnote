@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -17,8 +18,10 @@ _MAX_BIGINT = 9_223_372_036_854_775_807
 @get_consent_document_router.get("/{shop_id}/consent-document", response_model=ConsentDocumentSchema)
 async def get_consent_document(
     pet_ids: Annotated[list[Annotated[int, Query(ge=1, le=_MAX_BIGINT)]], Query(min_length=1, max_length=10)],
+    for_date: date | None = None,
     ctx: ShopContext = Depends(get_shop_context),
     use_case: GetConsentDocumentUseCase = Depends(get_get_consent_document_use_case),
 ) -> ConsentDocumentSchema:
-    view = await use_case.get_consent_document(GetConsentDocumentQuery(ctx=ctx, pet_ids=tuple(pet_ids)))
+    view = await use_case.get_consent_document(GetConsentDocumentQuery(
+        ctx=ctx, pet_ids=tuple(pet_ids), for_date=for_date))
     return ConsentDocumentSchema.of(view)

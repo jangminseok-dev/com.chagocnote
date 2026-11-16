@@ -14,6 +14,7 @@ from customer.app.services.public_form_gate import open_form
 from customer.app.use_cases.get_consent_document_interactor import document_view
 from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.errors import CustomerInputError, FormClosedError, PetNotFoundError
+from customer.domain.services.consent_document import base_date
 from hub.app.dtos.shop_context import public_context
 from hub.app.ports.public_limiter_port import PublicLimiterPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
@@ -51,7 +52,7 @@ class ReadPublicFormInteractor(ReadPublicFormUseCase):
             return PublicFormView(shop.name, None, form.submitted_at.astimezone(zone).date())
         try:
             doc = await read_document(
-                ctx, form.pet_ids, now.astimezone(zone).date(), self._policy,
+                ctx, form.pet_ids, base_date(now.astimezone(zone).date(), form.for_date, self._policy), self._policy,
                 pets=self._pets, signatures=self._signatures)
         except (PetNotFoundError, CustomerInputError):
             # 익명화한 고객의 요청이거나 담은 아이가 없다 — 닫힌 것으로 읽힌다.

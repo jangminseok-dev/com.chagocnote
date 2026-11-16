@@ -11,9 +11,23 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 
 from customer.domain.entities.consent import ConsentPolicy, DocumentPet, PetConsentFacts
+from customer.domain.errors import CustomerInputError
 from customer.domain.services.consent_coverage import needed_parts, uncovered
 
-__all__ = ["build_document", "doc_digest", "needed_parts"]
+__all__ = ["base_date", "build_document", "doc_digest", "needed_parts"]
+
+
+def base_date(today: date, for_date: date | None, policy: ConsentPolicy) -> date:
+    """문서를 조립하는 기준일. 예약 날을 주면 그날에 유효한 동의를 지금 받는다 — 그날 기한이 지나는지, 그날 노령인지로 본다.
+
+    지난 날은 오늘로 본다. 기한보다 먼 날은 받지 않는다(그날의 동의는 어차피 다시 받아야 한다).
+    예약 앞의 확인할 것(visit)이 방문의 날로 판정하는 것과 맞물린다.
+    """
+    if for_date is None or for_date <= today:
+        return today
+    if (for_date - today).days > policy.consent_days:
+        raise CustomerInputError("기준일이 너무 멉니다.")
+    return for_date
 
 
 def build_document(

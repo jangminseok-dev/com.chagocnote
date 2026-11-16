@@ -32,6 +32,7 @@ def decode_png(value: str) -> bytes:
 
 class IssueConsentFormRequestSchema(BaseModel):
     pet_ids: PetIds
+    for_date: date | None = None     # 예약 날 — 그날에 유효한 동의를 받는다. 없으면 오늘
 
 
 class FormLinkSchema(BaseModel):
@@ -113,6 +114,7 @@ class SignConsentRequestSchema(BaseModel):
     doc_digest: str = Field(min_length=1, max_length=128)
     signer_name: str = Field(max_length=200)     # 1~50자는 유스케이스가 앞뒤 공백을 뗀 뒤에 본다
     signature_png: SignaturePng
+    for_date: date | None = None     # 문서를 읽을 때 준 기준일과 같아야 지문이 맞는다
 
     @field_validator("signature_png")
     @classmethod

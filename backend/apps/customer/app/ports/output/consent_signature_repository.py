@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from datetime import date
 
 from customer.domain.entities.consent import SignedCover
 from customer.domain.entities.consent_form import NewSignature, SignatureBrief, SignatureDetail
@@ -17,8 +16,12 @@ class ConsentSignatureRepository(ABC):
         """서명 한 번과 그 아래 줄을 쓰고 서명 ID 를 돌려준다."""
 
     @abstractmethod
-    async def covers(self, ctx: ShopContext, since: Mapping[int, date]) -> dict[int, tuple[SignedCover, ...]]:
-        """아이 → 그 아이의 받은 날(since, 매장 시간대의 날)부터의 서명들이 덮은 것. 서명이 없는 아이는 빠진다."""
+    async def covers(self, ctx: ShopContext, since: Mapping[int, int]) -> dict[int, tuple[SignedCover, ...]]:
+        """아이 → 그 아이의 받은 날을 찍은 서명(since, 서명 ID)부터의 서명들이 덮은 것, 받은 순서대로.
+
+        날짜가 아니라 서명 ID 로 거른다 — 같은 날 지우고 다시 받았을 때 지우기 전의 서명이 끼지 않고,
+        시각과 날짜를 따로 읽어 생기는 하루의 어긋남이 없다. 서명이 없는 아이는 빠진다.
+        """
 
     @abstractmethod
     async def list_for_pet(self, ctx: ShopContext, pet_id: int) -> list[SignatureBrief]:

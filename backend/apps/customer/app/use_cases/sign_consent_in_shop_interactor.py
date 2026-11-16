@@ -37,6 +37,7 @@ class SignConsentInShopInteractor(SignConsentInShopUseCase):
             SigningInput(
                 pet_ids=command.pet_ids, doc_digest=command.doc_digest, signer_name=command.signer_name,
                 signature_png=command.signature_png, channel="in_shop", form_id=None, by_member_id=ctx.member_id,
+                for_date=command.for_date,
             ),
             self._now(), self._today(), self._policy,
             pets=self._pets, signatures=self._signatures, forms=self._forms,

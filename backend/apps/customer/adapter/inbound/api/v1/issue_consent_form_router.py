@@ -18,7 +18,8 @@ async def issue_consent_form(
     ctx: ShopContext = Depends(require_permission("customer:write")),
     use_case: IssueConsentFormUseCase = Depends(get_issue_consent_form_use_case),
 ) -> FormLinkSchema:
-    view = await use_case.issue_consent_form(IssueConsentFormCommand(ctx=ctx, pet_ids=tuple(body.pet_ids)))
+    view = await use_case.issue_consent_form(IssueConsentFormCommand(
+        ctx=ctx, pet_ids=tuple(body.pet_ids), for_date=body.for_date))
     if not view.created:
         response.status_code = 200
     return FormLinkSchema.of(view)

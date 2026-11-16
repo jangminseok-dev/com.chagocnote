@@ -12,6 +12,7 @@ from customer.app.services.consent_reader import read_document
 from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.entities.consent_form import NewSignature, NewSignaturePet, SignedPart
 from customer.domain.errors import ConsentDocumentChangedError, ConsentUpToDateError, CustomerInputError
+from customer.domain.services.consent_document import base_date
 from customer.domain.services.signature_image import check_png
 from hub.app.dtos.shop_context import ShopContext
 
@@ -27,6 +28,7 @@ class SigningInput:
     channel: str               # link | in_shop
     form_id: int | None        # 링크 서명이면 그 요청
     by_member_id: int          # 보낸(또는 현장에서 받은) 멤버
+    for_date: date | None = None   # 문서를 조립한 기준일(예약 날). 없으면 오늘
 
 
 async def sign(
@@ -36,13 +38,14 @@ async def sign(
     """서명을 쓰고 서명 ID 를 돌려준다. **고객 행을 이미 쥔 안에서** 부른다.
 
     사실을 다시 읽어 지문이 다르면 받지 않는다 — 읽은 뒤 지병이 더해졌거나 이름·글이 바뀌었다.
-    전체 서명인 아이는 받은 날을 오늘로 찍고, 바뀐 토막만 받은 아이는 받은 날을 두고 덮는 것만 는다.
+    문서는 기준일(예약 날이 있으면 그날)로 조립한다. 전체 서명인 아이는 받은 날을 **오늘**로 찍고, 바뀐 토막만 받은 아이는 받은 날을 두고 덮는 것만 는다.
     """
     name = entry.signer_name.strip()
     if not 1 <= len(name) <= SIGNER_NAME_MAX:
         raise CustomerInputError("이름은 1자에서 50자 사이로 적어 주세요.")
     check_png(entry.signature_png)
-    doc = await read_document(ctx, entry.pet_ids, today, policy, pets=pets, signatures=signatures)
+    doc = await read_document(
+        ctx, entry.pet_ids, base_date(today, entry.for_date, policy), policy, pets=pets, signatures=signatures)
     if not doc.pets:
         raise ConsentUpToDateError("이미 받은 동의입니다.")
     if doc.digest != entry.doc_digest:
