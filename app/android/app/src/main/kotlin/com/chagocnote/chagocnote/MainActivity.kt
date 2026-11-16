@@ -37,6 +37,8 @@ class MainActivity : FlutterActivity() {
         speech = SpeechRecognizerChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         // 공유 시트(⑤) — 선택기를 이 액티비티에서 띄운다.
         ShareSheetChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        // 바깥 주소 열기(⑫) — 알림장 설정의 [열어 보기]가 리뷰 주소를 기기의 브라우저로 연다.
+        ExternalLinkChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).also { ch ->
             ch.setMethodCallHandler { call, result ->
                 if (call.method == "getPending") {

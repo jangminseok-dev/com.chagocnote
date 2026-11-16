@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		220294E5CB859C02CA5E6A27 /* ExternalLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50905B0E7A3D81691B10D0D /* ExternalLink.swift */; };
 		2ACC8D98072A49CEB70D40D3 /* SpeechRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B237730DF506B3FDA88997 /* SpeechRecognizer.swift */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -90,6 +91,7 @@
 		A3A3000000000000000000B4 /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		A3A3000000000000000000B5 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		D1914BAA92A23587B65950C1 /* VideoTranscoder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoTranscoder.swift; sourceTree = "<group>"; };
+		F50905B0E7A3D81691B10D0D /* ExternalLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExternalLink.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -168,6 +170,7 @@
 				D1914BAA92A23587B65950C1 /* VideoTranscoder.swift */,
 				12B237730DF506B3FDA88997 /* SpeechRecognizer.swift */,
 				1043F0A472FBC89F918FF528 /* ShareSheet.swift */,
+				F50905B0E7A3D81691B10D0D /* ExternalLink.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -371,6 +374,7 @@
 				80A02225F93E277FB1CA3230 /* VideoTranscoder.swift in Sources */,
 				2ACC8D98072A49CEB70D40D3 /* SpeechRecognizer.swift in Sources */,
 				9D34CDBCE4AA45AEF78A0B61 /* ShareSheet.swift in Sources */,
+				220294E5CB859C02CA5E6A27 /* ExternalLink.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
