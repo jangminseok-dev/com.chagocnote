@@ -23,6 +23,11 @@ class IntakeFormRepository(ABC):
         """그 고객의 새 아이용(pet_id 없음) 또는 그 아이의 다시 받기용 살아 있는 요청. 고객 행을 쥔 안에서 부른다."""
 
     @abstractmethod
+    async def close_expired(self, ctx: ShopContext, customer_id: int, now: datetime) -> None:
+        """그 고객의, 내지도 끊지도 않은 채 기간이 지난 요청을 닫는다. 새로 보내기 전에 부른다 — 아이마다 열린 요청이
+        하나라는 색인은 기간을 모른다."""
+
+    @abstractmethod
     async def list_live(self, ctx: ShopContext, now: datetime) -> list[IntakeForm]:
         """이 매장의 살아 있는 요청. 보낸 날 내림차순."""
 

@@ -38,7 +38,9 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
         self._answers = answers
 
     async def delete_customer(self, command: DeleteCustomerCommand) -> None:
-        await self._customers.lock_active(command.ctx, command.customer_id)
+        # 번호는 익명화하면 지워진다 — 그 번호로 낸 문진표의 답을 찾으려고 먼저 읽어 둔다.
+        before = await self._customers.lock_active(command.ctx, command.customer_id)
+        phones = tuple(phone for phone in (before.phone, before.phone_alt) if phone)
         if await self._ledger.customer_has_upcoming(command.ctx, command.customer_id):
             raise CustomerHasUpcomingVisitsError("앞으로의 예약이 남아 있습니다. 예약을 먼저 취소해 주세요.")
         await self._customers.anonymize(command.ctx, command.customer_id)
@@ -47,9 +49,9 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
         await self._signatures.delete_for_customer(command.ctx, command.customer_id)
         if self._intakes is not None:
             await self._intakes.close_for_customer(command.ctx, command.customer_id, self._now())
-        # 받은 문진표 — 이 고객에 이어 둔 답과 이 고객에게 보낸 링크의 답(이름·번호·적은 글)을 지운다.
+        # 받은 문진표 — 이 고객에 이어 둔 답, 이 고객에게 보낸 링크의 답, 이 고객의 번호로 낸 답(이름·번호·적은 글)을 지운다.
         if self._answers is not None:
-            await self._answers.delete_for_customer(command.ctx, command.customer_id)
+            await self._answers.delete_for_customer(command.ctx, command.customer_id, phones)
         # 보호자 계정과의 연결을 끝낸다 — 익명화한 고객의 기록이 보호자 쪽에 남지 않게(⑦ 설계 G9).
         await self._guardians.end_for_customer(command.ctx.shop_id, command.customer_id)
         await self._ledger.clear_customer_memos(command.ctx, command.customer_id)   # 방문 메모의 개인정보(V11)

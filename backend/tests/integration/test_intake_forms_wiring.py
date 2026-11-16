@@ -125,3 +125,23 @@ async def test_직원도_보내고_끊을_수_있고_다른_매장의_링크는_
     assert error_of(await wired.api.delete(f"/v1/shops/{other_shop}/forms/{form_id}", headers=other)) == (
         404, "FORM_NOT_FOUND")
     assert (await wired.api.delete(f"/v1/shops/{shop_id}/forms/{form_id}", headers=staff)).status_code == 204
+
+
+# --- 최종 검토 ------------------------------------------------------------------------------------------------------
+
+async def test_열지_않은_채_기간이_지난_링크가_있어도_그_대상에게_다시_보낼_수_있다(wired):
+    from sqlalchemy import text
+
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet())
+    old_pet = (await issue(wired, shop_id, headers, pet_id=pet_id)).json()
+    old_new = (await issue(wired, shop_id, headers, customer_id=customer_id)).json()
+    async with wired.engine.begin() as conn:
+        await conn.execute(text("UPDATE customer_forms SET expires_at = now() - interval '1 day'"))
+
+    again_pet = await issue(wired, shop_id, headers, pet_id=pet_id)
+    again_new = await issue(wired, shop_id, headers, customer_id=customer_id)
+
+    assert (again_pet.status_code, again_new.status_code) == (201, 201), (again_pet.text, again_new.text)
+    assert again_pet.json()["form_id"] != old_pet["form_id"] and again_new.json()["form_id"] != old_new["form_id"]
+    assert len(await forms(wired, shop_id, headers)) == 2

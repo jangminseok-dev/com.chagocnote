@@ -189,3 +189,59 @@ async def test_익명화하면_그_고객에_이어_둔_답이_지워진다(wire
     assert (await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)).status_code == 204
 
     assert await count(wired, "intake_answers") == 0
+
+
+# --- 최종 검토 ------------------------------------------------------------------------------------------------------
+
+async def test_답은_그_답을_받은_대상에게만_쓸_수_있다_어긋나면_404_이고_답이_남는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    one_customer, one_pet = await _family(wired, shop_id, headers, _pet())
+    two_customer, two_pet = await _family(wired, shop_id, headers, _pet(name="보리"), phone="010-2222-3333")
+    add_token = token_of(await issue(wired, shop_id, headers, customer_id=one_customer))
+    update_token = token_of(await issue(wired, shop_id, headers, pet_id=one_pet))
+    assert (await submit(wired, add_token, guardian=None)).status_code == 204
+    assert (await wired.api.post("/v1/public/form/intake", headers={"X-Form-Token": update_token}, json={
+        "guardian": None, "pet": {"weight_kg": 5.1}, "extras": [], "privacy_agreed": True})).status_code == 204
+    guest = await received(wired, shop_id, headers, guardian={"name": "박새롬", "phone": "010-9999-0000"})
+    by_mode = {item["mode"]: item["answer_id"] for item in await listed(wired, shop_id, headers)}
+
+    wrong = [
+        # 고객 1에게 보낸 링크의 답으로 고객 2의 아이를 더한다
+        await wired.api.post(f"/v1/shops/{shop_id}/customers/{two_customer}/pets", headers=headers,
+                             json=pet_body() | {"intake_answer_id": by_mode["add_pet"]}),
+        # 아이 1의 다시 받기 답으로 아이 2를 고친다
+        await wired.api.put(f"/v1/shops/{shop_id}/pets/{two_pet}", headers=headers,
+                            json=_pet(name="보리") | {"intake_answer_id": by_mode["update"]}),
+        # 새 손님의 답으로 있는 아이를 고친다
+        await wired.api.put(f"/v1/shops/{shop_id}/pets/{one_pet}", headers=headers,
+                            json=_pet() | {"intake_answer_id": guest}),
+        # 등록된 고객의 새 아이용 답으로 새 고객을 등록한다
+        await wired.api.post(f"/v1/shops/{shop_id}/customers", headers=headers, json={
+            "customer": {"name": "남", "phone": "010-7777-0000", "marketing_consent": False},
+            "pet": pet_body(), "intake_answer_id": by_mode["add_pet"]}),
+    ]
+
+    assert [error_of(response) for response in wrong] == [(404, "INTAKE_ANSWER_NOT_FOUND")] * 4
+    assert await count(wired, "intake_answers") == 3 and await count(wired, "pets") == 2
+    # 새 손님의 답은 등록된 고객의 새 아이로 더할 수 있다(번호가 같은 고객이 뒤에 등록됐을 때).
+    ok = await wired.api.post(f"/v1/shops/{shop_id}/customers/{one_customer}/pets", headers=headers,
+                              json=pet_body() | {"intake_answer_id": guest})
+    assert ok.status_code == 201, ok.text
+
+
+async def test_익명화하면_그_고객의_번호로_낸_답도_지워진다_낼_때는_고객이_없었어도(wired):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+    assert (await submit(wired, token)).status_code == 204
+    assert (await submit(wired, token, guardian=None, name="라떼")).status_code == 204
+    first = (await listed(wired, shop_id, headers))[1]["answer_id"]
+    registered = await wired.api.post(f"/v1/shops/{shop_id}/customers", headers=headers, json={
+        "customer": {"name": "박새롬", "phone": "010-9999-0000", "marketing_consent": False},
+        "pet": pet_body(), "intake_answer_id": first})
+    customer_id = registered.json()["customer"]["customer_id"]
+    await received(wired, shop_id, headers, guardian={"name": "다른 손님", "phone": "010-5555-0000"})
+    assert await count(wired, "intake_answers") == 2          # 같은 번호의 둘째 답, 다른 손님의 답
+
+    assert (await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)).status_code == 204
+
+    assert [item["guardian_name"] for item in await listed(wired, shop_id, headers)] == ["다른 손님"]

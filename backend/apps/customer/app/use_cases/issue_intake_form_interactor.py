@@ -49,6 +49,8 @@ class IssueIntakeFormInteractor(IssueIntakeFormUseCase):
         elif customer_id is not None:
             await self._customers.lock_active(ctx, customer_id)
         if customer_id is not None:
+            # 열지 않은 채 기간이 지난 요청을 먼저 닫는다 — 남아 있으면 그 아이에게 다시 보낼 수 없다.
+            await self._forms.close_expired(ctx, customer_id, now)
             same = await self._forms.live_for(ctx, customer_id, pet_id, now)
             if same is not None:
                 return self._view(ctx.timezone, same, created=False)

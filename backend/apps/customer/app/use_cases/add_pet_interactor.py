@@ -36,7 +36,8 @@ class AddPetInteractor(AddPetUseCase):
         profile = command.pet.to_profile(codes, self._today())
         # 고객 행을 잠근 뒤 다시 읽는다. 익명화한 고객에게 이름 있는 반려동물을 붙이지 않는다.
         await self._customers.lock_active(command.ctx, command.customer_id)
-        await consume_answer(command.ctx, command.intake_answer_id, self._answers)   # 받은 문진표로 더한다(⑪-C)
+        await consume_answer(
+            command.ctx, command.intake_answer_id, self._answers, customer_id=command.customer_id)   # 받은 문진표로 더한다(⑪-C)
         pet = await self._pets.add(command.ctx, command.customer_id, profile)
         await self._search.rebuild_search_entry(command.ctx, command.customer_id)
         await self._events.publish(SearchSourceChanged(ctx=command.ctx, scope="pet", ref_id=pet.id))   # 기록 검색(⑨)

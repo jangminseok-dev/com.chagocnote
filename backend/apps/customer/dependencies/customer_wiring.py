@@ -85,6 +85,7 @@ def build_intake_reader(db: AsyncSession) -> IntakeReader:
     return IntakeReader(
         settings=build_form_settings_repository(db), questions=build_intake_question_repository(db),
         condition_types=build_condition_type_repository(db), pets=build_pet_repository(db),
+        answers=build_intake_answer_repository(db),
     )
 
 

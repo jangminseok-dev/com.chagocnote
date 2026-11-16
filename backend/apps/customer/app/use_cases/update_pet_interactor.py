@@ -36,7 +36,7 @@ class UpdatePetInteractor(UpdatePetUseCase):
         codes = frozenset(t.code for t in await self._condition_types.list_all())
         profile = command.pet.to_profile(codes, self._today())
         customer_id = await self._pets.lock_owner(command.ctx, command.pet_id)
-        await consume_answer(command.ctx, command.intake_answer_id, self._answers)   # 다시 받은 문진표를 반영한다(⑪-C)
+        await consume_answer(command.ctx, command.intake_answer_id, self._answers, pet_id=command.pet_id)   # 다시 받은 문진표를 반영한다(⑪-C)
         before = await self._pets.get(command.ctx, command.pet_id)
         await self._pets.update(command.ctx, command.pet_id, profile)
         # 앞서 받은 미용 동의는 새로 적힌 지병을 덮지 않는다 — 지병이 늘면 다시 받게 한다(③-B 3.2).

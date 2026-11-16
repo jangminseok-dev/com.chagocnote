@@ -6,9 +6,10 @@ from dataclasses import dataclass
 from customer.app.dtos.public_form_dto import PublicIntakeView
 from customer.app.ports.output.condition_type_repository import ConditionTypeRepository
 from customer.app.ports.output.form_settings_repository import FormSettingsRepository
+from customer.app.ports.output.intake_answer_repository import IntakeAnswerRepository
 from customer.app.ports.output.intake_question_repository import IntakeQuestionRepository
 from customer.app.ports.output.pet_repository import PetRepository
-from customer.domain.entities.intake import IntakeForm, IntakeQuestion
+from customer.domain.entities.intake import NEW, IntakeForm, IntakeQuestion
 from customer.domain.errors import FormClosedError, PetNotFoundError
 from customer.domain.services.form_settings_rules import INTAKE_HIDEABLE
 from hub.app.dtos.shop_context import ShopContext
@@ -24,12 +25,13 @@ class IntakeLayout:
 class IntakeReader:
     def __init__(
         self, settings: FormSettingsRepository, questions: IntakeQuestionRepository,
-        condition_types: ConditionTypeRepository, pets: PetRepository,
+        condition_types: ConditionTypeRepository, pets: PetRepository, answers: IntakeAnswerRepository,
     ) -> None:
         self._settings = settings
         self._questions = questions
         self._condition_types = condition_types
         self._pets = pets
+        self._answers = answers
 
     async def layout(self, ctx: ShopContext) -> IntakeLayout:
         """열 때마다 다시 읽는다 — 보낸 뒤 매장이 칸을 끄거나 질문을 고쳤으면 새 구성이다."""
@@ -54,4 +56,6 @@ class IntakeReader:
             mode=form.mode, pet_name=pet_name,
             fields=tuple(code for code in INTAKE_HIDEABLE if code not in layout.hidden),
             questions=tuple(layout.questions), condition_types=layout.condition_types, answered=form.answered,
+            # 제출이 쓰는 규칙과 같다 — 새 손님의 답 가운데 보호자를 적은 것이 남아 있지 않으면 묻는다.
+            guardian_needed=form.mode == NEW and await self._answers.first_guardian(form.id) is None,
         )

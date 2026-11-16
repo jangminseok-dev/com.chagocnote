@@ -13,7 +13,8 @@ from tests.integration.test_visit_checks_wiring import _family, _pet, _shop
 
 pytestmark = pytest.mark.integration
 
-OPEN_KEYS = {"kind", "state", "shop", "mode", "pet_name", "fields", "questions", "condition_types", "answered"}
+OPEN_KEYS = {"kind", "state", "shop", "mode", "pet_name", "fields", "questions", "condition_types", "answered",
+             "guardian_needed"}
 ALL_FIELDS = ["species", "breed", "sex", "neutered", "birth", "weight", "dislikes", "style"]
 
 
@@ -213,3 +214,36 @@ async def test_로그에_이름과_번호와_적은_글이_없다(wired, caplog)
 
     for secret in (token, "박새롬", "9999", "모카", "드라이기", "곰돌이"):
         assert secret not in caplog.text
+
+
+# --- 최종 검토 ------------------------------------------------------------------------------------------------------
+
+async def test_보호자_칸을_물을지는_응답이_알려_준다_첫_답을_매장이_이미_썼으면_다시_묻는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet())
+    token = token_of(await issue(wired, shop_id, headers))
+    add_token = token_of(await issue(wired, shop_id, headers, customer_id=customer_id))
+
+    assert (await read(wired, token)).json()["guardian_needed"] is True
+    assert (await read(wired, add_token)).json()["guardian_needed"] is False
+    assert (await submit(wired, token)).status_code == 204
+    assert (await read(wired, token)).json()["guardian_needed"] is False          # 둘째 아이부터는 묻지 않는다
+
+    listed = (await wired.api.get(f"/v1/shops/{shop_id}/intake-answers", headers=headers)).json()["items"]
+    assert (await wired.api.delete(
+        f"/v1/shops/{shop_id}/intake-answers/{listed[0]['answer_id']}", headers=headers)).status_code == 204
+
+    assert (await read(wired, token)).json()["guardian_needed"] is True           # 첫 답이 없어졌다 — 다시 묻는다
+    assert error_of(await submit(wired, token, guardian=None, name="라떼")) == (422, "VALIDATION_ERROR")
+    assert (await submit(wired, token, name="라떼")).status_code == 204
+
+
+async def test_동의서_토큰으로는_문진표를_낼_수_없다(wired):
+    from tests.integration.test_consent_wiring import SENIOR_YEAR, send
+
+    shop_id, headers, _ = await _shop(wired)
+    _, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR))
+    consent_token = (await send(wired, shop_id, headers, pet_id)).json()["url"].rsplit("/", 1)[1]
+
+    assert error_of(await submit(wired, consent_token)) == (404, "FORM_NOT_FOUND")
+    assert await count(wired, "intake_answers") == 0

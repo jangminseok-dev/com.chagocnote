@@ -57,6 +57,15 @@ class IntakeFormPgRepository(IntakeFormRepository):
             self._live(ctx, now).where(CustomerFormOrm.customer_id == customer_id, target)
             .order_by(CustomerFormOrm.id).with_for_update())
 
+    async def close_expired(self, ctx: ShopContext, customer_id: int, now: datetime) -> None:
+        await self._session.execute(
+            update(CustomerFormOrm)
+            .where(CustomerFormOrm.shop_id == ctx.shop_id, CustomerFormOrm.customer_id == customer_id,
+                   CustomerFormOrm.kind == _KIND, CustomerFormOrm.revoked_at.is_(None),
+                   CustomerFormOrm.submitted_at.is_(None), CustomerFormOrm.expires_at <= now)
+            .values(revoked_at=now)
+        )
+
     async def list_live(self, ctx: ShopContext, now: datetime) -> list[IntakeForm]:
         rows = (
             await self._session.execute(

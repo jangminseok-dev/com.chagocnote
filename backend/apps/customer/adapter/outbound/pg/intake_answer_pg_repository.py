@@ -74,15 +74,26 @@ class IntakeAnswerPgRepository(IntakeAnswerRepository):
             IntakeAnswerOrm.submitted_at >= since)
         return found[0] if found else None
 
+    async def target_of(self, ctx: ShopContext, answer_id: int) -> tuple[int | None, int | None] | None:
+        row = (
+            await self._session.execute(
+                select(CustomerFormOrm.customer_id, CustomerFormOrm.intake_pet_id)
+                .join(IntakeAnswerOrm, IntakeAnswerOrm.form_id == CustomerFormOrm.id)
+                .where(IntakeAnswerOrm.shop_id == ctx.shop_id, IntakeAnswerOrm.id == answer_id)
+            )
+        ).first()
+        return None if row is None else (row.customer_id, row.intake_pet_id)
+
     async def delete(self, ctx: ShopContext, answer_id: int) -> bool:
         return await self._delete(IntakeAnswerOrm.shop_id == ctx.shop_id, IntakeAnswerOrm.id == answer_id) > 0
 
-    async def delete_for_customer(self, ctx: ShopContext, customer_id: int) -> None:
+    async def delete_for_customer(self, ctx: ShopContext, customer_id: int, phones: tuple[str, ...] = ()) -> None:
         theirs = select(CustomerFormOrm.id).where(
             CustomerFormOrm.shop_id == ctx.shop_id, CustomerFormOrm.customer_id == customer_id)
         await self._delete(
             IntakeAnswerOrm.shop_id == ctx.shop_id,
-            (IntakeAnswerOrm.matched_customer_id == customer_id) | IntakeAnswerOrm.form_id.in_(theirs))
+            (IntakeAnswerOrm.matched_customer_id == customer_id) | IntakeAnswerOrm.form_id.in_(theirs)
+            | IntakeAnswerOrm.guardian_phone.in_(phones))
 
     async def delete_for_pet(self, ctx: ShopContext, pet_id: int) -> None:
         theirs = select(CustomerFormOrm.id).where(

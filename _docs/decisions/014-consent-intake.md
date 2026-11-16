@@ -234,6 +234,25 @@
 - **유스케이스의 단위 테스트는 두지 않고 통합으로 본다**(문진표 유스케이스 일곱) — 규칙은 순수 함수의 단위 테스트(`test_intake_rules` 28개)가 본다. 틀리면: 유스케이스의 갈래를 통합만 본다.
 - **고객 목록 응답에 받은 문진표 수·보낸 서류 수를 싣지 않았다**(설계 5.3) — 앱이 목록 두 개를 읽는다(보낸 서류와 같은 방식). 틀리면: 고객 탭이 요청을 둘 더 한다.
 
+### ⑪-C1 — 최종 검토에서 고친 것
+
+- **(Critical) 열지 않은 채 기간이 지난 다시 받기 링크가 남아 있으면 그 아이에게 다시 보낼 때 500 이었다** — 아이마다 열린 요청이 하나라는 색인은 기간을 모른다. 보내기 전에 그 고객의 기간 지난 요청을 닫는다(`close_expired`).
+- **답을 엉뚱한 대상에 써도 지워졌다** → 답은 그 답을 받은 대상에게만 쓴다(`consume_answer`): 새 고객 등록은 새 손님용 링크의 답만, 아이 더하기는 그 고객에게 보낸 링크나 새 손님용 링크의 답만, 아이 고치기는 그 아이의 다시 받기 답만. 어긋나면 404 이고 답이 남는다.
+- **익명화 뒤에도 그 보호자의 번호로 낸 답이 남을 수 있었다**(낼 때는 고객이 없어 이어지지 않은 답) → 익명화가 그 고객의 번호(보조 번호 포함)를 적어 낸 답도 지운다.
+- **첫 답을 매장이 이미 썼을 때 둘째 아이의 제출이 신호 없이 422 였다** → 공개 응답에 `guardian_needed` 를 싣는다(보호자 이름·번호를 적어야 하나).
+- 동의서 토큰으로 문진표를 내면 404 인 것을 테스트로 고정했다.
+- 확인: 단위 2650·통합 766·계약 6·문진표 흐름 38줄.
+
+### ⑪-C1 — 남는 것 (미룬 Minor)
+
+- **main 의 앱은 `GET /forms` 의 `customer: null`(새 손님용 문진표)에서 보낸 서류 목록을 읽지 못한다** — 지금 앱에는 문진표를 보내는 화면이 없어 흐름 스크립트를 돌린 개발 DB 에서만 드러난다. **⑪-C3 앱이 `SentForm` 을 먼저 고친다.**
+- 질문을 두 기기에서 동시에 저장하면 5개 한도가 깨질 수 있다(다음 저장에서 422 로 드러난다).
+- 익명화·아이 지우기의 문진표 협력자(`intakes`·`answers`)가 선택 인자라 배선에서 빠뜨리면 조용히 건너뛴다.
+- 문진표 경로의 413·429, 열한 번째 410, 기간 지난 링크로 내기는 테스트로 고정돼 있지 않다(검토자가 탐침으로 동작을 확인했다).
+- 질문의 글을 고치면 이미 받은 답이 새 글 아래에 보인다.
+- 주기 작업은 워커가 여럿이면 겹쳐 돈다(지우기는 멱등).
+- 다시 받기에 아무것도 적지 않은 빈 답도 받고 링크가 닫힌다. 보관 기간을 줄이면 그 순간 오래된 답이 숨는다(화면의 경고는 앱에서 정한다).
+
 ### API 계약 (웹·앱이 기댄다)
 
 - `POST …/intake-forms {customer_id|null, pet_id|null}` → `{form_id, url, expires_on, sent_on}`(201/200).
@@ -243,7 +262,7 @@
 - `GET …/intake-answers` → `{items: [{answer_id, mode, pet_name, guardian_name, submitted_on, matched_customer: {customer_id, name}|null, pet_id|null}]}`.
 - `GET …/intake-answers/{id}` → 위 칸 + `guardian_phone, species, breed, sex, neutered, birth_date, birth_year, birth_unknown, weight_kg, no_known_conditions, conditions: [{type_code, label, custom_label, note}], dislikes, style, extras: [{label, body}], missing: [칸 코드], memo_draft, memo_over`. `DELETE …/intake-answers/{id}` → 204.
 - 등록 `POST …/customers` 본문의 `intake_answer_id`, `POST …/customers/{id}/pets`·`PUT …/pets/{id}` 본문의 `intake_answer_id`.
-- 공개 `GET /v1/public/form`(문진표): `{kind: "intake", state: "open", shop: {name}, mode, pet_name|null, fields: [칸 코드], questions: [{question_id, label, required}], condition_types: [{code, label}], answered}` / 닫힘·다 적음은 `{kind: "intake", state: "submitted", shop, submitted_on}`.
+- 공개 `GET /v1/public/form`(문진표): `{kind: "intake", state: "open", shop: {name}, mode, pet_name|null, fields: [칸 코드], questions: [{question_id, label, required}], condition_types: [{code, label}], answered, guardian_needed}` / 닫힘·다 적음은 `{kind: "intake", state: "submitted", shop, submitted_on}`.
 - 공개 `POST /v1/public/form/intake` `{guardian: {name, phone}|null, pet: {name, species, breed, sex, neutered, birth_date, birth_year, birth_unknown, weight_kg, weight_unknown, no_known_conditions, conditions: [{type_code, custom_label, note}], dislikes, style}, extras: [{question_id, body}], privacy_agreed, done}` → 204 / 404 / 410 / 413 / 422 / 429.
 
 ## ⑪-A 의 API 계약 (웹·앱이 기댄다)

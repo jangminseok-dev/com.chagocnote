@@ -31,12 +31,17 @@ class IntakeAnswerRepository(ABC):
         """없거나 다른 매장의 것이거나 보관 기간이 지났으면 None."""
 
     @abstractmethod
+    async def target_of(self, ctx: ShopContext, answer_id: int) -> tuple[int | None, int | None] | None:
+        """그 답을 받은 링크의 (고객, 아이). 새 손님용이면 둘 다 None. 답이 없거나 다른 매장의 것이면 None."""
+
+    @abstractmethod
     async def delete(self, ctx: ShopContext, answer_id: int) -> bool:
         """지웠으면 True. 없거나 다른 매장의 것이면 False — 등록이 같은 답을 두 번 쓰지 못한다."""
 
     @abstractmethod
-    async def delete_for_customer(self, ctx: ShopContext, customer_id: int) -> None:
-        """그 고객에 이어 둔 답과 그 고객에게 보낸 링크의 답(익명화)."""
+    async def delete_for_customer(self, ctx: ShopContext, customer_id: int, phones: tuple[str, ...] = ()) -> None:
+        """그 고객에 이어 둔 답, 그 고객에게 보낸 링크의 답, 그 고객의 번호(phones — 숫자만)를 적어 낸 답(익명화).
+        낼 때는 고객이 없어 이어지지 않은 답에도 그 보호자의 이름·번호가 들어 있다."""
 
     @abstractmethod
     async def delete_for_pet(self, ctx: ShopContext, pet_id: int) -> None:
