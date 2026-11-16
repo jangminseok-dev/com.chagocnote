@@ -2,7 +2,7 @@
 # 개발 환경에서 전자 동의서 흐름을 게이트웨이를 거쳐 확인한다(⑪-A) — 노령·지병 아이를 내일 예약하면 동의가 뜬다 →
 # 동의서를 보낸다(다시 보내도 같은 링크) → 보호자가 로그인 없이 읽고 서명한다 → 동의가 사라진다 → 지병을 더하면
 # 바뀐 토막만 다시 뜬다 → 매장에서 바로 서명받는다(받은 날은 그대로) → 서명 보기 → 링크 끊기 → 알림장 토큰은
-# 서류 경로에서 404 → 익명화하면 서명이 없다.
+# 서류 경로에서 404 → 서류 설정·글 고치기·보낼 것 묶음(⑪-B) → 익명화하면 서명이 없다.
 # 사용: cd infra && docker compose up -d && bash ../backend/scripts/check_consent_flow.sh
 # infra/ 에서 실행해야 한다(운영자 지정을 docker compose 로 한다). 개발 DB 에 확인용 매장·유저·고객·방문이 남는다.
 # 단계 이름과 판정만 찍는다 — 토큰·주소·적은 이름·전화번호는 찍지 않는다.
@@ -125,6 +125,30 @@ expect "9 보낸 서류가 비었다" "$(call GET "$S/forms" "$owner" | field "[
 expect "10 서류 토큰은 알림장 경로에서 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/v1/public/report" -H "X-Report-Token: $token")" "404"
 expect "10 지어낸 토큰은 404" "$(pub_status "$(printf 'a%.0s' $(seq 43))")" "404"
 expect "10 헤더가 없으면 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/v1/public/form")" "404"
+
+# 12. 서류 설정과 보낼 것 묶음(⑪-B) — 설정 없이 기본값으로 돌고, 매장이 글과 기준값을 바꾼다
+kinds() { python3 -c "import json,sys; print(','.join(p['kind'] for p in json.load(sys.stdin)['parts']))"; }
+expect "12 정한 적 없는 매장의 링크 기간은 14일" "$(call GET "$S/form-settings" "$owner" | field "['link_days']")" "14"
+book2_req="{\"customer_id\":$kong_owner,\"pet_ids\":[$kong],\"starts_at\":\"$(at 2 15)\"}"
+visit2=$(call POST "$S/visits" "$owner" "$book2_req" | field "['visits'][0]['visit_id']")
+bundle=$(call POST "$S/visits/$visit2/send-bundle" "$owner")
+expect "12 묶음은 예약 안내와 동의서 링크다" "$(echo "$bundle" | kinds)" "reservation,consent"
+expect "12 묶음의 글에 빈 자리가 없다" "$(echo "$bundle" | python3 -c "import json,sys; print(any('{' in p['text'] for p in json.load(sys.stdin)['parts']))")" "False"
+same() { python3 -c "import json,sys,hashlib; print(hashlib.sha256(json.dumps(json.load(sys.stdin),sort_keys=True).encode()).hexdigest()[:12])"; }
+expect "12 다시 불러도 같은 묶음이다" "$(call POST "$S/visits/$visit2/send-bundle" "$owner" | same)" "$(echo "$bundle" | same)"
+token2=$(echo "$bundle" | python3 -c "import json,sys; print(json.load(sys.stdin)['parts'][1]['text'].rsplit('/f/',1)[1].split()[0])")
+digest2=$(pub "$token2" | field "['doc_digest']")
+text_req='{"body":"나이가 많은 아이는 쉬어 가며 미용해요."}'
+expect "12 노령 토막의 글 고치기 200" "$(status PUT "$S/consent-texts/senior" "$owner" "$text_req")" "200"
+expect "12 보호자의 화면에 고친 글이 보인다" "$(pub "$token2" | field "['texts']['senior']['body']")" "나이가 많은 아이는 쉬어 가며 미용해요."
+expect "12 옛 글을 본 지문은 409" "$(pub_sign "$token2" "$(sign_body "$digest2")")" "409"
+expect "12 빈 글은 422" "$(status PUT "$S/consent-texts/senior" "$owner" '{"body":"  "}')" "422"
+expect "12 기본 글로 되돌리기 200" "$(status PUT "$S/consent-texts/senior" "$owner" '{"body":null}')" "200"
+settings_req='{"link_days":7,"senior_age":20,"consent_days":365,"reservation_text":null,"consent_text":null}'
+expect "12 범위 밖의 값은 422" "$(status PUT "$S/form-settings" "$owner" "$(echo "$settings_req" | sed 's/"link_days":7/"link_days":31/')")" "422"
+expect "12 노령 나이를 20살로 200" "$(status PUT "$S/form-settings" "$owner" "$settings_req")" "200"
+expect "12 15살 아이의 동의가 사라졌다" "$(call GET "$S/visits/$visit2" "$owner" | consent)" "없음"
+expect "12 묶음은 예약 안내뿐이다" "$(call POST "$S/visits/$visit2/send-bundle" "$owner" | kinds)" "reservation"
 
 # 11. 익명화하면 서명이 없다 (앞으로의 예약을 먼저 취소한다)
 cancel_req="{\"visit_ids\":[$visit_id],\"action\":\"cancel\",\"cancel_reason\":\"shop_reason\"}"
