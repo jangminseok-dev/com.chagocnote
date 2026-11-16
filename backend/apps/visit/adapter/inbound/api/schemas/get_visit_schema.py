@@ -26,6 +26,8 @@ class VisitDetailSchema(BaseModel):
     cover: str | None             # 대표 사진 썸네일 URL
     report: ReportLinkSchema      # 알림장 링크의 상태
     checks: list[CheckSchema]     # 확인할 것(③-B) — 살아 있는 방문만
+    marks: list[str]              # 끝낸 일의 낱말 코드(⑬) — paid · report_sent 차례
+    report_skipped: bool          # 알림장을 보내지 않음으로 넘겼다(⑬) — 되돌릴 수 있다
 
     @classmethod
     def of(cls, view: VisitDetailView) -> VisitDetailSchema:

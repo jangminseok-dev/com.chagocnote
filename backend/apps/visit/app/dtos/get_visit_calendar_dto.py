@@ -20,6 +20,8 @@ class CalendarDayView:
     completed_count: int
     open_count: int        # 예약됨·미용 중
     unresolved_count: int  # 지난 날인데 아직 예약됨
+    unpaid_count: int      # 남은 일 — 결제 안 적음(⑬, 지난 날·오늘만)
+    report_unsent_count: int   # 남은 일 — 알림장 안 보냄(⑬, 매장이 세기로 했을 때)
     closed_day: bool
     cover: str | None      # 그날 완료 방문 가운데 시작 순 첫 대표 사진의 썸네일
     covers: list[str]      # 미리보기 카드용 — 같은 순서로 최대 4장

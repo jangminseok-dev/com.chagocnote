@@ -8,6 +8,7 @@ from visit.domain.errors import VisitInputError
 from visit.domain.value_objects.schedule_settings import ScheduleSettings
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import (
+    FakeRevisitSettingsRepository,
     FakeChecks,
     FakeDirectory,
     FakeLibrary,
@@ -27,7 +28,8 @@ def _setup(settings=None):
     directory.family(2, pets=(201,), name=None)   # 익명화한 고객
     schedule = FakeSchedule() if settings is None else FakeSchedule(settings=settings)
     interactor = ListDayVisitsInteractor(visits, FakeMenus(), schedule, directory, FakeRecords(visits),
-                                         FakeLibrary(), FakeReportRepository(visits), now=lambda: NOW, checks=FakeChecks())
+                                         FakeLibrary(), FakeReportRepository(visits), now=lambda: NOW, checks=FakeChecks(),
+                                         revisit_settings=FakeRevisitSettingsRepository())
     return visits, interactor
 
 
@@ -89,7 +91,8 @@ async def test_범위_밖_날짜는_설정을_읽기_전에_거절한다():
     visits, directory = FakeVisits(), FakeDirectory()
     schedule = FakeSchedule()
     interactor = ListDayVisitsInteractor(visits, FakeMenus(), schedule, directory, FakeRecords(visits),
-                                         FakeLibrary(), FakeReportRepository(visits), now=lambda: NOW, checks=FakeChecks())
+                                         FakeLibrary(), FakeReportRepository(visits), now=lambda: NOW, checks=FakeChecks(),
+                                         revisit_settings=FakeRevisitSettingsRepository())
     for day in (date(1, 1, 1), date(9999, 12, 31)):
         with pytest.raises(VisitInputError):
             await interactor.list_day_visits(ListDayVisitsQuery(ctx=ctx(), day=day))
@@ -102,7 +105,8 @@ async def test_기록이_있는지와_대표_사진을_준다():
     records, library = FakeRecords(visits), FakeLibrary()
     library.add(51, attached=True)
     interactor = ListDayVisitsInteractor(visits, FakeMenus(), FakeSchedule(), directory, records, library,
-                                         FakeReportRepository(visits), now=lambda: NOW, checks=FakeChecks())
+                                         FakeReportRepository(visits), now=lambda: NOW, checks=FakeChecks(),
+                                         revisit_settings=FakeRevisitSettingsRepository())
     photographed = visits.seed(pet_id=101, starts_at=kst(9, 23, 10), status="in_progress", started_at=kst(9, 23, 10))
     noted = visits.seed(pet_id=102, starts_at=kst(9, 23, 11), status="in_progress", started_at=kst(9, 23, 11))
     visits.seed(pet_id=101, starts_at=kst(9, 23, 16))
@@ -117,7 +121,8 @@ async def test_알림장을_보낸_방문을_알리고_링크는_한_번에_읽�
     directory.family(1, pets=(101,))
     reports = FakeReportRepository(visits)
     interactor = ListDayVisitsInteractor(visits, FakeMenus(), FakeSchedule(), directory, FakeRecords(visits),
-                                         FakeLibrary(), reports, now=lambda: NOW, checks=FakeChecks())
+                                         FakeLibrary(), reports, now=lambda: NOW, checks=FakeChecks(),
+                                         revisit_settings=FakeRevisitSettingsRepository())
     sent, expired, revoked, *_ = [
         visits.seed(pet_id=101, starts_at=kst(9, 22, hour), status="completed", started_at=kst(9, 22, hour),
                     completed_at=kst(9, 22, hour + 1))
@@ -130,4 +135,5 @@ async def test_알림장을_보낸_방문을_알리고_링크는_한_번에_읽�
     await reports.revoke(ctx(), revoked.id, NOW)
     view = await _day(interactor, date(2026, 9, 22))
     assert [i.report_sent for i in view.items] == [True, False, False, False, False]
-    assert reports.reads == ["live_visit_ids"]   # 방문이 다섯이어도 한 번
+    # 방문이 다섯이어도 살아 있는 링크 한 번, 보낸 적이 있는지 한 번(⑬ — 남은 일 '알림장 안 보냄').
+    assert reports.reads == ["live_visit_ids", "visit_ids_with_report"]

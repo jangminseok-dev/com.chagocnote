@@ -329,6 +329,10 @@ class FakeVisits(
         self.journal.append(("reschedule", sorted(visit_ids)))
         return [self.rows[i] for i in sorted(visit_ids)]
 
+    async def set_report_skipped(self, ctx, visit_id, at):
+        self.rows[visit_id] = replace(self._owned(ctx, visit_id), report_skipped_at=at)
+        self.journal.append(("set_report_skipped", visit_id, at))
+
     async def apply_changes(self, ctx, changes, member_id):
         for visit_id, change in changes:
             current = self._owned(ctx, visit_id)
@@ -550,6 +554,11 @@ class FakeReportRepository(ReportRepository, PublicReportRepository, GuardianRep
     async def get_live(self, ctx, visit_id, now):
         self.reads.append("get_live")
         return next((r for r in self._open(ctx, id=visit_id) if r.is_live(now)), None)
+
+    async def visit_ids_with_report(self, ctx, visit_ids):
+        self.reads.append("visit_ids_with_report")
+        return {r.visit_id for r in self.rows
+                if r.visit_id in visit_ids and self.visits.rows[r.visit_id].shop_id == ctx.shop_id}
 
     async def live_visit_ids(self, ctx, visit_ids, now):
         self.reads.append("live_visit_ids")

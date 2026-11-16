@@ -37,3 +37,7 @@ class VisitWriteRepository(VisitLookupRepository):
         self, ctx: ShopContext, changes: list[tuple[int, StatusChange]], member_id: int
     ) -> list[Visit]:
         """상태 칸을 통째로 바꾸고 바꾼 멤버를 찍는다. 되돌리기가 중복 예약이 되면 VisitDuplicateError(전부 되돌린다)."""
+
+    @abstractmethod
+    async def set_report_skipped(self, ctx: ShopContext, visit_id: int, at: datetime | None) -> None:
+        """하루 마무리의 "알림장을 보내지 않음"(⑬) — at 이 None 이면 되돌린다. 방문 행을 잠근 뒤 부른다."""

@@ -50,11 +50,11 @@ def test_스텁도_여섯_포트의_메서드를_다_가진다():
             assert callable(getattr(FakeVisits, name, None)), f"FakeVisits 에 {port.__name__}.{name} 이 없다"
 
 
-def test_쓰기_포트는_쓰는_유스케이스_넷만_받는다():
+def test_쓰기_포트는_쓰는_유스케이스_다섯만_받는다():
     writers = sorted(cls.__name__ for cls in _interactors() if VisitWriteRepository in _ports_taken(cls))
     assert writers == [
-        "RegisterVisitInteractor", "RescheduleVisitsInteractor", "TransitionVisitsInteractor",
-        "UpdateVisitInteractor",
+        "RegisterVisitInteractor", "RescheduleVisitsInteractor", "SetReportSkipInteractor",
+        "TransitionVisitsInteractor", "UpdateVisitInteractor",
     ]
 
 

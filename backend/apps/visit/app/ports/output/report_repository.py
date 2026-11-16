@@ -18,6 +18,11 @@ class ReportRepository(ABC):
         """그 방문의 살아 있는 링크. 없거나 다른 매장의 방문이면 None."""
 
     @abstractmethod
+    async def visit_ids_with_report(self, ctx: ShopContext, visit_ids: list[int]) -> set[int]:
+        """알림장 줄이 한 번이라도 있었던 방문의 ID — 끊었거나 기간이 끝난 것도 든다. 남은 일 '알림장 안 보냄'은 이것으로
+        본다(⑬ — 7일 링크가 끝났다고 다시 남은 일로 뜨지 않게)."""
+
+    @abstractmethod
     async def live_visit_ids(self, ctx: ShopContext, visit_ids: list[int], now: datetime) -> set[int]:
         """살아 있는 링크가 있는 방문의 ID — 목록의 '보냄' 표시를 방문 수와 상관없이 한 번에 읽는다."""
 

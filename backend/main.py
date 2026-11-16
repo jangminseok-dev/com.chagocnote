@@ -187,6 +187,7 @@ from visit.adapter.inbound.api.v1.register_visit_router import register_visit_ro
 from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
 from visit.adapter.inbound.api.v1.revoke_visit_report_router import revoke_visit_report_router
 from visit.adapter.inbound.api.v1.send_visit_report_router import send_visit_report_router
+from visit.adapter.inbound.api.v1.set_report_skip_router import set_report_skip_router
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_report_settings_router import update_report_settings_router
@@ -341,6 +342,7 @@ app.include_router(delete_visit_record_router)
 app.include_router(get_visit_report_router)
 app.include_router(send_visit_report_router)
 app.include_router(revoke_visit_report_router)
+app.include_router(set_report_skip_router)
 # 로그인 없이 열리는 경로 — 더할 때는 tests/route_inspection.py 의 허용 목록에도 적는다.
 app.include_router(read_public_report_router)
 app.include_router(mark_report_viewed_router)

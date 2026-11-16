@@ -15,10 +15,13 @@ from visit.app.ports.input.get_visit_calendar_use_case import GetVisitCalendarUs
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.app.ports.output.report_repository import ReportRepository
+from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
 from visit.app.services.cover_reader import cover_urls
 from visit.domain.entities.visit import COMPLETED
 from visit.domain.errors import VisitInputError
 from visit.domain.services.visit_board import COUNTED, is_unresolved
+from visit.domain.services.visit_marks import is_report_unsent, is_unpaid
 from visit.domain.services.visit_schedule import day_bounds, is_closed_day, local_date
 
 COVERS_PER_DAY = 4   # 미리보기 카드에 겹쳐 보이는 썸네일 수
@@ -29,8 +32,11 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
 
     def __init__(
         self, board: VisitBoardRepository, schedule: ScheduleRepository, records: VisitRecordRepository,
-        library: MediaLibraryPort, now: Callable[[], datetime],
+        library: MediaLibraryPort, now: Callable[[], datetime], reports: ReportRepository,
+        revisit_settings: RevisitSettingsRepository,
     ) -> None:
+        self._reports = reports
+        self._revisit_settings = revisit_settings
         self._board = board
         self._schedule = schedule
         self._records = records
@@ -53,7 +59,11 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
         for visit in month_visits:
             by_day[local_date(visit.starts_at, tz)].append(visit)
         completed_ids = [v.id for v in month_visits if v.status == COMPLETED]
-        covers = await cover_urls(ctx, await self._records.list_many(ctx, completed_ids), self._library)
+        recorded = await self._records.list_many(ctx, completed_ids)
+        covers = await cover_urls(ctx, recorded, self._library)
+        # 남은 일(⑬) — 완료 방문만 해당한다(앞날에는 완료가 없다). 알림장 줄은 그달의 완료 방문에 대해 한 번 읽는다.
+        ever = await self._reports.visit_ids_with_report(ctx, completed_ids) if completed_ids else set()
+        count_unsent = (await self._revisit_settings.get(ctx)).count_unsent_reports
         closed = frozenset(c.day for c in await self._schedule.list_closed_dates(ctx, first_day, last_day))
         days = []
         for number in range(1, last + 1):
@@ -66,6 +76,9 @@ class GetVisitCalendarInteractor(GetVisitCalendarUseCase):
                 completed_count=sum(v.status == COMPLETED for v in visits),
                 open_count=sum(v.is_active for v in visits),
                 unresolved_count=sum(is_unresolved(v, today, tz) for v in visits),
+                unpaid_count=sum(is_unpaid(v, recorded.get(v.id)) for v in visits),
+                report_unsent_count=sum(
+                    is_report_unsent(v, recorded.get(v.id), ever_sent=v.id in ever, count=count_unsent) for v in visits),
                 closed_day=is_closed_day(day, settings, closed),
                 cover=day_covers[0] if day_covers else None,
                 covers=day_covers[:COVERS_PER_DAY],

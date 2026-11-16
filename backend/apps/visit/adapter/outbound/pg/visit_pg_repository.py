@@ -138,6 +138,12 @@ class VisitPgRepository(
             )
         return await self.get_many(ctx, visit_ids)
 
+    async def set_report_skipped(self, ctx: ShopContext, visit_id: int, at: datetime | None) -> None:
+        await self._session.execute(
+            update(VisitOrm).where(VisitOrm.id == visit_id, VisitOrm.shop_id == ctx.shop_id)
+            .values(report_skipped_at=at)
+        )
+
     async def apply_changes(
         self, ctx: ShopContext, changes: list[tuple[int, StatusChange]], member_id: int
     ) -> list[Visit]:

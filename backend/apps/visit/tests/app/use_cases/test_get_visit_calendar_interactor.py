@@ -8,7 +8,14 @@ from visit.domain.errors import VisitInputError
 from visit.domain.value_objects.closed_date import ClosedDate
 from visit.domain.value_objects.schedule_settings import ScheduleSettings
 from visit.tests.helpers.builders import ctx, kst, record
-from visit.tests.helpers.fakes import FakeLibrary, FakeRecords, FakeSchedule, FakeVisits
+from visit.tests.helpers.fakes import (
+    FakeLibrary,
+    FakeRecords,
+    FakeReportRepository,
+    FakeRevisitSettingsRepository,
+    FakeSchedule,
+    FakeVisits,
+)
 
 NOW = kst(9, 23, 15)
 
@@ -17,7 +24,8 @@ def _setup():
     visits = FakeVisits()
     schedule = FakeSchedule(settings=ScheduleSettings(time(10), time(19), 120, frozenset({0})))
     return visits, schedule, GetVisitCalendarInteractor(visits, schedule, FakeRecords(visits), FakeLibrary(),
-                                                        now=lambda: NOW)
+                                                        now=lambda: NOW, reports=FakeReportRepository(visits),
+                                                        revisit_settings=FakeRevisitSettingsRepository())
 
 
 async def test_날마다_마릿수_완료_예약_정리_안_됨_휴무():
@@ -65,7 +73,9 @@ async def test_달이_이상하면_VALIDATION_ERROR_다(year, month):
 async def test_완료_방문의_대표_사진을_시작_순으로_최대_네_장():
     visits = FakeVisits()
     records, library = FakeRecords(visits), FakeLibrary()
-    interactor = GetVisitCalendarInteractor(visits, FakeSchedule(), records, library, now=lambda: NOW)
+    interactor = GetVisitCalendarInteractor(visits, FakeSchedule(), records, library, now=lambda: NOW,
+                                            reports=FakeReportRepository(visits),
+                                            revisit_settings=FakeRevisitSettingsRepository())
     done = dict(status="completed", started_at=kst(9, 2, 9), completed_at=kst(9, 2, 18))
     for hour, pet in ((15, 105), (10, 101), (11, 102), (12, 103), (13, 104)):
         v = visits.seed(pet_id=pet, starts_at=kst(9, 2, hour), **done)

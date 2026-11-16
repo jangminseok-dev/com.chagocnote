@@ -14,6 +14,7 @@ from visit.app.ports.output.visit_feed_repository import VisitFeedRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.services.cover_reader import cover_urls
 from visit.app.services.visit_reader import describe_visits
+from visit.domain.services.visit_marks import marks_of
 
 CARE_NOTE_PREVIEW = 80
 
@@ -56,5 +57,6 @@ class ListVisitFeedInteractor(ListVisitFeedUseCase):
                 care_note=note[:CARE_NOTE_PREVIEW] if note else None,
                 media_count=len(record.media) if record else 0,
                 report_sent=visit.id in sent,
+                marks=marks_of(visit, record, visit.id in sent),
             ))
         return VisitFeedView(items=items, next_cursor=page.next_cursor)

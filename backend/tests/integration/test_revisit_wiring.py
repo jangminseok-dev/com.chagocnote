@@ -284,3 +284,104 @@ async def test_묶음은_soon_과_due_만이고_깨진_커서는_422_다(wired):
 async def test_예전_매출의_지난_아이_경로는_없다(wired):
     shop_id, o, _ = await _shop(wired)
     assert (await wired.api.get(f"/v1/shops/{shop_id}/sales/due-pets", headers=o)).status_code == 404
+
+
+# ── 결제 완료와 남은 일 — 하루·달력·피드·방문 상세, 알림장 넘기기 ─────────────
+
+
+async def _day_view(wired, shop_id, headers, days=-1):
+    got = await wired.api.get(f"/v1/shops/{shop_id}/visits", params={"date": _day(days).isoformat()}, headers=headers)
+    assert got.status_code == 200, got.text
+    return got.json()
+
+
+async def _calendar_day(wired, shop_id, headers, days=-1):
+    day = _day(days)
+    got = await wired.api.get(f"/v1/shops/{shop_id}/visits/calendar", params={"month": day.strftime("%Y-%m")},
+                              headers=headers)
+    assert got.status_code == 200, got.text
+    return next(d for d in got.json()["days"] if d["date"] == day.isoformat())
+
+
+async def _record(wired, shop_id, headers, visit_id, **body):
+    """기록 전체 교체 — 있던 기록의 버전을 읽어 보낸다."""
+    found = (await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}", headers=headers)).json()["record"]
+    version = {"version": found["version"]} if found else {}
+    saved = await wired.api.put(f"/v1/shops/{shop_id}/visits/{visit_id}/record", headers=headers,
+                                json={"care_note": "잘 참았어요.", **version, **body})
+    assert saved.status_code == 200, saved.text
+
+
+async def test_총액과_결제_수단을_적으면_결제_완료이고_하루의_결제_안_적음에서_빠진다(wired):
+    shop_id, o, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    visit_id = await _done_on(wired, shop_id, o, customer_id, pet_id, -1, record={"total_amount": 30_000})
+
+    day = await _day_view(wired, shop_id, o)
+    [item] = day["items"]
+    assert (item["marks"], day["counts"]["unpaid"]) == ([], 1)
+    assert (await _calendar_day(wired, shop_id, o))["unpaid_count"] == 1
+
+    await _record(wired, shop_id, o, visit_id, total_amount=30_000, payment_method="card")
+    day = await _day_view(wired, shop_id, o)
+    assert (day["items"][0]["marks"], day["counts"]["unpaid"]) == (["paid"], 0)
+    assert (await _calendar_day(wired, shop_id, o))["unpaid_count"] == 0
+    feed = (await wired.api.get(f"/v1/shops/{shop_id}/visits/feed", headers=o)).json()
+    assert feed["items"][0]["marks"] == ["paid"]
+    detail = (await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}", headers=o)).json()
+    assert (detail["marks"], detail["report_skipped"]) == (["paid"], False)
+
+
+async def test_알림장_안_보냄은_줄이_한_번도_없는_방문이고_넘기면_빠지고_보냈다_끊어도_다시_세지_않는다(wired):
+    shop_id, o, _ = await _shop(wired)
+    staff = await _staff(wired, shop_id, o)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    visit_id = await _done_on(wired, shop_id, o, customer_id, pet_id, -1,
+                              record={"care_note": "잘 참았어요.", "total_amount": 0})
+    skip = f"/v1/shops/{shop_id}/visits/{visit_id}/report-skip"
+
+    assert (await _day_view(wired, shop_id, o))["counts"]["report_unsent"] == 1
+    assert (await _calendar_day(wired, shop_id, o))["report_unsent_count"] == 1
+
+    assert (await wired.api.put(skip, headers=staff)).status_code == 204
+    assert (await _day_view(wired, shop_id, o))["counts"]["report_unsent"] == 0
+    assert (await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}", headers=o)).json()["report_skipped"] is True
+    assert (await wired.api.delete(skip, headers=o)).status_code == 204
+    assert (await _day_view(wired, shop_id, o))["counts"]["report_unsent"] == 1
+
+    # 매장이 세지 않기로 하면 하루와 달력에서 세지 않는다.
+    await wired.api.put(settings_url(shop_id), headers=o, json={"count_unsent_reports": False})
+    assert (await _day_view(wired, shop_id, o))["counts"]["report_unsent"] == 0
+    assert (await _calendar_day(wired, shop_id, o))["report_unsent_count"] == 0
+    await wired.api.put(settings_url(shop_id), headers=o, json={"count_unsent_reports": True})
+
+    sent = await wired.api.put(f"/v1/shops/{shop_id}/visits/{visit_id}/report", headers=o,
+                               json={"hidden_media_ids": []})
+    assert sent.status_code == 200, sent.text
+    day = await _day_view(wired, shop_id, o)
+    assert (day["counts"]["report_unsent"], day["items"][0]["marks"]) == (0, ["paid", "report_sent"])
+    assert (await wired.api.delete(f"/v1/shops/{shop_id}/visits/{visit_id}/report", headers=o)).status_code == 204
+    day = await _day_view(wired, shop_id, o)
+    assert (day["counts"]["report_unsent"], day["items"][0]["marks"]) == (0, ["paid"])   # 보낸 적이 있다
+
+
+async def test_알림장_넘기기는_완료이고_기록이_있는_방문만이고_남의_방문은_404다(wired):
+    shop_id, o, operator = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    reserved = await _visit(wired, shop_id, o, customer_id, pet_id, 11, days=2)
+    bare = await _done_on(wired, shop_id, o, customer_id, pet_id, -1)
+    assert error_of(await wired.api.put(f"/v1/shops/{shop_id}/visits/{reserved}/report-skip", headers=o))[0] == 409
+    assert error_of(await wired.api.put(f"/v1/shops/{shop_id}/visits/{bare}/report-skip", headers=o))[0] == 409
+    other_id, other, _ = await _shop(wired, name="다른 매장", owner="다른 사장", operator=operator)
+    assert (await wired.api.put(f"/v1/shops/{other_id}/visits/{bare}/report-skip", headers=other)).status_code == 404
+
+
+async def test_앞날에는_남은_일이_없고_하루의_수에_확인할_것이_든다_금액은_없다(wired):
+    shop_id, o, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+    await _visit(wired, shop_id, o, customer_id, pet_id, 11, days=3)      # 처음 오는 아이 — 확인할 것(첫 방문)
+    ahead = await _day_view(wired, shop_id, o, days=3)
+    assert (ahead["counts"]["unpaid"], ahead["counts"]["report_unsent"], ahead["counts"]["checks"]) == (0, 0, 1)
+    day = await _calendar_day(wired, shop_id, o, days=3)
+    assert (day["unpaid_count"], day["report_unsent_count"]) == (0, 0)
+    assert not any("amount" in key for key in ahead["counts"]) and not any("amount" in key for key in day)

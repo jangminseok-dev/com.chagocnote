@@ -13,6 +13,8 @@ class CalendarDaySchema(BaseModel):
     completed_count: int
     open_count: int
     unresolved_count: int
+    unpaid_count: int          # 남은 일(⑬) — 칸의 숫자는 정리 안 됨 + 결제 안 적음 + 알림장 안 보냄
+    report_unsent_count: int
     closed_day: bool
     cover: str | None   # 그날 완료 방문의 첫 대표 사진 썸네일 URL
     covers: list[str]   # 미리보기 카드 — 최대 4장
