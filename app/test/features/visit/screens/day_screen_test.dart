@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/time/grooming_cycle.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
@@ -321,7 +322,7 @@ void main() {
       });
       expect(find.text(AppStrings.completeTitle), findsOneWidget);
       expect(
-        find.text(AppStrings.nextPreview('10월 21일 수 13:00')),
+        find.textContaining(AppStrings.nextDraftLine(4, '10월 21일 수 13:00', draftSourceLabel(CycleSource.none))),
         findsOneWidget,
       );
       await tester.tap(_button(AppStrings.close));

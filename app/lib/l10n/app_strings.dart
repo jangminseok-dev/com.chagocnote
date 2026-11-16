@@ -355,9 +355,25 @@ class AppStrings {
   static const markClosedDate = '이 날 휴무로 표시';
   static const unmarkClosedDate = '휴무 해제';
 
-  static String nextPreview(String when) => '→ $when';
-  static String completeAndNextCaption(int weeks) =>
-      '$weeks주 뒤 같은 요일·시간·메뉴로 채워진 예약 화면이 열려요.';
+  /// 완료 시트의 다음 예약 줄(⑬ 설계 3.4) — 간격의 출처([source] — `draftSourceLabel`)를 말한다.
+  static String nextDraftLine(int weeks, String when, String source) =>
+      '$weeks주 뒤 $when · $source';
+
+  // ⑬ 미용 주기의 말(설계 3.1 의 표 — `core/time/grooming_cycle.dart` 가 고른다).
+  static String cycleManual(int weeks) => '$weeks주마다 와요 · 직접 정함';
+  static String cycleComputed(int weeks) => '보통 $weeks주마다 와요 · 지난 방문에서 계산';
+  static String cycleSingle(int weeks) => '지난번에는 $weeks주 만에 왔어요';
+  static const cycleOnce = '아직 한 번 왔어요';
+  static const cycleSet = '미용 주기 정하기';
+  static String cycleEstimateNote(int defaultWeeks) => '다음은 매장 기본 간격($defaultWeeks주)으로 어림해요';
+  static String cycleDue(DateTime due, {required bool estimated}) =>
+      '다음은 ${due.month}월 ${due.day}일쯤${estimated ? '(어림)' : ''}';
+  static const draftSourceComputed = '보통 오는 간격';
+  static const draftSourceManual = '직접 정한 간격';
+  static const draftSourceEstimated = '매장 기본 간격(어림)';
+  static const nextDraftCaption = '같은 요일·시간·메뉴로 채워진 예약 화면이 열려요.';
+  static const changeInterval = '간격 바꾸기';
+  static const changeDefaultInterval = '기본 간격 바꾸기';
   static const cancelReasonTitle = '취소 사유를 골라 주세요';
   static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해져요.';
 
