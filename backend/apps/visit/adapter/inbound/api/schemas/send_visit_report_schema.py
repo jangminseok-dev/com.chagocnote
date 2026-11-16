@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 from visit.adapter.inbound.api.schemas.register_visit_schema import EntityId
 from visit.domain.services.report_rules import MAX_HIDDEN
@@ -16,3 +16,4 @@ class SendVisitReportRequestSchema(BaseModel):
     """
 
     hidden_media_ids: Annotated[list[EntityId], Field(max_length=MAX_HIDDEN)]
+    show_review: StrictBool = True   # 리뷰 남기기 줄(⑫) — 빠지면 넣는다(이 칸을 모르는 예전 앱)

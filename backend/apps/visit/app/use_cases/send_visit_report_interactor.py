@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from collections.abc import Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -66,6 +68,9 @@ class SendVisitReportInteractor(SendVisitReportUseCase):
             live = await self._reports.create(
                 ctx, visit.id, new_public_id(), expires_at_for(now, settings.link_days), now)
         await self._records.set_hidden(ctx, visit.id, hidden_ids)
+        if live.show_review != command.show_review:     # 리뷰 남기기 줄(⑫) — 알림장마다, 다시 보낼 때 바뀐다
+            await self._reports.set_show_review(ctx, live.id, command.show_review)
+            live = replace(live, show_review=command.show_review)
 
         report = await describe_report(
             ctx, visit, await self._records.get(ctx, visit.id), settings,

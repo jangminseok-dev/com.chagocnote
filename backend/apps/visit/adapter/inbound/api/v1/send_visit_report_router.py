@@ -20,6 +20,7 @@ async def send_visit_report(
     use_case: SendVisitReportUseCase = Depends(get_send_visit_report_use_case),
 ) -> VisitReportSchema:
     view = await use_case.send_visit_report(
-        SendVisitReportCommand(ctx=ctx, visit_id=visit_id, hidden_media_ids=tuple(body.hidden_media_ids))
+        SendVisitReportCommand(ctx=ctx, visit_id=visit_id, hidden_media_ids=tuple(body.hidden_media_ids),
+                               show_review=body.show_review)
     )
     return VisitReportSchema.of(view)

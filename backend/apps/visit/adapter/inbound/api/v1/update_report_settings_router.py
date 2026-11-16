@@ -20,6 +20,6 @@ async def update_report_settings(
     use_case: UpdateReportSettingsUseCase = Depends(get_update_report_settings_use_case),
 ) -> ReportSettingsSchema:
     settings = await use_case.update_report_settings(
-        UpdateReportSettingsCommand(ctx=ctx, settings=body.to_settings())
+        UpdateReportSettingsCommand(ctx=ctx, settings=body.to_settings(), kept=body.kept())
     )
     return ReportSettingsSchema.of(settings)

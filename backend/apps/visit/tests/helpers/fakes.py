@@ -529,6 +529,9 @@ class FakeReportRepository(ReportRepository, PublicReportRepository, GuardianRep
         self.journal.append(("create_report", visit_id))
         return report
 
+    async def set_show_review(self, ctx, report_id, show_review):
+        self.journal.append(("report_set_show_review", report_id, show_review))
+
     async def revoke(self, ctx, visit_id, now):
         live = [r for r in self._open(ctx, id=visit_id) if r.is_live(now)]
         self._revoke(live, now)

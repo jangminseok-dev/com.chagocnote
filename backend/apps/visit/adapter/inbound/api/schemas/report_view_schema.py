@@ -49,6 +49,8 @@ class ReportSchema(BaseModel):
     total_amount: int | None
     weight_kg: float | None          # JSON 숫자로 내보낸다(기록 응답과 같은 관례)
     shop: ReportShopSchema | None
+    review_url: str | None = None    # 리뷰 남기기 줄(⑫) — 매장이 주소를 넣었을 때만
+    review_text: str | None = None
 
 
 class ReportLinkSchema(BaseModel):
@@ -57,3 +59,4 @@ class ReportLinkSchema(BaseModel):
     expires_at: datetime | None      # null 이면 기간이 없다
     first_viewed_at: datetime | None
     created_at: datetime | None
+    show_review: bool | None = None   # 이 알림장에 리뷰 줄을 넣는가(⑫) — 링크가 없으면 null

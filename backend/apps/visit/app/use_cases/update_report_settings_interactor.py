@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from visit.app.dtos.update_report_settings_dto import UpdateReportSettingsCommand
 from visit.app.ports.input.update_report_settings_use_case import UpdateReportSettingsUseCase
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
@@ -16,6 +18,10 @@ class UpdateReportSettingsInteractor(UpdateReportSettingsUseCase):
         self._settings = settings
 
     async def update_report_settings(self, command: UpdateReportSettingsCommand) -> ReportSettings:
-        check_settings(command.settings)
+        settings = command.settings
+        if command.kept:
+            current = await self._settings.get(command.ctx)
+            settings = replace(settings, **{name: getattr(current, name) for name in command.kept})
+        check_settings(settings)
         await self._schedule.ensure(command.ctx)   # 설정 행은 일정 설정과 함께 쓴다 — 없으면 여기서 생긴다
-        return await self._settings.update(command.ctx, command.settings)
+        return await self._settings.update(command.ctx, settings)

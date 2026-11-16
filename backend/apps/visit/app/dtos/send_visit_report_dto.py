@@ -12,3 +12,4 @@ class SendVisitReportCommand:
     ctx: ShopContext
     visit_id: int
     hidden_media_ids: tuple[int, ...]
+    show_review: bool = True   # 이 알림장에 리뷰 남기기 줄을 넣는가(⑫)

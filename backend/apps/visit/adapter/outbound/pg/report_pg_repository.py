@@ -77,6 +77,10 @@ class ReportPgRepository(ReportRepository, PublicReportRepository, GuardianRepor
         ).scalar_one()
         return to_report(row)
 
+    async def set_show_review(self, ctx: ShopContext, report_id: int, show_review: bool) -> None:
+        await self._session.execute(
+            update(VisitReportOrm).where(VisitReportOrm.id == report_id, _of_shop(ctx)).values(show_review=show_review))
+
     async def revoke(self, ctx: ShopContext, visit_id: int, now: datetime) -> bool:
         revoked = await self._session.execute(
             update(VisitReportOrm)

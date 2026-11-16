@@ -22,7 +22,7 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.domain.entities.visit import Visit
 from visit.domain.entities.visit_record import VisitRecord
 from visit.domain.entities.visit_report import VisitReport
-from visit.domain.services.report_rules import hide, report_cover_media_id, visible_media
+from visit.domain.services.report_rules import hide, report_cover_media_id, review_of, visible_media
 from core.link_token import make_token
 from visit.domain.services.visit_schedule import local_date
 from visit.domain.value_objects.report_settings import ReportSettings
@@ -31,12 +31,15 @@ from visit.domain.value_objects.report_settings import ReportSettings
 async def describe_report(
     ctx: ShopContext, visit: Visit, record: VisitRecord, settings: ReportSettings, shop: ShopProfile,
     menus: MenuRepository, directory: CustomerDirectoryPort, library: MediaLibraryPort, *, include_hidden: bool,
+    show_review: bool = True,
 ) -> ReportView:
     hidden = {m.media_id for m in record.media if m.hidden}
     # 미리보기는 뺀 것도 같은 순서로 보여 준다 — 표시를 모두 지운 기록에 보이는 순서 규칙을 그대로 쓴다.
     shown = visible_media(replace(record, media=hide(record, ())) if include_hidden else record)
     urls = await library.read_urls(ctx, [m.media_id for m in shown])
     cover = urls.get(report_cover_media_id(record))
+    # 리뷰 남기기 줄(⑫) — 미리보기는 그 알림장이 뺐어도 주소를 보인다(스위치 곁에 그린다).
+    review_url, review_text = review_of(settings, show_review or include_hidden)
     return ReportView(
         pet_name=await _pet_name(ctx, visit, directory),
         visit_date=local_date(visit.starts_at, ctx.timezone),
@@ -59,6 +62,8 @@ async def describe_report(
         shop=ReportShopView(name=shop.name, phone=shop.phone, address=shop.address)
         if settings.show_shop_info else None,
         settings=settings,
+        review_url=review_url,
+        review_text=review_text,
     )
 
 
@@ -89,5 +94,5 @@ def describe_link(report: VisitReport | None, key: bytes, base_url: str) -> Repo
         return ReportLinkView(status="none", url=None, expires_at=None, first_viewed_at=None, created_at=None)
     return ReportLinkView(
         status="live", url=f"{base_url}/r/{make_token(report.public_id, key)}", expires_at=report.expires_at,
-        first_viewed_at=report.first_viewed_at, created_at=report.created_at,
+        first_viewed_at=report.first_viewed_at, created_at=report.created_at, show_review=report.show_review,
     )

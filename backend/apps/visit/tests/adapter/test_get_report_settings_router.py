@@ -10,5 +10,5 @@ async def test_직원도_알림장_설정을_본다():
         response = await c.get("/v1/shops/3/report-settings")
     assert response.status_code == 200
     assert response.json() == {"link_days": 30, "show_menus": True, "show_shop_info": True,
-                               "show_weight": False, "show_amount": False}
+                               "show_weight": False, "show_amount": False, "review_url": None, "review_text": None, "review_text_default": "미용이 마음에 드셨다면 후기를 남겨 주세요"}
     assert stub.calls[0].ctx.shop_id == 3

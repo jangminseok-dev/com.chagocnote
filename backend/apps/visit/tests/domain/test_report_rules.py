@@ -187,3 +187,41 @@ def test_빈_알림장은_이번에_보낸_목록으로_판단한다():
     check_not_empty(all_hidden, ())
     with pytest.raises(ReportEmptyError):
         check_not_empty(_record(_m(1)), (1,))
+
+
+# ── 알림장 끝의 리뷰 주소(⑫) ─────────────────────────────────────────────────────────────
+
+from dataclasses import replace  # noqa: E402
+
+from visit.domain.services.report_rules import DEFAULT_REVIEW_TEXT, check_review, review_of  # noqa: E402
+from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS  # noqa: E402
+
+
+@pytest.mark.parametrize("url", [
+    "http://naver.me/abc", "javascript:alert(1)", "https://user@evil.example/x", "https://naver.me/a b",
+    "https://", "https://naver.me/" + "a" * 290, "https://naver.me/\x07", "ftp://naver.me/x",
+])
+def test_리뷰_주소는_https_이고_호스트가_있고_계정정보_공백_제어문자가_없고_300자까지다(url):
+    with pytest.raises(VisitInputError):
+        check_review(url, None)
+
+
+@pytest.mark.parametrize("text", ["가" * 61, "첫 줄\n둘째 줄", "www.evil.example 로 오세요", "http 주소를 누르세요", "탭\t글"])
+def test_리뷰_문구는_60자이고_줄바꿈_제어문자_주소를_담지_않는다(text):
+    with pytest.raises(VisitInputError):
+        check_review("https://naver.me/abc", text)
+
+
+def test_맞는_주소와_문구는_받는다():
+    check_review("https://m.place.naver.com/place/123/review", "후기 한 줄 부탁드려요")
+    check_review(None, None)
+
+
+def test_주소가_없거나_그_알림장이_뺐으면_리뷰_줄이_없고_문구가_비면_기본_문구다():
+    on = replace(DEFAULT_REPORT_SETTINGS, review_url="https://naver.me/abc", review_text=None)
+
+    assert review_of(DEFAULT_REPORT_SETTINGS, True) == (None, None)
+    assert review_of(on, False) == (None, None)
+    assert review_of(on, True) == ("https://naver.me/abc", DEFAULT_REVIEW_TEXT)
+    assert review_of(replace(on, review_text="후기 부탁드려요"), True) == ("https://naver.me/abc", "후기 부탁드려요")
+    assert DEFAULT_REVIEW_TEXT == "미용이 마음에 드셨다면 후기를 남겨 주세요"
