@@ -77,6 +77,11 @@ class SettingsScreen extends ConsumerWidget {
                 label: AppStrings.settingsReport,
                 onTap: () => context.push('/settings/report'),
               ),
+              // 서류 설정(⑪-B)도 같다 — 동의서의 글·보내는 글·기준값. 직원에게는 읽기 전용이다.
+              _SettingsRow(
+                label: AppStrings.settingsForms,
+                onTap: () => context.push('/settings/forms'),
+              ),
               // 알림톡도 같다 — 연동·설정은 사장만, 직원에게는 읽기 전용으로 열린다(⑥ 설계 8.1).
               _SettingsRow(
                 label: AppStrings.settingsNotification,

@@ -347,6 +347,51 @@ class AppStrings {
   static const signaturePadLabel = '서명하는 곳';
   static const signaturePadHint = '여기에 서명해 주세요';
   static const signatureAgain = '다시 쓰기';
+  // 서류 설정(⑪-B) — 줄의 이름은 일어나는 일로, 줄 아래에 무슨 일이 생기는지.
+  static const settingsForms = '서류';
+  static const formSettingsTitle = '서류 설정';
+  static const formSectionTexts = '동의서에 적힌 글';
+  static const formSectionTextsHint = '아이의 상태에 맞는 글만 이어서 보호자에게 보여요. 고친 글은 다음 서명부터 쓰여요.';
+  static const formPartWhenBasic = '모든 아이에게 보여요';
+  static String formPartWhenSenior(int age) => '$age살 이상인 아이에게 보여요';
+  static const formPartWhenCondition = '지병이 있는 아이에게 보여요';
+  static const formEdited = '고침';
+  static const formSectionMessages = '보호자에게 보내는 글';
+  static const formSectionMessagesHint = '예약을 저장하면 이 글이 준비돼요. 보낼 때 한 번 더 고칠 수 있어요.';
+  static const formLinkDaysLabel = '링크를 열 수 있는 기간';
+  static String formLinkDaysHint(int days) => '보낸 링크는 $days일 동안 열려요. 이미 보낸 링크는 그대로예요.';
+  static const formSeniorAgeLabel = '노령으로 보는 나이';
+  static String formSeniorAgeHint(int age) => '$age살부터 노령 안내를 함께 보여 주고 동의를 받아요.';
+  static const formConsentDaysLabel = '동의를 다시 받는 기간';
+  static String formConsentDaysHint(int days) => '받은 지 $days일이 지나면 다시 받아요.';
+  static String formDays(int days) => '$days일';
+  static String formAge(int age) => '$age살';
+  static String formPeriod(int days) => switch (days) {
+    180 => '6개월',
+    365 => '1년',
+    730 => '2년',
+    _ => '$days일',
+  };
+  static const formCustom = '직접';
+  static String formRangeNotice(int low, int high) => '$low부터 $high까지 정할 수 있어요.';
+  static const formTextReset = '기본 글로 되돌리기';
+  static const formTextEmpty = '글을 비워 둘 수 없어요. 기본 글로 되돌릴 수 있어요.';
+  static const formPreviewLabel = '보호자가 받는 모습';
+  static const formLeaveAsk = '고친 글을 저장하지 않고 나갈까요?';
+  static const formLeave = '나가기';
+  static const formLeaveStay = '계속 고치기';
+  static const formTextSaved = '저장했어요. 다음 서명부터 이 글이 보여요.';
+  static const formMessageSaved = '저장했어요.';
+  static const formSlotsLabel = '넣을 수 있는 자리';
+  static const formLinkSlotMissing = '{링크} 자리가 있어야 보호자가 동의서를 열 수 있어요.';
+  static const formUnknownSlot = '쓸 수 없는 자리가 있어요. 아래의 자리만 넣을 수 있어요.';
+  static const formSampleShop = '우리 매장';
+  static const formSamplePet = '초코';
+  static const formSampleDay = '11월 17일(화)';
+  static const formSampleTime = '오후 2:30';
+  static const formSampleMenu = '목욕 · 위생미용';
+  static const formSampleLink = '(동의서 주소)';
+
   // 보낼 것 시트(⑪-B) — 한 예약에 보호자에게 보낼 글을 한 번에.
   static const bundleSheetTitle = '보호자에게 보낼 글';
   static const bundleSheetHint = '글을 고치거나 빼고 보낼 수 있어요.';
