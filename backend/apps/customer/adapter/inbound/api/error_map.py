@@ -1,6 +1,7 @@
 """customer 도메인 오류 → HTTP 상태 코드. 유스케이스는 HTTP 를 모른다."""
 from customer.domain.errors import (
     ConsentDocumentChangedError,
+    ConsentRequiredError,
     ConsentUpToDateError,
     CustomerHasUpcomingVisitsError,
     CustomerInputError,
@@ -35,6 +36,7 @@ CUSTOMER_ERROR_STATUS: dict[type[Exception], int] = {
     ConsentUpToDateError: 409,
     FormClosedError: 410,
     CustomerInputError: 422,
+    ConsentRequiredError: 422,
     PetHealthRequiredError: 422,
     PetHealthConflictError: 422,
     PetPassedAwayError: 422,

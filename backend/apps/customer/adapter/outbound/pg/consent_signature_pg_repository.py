@@ -40,7 +40,7 @@ class ConsentSignaturePgRepository(ConsentSignatureRepository):
                     shop_id=ctx.shop_id, customer_id=signature.customer_id, form_id=signature.form_id,
                     channel=signature.channel, signer_name=signature.signer_name,
                     signature_png=signature.signature_png, signed_at=signature.signed_at,
-                    by_member_id=signature.by_member_id,
+                    by_member_id=signature.by_member_id, intake_answer_id=signature.intake_answer_id,
                 ).returning(ConsentSignatureOrm.id)
             )
         ).scalar_one()

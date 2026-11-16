@@ -9,7 +9,7 @@ from tests.integration.test_consent_wiring import count
 from tests.integration.test_form_settings_wiring import put
 from tests.integration.test_intake_forms_wiring import issue, token_of
 from tests.integration.test_intake_settings_wiring import q, save
-from tests.integration.test_public_intake_wiring import submit
+from tests.integration.test_public_intake_wiring import read, signed, submit
 from tests.integration.test_visit_checks_wiring import _day, _family, _pet, _shop, _staff
 
 pytestmark = pytest.mark.integration
@@ -31,9 +31,11 @@ async def one(wired, shop_id, headers, answer_id):
     return await wired.api.get(f"/v1/shops/{shop_id}/intake-answers/{answer_id}", headers=headers)
 
 
-async def received(wired, shop_id, headers, **change):
-    """새 손님용 링크를 보내고 답 하나를 받는다. 답의 ID 를 돌려준다."""
+async def received(wired, shop_id, headers, sign=None, **change):
+    """새 손님용 링크를 보내고 답 하나를 받는다. 답의 ID 를 돌려준다. sign 은 끝의 동의서에서 읽은 토막(⑪-C1b)."""
     token = token_of(await issue(wired, shop_id, headers))
+    if sign is not None:
+        change["consent"] = signed((await read(wired, token)).json(), sign)
     sent = await submit(wired, token, **change)
     assert sent.status_code == 204, sent.text
     return (await listed(wired, shop_id, headers))[0]["answer_id"]
@@ -48,7 +50,7 @@ async def test_받은_문진표의_목록과_한_장(wired):
     shop_id, headers, _ = await _shop(wired)
     must = (await save(wired, shop_id, headers, q("산책은 얼마나 하나요?", required=True))).json()["items"][0]
     answer_id = await received(
-        wired, shop_id, headers, no_known_conditions=False,
+        wired, shop_id, headers, sign=["basic", "condition"], no_known_conditions=False,
         conditions=[{"type_code": "heart_disease", "custom_label": None, "note": "약 복용 중"}],
         extras=[{"question_id": must["question_id"], "body": "하루 한 번"}])
 

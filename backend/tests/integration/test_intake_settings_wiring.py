@@ -84,3 +84,17 @@ async def test_질문은_다섯_개까지이고_빈_글과_긴_글은_받지_않
     assert error_of(await save(wired, other_shop, other, q("남의 것", question_id=mine))) == (422, "VALIDATION_ERROR")
     assert (await questions(wired, other_shop, other)).json() == {"items": []}
     assert [i["label"] for i in (await questions(wired, shop_id, owner)).json()["items"]] == ["질문 하나"]
+
+
+async def test_문진표에서_모든_아이에게_동의서_받기는_기본_꺼짐이고_바꾸면_남고_빠지면_둔다(wired):
+    shop_id, headers, _ = await _shop(wired)
+
+    got = (await read(wired, shop_id, headers)).json()
+    assert (got["intake_consent_all"], got["defaults"]["intake_consent_all"]) == (False, False)
+
+    changed = await put(wired, shop_id, headers, intake_consent_all=True)
+    assert changed.status_code == 200 and changed.json()["intake_consent_all"] is True
+
+    await put(wired, shop_id, headers, link_days=7)                    # 이 칸을 모르는 예전 앱
+    assert (await read(wired, shop_id, headers)).json()["intake_consent_all"] is True
+

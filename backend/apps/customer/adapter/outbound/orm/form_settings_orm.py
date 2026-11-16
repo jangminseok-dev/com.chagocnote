@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, Integer, SmallInteger, String, UniqueConstraint, func
+from sqlalchemy import (
+    BigInteger, Boolean, CheckConstraint, DateTime, Integer, SmallInteger, String, UniqueConstraint, false, func,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -30,6 +32,8 @@ class ShopFormSettingsOrm(Base):
     # 문진표(0021) — 확인하지 않은 답을 지우는 날 수, 매장이 끈 칸.
     intake_keep_days: Mapped[int] = mapped_column(SmallInteger, server_default="30")
     intake_hidden: Mapped[list[str]] = mapped_column(ARRAY(String(20)), server_default="{}")
+    # 첫 방문 문진표에서 모든 아이에게 동의서를 받는다(0023, ⑪-C1b). 꺼져 있으면 노령·지병인 아이만.
+    intake_consent_all: Mapped[bool] = mapped_column(Boolean, server_default=false())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

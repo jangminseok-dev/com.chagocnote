@@ -5,6 +5,8 @@ import pytest
 from sqlalchemy import text
 
 from tests.integration.support import error_of
+from tests.integration.test_consent_texts_wiring import write
+from tests.integration.test_consent_wiring import PNG_B64, png
 from tests.integration.test_consent_wiring import count
 from tests.integration.test_form_settings_wiring import put
 from tests.integration.test_intake_forms_wiring import issue, token_of
@@ -14,7 +16,7 @@ from tests.integration.test_visit_checks_wiring import _family, _pet, _shop
 pytestmark = pytest.mark.integration
 
 OPEN_KEYS = {"kind", "state", "shop", "mode", "pet_name", "fields", "questions", "condition_types", "answered",
-             "guardian_needed", "keep_days"}
+             "guardian_needed", "keep_days", "consent"}
 ALL_FIELDS = ["species", "breed", "sex", "neutered", "birth", "weight", "dislikes", "style"]
 
 
@@ -161,10 +163,12 @@ async def test_매장이_끈_칸은_보이지_않고_받지_않으며_더한_질
 async def test_지병을_고르면_한_줄씩_함께_남는다(wired):
     shop_id, headers, _ = await _shop(wired)
     token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
 
     sent = await submit(wired, token, no_known_conditions=False, conditions=[
         {"type_code": "heart_disease", "custom_label": None, "note": "약 복용 중"},
-        {"type_code": "other", "custom_label": "슬개골", "note": None}])
+        {"type_code": "other", "custom_label": "슬개골", "note": None}],
+        consent=signed(opened, ["basic", "condition"]))      # 지병을 고르면 끝의 동의서에 서명한다(⑪-C1b)
 
     assert sent.status_code == 204, sent.text
     assert await rows(wired, "SELECT type_code, custom_label, note FROM intake_answer_conditions ORDER BY position") == [
@@ -248,3 +252,115 @@ async def test_동의서_토큰으로는_문진표를_낼_수_없다(wired):
 
     assert error_of(await submit(wired, consent_token)) == (404, "FORM_NOT_FOUND")
     assert await count(wired, "intake_answers") == 0
+
+
+# ── 문진표 끝의 동의서(⑪-C1b) ────────────────────────────────────────────────────────────
+
+def signed(opened, parts, name="박새롬", image=PNG_B64):
+    return {"digest": opened["consent"]["digest"], "parts": parts, "signer_name": name, "signature_png": image}
+
+
+async def test_문진표를_열면_동의서_구역의_글과_기준이_함께_온다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+
+    consent = (await read(wired, token)).json()["consent"]
+
+    assert set(consent) == {"all", "senior_age", "texts", "digest"}
+    assert (consent["all"], consent["senior_age"]) == (False, 10)
+    assert set(consent["texts"]) == {"basic", "senior", "condition"}
+    assert set(consent["texts"]["basic"]) == {"body"} and consent["texts"]["basic"]["body"]
+    assert len(consent["digest"]) == 64
+
+
+async def test_노령인_아이는_서명과_함께_내면_서명을_아이_없이_맡아_둔다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
+
+    sent = await submit(wired, token, birth_year=2014, consent=signed(opened, ["basic", "senior"]))
+
+    assert sent.status_code == 204, sent.text
+    assert await rows(wired, "SELECT s.customer_id, s.form_id, s.channel, s.signer_name, s.intake_answer_id = a.id "
+                             "FROM consent_signatures s JOIN intake_answers a ON true") == [
+        (None, None, "intake", "박새롬", True)]
+    assert await rows(wired, "SELECT pet_id, shown_pet_name FROM consent_signature_pets") == [(None, "모카")]
+    assert await rows(wired, "SELECT part, text_source FROM consent_signature_parts ORDER BY part") == [
+        ("basic", "default"), ("senior", "default")]
+    assert await count(wired, "customers") == 0 and await count(wired, "pets") == 0
+
+
+async def test_지병을_골랐으면_보인_지병_이름이_서명에_남는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
+
+    sent = await submit(wired, token, no_known_conditions=False, conditions=[
+        {"type_code": "other", "custom_label": "눈물 자국", "note": "메모는 남기지 않는다"}],
+        consent=signed(opened, ["basic", "condition"]))
+
+    assert sent.status_code == 204, sent.text
+    assert await rows(wired, "SELECT label FROM consent_signature_conditions") == [("눈물 자국",)]
+
+
+async def test_동의서가_나타나야_하는_답인데_서명이_없거나_토막을_덜_읽었으면_답도_받지_않는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
+
+    assert error_of(await submit(wired, token, birth_year=2014)) == (422, "CONSENT_REQUIRED")
+    assert error_of(await submit(wired, token, birth_year=2014, consent=signed(opened, ["basic"]))) == (
+        422, "CONSENT_REQUIRED")
+    assert await count(wired, "intake_answers") == 0 and await count(wired, "consent_signatures") == 0
+
+
+async def test_연_뒤_매장이_글이나_기준을_바꿨으면_409_이고_답도_받지_않는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
+    assert (await write(wired, shop_id, headers, "senior", "나이 많은 아이는 쉬어 가며 해요.")).status_code == 200
+
+    stale = await submit(wired, token, birth_year=2014, consent=signed(opened, ["basic", "senior"]))
+
+    assert error_of(stale) == (409, "CONSENT_DOCUMENT_CHANGED")
+    assert await count(wired, "intake_answers") == 0
+    fresh = (await read(wired, token)).json()
+    assert fresh["consent"]["digest"] != opened["consent"]["digest"]
+    assert fresh["consent"]["texts"]["senior"]["body"] == "나이 많은 아이는 쉬어 가며 해요."
+    assert (await submit(wired, token, birth_year=2014, consent=signed(fresh, ["basic", "senior"]))).status_code == 204
+
+
+async def test_모든_아이에게를_켜면_노령도_지병도_아닌_아이도_서명한다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    await put(wired, shop_id, headers, intake_consent_all=True)
+    token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
+    assert opened["consent"]["all"] is True
+
+    assert error_of(await submit(wired, token)) == (422, "CONSENT_REQUIRED")
+    assert (await submit(wired, token, consent=signed(opened, ["basic"]))).status_code == 204
+
+
+async def test_필요_없는_아이가_서명해_보내도_받고_읽은_토막_그대로_남긴다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
+
+    assert (await submit(wired, token, consent=signed(opened, ["basic"]))).status_code == 204
+    assert await rows(wired, "SELECT part FROM consent_signature_parts") == [("basic",)]
+
+
+@pytest.mark.parametrize(("name", "image"), [
+    ("", PNG_B64), ("가" * 51, PNG_B64), ("박새롬", "not-base64!!"),
+    ("박새롬", __import__("base64").b64encode(png(width=601)).decode()),
+])
+async def test_이름이_비었거나_그림이_틀리면_422_이고_답도_받지_않는다(wired, name, image):
+    shop_id, headers, _ = await _shop(wired)
+    token = token_of(await issue(wired, shop_id, headers))
+    opened = (await read(wired, token)).json()
+
+    bad = await submit(wired, token, birth_year=2014, consent=signed(opened, ["basic", "senior"], name=name, image=image))
+
+    assert error_of(bad)[0] == 422
+    assert await count(wired, "intake_answers") == 0 and await count(wired, "consent_signatures") == 0
+

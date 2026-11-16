@@ -41,7 +41,7 @@ class SignedPart:
 
 @dataclass(frozen=True)
 class NewSignaturePet:
-    pet_id: int
+    pet_id: int | None          # 문진표에서 맡아 둔 서명은 아이가 아직 없다
     shown_pet_name: str
     parts: tuple[SignedPart, ...]
     condition_labels: tuple[str, ...]
@@ -51,14 +51,15 @@ class NewSignaturePet:
 class NewSignature:
     """저장할 서명 한 번. 그림과 적은 이름은 로그에 남기지 않는다."""
 
-    customer_id: int
+    customer_id: int | None   # 문진표에서 맡아 둔 서명은 고객이 아직 없다
     form_id: int | None
-    channel: str          # link | in_shop
+    channel: str          # link | in_shop | intake
     signer_name: str
     signature_png: bytes
     signed_at: datetime
     by_member_id: int
     pets: tuple[NewSignaturePet, ...]
+    intake_answer_id: int | None = None   # 맡아 둔 서명이 매달린 받은 문진표
 
 
 @dataclass(frozen=True)
