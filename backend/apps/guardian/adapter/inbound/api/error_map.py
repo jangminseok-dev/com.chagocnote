@@ -2,6 +2,9 @@
 from guardian.domain.errors import (
     GuardianAccountInactiveError,
     GuardianAlreadyLinkedError,
+    GuardianFamilyFullError,
+    GuardianInputError,
+    GuardianInviteNotFoundError,
     GuardianLinkNotFoundError,
     ReportLinkClosedError,
     ReportLinkNotFoundError,
@@ -15,4 +18,7 @@ GUARDIAN_ERROR_STATUS: dict[type[Exception], int] = {
     ReportLinkNotFoundError: 404,
     ReportLinkClosedError: 410,
     GuardianAccountInactiveError: 401,
+    GuardianFamilyFullError: 409,
+    GuardianInviteNotFoundError: 404,
+    GuardianInputError: 422,
 }

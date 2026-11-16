@@ -39,7 +39,8 @@ async def test_내_연결_목록():
     async with client(build_app(list_guardian_links_router, get_list_guardian_links_use_case, stub)) as c:
         response = await c.get("/v1/me/guardian/links")
     assert response.json() == {
-        "items": [{"link_id": 1, "shop_name": "Hiss Haus", "linked_at": "2026-11-13T10:00:00+09:00"}]}
+        "items": [{"link_id": 1, "shop_name": "Hiss Haus", "linked_at": "2026-11-13T10:00:00+09:00",
+                   "role": "primary", "family_count": 0, "family_max": 0}]}
     assert stub.calls[0].user_id == USER_ID
 
 
@@ -74,7 +75,7 @@ async def test_매장이_보는_응답은_연결_여부와_날짜뿐이다():
     app = _shop_app(get_customer_guardian_link_router, get_get_customer_guardian_link_use_case, stub)
     async with client(app) as c:
         response = await c.get("/v1/shops/3/customers/7/guardian-link")
-    assert response.json() == {"linked": True, "linked_at": "2026-11-13T10:00:00+09:00"}
+    assert response.json() == {"linked": True, "linked_at": "2026-11-13T10:00:00+09:00", "family_count": 0}
     assert (stub.calls[0].ctx.shop_id, stub.calls[0].customer_id) == (3, 7)
 
 

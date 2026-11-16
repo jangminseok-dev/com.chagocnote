@@ -13,13 +13,14 @@ logger = logging.getLogger(__name__)
 
 
 class ClaimRedisLimiter(ClaimLimiterPort):
-    """키: guardian:claim:{user_id} → 이번 창의 시도 횟수."""
+    """키: guardian:{namespace}:{user_id} → 이번 창의 시도 횟수. 잇기는 claim, 가족 초대·잇기는 family(⑫)."""
 
-    def __init__(self, redis: Redis) -> None:
+    def __init__(self, redis: Redis, namespace: str = "claim") -> None:
         self._redis = redis
+        self._namespace = namespace
 
     async def allow(self, user_id: int) -> bool:
-        key = f"guardian:claim:{user_id}"
+        key = f"guardian:{self._namespace}:{user_id}"
         try:
             async with self._redis.pipeline(transaction=True) as pipe:
                 pipe.incr(key)
