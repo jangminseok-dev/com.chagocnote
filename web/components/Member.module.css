@@ -224,3 +224,120 @@
 .bar .back {
   margin-bottom: 0;
 }
+
+/* [알림장]·[사진] (⑫) */
+.tabs {
+  display: flex;
+  gap: 18px;
+  margin-top: 18px;
+  border-bottom: 1px solid #d9d9d9;
+}
+
+.tabs a {
+  padding: 8px 0;
+  color: var(--mute);
+  text-decoration: none;
+}
+
+.tabs a[aria-current='page'] {
+  color: var(--ink);
+  border-bottom: 1.5px solid var(--ink);
+}
+
+/* 거르기 — 글자 링크, 고른 것은 잉크색 */
+.filter {
+  margin-top: 16px;
+  font-size: 12px;
+}
+
+.filter div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 8px;
+}
+
+.filter a {
+  color: var(--mute);
+  text-decoration: none;
+}
+
+.filter .chosen {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 날짜마다 묶은 격자 — 세 칸, 정사각 썸네일 */
+.day h2 {
+  margin: 24px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.grid button {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: #e4e4e4;
+  cursor: pointer;
+}
+
+.grid img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.play {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  color: #fff;
+  font-size: 11px;
+}
+
+/* 몸무게 — 선 그림과 목록, 숫자뿐 */
+.weights {
+  margin-top: 24px;
+}
+
+.weights h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.weights svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--ink);
+}
+
+.weights ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.weights li {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #ececec;
+}
+

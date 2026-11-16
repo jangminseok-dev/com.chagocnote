@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest'
 import { cursorFrom, idFrom, safeNext } from '../lib/next-path'
 
-test.each(['/me', '/me/12', '/me/12/345', '/me/12?pet=7'])('%s 는 그대로다', (value) => {
+test.each(['/me', '/me/12', '/me/12/345', '/me/12?pet=7', '/me/12/photos', '/me/12/photos?pet=7',
+  '/me/12/photos?pet=7&year=2026&phase=after', '/me/12/photos?year=2025', '/me/12/photos?phase=before'])('%s 는 그대로다', (value) => {
   expect(safeNext(value)).toBe(value)
 })
 
@@ -54,3 +55,9 @@ test.each([
 ])('cursorFrom(%j) 는 %j', (value, expected) => {
   expect(cursorFrom(value)).toBe(expected)
 })
+
+test.each(['/me/12/photos?phase=middle', '/me/12/photos?year=26', '/me/12/photos?cursor=c2', '/me/12/photos?year=2026&pet=7',
+  '/me/12/photos/3', '/me/12/photosx'])('사진 모아 보기의 틀린 모양 %s 는 /me 다', (value) => {
+  expect(safeNext(value)).toBe('/me')
+})
+

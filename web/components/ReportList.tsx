@@ -20,6 +20,12 @@ export function ReportList({ linkId, petId, page }: { linkId: number; petId: num
         </div>
         <h1 className={styles.title}>지난 알림장</h1>
       </header>
+      <nav className={styles.tabs} data-section="tabs">
+        <a href={petId === null ? `/me/${linkId}` : `/me/${linkId}?pet=${petId}`} aria-current="page">
+          알림장
+        </a>
+        <a href={petId === null ? `/me/${linkId}/photos` : `/me/${linkId}/photos?pet=${petId}`}>사진</a>
+      </nav>
       {items.length === 0 ? (
         <p className={styles.text} data-section="empty">
           아직 받은 알림장이 없어요

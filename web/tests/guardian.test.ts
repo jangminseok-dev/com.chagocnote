@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { claimLink, endLink, getGuardianReport, getLinks, getPets, getReports } from '../lib/guardian'
+import { claimLink, endLink, getGuardianReport, getLinks, getPets, getReports, getMedia, getWeights } from '../lib/guardian'
 import type { Report } from '../lib/report'
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -41,6 +41,18 @@ const READS = [
   ['getGuardianReport', () => getGuardianReport(ACCESS, 11, 501), '/v1/me/guardian/links/11/reports/501',
     REPORT,
     { kind: 'ok', report: REPORT }],
+  // 사진 모아 보기와 몸무게(⑫) — 고른 것만 질의에 싣는다.
+  ['getMedia', () => getMedia(ACCESS, 11, { petId: 7, year: 2026, phase: 'after', cursor: 'c2' }),
+    '/v1/me/guardian/links/11/media?pet_id=7&year=2026&phase=after&cursor=c2',
+    { items: [], next_cursor: null, years: [2026] },
+    { kind: 'ok', page: { items: [], next_cursor: null, years: [2026] } }],
+  ['getMedia(빈 거르기)', () => getMedia(ACCESS, 11, { petId: null, year: null, phase: null, cursor: null }),
+    '/v1/me/guardian/links/11/media',
+    { items: [], next_cursor: null, years: [] },
+    { kind: 'ok', page: { items: [], next_cursor: null, years: [] } }],
+  ['getWeights', () => getWeights(ACCESS, 11, 7), '/v1/me/guardian/links/11/pets/7/weights',
+    { items: [{ visit_date: '2026-11-01', weight_kg: 3.2 }] },
+    { kind: 'ok', weights: [{ visit_date: '2026-11-01', weight_kg: 3.2 }] }],
 ] as const
 
 test.each(READS)('%s 는 액세스 토큰을 들고 캐시 없이 GET 하고 200 의 본문을 준다', async (_name, call, path, body, expected) => {

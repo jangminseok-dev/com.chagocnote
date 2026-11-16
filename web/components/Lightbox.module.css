@@ -79,3 +79,27 @@
   font-size: 14px;
   text-decoration: none;
 }
+
+/* 확대한 사진은 무대 밖으로 넘치지 않게 자른다(⑫). 확대 중에는 브라우저의 끌기·확대를 쓰지 않는다. */
+.stage {
+  overflow: hidden;
+  touch-action: none;
+}
+
+.stage img {
+  transition: transform 0.12s ease-out;
+  will-change: transform;
+}
+
+/* 크게 보기 아래의 한 줄(사진 모아 보기 — 그 알림장 보기) */
+.footer {
+  padding: 0 16px 18px;
+  text-align: center;
+}
+
+.footer a {
+  color: #fff;
+  font-size: 13px;
+  text-underline-offset: 3px;
+}
+
