@@ -216,3 +216,75 @@ async def test_초대_만들기와_잇기는_계정당_시간당_열_번까지�
         assert (await invite(wired, primary, link_id)).status_code == 201
 
     assert error_of(await invite(wired, primary, link_id)) == (429, "GUARDIAN_RATE_LIMITED")
+
+
+# --- 최종 검토 — 겹침(잠금 순서가 지키는 것)과 다른 매장의 가족이기도 한 계정의 탈퇴 ---
+
+async def _live_family(wired, primary_link) -> int:
+    async with wired.engine.connect() as conn:
+        return (await conn.execute(text(
+            "SELECT count(*) FROM guardian_links WHERE parent_link_id = :p AND ended_at IS NULL"), {"p": primary_link})).scalar()
+
+
+@pytest.mark.parametrize("round_", range(3))
+async def test_모두_끊기와_잇기가_겹쳐도_끊긴_뒤에_가족이_남지_않는다(wired, round_):
+    primary, link_id, _, _, _, _ = await linked(wired)
+    code = await code_of(wired, primary, link_id)
+    family = await web_login(wired, f"겹친가족{round_}")
+
+    ended, joined_ = await asyncio.gather(
+        wired.api.delete(f"{LINKS}/{link_id}/family", headers=primary), join(wired, family, code))
+
+    assert ended.status_code == 204 and joined_.status_code in (201, 404)
+    assert await _live_family(wired, link_id) == 0          # 먼저 이었으면 끊겼고, 나중이면 초대가 죽어 404
+
+
+@pytest.mark.parametrize("round_", range(3))
+async def test_기본_보호자의_끊기와_가족의_스스로_끊기가_겹쳐도_둘_다_끝난다(wired, round_):
+    primary, link_id, _, _, _, _ = await linked(wired)
+    family, family_link = await joined(wired, primary, link_id, f"스스로{round_}")
+
+    a, b = await asyncio.gather(
+        wired.api.delete(f"{LINKS}/{link_id}", headers=primary), wired.api.delete(f"{LINKS}/{family_link}", headers=family))
+
+    assert a.status_code == 204 and b.status_code in (204, 404)
+    assert await _live_family(wired, link_id) == 0
+    assert error_of(await reports(wired, family, family_link))[0] == 404
+
+
+async def test_탈퇴와_잇기가_겹쳐도_끊긴_기본_아래_가족이_남지_않는다(wired):
+    primary, link_id, _, _, _, _ = await linked(wired)
+    code = await code_of(wired, primary, link_id)
+    family = await web_login(wired, "탈퇴겹친가족")
+    app_login = await wired.login("두부보호자")
+
+    gone, joined_ = await asyncio.gather(
+        wired.auth.request("DELETE", "/v1/auth/account", headers=bearer(app_login["access_token"]),
+                           json={"confirm_close_shops": False}),
+        join(wired, family, code))
+
+    assert gone.status_code in (200, 204) and joined_.status_code in (201, 404)
+    assert await _live_family(wired, link_id) == 0
+
+
+async def test_다른_매장의_가족이기도_한_계정이_탈퇴하면_그_가족_줄만_끝나고_그_매장의_기본과_다른_가족은_그대로다(wired):
+    # 매장 A 의 기본 보호자(두부보호자)는 매장 B 의 기본 보호자(콩이보호자)가 부른 가족이기도 하다.
+    a_primary, a_link, _, _, _, _ = await linked(wired)
+    b_primary, b_link, _, _, _, _ = await linked(wired, name="콩이보호자", shop_name="다른매장", phone="010-5555-1234")
+    as_family = await join(wired, a_primary, await code_of(wired, b_primary, b_link))
+    assert as_family.status_code == 201
+    other, other_link = await joined(wired, b_primary, b_link, "남은가족")
+    app_login = await wired.login("두부보호자")
+
+    gone = await wired.auth.request("DELETE", "/v1/auth/account", headers=bearer(app_login["access_token"]),
+                                    json={"confirm_close_shops": False})
+
+    assert gone.status_code in (200, 204), gone.text
+    async with wired.engine.connect() as conn:
+        ended = dict((await conn.execute(text(
+            "SELECT id, ended_by FROM guardian_links WHERE id IN (:a, :f, :b, :o)"),
+            {"a": a_link, "f": as_family.json()["link_id"], "b": b_link, "o": other_link})).all())
+    assert (ended[a_link], ended[as_family.json()["link_id"]]) == ("withdrawn", "withdrawn")
+    assert (ended[b_link], ended[other_link]) == (None, None)
+    assert (await reports(wired, other, other_link)).status_code == 200
+

@@ -200,13 +200,17 @@ from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS  
 @pytest.mark.parametrize("url", [
     "http://naver.me/abc", "javascript:alert(1)", "https://user@evil.example/x", "https://naver.me/a b",
     "https://", "https://naver.me/" + "a" * 290, "https://naver.me/\x07", "ftp://naver.me/x",
+    # 최종 검토 — 대괄호가 짝이 안 맞는 호스트(urlsplit 이 ValueError), 눈에 안 보이는 문자, 틀린 포트
+    "https://naver.me]", "https://[", "https://[abc]/x", "https://a.com/\x9b", "https://a.com/\u200b",
+    "https://a.com:abc/x",
 ])
 def test_리뷰_주소는_https_이고_호스트가_있고_계정정보_공백_제어문자가_없고_300자까지다(url):
     with pytest.raises(VisitInputError):
         check_review(url, None)
 
 
-@pytest.mark.parametrize("text", ["가" * 61, "첫 줄\n둘째 줄", "www.evil.example 로 오세요", "http 주소를 누르세요", "탭\t글"])
+@pytest.mark.parametrize("text", ["가" * 61, "첫 줄\n둘째 줄", "www.evil.example 로 오세요", "http 주소를 누르세요", "탭\t글",
+                                  "후기\u202e요세주", "첫 줄\u2028둘째", "보이지\u200b않는"])
 def test_리뷰_문구는_60자이고_줄바꿈_제어문자_주소를_담지_않는다(text):
     with pytest.raises(VisitInputError):
         check_review("https://naver.me/abc", text)
@@ -225,3 +229,11 @@ def test_주소가_없거나_그_알림장이_뺐으면_리뷰_줄이_없고_문
     assert review_of(on, True) == ("https://naver.me/abc", DEFAULT_REVIEW_TEXT)
     assert review_of(replace(on, review_text="후기 부탁드려요"), True) == ("https://naver.me/abc", "후기 부탁드려요")
     assert DEFAULT_REVIEW_TEXT == "미용이 마음에 드셨다면 후기를 남겨 주세요"
+
+
+def test_대문자_https_는_받되_소문자로_바꿔_둔다():
+    from visit.domain.services.report_rules import normalized_review_url
+
+    assert normalized_review_url("HTTPS://Naver.me/Abc") == "https://Naver.me/Abc"
+    assert normalized_review_url(None) is None
+

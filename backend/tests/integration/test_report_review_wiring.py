@@ -41,7 +41,7 @@ async def test_리뷰_주소는_기본으로_없고_넣으면_남고_빠진_칸�
 
 @pytest.mark.parametrize(("url", "text"), [
     ("javascript:alert(1)", None), ("http://naver.me/x", None), ("https://user@naver.me/x", None),
-    (URL, "www.evil.example 로 오세요"), (URL, "가" * 61),
+    (URL, "www.evil.example 로 오세요"), (URL, "가" * 61), ("https://naver.me]", None), ("https://[abc]/x", None),
 ])
 async def test_틀린_주소나_문구는_422_이고_저장되지_않는다(wired, url, text):
     shop_id, o = await _shop(wired)
@@ -97,3 +97,12 @@ async def test_보낼_때_show_review_를_빼면_켜진_것이다(wired):
 
     assert sent["link"]["show_review"] is True
     assert (await wired.api.get(PUBLIC, headers=_with(_token(sent["link"])))).json()["review_url"] == URL
+
+
+async def test_대문자_스킴은_소문자로_저장된다(wired):
+    shop_id, o = await _shop(wired)
+
+    saved = await put_settings(wired, shop_id, o, review_url="HTTPS://naver.me/Abc")
+
+    assert saved.status_code == 200 and saved.json()["review_url"] == "https://naver.me/Abc"
+

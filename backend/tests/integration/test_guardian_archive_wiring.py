@@ -202,3 +202,42 @@ async def test_가족_연결도_같은_것을_본다(wired, media_storage):
     theirs = {_key(m["download_url"]) for m in await _all_media(wired, family, family_link)}
     assert mine == theirs
     assert (await wired.api.get(f"{LINKS}/{family_link}/pets/{kong}/weights", headers=family)).json()["items"]
+
+
+# --- 최종 검토 ---
+
+async def test_한_방문의_후와_전_사이에_쪽이_걸려도_빠지거나_겹치지_않는다(wired, media_storage):
+    # 방문 하나에 사진은 30장까지다 — 1장 · 30장 · (후 29장 + 전 1장)이면 60번째가 후의 끝, 61번째가 같은 방문의 전이다.
+    shop_id, o = await _shop(wired)
+    customer_id, kong, _ = await _family(wired, shop_id, o)
+    newest, _, _ = await _visit(wired, shop_id, o, customer_id, kong, 1, photos=1)
+    middle, _, _ = await _visit(wired, shop_id, o, customer_id, kong, 2, photos=30)
+    split, _, _ = await _visit(wired, shop_id, o, customer_id, kong, 3, photos=29, before=1)
+    token = await _send(wired, newest, o)
+    await _send(wired, middle, o)
+    await _send(wired, split, o)
+    guardian = await web_login(wired, "경계보호자")
+    link_id = (await claim(wired, guardian, token)).json()["link_id"]
+    expected = []
+    for item in (await wired.api.get(f"{LINKS}/{link_id}/reports", headers=guardian)).json()["items"]:   # 한 장들의 순서
+        body = (await wired.api.get(f"{LINKS}/{link_id}/reports/{item['report_id']}", headers=guardian)).json()
+        expected += [_key(m["download_url"]) for m in body["media"]]
+
+    first = (await wired.api.get(f"{LINKS}/{link_id}/media", headers=guardian)).json()
+    rest = (await wired.api.get(f"{LINKS}/{link_id}/media", headers=guardian, params={"cursor": first["next_cursor"]})).json()
+
+    assert (first["items"][-1]["phase"], [m["phase"] for m in rest["items"]], rest["next_cursor"]) == ("after", ["before"], None)
+    assert [_key(m["download_url"]) for m in first["items"] + rest["items"]] == expected and len(expected) == 61
+
+
+async def test_정지한_매장의_모아_보기와_몸무게는_비어_있다(wired, media_storage):
+    guardian, link_id, shop_id, _, (kong, _), _ = await _world(wired)
+    async with wired.engine.begin() as conn:
+        await conn.execute(text("UPDATE shops SET suspended_at = now() WHERE id = :id"), {"id": shop_id})
+
+    media = await wired.api.get(f"{LINKS}/{link_id}/media", headers=guardian)
+    weights = await wired.api.get(f"{LINKS}/{link_id}/pets/{kong}/weights", headers=guardian)
+
+    assert (media.status_code, media.json()["items"], media.json()["years"]) == (200, [], [])
+    assert (weights.status_code, weights.json()["items"]) == (200, [])
+

@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, StrictBool, StringConstraints
 
+from visit.domain.services.report_rules import normalized_review_url
 from visit.domain.value_objects.report_settings import ReportSettings
 
 
@@ -27,5 +28,5 @@ class UpdateReportSettingsRequestSchema(BaseModel):
         return ReportSettings(
             link_days=self.link_days, show_menus=self.show_menus, show_shop_info=self.show_shop_info,
             show_weight=self.show_weight, show_amount=self.show_amount,
-            review_url=self.review_url or None, review_text=self.review_text or None,
+            review_url=normalized_review_url(self.review_url or None), review_text=self.review_text or None,
         )

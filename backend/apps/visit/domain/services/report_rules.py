@@ -4,7 +4,7 @@
 """
 from __future__ import annotations
 
-import re
+import unicodedata
 from dataclasses import replace
 from urllib.parse import urlsplit
 from datetime import datetime, timedelta
@@ -38,7 +38,12 @@ def check_settings(settings: ReportSettings) -> None:
 DEFAULT_REVIEW_TEXT = "미용이 마음에 드셨다면 후기를 남겨 주세요"
 REVIEW_URL_MAX = 300
 REVIEW_TEXT_MAX = 60
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+# 제어 문자·형식 문자(너비 없는 공백·방향 뒤집기 등)·줄·문단 나눔 — 눈에 보이지 않거나 글을 뒤집는 문자.
+_HIDDEN = frozenset({"Cc", "Cf", "Zl", "Zp"})
+
+
+def _has_hidden(text: str) -> bool:
+    return any(unicodedata.category(ch) in _HIDDEN for ch in text)
 
 
 def check_review(url: str | None, text: str | None) -> None:
@@ -46,14 +51,27 @@ def check_review(url: str | None, text: str | None) -> None:
     문구는 60자까지, 줄바꿈·제어 문자가 없고 주소처럼 보이는 글을 담지 않는다(다른 주소를 심지 못하게).
     오류 글에 받은 값을 싣지 않는다."""
     if url is not None:
-        parts = urlsplit(url)
-        if (len(url) > REVIEW_URL_MAX or parts.scheme != "https" or not parts.hostname or "@" in parts.netloc
-                or any(ch.isspace() for ch in url) or _CONTROL.search(url)):
-            raise VisitInputError("리뷰 주소는 https:// 로 시작하는 300자 이하의 주소여야 합니다.")
+        bad = VisitInputError("리뷰 주소는 https:// 로 시작하는 300자 이하의 주소여야 합니다.")
+        try:
+            parts = urlsplit(url)
+            host, _ = parts.hostname, parts.port      # 대괄호가 짝이 안 맞는 호스트·숫자가 아닌 포트는 ValueError
+        except ValueError:
+            raise bad from None                       # 받은 값은 싣지 않는다
+        if (len(url) > REVIEW_URL_MAX or parts.scheme != "https" or not host or "@" in parts.netloc
+                or any(ch.isspace() for ch in url) or _has_hidden(url)):
+            raise bad
     if text is not None:
         lowered = text.lower()
-        if len(text) > REVIEW_TEXT_MAX or _CONTROL.search(text) or "http" in lowered or "www." in lowered:
+        if len(text) > REVIEW_TEXT_MAX or _has_hidden(text) or "http" in lowered or "www." in lowered:
             raise VisitInputError("리뷰 문구는 60자 이하의 한 줄 글이어야 하고 주소를 담을 수 없습니다.")
+
+
+def normalized_review_url(url: str | None) -> str | None:
+    """스킴만 소문자로(`HTTPS://` → `https://`) — 웹이 다시 볼 때 어긋나지 않게. 나머지는 매장이 넣은 그대로."""
+    if url is None or "://" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    return f"{scheme.lower()}://{rest}"
 
 
 def review_of(settings: ReportSettings, show_review: bool) -> tuple[str | None, str | None]:
