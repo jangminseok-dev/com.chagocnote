@@ -16,6 +16,8 @@ from customer.domain.services.care_marks import caution_active
 from customer.domain.services.draft_ranking import match_family
 from customer.domain.services.phone_number import mask_phone
 from customer.domain.services.search_terms import parse_query
+from customer.app.ports.output.form_settings_repository import FormSettingsRepository
+from customer.domain.value_objects.form_settings import DEFAULT_FORM_SETTINGS
 from hub.app.dtos.care_facts import CareFacts, CautionFact, ConditionFact, ConsentCover, PetCareFact
 from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.draft_candidate import DraftCandidate
@@ -35,6 +37,7 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
         self, customers: CustomerRepository, pets: PetRepository, briefs: FamilyBriefRepository,
         search: CustomerSearchPort, signatures: ConsentSignatureRepository | None = None,
         forms: ConsentFormRepository | None = None, now: Callable[[], datetime] | None = None,
+        settings: FormSettingsRepository | None = None,
     ) -> None:
         self._customers = customers
         self._pets = pets
@@ -44,6 +47,8 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
         self._signatures = signatures
         self._forms = forms
         self._now = now
+        # 매장의 서류 설정(⑪-B) — 노령 나이와 동의 기한. 주지 않으면 기본값이다.
+        self._settings = settings
 
     async def lock_family(self, ctx: ShopContext, customer_id: int, pet_ids: tuple[int, ...]) -> None:
         # 가족을 바꾸는 customer 유스케이스와 같은 잠금이다 — 익명화와 예약 생성이 서로를 기다린다.
@@ -133,7 +138,11 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
                         consent_on=pet.grooming_consent_on, passed_away=pet.passed_away,
                         consent_cover=covers.get(pet.id), consent_form_sent_on=sent.get(pet.id),
                     )
-        return CareFacts(known_customers=known, cautions=cautions, pets=pets)
+        policy = DEFAULT_FORM_SETTINGS if self._settings is None else await self._settings.get(ctx)
+        return CareFacts(
+            known_customers=known, cautions=cautions, pets=pets,
+            senior_age=policy.senior_age, consent_days=policy.consent_days,
+        )
 
     async def _consent_marks(self, ctx: ShopContext, pets) -> tuple[dict[int, ConsentCover], dict[int, date]]:
         """아이 → 서명이 덮는 것, 아이 → 살아 있는 동의서 링크를 보낸 날. 아이가 몇이든 질의는 둘이다."""

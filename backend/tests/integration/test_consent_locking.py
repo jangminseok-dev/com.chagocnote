@@ -22,7 +22,7 @@ from customer.app.dtos.public_form_dto import SubmitPublicConsentCommand
 from customer.app.dtos.sign_consent_in_shop_dto import SignConsentInShopCommand
 from customer.app.use_cases.sign_consent_in_shop_interactor import SignConsentInShopInteractor
 from customer.app.use_cases.submit_public_consent_interactor import SubmitPublicConsentInteractor
-from customer.domain.entities.consent import ConsentPolicy
+from customer.app.services.consent_source import ConsentSource
 from customer.domain.errors import ConsentDocumentChangedError
 from customer.domain.services.pet_age import seoul_today
 from hub.app.dtos.shop_context import ShopContext
@@ -82,7 +82,7 @@ async def test_현장_서명은_고객_행을_기다린_뒤에_문서를_읽는�
         await _add_condition(holder, pet_id)
         use_case = SignConsentInShopInteractor(
             PetPgRepository(signing), ConsentSignaturePgRepository(signing), ConsentFormPgRepository(signing),
-            seoul_today, _now, ConsentPolicy())
+            seoul_today, _now, ConsentSource())
         task = asyncio.create_task(use_case.sign_consent_in_shop(SignConsentInShopCommand(
             ctx=ctx, pet_ids=(pet_id,), doc_digest=digest, signer_name="김민지", signature_png=PNG)))
 
@@ -104,7 +104,7 @@ async def test_링크_서명은_고객_행을_기다린_뒤에_문서를_읽는�
         await _add_condition(holder, pet_id)
         use_case = SubmitPublicConsentInteractor(
             ConsentFormPgRepository(signing), CustomerPgRepository(signing), PetPgRepository(signing),
-            ConsentSignaturePgRepository(signing), _Shops(), _Limiter(), _now, ConsentPolicy(), REPORT_LINK_KEY)
+            ConsentSignaturePgRepository(signing), _Shops(), _Limiter(), _now, ConsentSource(), REPORT_LINK_KEY)
         task = asyncio.create_task(use_case.submit_public_consent(SubmitPublicConsentCommand(
             token=token, client="203.0.113.7", doc_digest=digest, signer_name="김민지", signature_png=PNG)))
 

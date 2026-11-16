@@ -12,7 +12,7 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.consent_signer import SigningInput, sign
 from customer.app.services.public_form_gate import open_form
-from customer.domain.entities.consent import ConsentPolicy
+from customer.app.services.consent_source import ConsentSource
 from customer.domain.errors import CustomerNotFoundError, FormClosedError, PetNotFoundError
 from hub.app.dtos.shop_context import public_context
 from hub.app.ports.public_limiter_port import PublicLimiterPort
@@ -29,7 +29,7 @@ class SubmitPublicConsentInteractor(SubmitPublicConsentUseCase):
     def __init__(
         self, forms: ConsentFormRepository, customers: CustomerRepository, pets: PetRepository,
         signatures: ConsentSignatureRepository, shops: ShopProfilePort, limiter: PublicLimiterPort,
-        now: Callable[[], datetime], policy: ConsentPolicy, link_key: bytes,
+        now: Callable[[], datetime], source: ConsentSource, link_key: bytes,
     ) -> None:
         self._forms = forms
         self._customers = customers
@@ -38,7 +38,7 @@ class SubmitPublicConsentInteractor(SubmitPublicConsentUseCase):
         self._shops = shops
         self._limiter = limiter
         self._now = now
-        self._policy = policy
+        self._source = source
         self._link_key = link_key
 
     async def submit_public_consent(self, command: SubmitPublicConsentCommand) -> None:
@@ -66,8 +66,9 @@ class SubmitPublicConsentInteractor(SubmitPublicConsentUseCase):
                     by_member_id=form.created_by_member_id,     # 받은 멤버는 링크를 보낸 멤버다
                     for_date=form.for_date,
                 ),
-                now, now.astimezone(ZoneInfo(ctx.timezone)).date(), self._policy,
+                now, now.astimezone(ZoneInfo(ctx.timezone)).date(), await self._source.policy(ctx),
                 pets=self._pets, signatures=self._signatures, forms=self._forms,
+                texts=await self._source.texts(ctx),
             )
         except PetNotFoundError:
             raise FormClosedError("닫힌 서류입니다.") from None

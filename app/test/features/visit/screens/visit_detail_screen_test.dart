@@ -14,7 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:chagocnote/features/visit/screens/send_bundle_sheet.dart';
+
 import '../../../support/customer_test_app.dart';
+import '../../../support/form_settings_fixtures.dart';
 import '../../../support/upload_fakes.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/visit_fixtures.dart';
@@ -329,6 +332,43 @@ void main() {
     expect(server.transitions, isEmpty);
     expect(find.text(AppStrings.completeTitle), findsNothing);
     expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+  });
+
+  testWidgets('예약됨이면 ··· 에 [보호자에게 보내기]가 있고 누르면 보낼 것 시트가 뜬다', (tester) async {
+    final server = _Server();
+    server.backend.routes['POST /v1/shops/3/visits/101/send-bundle'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: sendBundleJson());
+    final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    await _more(tester, AppStrings.actionSendToGuardian);
+
+    expect(find.text(AppStrings.bundleSheetTitle), findsOneWidget);
+    await _tap(tester, find.byKey(SendBundleSheet.sendKey));
+    expect(setup.shareSheet.shared.single, contains(fakeBundleUrl));
+    await _tap(tester, find.text(AppStrings.close));
+    expect(find.text(AppStrings.bundleSheetTitle), findsNothing);
+    expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
+  });
+
+  testWidgets('보낼 글을 읽지 못하거나 없으면 [보호자에게 보내기]가 그 까닭을 말한다', (tester) async {
+    for (final (response, notice) in [
+      (const FakeResponse(statusCode: 500, data: {'code': 'INTERNAL_ERROR', 'message': 'x'}), AppStrings.bundleLoadFailed),
+      (const FakeResponse(statusCode: 200, data: {'parts': []}), AppStrings.bundleNothing),
+    ]) {
+      final server = _Server();
+      server.backend.routes['POST /v1/shops/3/visits/101/send-bundle'] = (o, b) => response;
+      final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+      await _open(tester, setup);
+
+      await _more(tester, AppStrings.actionSendToGuardian);
+
+      expect(find.text(notice), findsOneWidget);
+      expect(find.text(AppStrings.bundleSheetTitle), findsNothing);
+      setup.container.dispose();
+      await tester.pumpWidget(const SizedBox());
+    }
   });
 
   testWidgets('··· 에서 바로 완료는 예약됨이라 먼저 완료한 뒤 기록을 저장한다', (tester) async {

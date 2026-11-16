@@ -52,6 +52,10 @@ from customer.adapter.inbound.api.v1.read_public_form_router import read_public_
 from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
 from customer.adapter.inbound.api.v1.set_customer_caution_router import set_customer_caution_router
 from customer.adapter.inbound.api.v1.submit_public_consent_router import submit_public_consent_router
+from customer.adapter.inbound.api.v1.get_form_settings_router import get_form_settings_router
+from customer.adapter.inbound.api.v1.update_form_settings_router import update_form_settings_router
+from customer.adapter.inbound.api.v1.list_consent_texts_router import list_consent_texts_router
+from customer.adapter.inbound.api.v1.update_consent_text_router import update_consent_text_router
 from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
     set_pet_grooming_consent_router,
 )
@@ -179,6 +183,9 @@ from visit.adapter.inbound.api.v1.visit_myself_router import visit_myself_router
 from visit.dependencies.hub_ports import get_customer_directory, get_domain_events
 from visit.dependencies.hub_ports import get_media_library as get_visit_media_library
 from visit.dependencies.hub_ports import get_shop_profile
+from visit.dependencies.hub_ports import get_guardian_forms
+from visit.adapter.inbound.api.v1.build_send_bundle_router import build_send_bundle_router
+from customer.dependencies.guardian_form_provider import get_guardian_form_use_case
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 from visit.dependencies.visit_search_source_provider import get_visit_search_source_use_case
 from visit.adapter.inbound.api.v1.guardian_reports_router import (
@@ -254,6 +261,11 @@ app.include_router(get_consent_signature_router)
 app.include_router(get_consent_signature_image_router)
 app.include_router(read_public_form_router)
 app.include_router(submit_public_consent_router)
+app.include_router(get_form_settings_router)
+app.include_router(update_form_settings_router)
+app.include_router(list_consent_texts_router)
+app.include_router(update_consent_text_router)
+app.include_router(build_send_bundle_router)
 app.include_router(mark_pet_passed_away_router)
 app.include_router(unmark_pet_passed_away_router)
 app.include_router(delete_pet_router)
@@ -355,6 +367,7 @@ app.dependency_overrides[get_guardian_access_port] = get_resolve_guardian_access
 # 고객 익명화가 보호자 연결을 끝낸다.
 app.dependency_overrides[get_customer_guardian_lifecycle] = get_end_guardian_links_use_case
 app.dependency_overrides[get_customer_directory] = get_customer_directory_use_case
+app.dependency_overrides[get_guardian_forms] = get_guardian_form_use_case
 app.dependency_overrides[get_visit_ledger] = get_visit_ledger_use_case
 app.dependency_overrides[get_visit_media_library] = get_media_library_use_case
 app.dependency_overrides[get_customer_media_library] = get_media_library_use_case

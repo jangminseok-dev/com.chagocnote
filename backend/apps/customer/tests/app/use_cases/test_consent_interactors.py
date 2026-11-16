@@ -11,6 +11,7 @@ from customer.app.use_cases.issue_consent_form_interactor import IssueConsentFor
 from customer.app.use_cases.revoke_form_interactor import RevokeFormInteractor
 from customer.app.use_cases.sign_consent_in_shop_interactor import SignConsentInShopInteractor
 from customer.app.services.consent_reader import read_document
+from customer.app.services.consent_source import ConsentSource
 from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.errors import ConsentDocumentChangedError, FormNotFoundError
 from customer.tests.helpers.fakes import TODAY, FakeConsentForms, FakeConsentSignatures, family, today
@@ -18,6 +19,17 @@ from customer.tests.helpers.profiles import ctx
 
 NOW = datetime(2026, 9, 22, 1, 0, tzinfo=timezone.utc)
 POLICY = ConsentPolicy()
+
+
+class _Source(ConsentSource):
+    """정해 둔 기준값을 주는 가짜 — 매장의 서류 설정 대신. 글은 기본 글이다."""
+
+    def __init__(self, policy=POLICY):
+        super().__init__()
+        self._policy = policy
+
+    async def policy(self, ctx):
+        return self._policy
 KEY = b"k" * 32
 PNG = b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", 600, 240) + b"\x00" * 20
 
@@ -31,11 +43,11 @@ def _world():
 
 def _issue(pets, signatures, forms):
     return IssueConsentFormInteractor(
-        pets, signatures, forms, today, lambda: NOW, POLICY, link_key=KEY, web_base_url="https://web.test")
+        pets, signatures, forms, today, lambda: NOW, _Source(), link_key=KEY, web_base_url="https://web.test")
 
 
 def _sign(pets, signatures, forms):
-    return SignConsentInShopInteractor(pets, signatures, forms, today, lambda: NOW, POLICY)
+    return SignConsentInShopInteractor(pets, signatures, forms, today, lambda: NOW, _Source())
 
 
 async def _digest(pets, signatures, pet_id):
@@ -57,7 +69,7 @@ async def test_보낼_때_고객_행을_먼저_잠그고_요청을_만든다():
 async def test_링크의_기간은_기준값을_따른다():
     _, _, pets, forms, signatures, pet = _world()
     use_case = IssueConsentFormInteractor(
-        pets, signatures, forms, today, lambda: NOW, ConsentPolicy(link_days=3), link_key=KEY, web_base_url="https://w")
+        pets, signatures, forms, today, lambda: NOW, _Source(ConsentPolicy(link_days=3)), link_key=KEY, web_base_url="https://w")
 
     view = await use_case.issue_consent_form(IssueConsentFormCommand(ctx=ctx(), pet_ids=(pet.id,)))
 

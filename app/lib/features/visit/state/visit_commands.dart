@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../customer/api/consent_models.dart';
 import '../../customer/state/consent_commands.dart';
+import '../../customer/state/consent_providers.dart';
 import '../../customer/state/customer_commands.dart';
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
@@ -134,6 +135,29 @@ class VisitCommands {
   Future<FormLink> consentFormLink(int shopId, int petId, {required DateTime forDate}) async {
     try {
       return await _ref.read(consentCommandsProvider).send(shopId, [petId], forDate: forDate);
+    } finally {
+      refreshChecks();
+    }
+  }
+
+  /// 보호자에게 보낼 글의 토막들(⑪-B). 동의서 링크가 이때 만들어질 수 있다 — 성공하든 실패하든 확인할 것
+  /// (보낸 날)과 보낸 서류를 다시 읽는다.
+  Future<SendBundle> sendBundle(int shopId, int visitId) async {
+    try {
+      return await runShopScoped(_ref, () => _api.sendBundle(shopId, visitId));
+    } finally {
+      refreshChecks();
+      _ref.invalidate(sentFormsProvider);
+    }
+  }
+
+  /// 보낼 것 시트를 보내지 않고 닫았을 때 — 그 시트가 새로 만든 동의서 링크를 끊는다. 실패해도 조용히 끝난다
+  /// (링크가 남을 뿐이다 — 보낸 서류에서 끊을 수 있다).
+  Future<void> dropUnsentLink(int shopId, int formId) async {
+    try {
+      await _ref.read(consentCommandsProvider).revoke(shopId, formId);
+    } catch (_) {
+      // 알리지 않는다 — 사장이 한 일이 아니다.
     } finally {
       refreshChecks();
     }

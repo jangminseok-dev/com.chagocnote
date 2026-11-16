@@ -75,6 +75,7 @@ async def read_checks(
             caution=None if caution is None else CautionMark(reason=caution.reason, until=caution.until),
             no_show_count=no_shows.get(target.key, 0),
             last_completed_on=None if completed is None else local_date(completed, tz),
+            senior_age=facts.senior_age, consent_days=facts.consent_days, today=today,
         ))
     return ChecksRead(
         by_key=by_key, known_customers=facts.known_customers, known_pets=frozenset(facts.pets),

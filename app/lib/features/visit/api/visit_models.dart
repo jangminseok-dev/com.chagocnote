@@ -725,3 +725,41 @@ class DraftGuess {
   final bool who;
   final bool menu;
 }
+
+
+/// 한 예약에 보호자에게 보낼 글(⑪-B) — 토막들과, 이 조립이 새로 만든 동의서 링크.
+class SendBundle {
+  const SendBundle({required this.parts, this.createdFormId});
+
+  factory SendBundle.fromJson(Map<String, dynamic> json) => SendBundle(
+    parts: [
+      if (json['parts'] case final List list)
+        for (final raw in list) ?BundlePart.tryParse(raw),
+    ],
+    createdFormId: json['created_form_id'] is int ? json['created_form_id'] as int : null,
+  );
+
+  final List<BundlePart> parts;
+
+  /// 묶음을 읽으면서 새로 만들어진 동의서 링크. 보내지 않고 닫으면 이것을 끊는다 — 보내지 않은 링크로
+  /// "보냈어요"가 뜨지 않게. 살아 있던 링크를 썼거나 링크가 없으면 `null`.
+  final int? createdFormId;
+}
+
+/// 보호자에게 보낼 글의 토막 하나(⑪-B). [kind] 는 `reservation`·`consent` — 서버가 종류를 더해도
+/// 글은 그대로 싣는다. **[text] 에는 서류 주소(토큰)가 들 수 있다 — 로그·오류 문구에 남기지 않는다.**
+class BundlePart {
+  const BundlePart({required this.kind, required this.text});
+
+  /// 글이 비었거나 모양이 깨진 토막은 `null` — 빈 글은 내보내지 않는다.
+  static BundlePart? tryParse(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final kind = raw['kind'];
+    final text = raw['text'];
+    if (kind is! String || text is! String || text.trim().isEmpty) return null;
+    return BundlePart(kind: kind, text: text);
+  }
+
+  final String kind;
+  final String text;
+}

@@ -168,6 +168,12 @@ class VisitApi {
   );
 
   /// 완료한 방문의 다음 예약 초안(저장하지 않는다).
+  /// 그 예약에 보호자에게 보낼 글의 토막들(⑪-B) — 예약 안내와, 필요하면 동의서 링크. 링크가 없으면 이때
+  /// 만들어진다(다시 불러도 같은 링크). 예약 상태가 아니면 빈 목록이다. 모르는 kind 도 글 그대로 싣는다.
+  Future<SendBundle> sendBundle(int shopId, int visitId) async => SendBundle.fromJson(
+    await _client.post('/v1/shops/$shopId/visits/$visitId/send-bundle') as Map<String, dynamic>,
+  );
+
   Future<NextVisitDraft> nextDraft(int shopId, int visitId) async =>
       NextVisitDraft.fromJson(
         await _get('/v1/shops/$shopId/visits/$visitId/next-draft'),

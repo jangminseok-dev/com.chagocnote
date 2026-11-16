@@ -10,9 +10,9 @@ from customer.app.ports.output.consent_form_repository import ConsentFormReposit
 from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.consent_reader import read_document
+from customer.app.services.consent_source import ConsentSource
 from customer.app.services.public_form_gate import open_form
 from customer.app.use_cases.get_consent_document_interactor import document_view
-from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.errors import CustomerInputError, FormClosedError, PetNotFoundError
 from customer.domain.services.consent_document import base_date
 from hub.app.dtos.shop_context import public_context
@@ -28,7 +28,7 @@ class ReadPublicFormInteractor(ReadPublicFormUseCase):
 
     def __init__(
         self, forms: ConsentFormRepository, pets: PetRepository, signatures: ConsentSignatureRepository,
-        shops: ShopProfilePort, limiter: PublicLimiterPort, now: Callable[[], datetime], policy: ConsentPolicy,
+        shops: ShopProfilePort, limiter: PublicLimiterPort, now: Callable[[], datetime], source: ConsentSource,
         link_key: bytes,
     ) -> None:
         self._forms = forms
@@ -37,7 +37,7 @@ class ReadPublicFormInteractor(ReadPublicFormUseCase):
         self._shops = shops
         self._limiter = limiter
         self._now = now
-        self._policy = policy
+        self._source = source
         self._link_key = link_key
 
     async def read_public_form(self, query: ReadPublicFormQuery) -> PublicFormView:
@@ -50,10 +50,11 @@ class ReadPublicFormInteractor(ReadPublicFormUseCase):
         zone = ZoneInfo(ctx.timezone)
         if form.submitted_at is not None:
             return PublicFormView(shop.name, None, form.submitted_at.astimezone(zone).date())
+        policy = await self._source.policy(ctx)
         try:
             doc = await read_document(
-                ctx, form.pet_ids, base_date(now.astimezone(zone).date(), form.for_date, self._policy), self._policy,
-                pets=self._pets, signatures=self._signatures)
+                ctx, form.pet_ids, base_date(now.astimezone(zone).date(), form.for_date, policy), policy,
+                pets=self._pets, signatures=self._signatures, texts=await self._source.texts(ctx))
         except (PetNotFoundError, CustomerInputError):
             # 익명화한 고객의 요청이거나 담은 아이가 없다 — 닫힌 것으로 읽힌다.
             raise FormClosedError("닫힌 서류입니다.") from None

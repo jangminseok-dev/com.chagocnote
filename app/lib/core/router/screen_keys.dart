@@ -29,6 +29,8 @@ class ScreenKeys {
   static const photoViewer = Key('screen_photo_viewer');
   static const reportPreview = Key('screen_report_preview');
   static const reportSettings = Key('screen_report_settings');
+  static const formSettings = Key('screen_form_settings');
+  static const formTextEdit = Key('screen_form_text_edit');
   static const notificationSettings = Key('screen_notification_settings');
   static const day = Key('screen_day');
   static const salesVisits = Key('screen_sales_visits');

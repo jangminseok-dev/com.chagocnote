@@ -22,6 +22,8 @@ import '../../features/sales/screens/due_pets_screen.dart';
 import '../../features/sales/screens/sales_visits_screen.dart';
 import '../../features/search/screens/search_screen.dart';
 import '../../features/shop/screens/members_screen.dart';
+import '../../features/customer/screens/form_settings_screen.dart';
+import '../../features/customer/screens/form_text_edit_screens.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
@@ -126,6 +128,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/report',
         builder: (context, state) => const ReportSettingsScreen(),
+      ),
+      GoRoute(path: '/settings/forms', builder: (context, state) => const FormSettingsScreen()),
+      GoRoute(
+        path: '/settings/forms/text/:part',
+        builder: (context, state) => ConsentTextEditScreen(partName: state.pathParameters['part']!),
+      ),
+      GoRoute(
+        path: '/settings/forms/message/:kind',
+        builder: (context, state) => BundleTextEditScreen(kind: state.pathParameters['kind']!),
       ),
       GoRoute(
         path: '/settings/notification',

@@ -9,6 +9,7 @@ from customer.app.ports.output.consent_signature_repository import ConsentSignat
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.consent_forms import drop_pets
 from customer.app.services.consent_reader import read_document
+from customer.app.services.consent_source import ConsentText
 from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.entities.consent_form import NewSignature, NewSignaturePet, SignedPart
 from customer.domain.errors import ConsentDocumentChangedError, ConsentUpToDateError, CustomerInputError
@@ -34,6 +35,7 @@ class SigningInput:
 async def sign(
     ctx: ShopContext, entry: SigningInput, now: datetime, today: date, policy: ConsentPolicy, *,
     pets: PetRepository, signatures: ConsentSignatureRepository, forms: ConsentFormRepository,
+    texts: dict[str, ConsentText] | None = None,
 ) -> int:
     """서명을 쓰고 서명 ID 를 돌려준다. **고객 행을 이미 쥔 안에서** 부른다.
 
@@ -45,7 +47,8 @@ async def sign(
         raise CustomerInputError("이름은 1자에서 50자 사이로 적어 주세요.")
     check_png(entry.signature_png)
     doc = await read_document(
-        ctx, entry.pet_ids, base_date(today, entry.for_date, policy), policy, pets=pets, signatures=signatures)
+        ctx, entry.pet_ids, base_date(today, entry.for_date, policy), policy, pets=pets, signatures=signatures,
+        texts=texts)
     if not doc.pets:
         raise ConsentUpToDateError("이미 받은 동의입니다.")
     if doc.digest != entry.doc_digest:

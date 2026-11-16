@@ -449,6 +449,19 @@ void noteDraft() {
   );
 }
 
+/// 예약을 저장하면 보낼 것 시트(⑪-B)가 뜰 수 있다 — 떠 있으면 [나중에]로 닫는다.
+Future<void> closeBundle() async {
+  final end = DateTime.now().add(const Duration(seconds: 8));
+  while (DateTime.now().isBefore(end)) {
+    await pumpFor(const Duration(milliseconds: 200));
+    if (find.text(AppStrings.bundleLater).evaluate().isNotEmpty) {
+      await tap(find.text(AppStrings.bundleLater));
+      return;
+    }
+    if (find.byKey(ScreenKeys.registerVisit).evaluate().isEmpty) return;
+  }
+}
+
 Finder saveReservationBtn() => btnWhere(
   (l) =>
       l.startsWith('예약 저장') ||
@@ -683,6 +696,7 @@ void main() {
       soft(selected('목욕'), '②에 목욕이 골라져 있지 않다');
       soft(durationNow() == 60, '② 소요가 60분이 아니다');
       await tap(saveReservationBtn());
+      await closeBundle();
       await waitGone(find.byKey(ScreenKeys.registerVisit));
       await waitGone(find.byKey(ScreenKeys.visitDraft));
       await pumpFor(const Duration(seconds: 1));
