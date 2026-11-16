@@ -29,12 +29,16 @@ export type MediaItem = Media & { report_id: number; visit_date: string }
 export type MediaPage = { items: MediaItem[]; next_cursor: string | null; years: number[] }
 export type MediaFilter = { petId: number | null; year: number | null; phase: 'after' | 'before' | null; cursor: string | null }
 export type WeightItem = { visit_date: string; weight_kg: number }
+/** 함께 보는 가족 한 사람(⑫) — 이름·계정은 오지 않는다. */
+export type FamilyMember = { family_id: number; linked_at: string; unseen: boolean }
 
 const TIMEOUT_MS = 5000
 const PREFIX = '/v1/me/guardian'
 
-function call(method: 'GET' | 'POST' | 'DELETE', path: string, accessToken: string, reportToken?: string): Promise<Response> {
-  const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` }
+function call(
+  method: 'GET' | 'POST' | 'DELETE', path: string, accessToken: string, reportToken?: string, extra: Record<string, string> = {},
+): Promise<Response> {
+  const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}`, ...extra }
   if (reportToken !== undefined) headers['X-Report-Token'] = reportToken
   return fetch(`${apiBaseUrl()}${PREFIX}${path}`, {
     method,
@@ -92,7 +96,6 @@ export async function getGuardianReport(
   return 'ok' in result ? { kind: 'ok', report: result.ok } : result
 }
 
-/** 200·201 | 410 | 409 | 404 | 429 | 401 | 그 밖 */
 /** 아이의 사진·영상 모아 보기 한 쪽(최신순 60개). 고른 거르기만 질의에 싣는다. */
 export async function getMedia(
   accessToken: string,
@@ -119,6 +122,7 @@ export async function getWeights(
   return 'ok' in result ? { kind: 'ok', weights: result.ok.items } : result
 }
 
+/** 200·201 | 410 | 409 | 404 | 429 | 401 | 그 밖 */
 export type ClaimResult = 'linked' | 'closed' | 'taken' | 'not_found' | 'busy' | 'unauthenticated' | 'unavailable'
 
 const CLAIMS: Record<number, ClaimResult> = {
@@ -154,3 +158,54 @@ export async function endLink(accessToken: string, linkId: number): Promise<EndR
     return 'unavailable'
   }
 }
+
+// --- 가족(⑫) — 초대 코드는 백엔드로 헤더(X-Family-Invite)로만 넘기고 기록하지 않는다 ---
+
+export type InviteResult =
+  | { kind: 'ok'; code: string; expiresAt: string }
+  | { kind: 'full' | 'busy' | 'not_found' | 'unauthenticated' | 'unavailable' }
+
+/** 기본 연결이 가족 초대를 만든다. 앞의 안 쓴 초대는 백엔드가 죽인다. */
+export async function createInvite(accessToken: string, linkId: number): Promise<InviteResult> {
+  try {
+    const res = await call('POST', `/links/${linkId}/family-invites`, accessToken)
+    if (res.status === 201) {
+      const body = (await res.json()) as { code: string; expires_at: string }
+      return { kind: 'ok', code: body.code, expiresAt: body.expires_at }
+    }
+    const kinds: Record<number, InviteResult['kind']> = { 409: 'full', 429: 'busy', 404: 'not_found', 401: 'unauthenticated' }
+    return { kind: (kinds[res.status] ?? 'unavailable') as 'full' }
+  } catch {
+    return { kind: 'unavailable' }
+  }
+}
+
+export type JoinResult = 'joined' | 'not_found' | 'full' | 'busy' | 'unauthenticated' | 'unavailable'
+const JOINS: Record<number, JoinResult> = { 200: 'joined', 201: 'joined', 404: 'not_found', 409: 'full', 429: 'busy', 401: 'unauthenticated' }
+
+/** 초대를 받은 가족이 잇는다. */
+export async function joinFamily(accessToken: string, code: string): Promise<JoinResult> {
+  try {
+    const res = await call('POST', '/family-links', accessToken, undefined, { 'X-Family-Invite': code })
+    return JOINS[res.status] ?? 'unavailable'
+  } catch {
+    return 'unavailable'
+  }
+}
+
+/** 기본 보호자가 보는 함께 보는 가족(이은 순서). 읽으면 새 줄의 알림이 거둬진다. */
+export async function getFamily(accessToken: string, linkId: number): Promise<{ kind: 'ok'; family: FamilyMember[] } | Failure> {
+  const result = await read<{ items: FamilyMember[] }>(`/links/${linkId}/family`, accessToken)
+  return 'ok' in result ? { kind: 'ok', family: result.ok.items } : result
+}
+
+/** 가족 한 명(familyId), 없으면 모두를 끊는다. */
+export async function endFamily(accessToken: string, linkId: number, familyId: number | null): Promise<EndResult> {
+  try {
+    const res = await call('DELETE', familyId === null ? `/links/${linkId}/family` : `/links/${linkId}/family/${familyId}`, accessToken)
+    return ENDS[res.status] ?? 'unavailable'
+  } catch {
+    return 'unavailable'
+  }
+}
+

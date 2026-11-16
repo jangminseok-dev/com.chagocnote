@@ -26,10 +26,14 @@ import {
   CLAIM_COOKIE,
   SESSION_COOKIE,
   clearClaim,
+  clearJoin,
+  JOIN_COOKIE,
   clearSession,
   readSession,
   takeClaim,
+  takeJoin,
   writeClaim,
+  writeJoin,
   writeSession,
 } from '../lib/session'
 
@@ -126,3 +130,26 @@ test('takeClaim 은 토큰 모양이 아닌 값이면 null 이고 쿠키를 지�
   expect(await takeClaim()).toBeNull()
   expect(deleted).toEqual([CLAIM_COOKIE])
 })
+
+// ── 가족 초대 코드를 로그인 사이에 맡기는 쿠키(⑫) ───────────────────────────────
+
+test('초대 코드를 맡기면 10분짜리 cn_join 이고 값에 코드가 보이지 않으며 한 번 꺼내면 지워진다', async () => {
+  const code = 'j'.repeat(43)
+  await writeJoin(code)
+  expect(written.get(JOIN_COOKIE)).toEqual({ httpOnly: true, sameSite: 'lax', path: '/', maxAge: 600, secure: false })
+  expect(jar.get(JOIN_COOKIE)).not.toContain(code)
+
+  expect(await takeJoin()).toBe(code)
+  expect(deleted).toContain(JOIN_COOKIE)
+  expect(await takeJoin()).toBeNull()
+})
+
+test('잇기 쿠키로 봉한 값은 초대 쿠키로 열리지 않고, 지우면 지워진다', async () => {
+  await writeClaim(REPORT_TOKEN)
+  jar.set(JOIN_COOKIE, jar.get(CLAIM_COOKIE)!)
+  expect(await takeJoin()).toBeNull()
+  await writeJoin('j'.repeat(43))
+  await clearJoin()
+  expect(deleted).toContain(JOIN_COOKIE)
+})
+

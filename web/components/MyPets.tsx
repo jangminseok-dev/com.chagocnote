@@ -1,13 +1,14 @@
-import type { GuardianLink, GuardianPet } from '../lib/guardian'
+import type { FamilyMember, GuardianLink, GuardianPet } from '../lib/guardian'
 import { koreanFullDate } from '../lib/format'
+import { FamilySection } from './FamilySection'
 import styles from './Member.module.css'
 import { UnlinkButton } from './UnlinkButton'
 
 /** 연결 하나 — 매장과 그 매장에서 알림장을 받은 적 있는 아이들. */
-export type ShopPets = { link: GuardianLink; pets: GuardianPet[] }
+export type ShopPets = { link: GuardianLink; pets: GuardianPet[]; family?: FamilyMember[] }
 
 /** 내 기록. 매장별로 아이들을 보여 준다. notice 는 방금 잇기가 되지 않은 까닭이다. */
-export function MyPets({ shops, notice }: { shops: ShopPets[]; notice: 'taken' | null }) {
+export function MyPets({ shops, notice }: { shops: ShopPets[]; notice: 'taken' | 'invite' | null }) {
   return (
     <main className={styles.page}>
       <header data-section="me-head">
@@ -21,6 +22,11 @@ export function MyPets({ shops, notice }: { shops: ShopPets[]; notice: 'taken' |
           이 알림장은 이미 다른 계정에 이어져 있어요. 매장에 문의해 주세요.
         </p>
       )}
+      {notice === 'invite' && (
+        <p className={styles.alert} role="status" data-section="notice">
+          초대가 끝났거나 이미 쓰였어요. 가족에게 새 초대를 부탁해 주세요.
+        </p>
+      )}
       {shops.length === 0 && (
         <section className={styles.empty} data-section="empty">
           <h2>아직 이어진 기록이 없어요</h2>
@@ -30,10 +36,11 @@ export function MyPets({ shops, notice }: { shops: ShopPets[]; notice: 'taken' |
           </p>
         </section>
       )}
-      {shops.map(({ link, pets }) => (
+      {shops.map(({ link, pets, family }) => (
         <section className={styles.shop} key={link.link_id} data-section="shop">
           <h2>{link.shop_name}</h2>
           <small>{koreanFullDate(link.linked_at)}부터</small>
+          {link.role === 'family' && <p className={styles.text}>가족으로 함께 보는 기록이에요</p>}
           {pets.length === 0 ? (
             <p className={styles.text}>아직 받은 알림장이 없어요</p>
           ) : (
@@ -49,6 +56,9 @@ export function MyPets({ shops, notice }: { shops: ShopPets[]; notice: 'taken' |
             <a href={`/me/${link.link_id}`}>전체 기록 보기</a>
             <UnlinkButton linkId={link.link_id} shopName={link.shop_name} />
           </div>
+          {link.role !== 'family' && family !== undefined && (
+            <FamilySection linkId={link.link_id} members={family} count={link.family_count ?? 0} max={link.family_max ?? 0} />
+          )}
         </section>
       ))}
       <footer className={styles.logout} data-section="logout">

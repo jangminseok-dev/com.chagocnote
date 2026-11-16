@@ -5,6 +5,8 @@ import { isTokenShaped } from './token'
 
 export const SESSION_COOKIE = 'cn_session'
 export const CLAIM_COOKIE = 'cn_claim'
+/** 로그인하고 돌아와 쓸 가족 초대 코드(⑫) — 잇기 쿠키와 같은 수명·같은 대접, 봉함 용도가 다르다. */
+export const JOIN_COOKIE = 'cn_join'
 /** 잇기 쿠키가 사는 시간 — 로그인하는 동안만 알림장 토큰을 들고 있는다. */
 export const CLAIM_TTL_SECONDS = 600
 
@@ -61,3 +63,24 @@ export async function takeClaim(): Promise<string | null> {
   const token = await open('claim', sealed)
   return token !== null && isTokenShaped(token) ? token : null
 }
+
+/** 로그인하고 돌아와 쓸 가족 초대 코드를 잠깐 맡긴다(⑫). 코드가 든 주소를 새로 만들지 않는다. */
+export async function writeJoin(code: string): Promise<void> {
+  ;(await cookies()).set(JOIN_COOKIE, await seal('join', code), options(CLAIM_TTL_SECONDS))
+}
+
+/** 맡긴 초대 코드를 쓰지 않고 버린다(로그아웃). */
+export async function clearJoin(): Promise<void> {
+  ;(await cookies()).delete(JOIN_COOKIE)
+}
+
+/** 맡긴 초대 코드를 꺼내고 쿠키를 지운다. 없거나 코드 모양이 아니면 null 이다. */
+export async function takeJoin(): Promise<string | null> {
+  const store = await cookies()
+  const sealed = store.get(JOIN_COOKIE)?.value
+  if (!sealed) return null
+  store.delete(JOIN_COOKIE)
+  const code = await open('join', sealed)
+  return code !== null && isTokenShaped(code) ? code : null
+}
+
