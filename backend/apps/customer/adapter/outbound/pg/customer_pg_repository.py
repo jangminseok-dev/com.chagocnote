@@ -123,7 +123,7 @@ class CustomerPgRepository(CustomerRepository):
             update(PetOrm)
             .where(PetOrm.customer_id.in_(owned_customer))
             .values(name=None, memo=None, grooming_consent_on=None, grooming_consent_by_member_id=None,
-                    grooming_consent_signature_id=None)
+                    grooming_consent_signature_id=None, grooming_cycle_weeks=None, revisit_nudged_on=None)
         )
 
     async def _row(self, ctx: ShopContext, customer_id: int, lock: bool) -> CustomerOrm:

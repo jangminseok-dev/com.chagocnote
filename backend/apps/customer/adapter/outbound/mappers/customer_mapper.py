@@ -40,4 +40,6 @@ def to_pet(orm: PetOrm, conditions: list[PetCondition]) -> Pet:
         conditions=tuple(conditions),
         grooming_consent_on=orm.grooming_consent_on,
         grooming_consent_signature_id=orm.grooming_consent_signature_id,
+        grooming_cycle_weeks=orm.grooming_cycle_weeks,
+        revisit_nudged_on=orm.revisit_nudged_on,
     )

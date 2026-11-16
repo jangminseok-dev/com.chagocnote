@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import date, datetime
 
 from hub.app.dtos.shop_context import ShopContext
 from visit.domain.entities.visit import Visit
@@ -48,3 +48,12 @@ class VisitHistoryRepository(ABC):
         self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
     ) -> list[datetime]:
         """그 아이(pet_id 가 None 이면 보호자만의 방문)의 완료 방문 시작 시각, 최근 것부터 limit 개."""
+
+    @abstractmethod
+    async def completed_days(self, ctx: ShopContext, pet_ids: list[int], per_pet: int) -> dict[int, list[date]]:
+        """{반려동물 ID: 완료 방문의 날(매장 시간대), 최근 것부터 per_pet 개} — 미용 주기 계산의 원본(⑬).
+        완료 방문이 없는 아이는 빠진다. 아이 수와 상관없이 질의 하나다."""
+
+    @abstractmethod
+    async def pets_with_upcoming(self, ctx: ShopContext, pet_ids: list[int], since: datetime) -> set[int]:
+        """since(오늘 0시) 이후에 시작하는 예약됨·미용 중 방문이 있는 아이 — 다시 올 때가 된 아이에서 뺀다(⑬)."""

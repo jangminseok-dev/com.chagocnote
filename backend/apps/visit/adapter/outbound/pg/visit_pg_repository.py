@@ -4,7 +4,7 @@ import base64
 import binascii
 import json
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import delete, func, insert, select, tuple_, update
 from sqlalchemy.exc import IntegrityError
@@ -221,6 +221,37 @@ class VisitPgRepository(
                 )
             ).scalars()
         )
+
+    async def completed_days(self, ctx: ShopContext, pet_ids: list[int], per_pet: int) -> dict[int, list[date]]:
+        if not pet_ids:
+            return {}
+        ranked = (
+            select(
+                VisitOrm.pet_id.label("pet_id"),
+                func.date(func.timezone(ctx.timezone, VisitOrm.starts_at)).label("day"),
+                func.row_number().over(partition_by=VisitOrm.pet_id, order_by=VisitOrm.starts_at.desc()).label("n"),
+            )
+            .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id.in_(pet_ids), VisitOrm.status == COMPLETED)
+            .subquery()
+        )
+        rows = await self._session.execute(
+            select(ranked.c.pet_id, ranked.c.day).where(ranked.c.n <= per_pet).order_by(ranked.c.pet_id, ranked.c.n)
+        )
+        days: dict[int, list[date]] = {}
+        for pet_id, day in rows:
+            days.setdefault(pet_id, []).append(day)
+        return days
+
+    async def pets_with_upcoming(self, ctx: ShopContext, pet_ids: list[int], since: datetime) -> set[int]:
+        if not pet_ids:
+            return set()
+        rows = await self._session.execute(
+            select(VisitOrm.pet_id).distinct().where(
+                VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id.in_(pet_ids),
+                VisitOrm.status.in_(ACTIVE_STATUSES), VisitOrm.starts_at >= since,
+            )
+        )
+        return set(rows.scalars())
 
     async def pet_has_visits(self, ctx: ShopContext, pet_id: int, active_only: bool) -> bool:
         stmt = select(VisitOrm.id).where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id == pet_id)

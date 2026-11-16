@@ -358,6 +358,9 @@ class FakeDirectory(CustomerDirectoryPort):
     async def contact(self, ctx, customer_id):
         return self.contacts.get(customer_id) if ctx.shop_id == self.shop_id else None
 
+    async def revisit_facts(self, ctx, pet_ids):
+        return {}
+
 
 class FakeLedger(VisitLedgerPort):
     """VisitLedgerPort 스텁 — 디스패처는 customer_has_upcoming 만 쓴다. upcoming 은 앞으로의 예약이 있는 고객 ID."""
@@ -385,6 +388,9 @@ class FakeLedger(VisitLedgerPort):
 
     async def latest_covers(self, ctx, pet_ids):
         return {}
+
+    async def pet_revisit(self, ctx, pet_id, manual_weeks):
+        raise AssertionError("알림 쪽은 아이의 주기를 장부에서 읽지 않는다 — 완료 이벤트로 받는다")
 
 
 class SpyGateway(FakeGateway):

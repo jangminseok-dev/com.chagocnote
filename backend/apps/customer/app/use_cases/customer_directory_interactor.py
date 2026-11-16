@@ -22,6 +22,7 @@ from hub.app.dtos.care_facts import CareFacts, CautionFact, ConditionFact, Conse
 from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import CustomerBrief, FamilyBriefs, PetBrief
+from hub.app.dtos.pet_revisit import PetRevisitFact
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.errors import FamilyNotFoundError, FamilyPetNotFoundError, FamilyPetPassedAwayError
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
@@ -184,3 +185,8 @@ class CustomerDirectoryInteractor(CustomerDirectoryPort):
             if not pet.passed_away:
                 alive.setdefault(pet.customer_id, pet.id)
         return first | alive
+
+    async def revisit_facts(self, ctx: ShopContext, pet_ids: tuple[int, ...]) -> dict[int, PetRevisitFact]:
+        facts = await self._pets.revisit_facts(ctx, list(pet_ids))
+        return {pet_id: PetRevisitFact(grooming_cycle_weeks=weeks, revisit_nudged_on=nudged)
+                for pet_id, (weeks, nudged) in facts.items()}

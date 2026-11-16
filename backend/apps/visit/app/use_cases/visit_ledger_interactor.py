@@ -3,12 +3,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 
+from hub.app.dtos.pet_revisit import PetRevisitView
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.dtos.upcoming_visit import UpcomingVisit
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 from visit.app.ports.output.report_repository import ReportRepository
+from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
+from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.app.services.revisit import pet_cycles
 from visit.domain.services.visit_record_rules import cover_media_id
 from visit.domain.services.visit_schedule import day_bounds, local_date
 
@@ -18,12 +22,15 @@ class VisitLedgerInteractor(VisitLedgerPort):
 
     def __init__(
         self, ledger: VisitLedgerRepository, records: VisitRecordRepository, reports: ReportRepository,
-        now: Callable[[], datetime],
+        now: Callable[[], datetime], history: VisitHistoryRepository,
+        revisit_settings: RevisitSettingsRepository,
     ) -> None:
         self._ledger = ledger
         self._records = records
         self._reports = reports
         self._now = now
+        self._history = history
+        self._revisit_settings = revisit_settings
 
     async def pet_has_visits(self, ctx: ShopContext, pet_id: int) -> bool:
         return await self._ledger.pet_has_visits(ctx, pet_id, active_only=False)
@@ -51,3 +58,15 @@ class VisitLedgerInteractor(VisitLedgerPort):
         latest = await self._records.latest_with_media(ctx, pet_ids)
         records = await self._records.list_many(ctx, list(latest.values()))
         return {pet_id: cover_media_id(records[visit_id].media) for pet_id, visit_id in latest.items()}
+
+    async def pet_revisit(self, ctx: ShopContext, pet_id: int, manual_weeks: int | None) -> PetRevisitView:
+        today = local_date(self._now(), ctx.timezone)
+        settings = await self._revisit_settings.get(ctx)
+        cycle = (await pet_cycles(ctx, [pet_id], {pet_id: manual_weeks}, self._history, settings, today))[pet_id]
+        today_start, _ = day_bounds(today, ctx.timezone)
+        upcoming = await self._history.pets_with_upcoming(ctx, [pet_id], today_start)
+        return PetRevisitView(
+            cycle_weeks=cycle.weeks, cycle_source=cycle.source, interval_count=cycle.interval_count,
+            last_interval_weeks=cycle.last_interval_weeks, last_visit_date=cycle.last_visit_date,
+            due_date=cycle.due_date, estimated=cycle.estimated, has_upcoming=pet_id in upcoming,
+        )

@@ -35,6 +35,7 @@ from visit.app.ports.output.guardian_report_repository import GuardianReportRepo
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
+from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
@@ -67,6 +68,7 @@ from visit.domain.errors import (
 from visit.domain.services.report_rules import hide
 from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.closed_date import ClosedDate
+from visit.domain.value_objects.revisit_settings import DEFAULT_REVISIT_SETTINGS, RevisitSettings
 from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS, ReportSettings
 from visit.domain.value_objects.schedule_settings import DEFAULT_SETTINGS
 from visit.tests.helpers.builders import kst
@@ -175,6 +177,8 @@ class FakeDirectory(CustomerDirectoryPort):
         self.cautions: dict = {}     # 고객 ID → CautionFact (확인할 것)
         self.pet_facts: dict = {}    # 반려동물 ID → PetCareFact. 없으면 나이·지병·동의가 없는 아이다
         self.care_calls: list = []   # care_facts 가 받은 (고객 ID 들, 반려동물 ID 들, 오늘)
+        self.revisits: dict = {}     # 반려동물 ID → PetRevisitFact(⑬). 없으면 직접 정한 주기·안내한 날이 없다
+        self.revisit_calls: list = []   # revisit_facts 가 받은 반려동물 ID 들
 
     def family(self, customer_id=1, pets=(101,), shop_id=1, name="김민지", passed=()) -> None:
         self.families[customer_id] = (shop_id, {p: p in passed for p in pets})
@@ -243,6 +247,10 @@ class FakeDirectory(CustomerDirectoryPort):
         if self.families.get(customer_id, (None,))[0] != ctx.shop_id:
             return None
         return self.contacts.get(customer_id)
+
+    async def revisit_facts(self, ctx, pet_ids):
+        self.revisit_calls.append(tuple(pet_ids))
+        return {p: self.revisits[p] for p in pet_ids if p in self.revisits}
 
 
 class FakeVisits(
@@ -365,6 +373,20 @@ class FakeVisits(
         done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
                 and v.status == "completed"]
         return sorted(done, reverse=True)[:limit]
+
+    async def completed_days(self, ctx, pet_ids, per_pet):
+        from visit.domain.services.visit_schedule import local_date
+
+        days: dict[int, list] = {}
+        done = sorted((v for v in self._mine(ctx) if v.pet_id in pet_ids and v.status == "completed"),
+                      key=lambda v: v.starts_at, reverse=True)
+        for v in done:
+            if len(days.setdefault(v.pet_id, [])) < per_pet:
+                days[v.pet_id].append(local_date(v.starts_at, ctx.timezone))
+        return days
+
+    async def pets_with_upcoming(self, ctx, pet_ids, since):
+        return {v.pet_id for v in self._mine(ctx) if v.pet_id in pet_ids and v.is_active and v.starts_at >= since}
 
     async def pet_has_visits(self, ctx, pet_id, active_only):
         return any(v.pet_id == pet_id and (v.is_active or not active_only) for v in self._mine(ctx))
@@ -605,6 +627,22 @@ class FakeReportSettingsRepository(ReportSettingsRepository):
 
     async def update(self, ctx, settings):
         self.journal.append(("update_report_settings", ctx.shop_id))
+        self.rows[ctx.shop_id] = settings
+        return settings
+
+
+class FakeRevisitSettingsRepository(RevisitSettingsRepository):
+    """rows 는 매장 ID → 다시 올 때 설정. 없는 매장은 처음 값이다."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.rows: dict[int, RevisitSettings] = {}
+
+    async def get(self, ctx):
+        return self.rows.get(ctx.shop_id, DEFAULT_REVISIT_SETTINGS)
+
+    async def update(self, ctx, settings):
+        self.journal.append(("update_revisit_settings", ctx.shop_id))
         self.rows[ctx.shop_id] = settings
         return settings
 

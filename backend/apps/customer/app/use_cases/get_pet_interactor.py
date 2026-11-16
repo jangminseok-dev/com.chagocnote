@@ -28,4 +28,6 @@ class GetPetInteractor(GetPetUseCase):
     async def get_pet(self, query: GetPetQuery) -> PetOverviewView:
         detail = await read_pet_detail(query.ctx, query.pet_id, self._customers, self._pets, self._today())
         photos = await pet_photos(query.ctx, [query.pet_id], self._ledger, self._library)
-        return PetOverviewView(detail=detail, photo=photos.get(query.pet_id))
+        # 주기는 visit 이 계산한다(⑬) — 직접 정한 값만 넘긴다. customer 는 계산 규칙을 모른다.
+        revisit = await self._ledger.pet_revisit(query.ctx, query.pet_id, detail.pet.grooming_cycle_weeks)
+        return PetOverviewView(detail=detail, photo=photos.get(query.pet_id), revisit=revisit)

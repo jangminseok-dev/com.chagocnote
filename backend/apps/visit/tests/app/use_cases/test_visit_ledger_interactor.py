@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
 from visit.tests.helpers.builders import ctx, kst, record
-from visit.tests.helpers.fakes import FakeRecords, FakeReportRepository, FakeVisits
+from visit.tests.helpers.fakes import FakeRecords, FakeReportRepository, FakeRevisitSettingsRepository, FakeVisits
 
 NOW = kst(9, 23, 15)
 
@@ -10,7 +10,8 @@ NOW = kst(9, 23, 15)
 def _with_reports():
     visits = FakeVisits()
     records, reports = FakeRecords(visits), FakeReportRepository(visits)
-    return visits, records, reports, VisitLedgerInteractor(visits, records, reports, now=lambda: NOW)
+    return visits, records, reports, VisitLedgerInteractor(
+        visits, records, reports, now=lambda: NOW, history=visits, revisit_settings=FakeRevisitSettingsRepository())
 
 
 def _ledger():

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from hub.app.dtos.pet_revisit import PetRevisitView
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.dtos.upcoming_visit import UpcomingVisit
 
@@ -41,3 +42,8 @@ class VisitLedgerPort(ABC):
     async def latest_covers(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, int]:
         """{반려동물 ID: 대표 사진의 media_id} — 사진·영상이 붙은 가장 최근 완료 방문의 대표(후 → 전 → 영상).
         그런 방문이 없는 아이는 빠진다. 반려동물 프로필 사진의 원본이다(설계 8절). 한 번에 묻는다(N+1 없음)."""
+
+    @abstractmethod
+    async def pet_revisit(self, ctx: ShopContext, pet_id: int, manual_weeks: int | None) -> PetRevisitView:
+        """그 아이의 미용 주기와 다음 올 때(⑬) — customer 가 가진 직접 정한 값을 넘기면 visit 이 매장의 값과
+        지난 완료 방문으로 계산한다. 반려동물 상세의 주기 줄의 원본이다."""

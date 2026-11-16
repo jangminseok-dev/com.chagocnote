@@ -67,6 +67,8 @@ from customer.adapter.inbound.api.v1.update_intake_questions_router import updat
 from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
     set_pet_grooming_consent_router,
 )
+from customer.adapter.inbound.api.v1.set_pet_grooming_cycle_router import set_pet_grooming_cycle_router
+from customer.adapter.inbound.api.v1.mark_pet_revisit_nudged_router import mark_pet_revisit_nudged_router
 from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
     unmark_pet_passed_away_router,
 )
@@ -266,6 +268,8 @@ app.include_router(set_customer_caution_router)
 app.include_router(clear_customer_caution_router)
 app.include_router(set_pet_grooming_consent_router)
 app.include_router(clear_pet_grooming_consent_router)
+app.include_router(set_pet_grooming_cycle_router)
+app.include_router(mark_pet_revisit_nudged_router)
 app.include_router(add_pet_router)
 app.include_router(update_pet_router)
 # 서류(⑪) — 동의서 보내기·끊기·현장 서명·서명 보기
