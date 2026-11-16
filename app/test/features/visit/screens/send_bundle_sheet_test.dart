@@ -47,6 +47,11 @@ Future<void> _send(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _close(WidgetTester tester) async {
+  await tester.tap(find.text(AppStrings.close));
+  await tester.pumpAndSettle();
+}
+
 AppButton _sendButton(WidgetTester tester) => tester.widget<AppButton>(find.byKey(SendBundleSheet.sendKey));
 
 void main() {
@@ -59,7 +64,35 @@ void main() {
     await _send(tester);
 
     expect(s.share.shared, ['${_reservation.text}\n\n${_consent.text}']);
+    // 공유 창에서 취소했는지 앱은 모른다 — 시트가 남아 다시 보낼 수 있고, 닫는 것은 사장이 한다.
+    expect(s.closed, isEmpty);
+    expect(_sendButton(tester).label, AppStrings.bundleSendAgain);
+    await _close(tester);
     expect(s.closed, [true]);
+  });
+
+  testWidgets('보낸 뒤에도 고친 글이 남아 다시 보낼 수 있다', (tester) async {
+    final s = await _open(tester, const [_reservation]);
+    await tester.enterText(find.byKey(const ValueKey('bundle-part-reservation')), '고친 글');
+
+    await _send(tester);
+    await _send(tester);
+
+    expect(s.share.shared, ['고친 글', '고친 글']);
+    expect(find.text(AppStrings.bundleLater), findsNothing);
+  });
+
+  testWidgets('작은 폰에서 키보드가 올라와도 [보내기]와 닫는 버튼이 가려지지 않는다', (tester) async {
+    final s = await _open(tester, const [_reservation, _consent]);
+    tester.view.physicalSize = const Size(375, 667);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getRect(find.byKey(SendBundleSheet.sendKey)).bottom, lessThanOrEqualTo(667 - 260));
+    expect(tester.getRect(find.text(AppStrings.bundleLater)).bottom, lessThanOrEqualTo(667 - 260));
+    expect(s.share.shared, isEmpty);
   });
 
   testWidgets('뺀 토막은 나가지 않고 다시 넣을 수 있다', (tester) async {
@@ -118,6 +151,7 @@ void main() {
     s.share.error = null;
     await _send(tester);
     expect(s.share.shared, ['고친 글']);
+    await _close(tester);
     expect(s.closed, [true]);
   });
 

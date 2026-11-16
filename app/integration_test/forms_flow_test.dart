@@ -87,8 +87,10 @@ void main() {
       await shot('F1-sheet');
     });
 
-    await step('F2', '[보내기] 한 번으로 나가고 등록 화면이 닫힌다 — 저장 뒤 누르기 1번', () async {
+    await step('F2', '[보내기] 한 번으로 공유 창이 열리고, [닫기]를 누르면 등록 화면이 닫힌다', () async {
       await tap(find.byKey(SendBundleSheet.sendKey));
+      await waitFor(find.text(AppStrings.close));
+      await tap(find.text(AppStrings.close));
       final gone = DateTime.now().add(const Duration(seconds: 20));
       while (find.byKey(ScreenKeys.registerVisit).evaluate().isNotEmpty) {
         if (DateTime.now().isAfter(gone)) throw TestFailure('보낸 뒤에도 등록 화면이 남아 있다');
@@ -111,6 +113,8 @@ void main() {
       await tap(find.byKey(const ValueKey('bundle-toggle-consent')));
       await shot('F3-removed');
       await tap(find.byKey(SendBundleSheet.sendKey));
+      await waitFor(find.text(AppStrings.close));
+      await tap(find.text(AppStrings.close));
       await pumpFor(const Duration(seconds: 1));
       soft(share.shared.length == 2 && !share.shared.last.contains('/f/'), '뺀 동의서가 나갔다');
       soft(find.byKey(ScreenKeys.visitDetail).evaluate().isNotEmpty, '방문 상세가 닫혔다');

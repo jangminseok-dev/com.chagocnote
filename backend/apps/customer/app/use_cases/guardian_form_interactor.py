@@ -7,7 +7,7 @@ from customer.app.ports.input.issue_consent_form_use_case import IssueConsentFor
 from customer.app.ports.output.form_settings_repository import FormSettingsRepository
 from customer.domain.errors import ConsentUpToDateError, CustomerInputError, PetNotFoundError
 from customer.domain.services.form_settings_rules import DEFAULT_CONSENT_TEXT, DEFAULT_RESERVATION_TEXT
-from hub.app.dtos.bundle_texts import BundleTexts
+from hub.app.dtos.bundle_texts import BundleTexts, ConsentLink
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.ports.guardian_form_port import GuardianFormPort
 
@@ -22,7 +22,7 @@ class GuardianFormInteractor(GuardianFormPort):
         self._issue = issue
         self._settings = settings
 
-    async def consent_link(self, ctx: ShopContext, pet_ids: tuple[int, ...], for_date: date) -> str | None:
+    async def consent_link(self, ctx: ShopContext, pet_ids: tuple[int, ...], for_date: date) -> ConsentLink | None:
         if not pet_ids:
             return None
         try:
@@ -31,7 +31,7 @@ class GuardianFormInteractor(GuardianFormPort):
         except (ConsentUpToDateError, PetNotFoundError, CustomerInputError):
             # 더 받을 것이 없거나 보낼 수 없는 아이다 — 묶음에 동의서 토막이 없을 뿐이다.
             return None
-        return view.url
+        return ConsentLink(url=view.url, form_id=view.form_id, created=view.created)
 
     async def bundle_texts(self, ctx: ShopContext) -> BundleTexts:
         settings = await self._settings.get(ctx)

@@ -468,6 +468,7 @@ void main() {
       await waitEnabled(save);
       await shot('01c-form-two-pets');
       await tap(save);
+      await closeBundle();
       await waitGone(find.byKey(ScreenKeys.registerVisit));
       await pumpFor(const Duration(milliseconds: 1500));
       final dashed = find.descendant(
@@ -578,6 +579,7 @@ void main() {
       soft(kong == true, '다음 예약 ②에 콩이가 골라져 있지 않다');
       soft(dubu == true, '다음 예약 ②에 두부가 골라져 있지 않다');
       await tap(save);
+      await closeBundle();
       await waitGone(find.byKey(ScreenKeys.registerVisit));
       await pumpFor(const Duration(seconds: 1));
       await shot(run >= 3 ? '03d-rerun$run' : '03d-day-after-complete');
@@ -784,6 +786,7 @@ void main() {
       final save = btn(AppStrings.saveReservation('${dayLabel(d1)} 14:00'));
       await waitEnabled(save);
       await tap(save);
+      await closeBundle();
       await waitGone(find.byKey(ScreenKeys.registerVisit));
       await selectDate(d1);
       await openPreviewDay(d1);

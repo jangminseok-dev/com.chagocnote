@@ -18,9 +18,11 @@ import '../../../support/form_settings_fixtures.dart';
 
 void main() {
   test('묶음을 읽는다 — 토막의 순서 그대로', () async {
-    final s = _build((o, b) => FakeResponse(statusCode: 200, data: sendBundleJson()));
+    final s = _build((o, b) => FakeResponse(statusCode: 200, data: sendBundleJson(createdFormId: 31)));
 
-    final parts = await s.api.sendBundle(3, 21);
+    final bundle = await s.api.sendBundle(3, 21);
+    final parts = bundle.parts;
+    expect(bundle.createdFormId, 31);
 
     expect('${s.adapter.requests.single.method} ${s.adapter.requests.single.path}',
         'POST /v1/shops/3/visits/21/send-bundle');
@@ -38,8 +40,9 @@ void main() {
       ],
     }));
 
-    final parts = await s.api.sendBundle(3, 21);
+    final bundle = await s.api.sendBundle(3, 21);
 
-    expect([for (final p in parts) (p.kind, p.text)], [('deposit', '예약금 안내')]);
+    expect([for (final p in bundle.parts) (p.kind, p.text)], [('deposit', '예약금 안내')]);
+    expect(bundle.createdFormId, isNull);
   });
 }

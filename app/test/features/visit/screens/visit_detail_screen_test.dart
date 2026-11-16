@@ -347,6 +347,8 @@ void main() {
     expect(find.text(AppStrings.bundleSheetTitle), findsOneWidget);
     await _tap(tester, find.byKey(SendBundleSheet.sendKey));
     expect(setup.shareSheet.shared.single, contains(fakeBundleUrl));
+    await _tap(tester, find.text(AppStrings.close));
+    expect(find.text(AppStrings.bundleSheetTitle), findsNothing);
     expect(find.byKey(ScreenKeys.visitDetail), findsOneWidget);
   });
 

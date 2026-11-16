@@ -6,7 +6,7 @@ from datetime import datetime
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.guardian_form_port import GuardianFormPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
-from visit.app.dtos.build_send_bundle_dto import BuildSendBundleCommand, BundlePartView
+from visit.app.dtos.build_send_bundle_dto import BuildSendBundleCommand, BundlePartView, SendBundleView
 from visit.app.ports.input.build_send_bundle_use_case import BuildSendBundleUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.visit_check_repository import VisitCheckRepository
@@ -42,11 +42,11 @@ class BuildSendBundleInteractor(BuildSendBundleUseCase):
         self._shops = shops
         self._now = now
 
-    async def build_send_bundle(self, command: BuildSendBundleCommand) -> list[BundlePartView]:
+    async def build_send_bundle(self, command: BuildSendBundleCommand) -> SendBundleView:
         ctx = command.ctx
         visit = await self._visits.get(ctx, command.visit_id)
         if visit.status != RESERVED:
-            return []
+            return SendBundleView(parts=[])
         group = sorted(
             (v for v in await self._history.list_group(ctx, visit.customer_id, visit.starts_at)
              if v.status == RESERVED),
@@ -59,18 +59,21 @@ class BuildSendBundleInteractor(BuildSendBundleUseCase):
             self._directory, self._checks, local_date(self._now(), ctx.timezone))
         shop = await self._shops.public_profile(ctx.shop_id)
         if visit.customer_id not in read.known_customers or shop is None:
-            return []      # 익명화한 고객의 방문에는 보낼 사람이 없다
+            return SendBundleView(parts=[])      # 익명화한 고객의 방문에는 보낼 사람이 없다
         views = await describe_visits(ctx, group, self._directory, self._menus)
         pet_names = {v.visit_id: v.pet.name for v in views if v.pet is not None}
         # 동의서는 확인할 것에 consent 가 뜬 아이에게만 보낸다 — 묻지 않는 아이에게 일을 더하지 않는다.
         asking = [v for v in group if v.pet_id is not None
                   and any(check.code == CONSENT for check in read.by_key[v.id])]
         texts = await self._forms.bundle_texts(ctx)
-        url = await self._forms.consent_link(ctx, tuple(v.pet_id for v in asking), on) if asking else None
+        link = await self._forms.consent_link(ctx, tuple(v.pet_id for v in asking), on) if asking else None
         menu_names = list(dict.fromkeys(menu.name for view in views for menu in view.menus))
         parts = build_bundle(
             shop_name=shop.name, pet_names=list(pet_names.values()), starts_at=views[0].starts_at,
             menu_names=menu_names, reservation_text=texts.reservation, consent_text=texts.consent,
-            consent_pet_names=[pet_names[v.id] for v in asking if v.id in pet_names], consent_url=url,
+            consent_pet_names=[pet_names[v.id] for v in asking if v.id in pet_names], consent_url=None if link is None else link.url,
         )
-        return [BundlePartView(kind=part.kind, text=part.text) for part in parts]
+        return SendBundleView(
+            parts=[BundlePartView(kind=part.kind, text=part.text) for part in parts],
+            created_form_id=link.form_id if link is not None and link.created else None,
+        )

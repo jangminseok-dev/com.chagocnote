@@ -18,7 +18,7 @@ async def bundle(wired, shop_id, headers, visit_id):
 
 def kinds(response) -> list[str]:
     assert response.status_code == 200, response.text
-    assert set(response.json()) == {"parts"}
+    assert set(response.json()) == {"parts", "created_form_id"}
     assert all(set(part) == {"kind", "text"} for part in response.json()["parts"])
     return [part["kind"] for part in response.json()["parts"]]
 
@@ -31,7 +31,10 @@ async def test_노령_아이의_예약은_예약_안내와_동의서_링크이�
     first = await bundle(wired, shop_id, headers, visit_id)
     again = await bundle(wired, shop_id, headers, visit_id)
 
-    assert kinds(first) == ["reservation", "consent"] and again.json() == first.json()
+    assert kinds(first) == ["reservation", "consent"] and again.json()["parts"] == first.json()["parts"]
+    # 이번에 새로 만든 링크만 알려 준다 — 보내지 않고 닫으면 앱이 그것만 끊는다.
+    listed = (await wired.api.get(f"/v1/shops/{shop_id}/forms", headers=headers)).json()["items"]
+    assert first.json()["created_form_id"] == listed[0]["form_id"] and again.json()["created_form_id"] is None
     reservation, consent = (part["text"] for part in first.json()["parts"])
     day = _day(3)
     assert "Hiss Haus" in reservation and f"{day.month}월 {day.day}일" in reservation and "오후 2:00" in reservation
@@ -52,6 +55,7 @@ async def test_동의가_필요_없는_아이의_예약은_예약_안내뿐이�
     signed_visit = await _book(wired, shop_id, headers, signed_owner, signed, hour=15)
 
     assert kinds(await bundle(wired, shop_id, headers, young_visit)) == ["reservation"]
+    assert (await bundle(wired, shop_id, headers, young_visit)).json()["created_form_id"] is None
     assert kinds(await bundle(wired, shop_id, headers, signed_visit)) == ["reservation"]
     assert await count(wired, "customer_forms") == 0
 
@@ -68,7 +72,7 @@ async def test_가족이_함께_잡은_예약은_한_묶음이고_동의서는_�
     one = await bundle(wired, shop_id, headers, first)
     other = await bundle(wired, shop_id, headers, second)
 
-    assert kinds(one) == ["reservation", "consent"] and other.json() == one.json()
+    assert kinds(one) == ["reservation", "consent"] and other.json()["parts"] == one.json()["parts"]
     assert "콩이 · 보리" in one.json()["parts"][0]["text"]
     listed = (await wired.api.get(f"/v1/shops/{shop_id}/forms", headers=headers)).json()["items"]
     assert [[p["pet_id"] for p in item["pets"]] for item in listed] == [[kong]]
@@ -131,3 +135,14 @@ async def test_로그에_주소와_보내는_글이_없다(wired, caplog):
     token = response.json()["parts"][1]["text"].rsplit("/f/", 1)[1].strip()
     assert len(token) == 43
     assert token not in caplog.text and "예약이 접수됐어요" not in caplog.text
+
+
+async def test_이미_보낸_링크가_있으면_묶음은_그것을_쓰고_새로_만들었다고_하지_않는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR))
+    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id, days=3)
+    sent = (await send(wired, shop_id, headers, pet_id, for_date=_day(3))).json()
+
+    got = (await bundle(wired, shop_id, headers, visit_id)).json()
+
+    assert got["created_form_id"] is None and sent["url"] in got["parts"][1]["text"]

@@ -41,7 +41,8 @@ Map<String, dynamic> consentTextsJson({String? senior}) => {
 /// 토큰 자리에 가짜 글자를 둔 주소 — 실제 토큰을 테스트에 적지 않는다.
 const fakeBundleUrl = 'https://web.test/f/FAKE-BUNDLE-LINK';
 
-Map<String, dynamic> sendBundleJson({bool consent = true}) => {
+Map<String, dynamic> sendBundleJson({bool consent = true, int? createdFormId}) => {
+  'created_form_id': createdFormId,
   'parts': [
     {'kind': 'reservation', 'text': '[차곡 살롱] 예약이 접수됐어요.\n11월 17일(화) 오후 2:30\n초코'},
     if (consent) {'kind': 'consent', 'text': '미용 전에 동의서를 읽고 서명해 주세요.\n$fakeBundleUrl'},

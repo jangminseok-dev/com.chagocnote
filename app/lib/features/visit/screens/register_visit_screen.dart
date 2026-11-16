@@ -93,16 +93,18 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
       // 예약이면 보호자에게 보낼 글이 준비돼 있다(⑪-B) — 시트에서 한 번에 보낸다. 보내지 않고 닫아도,
       // 글을 읽지 못해도 예약은 저장돼 있다(방문 상세의 [보호자에게 보내기]로 다시 연다).
       if (!walkIn && mounted) {
-        // 저장은 끝났다 — 진행 표시를 멈추고, 시트가 떠 있는 동안 다시 저장되지 않게만 막는다.
-        setState(() {
-          _busy = false;
-          _saved = true;
-        });
+        // 저장은 끝났다 — 다시 저장되지 않게 막고(뒤로 가기는 이제 닫기다), 보낼 글을 읽는 동안은 진행 표시를
+        // 둔다. 시트를 띄우기 직전에 끈다(시트 뒤에서 스피너가 돌지 않게). 글이 5초 안에 오지 않으면 닫는다.
+        setState(() => _saved = true);
         await openSendBundle(
           context,
           ref,
           shopId: shopId,
           visitId: saved.visits.first.visitId,
+          timeout: const Duration(seconds: 5),
+          onReady: () {
+            if (mounted) setState(() => _busy = false);
+          },
         );
       }
       // 서버가 저장한 날짜를 돌려준다 — [지금 시작]은 보던 날과 다를 수 있다.
@@ -141,7 +143,8 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
     final customerId = _customerId;
     final onSearch = customerId == null;
     // 초안으로 열었으면 ①이 없다 — 뒤로 가면 닫는다.
-    final backToSearch = !onSearch && !_skippedSearch;
+    // 저장이 끝난 뒤(보낼 글을 읽는 중·시트가 닫힌 뒤)에는 ①로 돌아가지 않고 닫는다.
+    final backToSearch = !onSearch && !_skippedSearch && !_saved;
     return PopScope(
       canPop: !backToSearch,
       onPopInvokedWithResult: (didPop, _) {

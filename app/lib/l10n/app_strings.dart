@@ -402,6 +402,8 @@ class AppStrings {
   static const bundleReset = '처음 글로';
   static const bundleSend = '보내기';
   static const bundleLater = '나중에';
+  static const bundleSendAgain = '다시 보내기';
+  static const bundleSentHint = '보낸 뒤에는 닫아 주세요. 보내지 못했다면 다시 보낼 수 있어요.';
   static const bundleEmpty = '보낼 글이 없어요. 글을 적거나 다시 넣어 주세요.';
   static const bundleShareFailed = '공유 창을 열지 못했어요. 다시 눌러 주세요.';
   static const bundleLoadFailed = '보낼 글을 불러오지 못했어요. 다시 눌러 주세요.';
