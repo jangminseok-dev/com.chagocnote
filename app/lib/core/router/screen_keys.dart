@@ -34,4 +34,7 @@ class ScreenKeys {
   static const salesVisits = Key('screen_sales_visits');
   static const duePets = Key('screen_due_pets');
   static const search = Key('screen_search');
+  static const consentSign = Key('screen_consent_sign');
+  static const consentSignatures = Key('screen_consent_signatures');
+  static const sentForms = Key('screen_sent_forms');
 }

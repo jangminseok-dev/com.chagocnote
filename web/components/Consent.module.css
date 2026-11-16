@@ -1,0 +1,262 @@
+/* 미용 동의서. 톤은 알림장과 같다 — 무채색, 잉크색 글자, 가는 선, 명조 제목. */
+
+.page {
+  padding: 0 24px calc(40px + env(safe-area-inset-bottom));
+  line-height: normal;
+  /* 한글은 낱말에서 끊고, 띄어쓰기 없는 긴 글은 어디서든 끊는다. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.page ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.serif {
+  font-family: var(--font-serif);
+}
+
+.brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-top: 19px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.brand i {
+  flex: none;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.brand span {
+  text-align: right;
+}
+
+.title {
+  margin: 22px 0 0;
+  font-family: var(--font-myeongjo);
+  font-size: 24.5px;
+  font-weight: 400;
+}
+
+.partial {
+  margin: 12px 0 0;
+  color: #555;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.card {
+  margin: 18px 0 0;
+  padding: 14px 15px;
+  border-radius: 19px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+}
+
+.pet + .pet {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+}
+
+.pet b {
+  font-family: var(--font-myeongjo);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.pet small {
+  display: block;
+  margin-top: 3px;
+  color: #555;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.part {
+  margin-top: 24px;
+}
+
+.part h2 {
+  margin: 0 0 6px;
+  font-family: var(--font-myeongjo);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.whom {
+  margin-bottom: 6px;
+  color: var(--mute);
+  font-size: 12px;
+}
+
+.part p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* 서명 구역 */
+.sign {
+  margin-top: 30px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ink);
+}
+
+.field {
+  display: block;
+  margin: 16px 0 6px;
+  color: #666;
+  font-size: 12.5px;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid #cfcfcf;
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  /* 16px 보다 작으면 아이폰이 칸을 누를 때 화면을 키운다. */
+  font: inherit;
+  font-size: 16px;
+}
+
+.input:focus {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+  border-color: var(--ink);
+}
+
+.pad {
+  position: relative;
+  /* 서명하다 옆의 글자가 선택되거나 길게 눌러 메뉴가 뜨지 않게 한다. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 빈 칸의 안내. 손가락을 가로막지 않는다. */
+.hint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  aspect-ratio: 5 / 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+/* 캔버스는 600×240 을 폭에 맞게 늘린다. touch-action: none — 서명하는 손가락을 따라 화면이 구르지 않는다. */
+.canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 2;
+  border: 1px solid #cfcfcf;
+  background: #fff;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.again {
+  display: block;
+  /* 누르는 자리는 44px 이상으로 둔다. */
+  min-height: 44px;
+  margin: 0 0 0 auto;
+  padding: 6px 0 6px 16px;
+  border: 0;
+  background: none;
+  color: #666;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.agree {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.agree input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+/* 글자 줄 전체가 누르는 자리다(44px). */
+.agree label {
+  flex: 1;
+  padding: 11px 0;
+}
+
+.notice {
+  margin: 14px 0 0;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.send {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 15px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--ink);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.done {
+  margin: 30px 0 0;
+  padding: 22px 0 0;
+  border-top: 1px solid var(--ink);
+  font-family: var(--font-myeongjo);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.done:focus {
+  outline: none;
+}
+
+.send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.foot {
+  margin-top: 26px;
+  color: var(--mute);
+  font-size: 11.5px;
+  text-align: center;
+}
+
+.foot i {
+  color: var(--ink);
+  font-family: var(--font-myeongjo);
+  font-size: 14px;
+}

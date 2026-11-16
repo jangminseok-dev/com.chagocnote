@@ -329,6 +329,12 @@ class AppStrings {
       : '미용 동의서를 받아 주세요 (${reasons.join(' · ')})';
   static String checkConsentExpired(DateTime receivedOn) =>
       '미용 동의서를 다시 받아 주세요 · 지난번 ${fullDate(receivedOn)}';
+  static const consentPartBasic = '미용 안내';
+  static String checkConsentPartial(List<String> parts) => parts.isEmpty
+      ? '미용 동의서의 바뀐 부분만 다시 받아 주세요'
+      : '미용 동의서의 바뀐 부분만 다시 받아 주세요 (${parts.join(' · ')})';
+  static String checkConsentSent(String line, DateTime sentOn) =>
+      '$line · ${sentOn.month}월 ${sentOn.day}일에 보냈어요';
   static String checkConditions(List<String> labels) =>
       '지병 · ${labels.join(', ')}';
   static String checkLongAbsence(int days, DateTime lastVisitOn) =>
@@ -336,6 +342,71 @@ class AppStrings {
   static String checkConditionNote(String label, String note) =>
       '$label — $note';
   static const consentReceived = '받았어요';
+
+  // --- 전자 동의서(⑪) ---
+  static const signaturePadLabel = '서명하는 곳';
+  static const signaturePadHint = '여기에 서명해 주세요';
+  static const signatureAgain = '다시 쓰기';
+  static const consentSend = '동의서 보내기';
+  static const consentShareAgain = '다시 공유';
+  static const consentSignHere = '여기서 서명';
+  static const consentSendUpToDate =
+      '이미 받은 동의예요. 다시 받으려면 반려동물 화면에서 받은 기록을 지워 주세요.';
+  static const consentSendUpToDateHere =
+      '이미 받은 동의예요. 다시 받으려면 받은 기록을 먼저 지워 주세요.';
+  static const consentShareFailed = '공유 창을 열지 못했어요. 다시 눌러 주세요.';
+  static String groomingConsentSignedOn(DateTime d) => '${fullDate(d)}에 서명 받음';
+  static const consentViewSignatures = '서명 보기';
+  static const signaturesTitle = '받은 서명';
+  static const signaturesEmpty = '받은 서명이 없어요';
+  static const signatureViaLink = '링크로';
+  static const signatureViaShop = '매장에서';
+  static String signatureRow(DateTime at, String via, String name) =>
+      '${fullDate(at)} · $via · $name';
+  static const signatureDetailTitle = '서명한 동의서';
+  static const signatureNoteLink = '링크를 받은 분이 적은 서명이에요';
+  static const signatureNoteShop = '매장에서 받은 서명이에요';
+  static String signatureSigner(String name) => '적은 이름: $name';
+  static const signatureImageLabel = '서명 그림';
+  static String sentFormsEntry(int count) => '보낸 서류 $count';
+  static const sentFormsTitle = '보낸 서류';
+  static const sentFormsEmpty = '보낸 서류가 없어요';
+  static String sentFormMeta(String owner, DateTime sent, DateTime expires) =>
+      '$owner · ${sent.month}월 ${sent.day}일에 보냄 · ${expires.month}월 ${expires.day}일까지';
+  static const sentFormKind = '미용 동의서';
+  static const sentFormRevoke = '링크 끊기';
+  static const sentFormRevokeAsk = '이 링크를 끊을까요? 받은 분이 더는 열 수 없어요.';
+  static const sentFormRevokeConfirm = '끊기';
+  static const sentFormKeep = '그대로 두기';
+  static const consentSignTitle = '미용 동의서';
+  static const consentPartTitleBasic = '미용 안내';
+  static const consentPartTitleSenior = '나이가 많은 아이';
+  static const consentPartTitleCondition = '지병이 있는 아이';
+  static String consentConditions(List<String> labels) =>
+      '알려 주신 지병: ${labels.join(' · ')}';
+  static String consentAppliesTo(List<String> names) =>
+      '해당: ${names.join(' · ')}';
+  static String consentPartialNotice(DateTime previous) =>
+      '지난번(${fullDate(previous)})에 동의하신 내용에 더해 바뀐 부분만 확인해 주세요';
+  static const consentNameLabel = '이름';
+  static const consentSignatureLabel = '서명';
+  static const consentAgree = '위 내용을 읽었고 동의해요';
+  static const consentSubmit = '동의하고 보내기';
+  static const consentNameMissing = '이름을 적어 주세요';
+  static const consentSignatureMissing = '서명해 주세요';
+  static const consentAgreeMissing = '동의에 체크해 주세요';
+  static const consentChanged = '내용이 바뀌었어요. 다시 읽어 주세요';
+  static const consentSignatureTooBig = '서명을 조금 간단하게 다시 적어 주세요';
+  static const consentDoneTitle = '보냈어요';
+  static const consentDoneText = '동의서를 받았어요. 폰을 매장에 돌려주세요.';
+  static const consentUpToDateTitle = '이미 받은 동의예요';
+  static const consentUpToDateText = '지금은 더 받을 것이 없어요.';
+  static const consentUpToDateHint =
+      '지금은 더 받을 것이 없어요. 손으로 적은 동의를 서명으로 바꾸려면 반려동물 화면에서 받은 기록을 지운 뒤 다시 받아 주세요.';
+  static const consentClose = '닫기';
+  static const consentLeaveAsk = '서명을 그만둘까요?';
+  static const consentLeave = '그만두기';
+  static const consentStay = '계속 서명하기';
   static String fullDate(DateTime d) => '${d.year}년 ${d.month}월 ${d.day}일';
 
   // 미용 동의서·주의 고객(③-B) — 반려동물 상세.

@@ -4,7 +4,7 @@ from datetime import date
 import pytest
 
 from visit.domain.services.visit_checks import COUNTED, age_on, checks_for
-from visit.domain.value_objects.check_facts import CautionMark, CheckSubject, PetFacts
+from visit.domain.value_objects.check_facts import CautionMark, CheckSubject, ConsentCoverFact, PetFacts
 
 ON = date(2026, 11, 14)
 RECENT = date(2026, 10, 1)   # 44일 전 — 오랜만이 아니다
@@ -140,3 +140,51 @@ def test_노쇼가_없으면_노쇼_항목이_없다():
 
 def test_하루_목록의_수에는_지병을_세지_않는다():
     assert COUNTED == {"caution", "no_show", "first_visit", "consent", "long_absence"}
+
+
+# --- 서명으로 받은 동의(⑪) — 바뀐 토막만 다시 --------------------------------------------------------------------
+
+def _signed(senior=False, labels=()) -> ConsentCoverFact:
+    return ConsentCoverFact(senior=senior, condition_labels=frozenset(labels))
+
+
+def test_서명으로_받은_동의는_노령이_되면_partial_senior_다():
+    old = PetFacts(birth_date=None, birth_year=2016, conditions=(), consent_on=date(2026, 3, 2), passed_away=False,
+                   consent_cover=_signed())
+    detail = one(checks_for(subject(old)), "consent").detail
+    assert detail == {"reasons": ["senior"], "state": "partial", "received_on": date(2026, 3, 2), "parts": ["senior"]}
+
+
+def test_서명이_덮지_않은_지병이_있으면_partial_condition_이다():
+    sick = PetFacts(birth_date=None, birth_year=2021, conditions=(("심장 질환", None), ("알레르기", None)),
+                    consent_on=date(2026, 3, 2), passed_away=False, consent_cover=_signed(labels=["심장 질환"]))
+    detail = one(checks_for(subject(sick)), "consent").detail
+    assert (detail["state"], detail["parts"], detail["reasons"]) == ("partial", ["condition"], ["conditions"])
+
+
+def test_서명이_노령과_지병을_다_덮으면_뜨지_않는다():
+    covered = PetFacts(birth_date=None, birth_year=2016, conditions=(("심장 질환", None),),
+                       consent_on=date(2026, 3, 2), passed_away=False,
+                       consent_cover=_signed(senior=True, labels=["심장 질환", "피부"]))
+    assert "consent" not in codes(checks_for(subject(covered)))
+
+
+def test_서명으로_받았어도_기한이_지나면_expired_이고_토막을_가르지_않는다():
+    late = PetFacts(birth_date=None, birth_year=2016, conditions=(), consent_on=date(2025, 11, 13), passed_away=False,
+                    consent_cover=_signed())
+    detail = one(checks_for(subject(late)), "consent").detail
+    assert detail["state"] == "expired" and "parts" not in detail
+
+
+def test_손으로_적은_동의는_노령이_돼도_뜨지_않는다():
+    # ③-B 의 동작 그대로다 — 손 표시는 무엇을 읽었는지 기록이 없어 토막을 가르지 않는다.
+    old = PetFacts(birth_date=None, birth_year=2016, conditions=(), consent_on=date(2026, 3, 2), passed_away=False)
+    assert "consent" not in codes(checks_for(subject(old)))
+
+
+def test_보낸_날이_있으면_detail_에_실리고_없으면_칸이_없다():
+    waiting = PetFacts(birth_date=None, birth_year=2016, conditions=(), consent_on=None, passed_away=False,
+                       consent_form_sent_on=date(2026, 11, 13))
+    assert one(checks_for(subject(waiting)), "consent").detail["form_sent_on"] == date(2026, 11, 13)
+    plain = PetFacts(birth_date=None, birth_year=2016, conditions=(), consent_on=None, passed_away=False)
+    assert "form_sent_on" not in one(checks_for(subject(plain)), "consent").detail

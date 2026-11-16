@@ -26,13 +26,15 @@ def test_API_프로세스에는_빈_자리도_빠진_가드도_없다():
     assert find_route_violations(main.app) == []
 
 
-def test_API_프로세스에서_로그인_없이_열리는_경로는_넷뿐이다():
+def test_API_프로세스에서_로그인_없이_열리는_경로는_여섯뿐이다():
     """여기에 경로를 더하는 것은 로그인 없는 표면을 넓히는 일이다 — 공개 경로면 route_inspection 의 허용 목록에도 적는다."""
     assert routes_without_login(main.app) == {
         "GET /health",
         "GET /v1/shops/myself",
         "GET /v1/public/report",
         "POST /v1/public/report/viewed",
+        "GET /v1/public/form",
+        "POST /v1/public/form/consent",
     }
 
 

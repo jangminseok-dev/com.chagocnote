@@ -7,3 +7,5 @@ _MAX_BIGINT = 9_223_372_036_854_775_807
 
 CustomerId = Annotated[int, Path(ge=1, le=_MAX_BIGINT)]
 PetId = Annotated[int, Path(ge=1, le=_MAX_BIGINT)]
+FormId = Annotated[int, Path(ge=1, le=_MAX_BIGINT)]
+SignatureId = Annotated[int, Path(ge=1, le=_MAX_BIGINT)]

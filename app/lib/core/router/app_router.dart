@@ -10,6 +10,9 @@ import '../../features/auth/screens/shop_select_screen.dart';
 import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/state/session.dart';
 import '../../features/auth/state/session_controller.dart';
+import '../../features/customer/screens/consent_sign_screen.dart';
+import '../../features/customer/screens/consent_signatures_screen.dart';
+import '../../features/customer/screens/sent_forms_screen.dart';
 import '../../features/customer/screens/pet_detail_screen.dart';
 import '../../features/customer/screens/pet_form_screen.dart';
 import '../../features/customer/screens/customer_edit_screen.dart';
@@ -193,6 +196,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const DuePetsScreen(),
       ),
       // 기록 찾기(⑨). pet_id 를 주면 그 아이 안에서만 찾는다 — pet 은 화면 위에 보일 이름이다.
+      GoRoute(
+        path: '/forms',
+        builder: (context, state) => const SentFormsScreen(),
+      ),
+      GoRoute(
+        path: '/pets/:petId/signatures',
+        builder: (context, state) => ConsentSignaturesScreen(petId: int.parse(state.pathParameters['petId']!)),
+      ),
+      GoRoute(
+        path: '/consent-signatures/:signatureId',
+        builder: (context, state) =>
+            ConsentSignatureScreen(signatureId: int.parse(state.pathParameters['signatureId']!)),
+      ),
+      GoRoute(
+        // 매장에서 바로 받는 동의서 서명(⑪). for_date 는 예약 날이다 — 없거나 깨졌으면 오늘로 본다.
+        path: '/consent/sign',
+        builder: (context, state) => ConsentSignScreen(
+          petIds: [
+            for (final id in (state.uri.queryParameters['pet_ids'] ?? '').split(','))
+              ?int.tryParse(id),
+          ],
+          forDate: DateTime.tryParse(state.uri.queryParameters['for_date'] ?? ''),
+        ),
+      ),
       GoRoute(
         path: '/search',
         builder: (context, state) => SearchScreen(

@@ -68,3 +68,17 @@ test('볼 수 없는 계정의 화면은 제목만 있다', () => {
   expect(container.querySelector('p')).toBeNull()
   expect(container.textContent).toBe('Closed이 계정으로는 볼 수 없어요')
 })
+
+test('서류의 오류 화면은 서류라고 말하고 로그인 링크가 없다', () => {
+  const { container, rerender } = render(<ErrorScreen kind="not_found" what="form" />)
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('서류를 찾을 수 없어요')
+
+  rerender(<ErrorScreen kind="closed" what="form" login />)
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('닫힌 서류예요')
+  expect(container.querySelector('p')).toHaveTextContent('기간이 지났거나 매장에서 닫은 서류예요. 매장에 다시 요청해 주세요.')
+  expect(container.querySelector('a')).toBeNull()
+  expect(container.textContent).not.toContain('알림장')
+
+  rerender(<ErrorScreen kind="busy" what="form" />)
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('잠시 후 다시 열어 주세요')
+})

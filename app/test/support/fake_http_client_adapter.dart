@@ -71,6 +71,10 @@ class FakeHttpClientAdapter implements HttpClientAdapter {
         headers: headers,
       );
     }
+    // 바이트는 그대로 보낸다(그림 등).
+    if (data is Uint8List) {
+      return ResponseBody.fromBytes(data, result.statusCode, headers: headers);
+    }
     if (data is String) {
       headers.putIfAbsent(
         'content-type',

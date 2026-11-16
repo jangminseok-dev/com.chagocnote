@@ -1,4 +1,5 @@
 import '../../../l10n/app_strings.dart';
+import '../../customer/api/consent_models.dart';
 import '../api/check_models.dart';
 
 /// 확인할 것 한 줄의 글(설계 3.4). 화면은 부르기만 한다.
@@ -6,16 +7,26 @@ String checkLine(VisitCheck c) => switch (c.code) {
   CheckCode.caution => AppStrings.checkCaution(c.reason!),
   CheckCode.noShow => AppStrings.checkNoShow(c.count!),
   CheckCode.firstVisit => AppStrings.checkFirstVisit,
-  CheckCode.consent =>
-    c.consentState == ConsentState.expired && c.receivedOn != null
-        ? AppStrings.checkConsentExpired(c.receivedOn!)
-        : AppStrings.checkConsentMissing([
-            for (final r in c.consentReasons)
-              switch (r) {
-                ConsentReason.senior => AppStrings.consentReasonSenior,
-                ConsentReason.conditions => AppStrings.consentReasonConditions,
-              },
-          ]),
+  CheckCode.consent => _withSent(c, switch (c.consentState!) {
+    ConsentState.partial => AppStrings.checkConsentPartial([
+      for (final part in c.consentParts)
+        switch (part) {
+          ConsentPart.basic => AppStrings.consentPartBasic,
+          ConsentPart.senior => AppStrings.consentReasonSenior,
+          ConsentPart.condition => AppStrings.consentReasonConditions,
+        },
+    ]),
+    ConsentState.expired when c.receivedOn != null =>
+      AppStrings.checkConsentExpired(c.receivedOn!),
+    ConsentState.expired || ConsentState.missing =>
+      AppStrings.checkConsentMissing([
+        for (final r in c.consentReasons)
+          switch (r) {
+            ConsentReason.senior => AppStrings.consentReasonSenior,
+            ConsentReason.conditions => AppStrings.consentReasonConditions,
+          },
+      ]),
+  }),
   CheckCode.conditions => AppStrings.checkConditions([
     for (final item in c.conditions) item.label,
   ]),
@@ -24,6 +35,12 @@ String checkLine(VisitCheck c) => switch (c.code) {
     c.lastVisitOn!,
   ),
 };
+
+/// 살아 있는 동의서 링크가 있는가 — 있으면 [동의서 보내기]가 [다시 공유]가 된다.
+bool consentSent(VisitCheck c) => c.formSentOn != null;
+
+String _withSent(VisitCheck c, String line) =>
+    c.formSentOn == null ? line : AppStrings.checkConsentSent(line, c.formSentOn!);
 
 /// 묶음 하나 — 보호자 항목(제목·아이 없음) 또는 한 아이의 항목.
 class CheckSection {

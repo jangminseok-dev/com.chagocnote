@@ -10,6 +10,26 @@ VisitCheck _c(String code, {String scope = 'customer', Map<String, dynamic>? d})
 
 void main() {
   group('checkLine', () {
+    test('동의서 — 바뀐 부분만 남았으면 무엇이 바뀌었는지 말한다', () {
+      Map<String, dynamic> d(List<String> parts) => {
+        'reasons': ['senior', 'conditions'], 'state': 'partial', 'received_on': '2026-03-02', 'parts': parts,
+      };
+      expect(checkLine(_c('consent', scope: 'pet', d: d(['senior']))), '미용 동의서의 바뀐 부분만 다시 받아 주세요 (노령)');
+      expect(
+        checkLine(_c('consent', scope: 'pet', d: d(['senior', 'condition']))),
+        '미용 동의서의 바뀐 부분만 다시 받아 주세요 (노령 · 지병)',
+      );
+    });
+
+    test('동의서 — 보낸 링크가 살아 있으면 보냈다고 말한다', () {
+      final check = _c('consent', scope: 'pet', d: {
+        'reasons': ['senior'], 'state': 'missing', 'received_on': null, 'form_sent_on': '2026-11-16',
+      });
+      expect(checkLine(check), '미용 동의서를 받아 주세요 (노령) · 11월 16일에 보냈어요');
+      expect(consentSent(check), isTrue);
+      expect(consentSent(_c('consent', scope: 'pet', d: {'reasons': ['senior'], 'state': 'missing', 'received_on': null})), isFalse);
+    });
+
     test('주의 고객', () {
       expect(
         checkLine(_c('caution', d: {'reason': '노쇼 3번', 'until': '2027-11-14'})),

@@ -5,7 +5,7 @@ import pytest
 
 from hub.app.dtos.guardian import ReportLinkTarget
 from visit.app.use_cases.resolve_report_link_interactor import ResolveReportLinkInteractor
-from visit.domain.services.report_token import make_token
+from core.link_token import make_token
 from visit.tests.helpers.builders import kst
 from visit.tests.helpers.public_world import KEY, NOW, SHOP, PublicWorld
 

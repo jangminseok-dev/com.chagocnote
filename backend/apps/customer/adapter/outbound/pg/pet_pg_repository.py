@@ -129,13 +129,14 @@ class PetPgRepository(PetRepository):
         )
 
     async def set_grooming_consent(
-        self, ctx: ShopContext, pet_id: int, received_on: date | None, member_id: int | None
+        self, ctx: ShopContext, pet_id: int, received_on: date | None, member_id: int | None,
+        signature_id: int | None = None,
     ) -> Pet:
         await self._session.execute(
             update(PetOrm)
             .where(PetOrm.id == pet_id, PetOrm.customer_id.in_(_owner_ids(ctx)))
             .values(grooming_consent_on=received_on, grooming_consent_by_member_id=member_id,
-                    updated_at=func.now())
+                    grooming_consent_signature_id=signature_id, updated_at=func.now())
         )
         return await self.get(ctx, pet_id)
 

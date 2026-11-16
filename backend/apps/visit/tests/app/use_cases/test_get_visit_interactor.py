@@ -6,7 +6,7 @@ from visit.app.dtos.get_visit_dto import GetVisitQuery
 from visit.app.use_cases.get_visit_interactor import GetVisitInteractor
 from visit.domain.errors import VisitNotFoundError
 from visit.tests.helpers.builders import ctx, kst, record
-from visit.domain.services.report_token import read_token
+from core.link_token import read_token
 from visit.tests.helpers.fakes import (
     FakeChecks,
     FakeDirectory,

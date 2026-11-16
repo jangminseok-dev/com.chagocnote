@@ -15,7 +15,7 @@ from visit.app.dtos.report_view_dto import (
 )
 from visit.dependencies.read_public_report_provider import get_read_public_report_use_case
 from visit.domain.errors import ReportClosedError, ReportNotFoundError, TooManyReportRequestsError
-from visit.domain.services.report_token import make_token
+from core.link_token import make_token
 from visit.domain.value_objects.report_settings import ReportSettings
 from visit.tests.helpers.api import Recorder, build_app, client, error_of
 

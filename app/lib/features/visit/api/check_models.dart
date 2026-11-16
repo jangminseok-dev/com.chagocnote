@@ -5,6 +5,8 @@
 /// 오버라이드하지 않는다.
 library;
 
+import '../../customer/api/consent_models.dart';
+
 /// 서버가 주는 순서 그대로다(주의 → 노쇼 → 첫 방문 → 동의 → 지병 → 오랜만).
 enum CheckCode {
   caution('caution'),
@@ -23,7 +25,8 @@ enum CheckScope { customer, pet }
 
 enum ConsentReason { senior, conditions }
 
-enum ConsentState { missing, expired }
+/// partial 은 서명으로 받은 동의에서 바뀐 토막만 남은 것이다(⑪) — 노령이 됐거나 지병이 더해졌다.
+enum ConsentState { missing, expired, partial }
 
 class CheckCondition {
   const CheckCondition({required this.label, required this.note});
@@ -42,6 +45,8 @@ class VisitCheck {
     this.consentReasons = const [],
     this.consentState,
     this.receivedOn,
+    this.consentParts = const [],
+    this.formSentOn,
     this.conditions = const [],
     this.days,
     this.lastVisitOn,
@@ -61,6 +66,10 @@ class VisitCheck {
   final List<ConsentReason> consentReasons;
   final ConsentState? consentState;
   final DateTime? receivedOn;
+
+  /// 미용 동의(⑪) — 바뀐 부분만 받을 때의 토막(문서의 순서), 살아 있는 동의서 링크를 보낸 날.
+  final List<ConsentPart> consentParts;
+  final DateTime? formSentOn;
 
   /// 지병 — 이름과 메모.
   final List<CheckCondition> conditions;
@@ -113,6 +122,13 @@ class VisitCheck {
           ],
           consentState: state,
           receivedOn: receivedOn,
+          consentParts: [
+            if (detail['parts'] case final List parts)
+              for (final part in ConsentPart.values)
+                if (parts.contains(part.name)) part,
+          ],
+          // 없거나 깨졌으면 보내지 않은 것으로 본다 — 줄을 버리지는 않는다.
+          formSentOn: _day(detail['form_sent_on']),
         );
       case CheckCode.conditions:
         final items = detail['items'];

@@ -9,15 +9,15 @@ from datetime import datetime
 from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.report_target_dto import ReportTarget
-from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
+from hub.app.ports.public_limiter_port import PublicLimiterPort
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.domain.errors import ReportClosedError, ReportNotFoundError, TooManyReportRequestsError
-from visit.domain.services.report_token import read_token
+from core.link_token import read_token
 
 
 async def open_report(
     token: str | None, client: str, now: datetime, *, link_key: bytes, reports: PublicReportRepository,
-    shops: ShopProfilePort, limiter: PublicReportLimiterPort,
+    shops: ShopProfilePort, limiter: PublicLimiterPort,
 ) -> tuple[ReportTarget, ShopProfile]:
     if not await limiter.allow(client):
         raise TooManyReportRequestsError("요청이 너무 잦습니다. 잠시 뒤에 다시 열어 주세요.")

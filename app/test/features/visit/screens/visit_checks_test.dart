@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:chagocnote/core/error/api_exception.dart';
 import 'package:chagocnote/core/error/error_messages.dart';
+import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/visit/api/check_models.dart';
@@ -14,6 +15,7 @@ import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/consent_fixtures.dart';
 import '../../../support/customer_fixtures.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
@@ -54,6 +56,17 @@ final _conditions = checkJson(
 );
 
 const _consentLine = '미용 동의서를 받아 주세요 (노령 · 지병)';
+const _formsPath = 'POST /v1/shops/3/consent-forms';
+final _consentSent = checkJson(
+  'consent',
+  scope: 'pet',
+  detail: {
+    'reasons': ['senior', 'conditions'],
+    'state': 'missing',
+    'received_on': null,
+    'form_sent_on': '2026-11-16',
+  },
+);
 
 List<VisitCheck> _parsed(List<Map<String, dynamic>> json) => parseChecks(json);
 
@@ -109,8 +122,13 @@ class _DetailServer {
         ];
         return FakeResponse(statusCode: 200, data: petDetailJson());
       },
+      _formsPath: (o, b) => FakeResponse(statusCode: 201, data: formLinkJson()),
+      'GET /v1/shops/3/consent-document': (o, b) => FakeResponse(statusCode: 200, data: consentDocumentJson()),
     });
   }
+
+  /// 이 방문의 날(매장 시간대) — 동의서의 기준일로 나간다.
+  String get visitDay => (visitDetailJson()['visit'] as Map)['starts_at'].toString().substring(0, 10);
 
   List<Map<String, dynamic>> checks;
   late final VisitTestBackend backend;
@@ -265,6 +283,8 @@ void main() {
               ),
             ],
             onConsent: (_) {},
+            onSend: (_, _) {},
+            onSignHere: (_) {},
           ),
         ),
       );
@@ -553,6 +573,123 @@ void main() {
       );
       expect(find.text(_consentLine), findsNothing);
       expect(find.text(AppStrings.checkFirstVisit), findsOneWidget);
+    });
+
+    // --- 전자 동의서(⑪) ---
+
+    testWidgets('동의 줄에 버튼 셋이 있고, 보낸 링크가 살아 있으면 [다시 공유]다', (tester) async {
+      final server = _DetailServer([_consent]);
+      final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _openDetail(tester, setup);
+
+      expect(_button(AppStrings.consentSend), findsOneWidget);
+      expect(_button(AppStrings.consentSignHere), findsOneWidget);
+      expect(_button(AppStrings.consentReceived), findsOneWidget);
+      expect(_button(AppStrings.consentShareAgain), findsNothing);
+
+      server.checks = [_consentSent];
+      setup.container.invalidate(visitDetailProvider);
+      await settle(tester);
+
+      expect(find.text('$_consentLine · 11월 16일에 보냈어요'), findsOneWidget);
+      expect(_button(AppStrings.consentShareAgain), findsOneWidget);
+      expect(_button(AppStrings.consentSend), findsNothing);
+    });
+
+    testWidgets('[동의서 보내기]는 방문의 날을 넘기고 주소를 공유 시트에 준다 — 누르기 한 번', (tester) async {
+      final server = _DetailServer([_consent]);
+      final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _openDetail(tester, setup);
+
+      await tester.tap(find.byKey(const ValueKey('consent-send-11')));
+      await settle(tester);
+
+      expect(bodyOf(setup.adapter.lastBodyByPath['/v1/shops/3/consent-forms']), {
+        'pet_ids': [11],
+        'for_date': server.visitDay,
+      });
+      expect(setup.shareSheet.shared, [fakeConsentUrl]);
+      expect(setup.shareSheet.origins.single.width, greaterThan(0));
+      // 보낸 뒤 확인할 것을 다시 읽는다 — 보낸 날이 실린다.
+      expect(setup.calls.where((c) => c == 'GET /v1/shops/3/visits/101'), hasLength(2));
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('손으로 받았다고 적은 아이에게 보내면 무엇을 해야 하는지 말한다', (tester) async {
+      final server = _DetailServer([_consent]);
+      server.backend.routes[_formsPath] = (o, b) =>
+          const FakeResponse(statusCode: 409, data: {'code': 'CONSENT_UP_TO_DATE', 'message': 'x'});
+      final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _openDetail(tester, setup);
+
+      await tester.tap(find.byKey(const ValueKey('consent-send-11')));
+      await settle(tester);
+
+      expect(find.text(AppStrings.consentSendUpToDate), findsOneWidget);
+      expect(setup.shareSheet.shared, isEmpty);
+    });
+
+    testWidgets('공유 창이 실패하면 알리고 다시 누를 수 있다 — 다시 누르면 같은 링크다', (tester) async {
+      final server = _DetailServer([_consent]);
+      final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _openDetail(tester, setup);
+      setup.shareSheet.error = Exception('채널 오류');
+
+      final button = find.byKey(const ValueKey('consent-send-11'));
+      await tester.tap(button);
+      await settle(tester);
+      expect(find.text(AppStrings.consentShareFailed), findsOneWidget);
+      expect(tester.widget<AppButton>(button).busy, isFalse);
+
+      setup.shareSheet.error = null;
+      await tester.tap(button);
+      await settle(tester);
+      expect(setup.shareSheet.shared, [fakeConsentUrl]);
+    });
+
+    testWidgets('보내는 중에는 다시 눌리지 않는다', (tester) async {
+      final server = _DetailServer([_consent]);
+      final gate = Completer<void>();
+      final issue = server.backend.routes[_formsPath]!;
+      server.backend.routes[_formsPath] = (o, b) async {
+        await gate.future;
+        return issue(o, b);
+      };
+      final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _openDetail(tester, setup);
+
+      final button = find.byKey(const ValueKey('consent-send-11'));
+      await tester.tap(button);
+      await tester.pump();
+      expect(tester.widget<AppButton>(button).busy, isTrue);
+      await tester.tap(button);
+      await tester.pump();
+      gate.complete();
+      await settle(tester);
+
+      expect(setup.calls.where((c) => c == _formsPath), hasLength(1));
+    });
+
+    testWidgets('[여기서 서명]은 누르기 한 번으로 서명 화면을 방문의 날로 연다', (tester) async {
+      final server = _DetailServer([_consent]);
+      final setup = CustomerTestSetup(server.backend.call, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _openDetail(tester, setup);
+
+      await tester.tap(find.byKey(const ValueKey('consent-sign-11')));
+      await settle(tester);
+
+      expect(find.byKey(ScreenKeys.consentSign), findsOneWidget);
+      final query = setup.adapter.requests.lastWhere((r) => r.path == '/v1/shops/3/consent-document').uri.queryParametersAll;
+      expect(query, {
+        'pet_ids': ['11'],
+        'for_date': [server.visitDay],
+      });
     });
 
     testWidgets('[받았어요]가 실패하면 스낵바로 알리고 줄은 남는다', (tester) async {

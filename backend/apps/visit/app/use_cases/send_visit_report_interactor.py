@@ -20,7 +20,7 @@ from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.services.report_reader import describe_link, describe_report
 from visit.app.services.visit_locking import lock_visits
 from visit.domain.services.report_rules import check_not_empty, check_sendable, expires_at_for
-from visit.domain.services.report_token import new_public_id
+from core.link_token import new_public_id
 
 
 class SendVisitReportInteractor(SendVisitReportUseCase):

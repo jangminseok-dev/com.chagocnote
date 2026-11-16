@@ -1,4 +1,5 @@
 // 확인할 것의 해석 — 모르는 code 와 모양이 깨진 항목은 버리고 나머지는 읽는다(설계 4.3).
+import 'package:chagocnote/features/customer/api/consent_models.dart';
 import 'package:chagocnote/features/visit/api/check_models.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -157,5 +158,47 @@ void main() {
       VisitChecksPreview.fromJson({'customer': [], 'pets': []}).isEmpty,
       isTrue,
     );
+  });
+
+  consentTests();
+}
+
+// --- 전자 동의서(⑪) — 바뀐 부분만, 보낸 날 ---------------------------------------------------------------------
+
+void consentTests() {
+  test('바뀐 부분만 남은 동의를 읽는다 — 토막과 지난번 받은 날', () {
+    final check = VisitCheck.tryParse(checkJson('consent', scope: 'pet', detail: {
+      'reasons': ['senior', 'conditions'],
+      'state': 'partial',
+      'received_on': '2026-03-02',
+      'parts': ['condition', 'senior', 'vaccine'],
+    }))!;
+
+    expect(check.consentState, ConsentState.partial);
+    expect(check.consentParts, [ConsentPart.senior, ConsentPart.condition]);   // 문서의 순서, 모르는 토막은 버린다
+    expect(check.receivedOn, DateTime(2026, 3, 2));
+    expect(check.formSentOn, isNull);
+  });
+
+  test('동의서를 보낸 날이 있으면 읽고, 없거나 깨졌으면 없는 것으로 본다', () {
+    Map<String, dynamic> detail(Object? sent) => {
+      'reasons': ['senior'],
+      'state': 'missing',
+      'received_on': null,
+      'form_sent_on': ?sent,
+    };
+
+    expect(VisitCheck.tryParse(checkJson('consent', scope: 'pet', detail: detail('2026-11-16')))!.formSentOn, DateTime(2026, 11, 16));
+    expect(VisitCheck.tryParse(checkJson('consent', scope: 'pet', detail: detail(null)))!.formSentOn, isNull);
+    expect(VisitCheck.tryParse(checkJson('consent', scope: 'pet', detail: detail(7)))!.formSentOn, isNull);
+  });
+
+  test('옛 서버의 응답(칸이 없다)도 그대로 읽는다', () {
+    final check = VisitCheck.tryParse(checkJson('consent', scope: 'pet', detail: {
+      'reasons': ['senior'], 'state': 'missing', 'received_on': null,
+    }))!;
+
+    expect(check.consentParts, isEmpty);
+    expect(check.formSentOn, isNull);
   });
 }

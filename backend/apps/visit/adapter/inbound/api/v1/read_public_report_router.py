@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from visit.adapter.inbound.api.schemas.public_report_schema import PUBLIC_REPORT_HEADERS, PublicReportSchema
 from visit.app.dtos.read_public_report_dto import ReadPublicReportQuery
 from visit.app.ports.input.read_public_report_use_case import ReadPublicReportUseCase
-from visit.dependencies.public_client import get_public_client
+from core.public_client import get_public_client
 from visit.dependencies.read_public_report_provider import get_read_public_report_use_case
 
 read_public_report_router = APIRouter(prefix="/v1/public", tags=["public"])

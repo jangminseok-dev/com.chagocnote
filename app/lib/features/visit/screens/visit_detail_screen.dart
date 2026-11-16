@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/error/api_exception.dart';
 import '../../../core/error/async_body.dart';
 import '../../../core/error/error_messages.dart';
 import '../../../core/proxy/media_images.dart';
@@ -512,6 +513,7 @@ class _DetailChecks extends ConsumerStatefulWidget {
 
 class _DetailChecksState extends ConsumerState<_DetailChecks> {
   bool _busy = false;
+  bool _sending = false;
 
   Future<void> _received(int petId) async {
     final shopId = ref.read(selectedShopIdProvider);
@@ -528,6 +530,41 @@ class _DetailChecksState extends ConsumerState<_DetailChecks> {
     if (failure != null) AppSnackBar.show(context, failure);
   }
 
+  /// [동의서 보내기]·[다시 공유] — 링크를 만들고(있으면 같은 링크) 공유 시트에 넘긴다(⑪).
+  /// 기준일은 이 방문의 날이다 — 그날에 유효한 동의를 받는다. 링크 주소는 어디에도 적지 않는다.
+  Future<void> _send(int petId, Rect origin) async {
+    final shopId = ref.read(selectedShopIdProvider);
+    if (shopId == null || _sending) return;
+    setState(() => _sending = true);
+    String? failure;
+    try {
+      final link = await ref
+          .read(visitCommandsProvider)
+          .consentFormLink(shopId, petId, forDate: widget.detail.visit.startsAt.day);
+      try {
+        await ref.read(shareSheetProvider).shareText(link.url, origin: origin);
+      } on Exception {
+        // 링크는 만들어졌다 — 다시 누르면 같은 링크가 공유된다.
+        failure = AppStrings.consentShareFailed;
+      }
+    } on ApiException catch (e) {
+      // 손으로 [받았어요]를 적은 아이는 더 받을 것이 없다고 온다 — 무엇을 해야 하는지 말한다.
+      failure = e.code == 'CONSENT_UP_TO_DATE' ? AppStrings.consentSendUpToDate : messageFor(e);
+    } catch (e) {
+      failure = messageFor(e);
+    }
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (failure != null) AppSnackBar.show(context, failure);
+  }
+
+  /// [여기서 서명] — 폰을 보호자에게 건네 그 자리에서 받는다. 돌아오면 확인할 것을 다시 읽는다.
+  Future<void> _signHere(int petId) async {
+    final day = isoDay(widget.detail.visit.startsAt.day);
+    await context.push<void>('/consent/sign?pet_ids=$petId&for_date=$day');
+    if (mounted) ref.read(visitCommandsProvider).refreshChecks();
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = widget.detail;
@@ -538,6 +575,9 @@ class _DetailChecksState extends ConsumerState<_DetailChecks> {
       ),
       onConsent: _received,
       consentBusy: _busy,
+      onSend: _send,
+      sendBusy: _sending,
+      onSignHere: _signHere,
     );
   }
 }

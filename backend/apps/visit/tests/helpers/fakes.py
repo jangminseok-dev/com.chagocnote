@@ -29,7 +29,7 @@ from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.report_target_dto import ReportTarget
 from visit.app.ports.output.menu_repository import MenuRepository
-from visit.app.ports.output.public_report_limiter_port import PublicReportLimiterPort
+from hub.app.ports.public_limiter_port import PublicLimiterPort
 from visit.app.dtos.guardian_report_dto import SentReport
 from visit.app.ports.output.guardian_report_repository import GuardianReportRepository
 from visit.app.ports.output.public_report_repository import PublicReportRepository
@@ -552,7 +552,7 @@ class FakeReportRepository(ReportRepository, PublicReportRepository, GuardianRep
         self.journal.append(("mark_report_viewed", report_id))
 
 
-class FakePublicReportLimiter(PublicReportLimiterPort):
+class FakePublicReportLimiter(PublicLimiterPort):
     """공개 조회 횟수 제한 스텁 — allowed 를 False 로 두면 분당 한도를 막고, missed 를 True 로 두면 실패 수 한도가 찬 것으로 친다.
 
     센 접속 주소가 hits·misses 에, missed_too_much 를 부른 접속 주소가 checked 에 남는다.
@@ -575,6 +575,9 @@ class FakePublicReportLimiter(PublicReportLimiterPort):
     async def missed_too_much(self, client):
         self.checked.append(client)
         return self.missed
+
+    async def allow_write(self, client):
+        return self.allowed
 
 
 class FakeReportSettingsRepository(ReportSettingsRepository):

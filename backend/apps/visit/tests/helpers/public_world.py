@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from hub.app.dtos.shop_profile import ShopProfile
 from visit.domain.services.report_rules import hide
-from visit.domain.services.report_token import make_token
+from core.link_token import make_token
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import (
     FakeDirectory,

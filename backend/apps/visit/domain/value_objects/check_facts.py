@@ -11,6 +11,14 @@ class CautionMark:
 
 
 @dataclass(frozen=True)
+class ConsentCoverFact:
+    """서명으로 받은 동의가 덮는 것(⑪). basic 은 늘 덮였다."""
+
+    senior: bool
+    condition_labels: frozenset[str]
+
+
+@dataclass(frozen=True)
 class PetFacts:
     """판정에 쓰는 아이의 사실. 지병은 (이름, 메모)."""
 
@@ -19,6 +27,8 @@ class PetFacts:
     conditions: tuple[tuple[str, str | None], ...]
     consent_on: date | None
     passed_away: bool
+    consent_cover: ConsentCoverFact | None = None   # 서명으로 받은 동의일 때만. 손으로 적은 동의면 None
+    consent_form_sent_on: date | None = None        # 살아 있는 동의서 링크를 보낸 날
 
 
 @dataclass(frozen=True)

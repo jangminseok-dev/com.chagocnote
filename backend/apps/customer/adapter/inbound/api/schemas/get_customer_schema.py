@@ -44,6 +44,7 @@ class PetSchema(BaseModel):
     memo: str | None
     passed_away_at: datetime | None
     grooming_consent_on: date | None
+    grooming_consent_via: str | None = None   # signature · manual · null
 
     @classmethod
     def of(cls, view: PetView) -> PetSchema:
@@ -60,6 +61,7 @@ class PetSchema(BaseModel):
             ],
             memo=view.memo, passed_away_at=view.passed_away_at,
             grooming_consent_on=view.grooming_consent_on,
+            grooming_consent_via=view.grooming_consent_via,
         )
 
 

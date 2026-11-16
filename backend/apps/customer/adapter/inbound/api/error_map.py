@@ -1,9 +1,13 @@
 """customer 도메인 오류 → HTTP 상태 코드. 유스케이스는 HTTP 를 모른다."""
 from customer.domain.errors import (
+    ConsentDocumentChangedError,
+    ConsentUpToDateError,
     CustomerHasUpcomingVisitsError,
     CustomerInputError,
     CustomerNotFoundError,
     CustomerPhoneTakenError,
+    FormClosedError,
+    FormNotFoundError,
     LastPetError,
     PetHealthConflictError,
     PetHasUpcomingVisitsError,
@@ -11,18 +15,26 @@ from customer.domain.errors import (
     PetHealthRequiredError,
     PetNotFoundError,
     PetPassedAwayError,
+    SignatureNotFoundError,
+    TooManyFormRequestsError,
 )
 
 CUSTOMER_ERROR_STATUS: dict[type[Exception], int] = {
     CustomerNotFoundError: 404,
     PetNotFoundError: 404,
+    FormNotFoundError: 404,
+    SignatureNotFoundError: 404,
     CustomerPhoneTakenError: 409,
     LastPetError: 409,
     PetHasVisitsError: 409,
     PetHasUpcomingVisitsError: 409,
     CustomerHasUpcomingVisitsError: 409,
+    ConsentDocumentChangedError: 409,
+    ConsentUpToDateError: 409,
+    FormClosedError: 410,
     CustomerInputError: 422,
     PetHealthRequiredError: 422,
     PetHealthConflictError: 422,
     PetPassedAwayError: 422,
+    TooManyFormRequestsError: 429,
 }

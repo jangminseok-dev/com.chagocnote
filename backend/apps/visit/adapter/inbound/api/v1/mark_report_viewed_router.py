@@ -6,7 +6,7 @@ from visit.adapter.inbound.api.schemas.public_report_schema import PUBLIC_REPORT
 from visit.app.dtos.mark_report_viewed_dto import MarkReportViewedCommand
 from visit.app.ports.input.mark_report_viewed_use_case import MarkReportViewedUseCase
 from visit.dependencies.mark_report_viewed_provider import get_mark_report_viewed_use_case
-from visit.dependencies.public_client import get_public_client
+from core.public_client import get_public_client
 
 mark_report_viewed_router = APIRouter(prefix="/v1/public", tags=["public"])
 

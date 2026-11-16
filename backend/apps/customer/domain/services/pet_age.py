@@ -35,3 +35,17 @@ def age_label(birth_date: date | None, birth_year: int | None, today: date) -> s
         years = today.year - birth_year
         return "1살 미만" if years < 1 else f"{years}살"
     return "나이 모름"
+
+
+def age_years(birth_date: date | None, birth_year: int | None, on: date) -> int | None:
+    """그날의 나이. 생일을 알면 만 나이, 태어난 해만 알면 해의 차이(생일을 모르면 많게 본다), 모르면 None.
+
+    예약 앞의 확인할 것(visit 의 판정)과 같은 규칙이다 — 동의서의 노령 토막이 그 판정과 어긋나지 않아야 한다.
+    """
+    if birth_date is not None:
+        before_birthday = (on.month, on.day) < (birth_date.month, birth_date.day)
+        return on.year - birth_date.year - (1 if before_birthday else 0)
+    if birth_year is not None:
+        return on.year - birth_year
+    return None
+

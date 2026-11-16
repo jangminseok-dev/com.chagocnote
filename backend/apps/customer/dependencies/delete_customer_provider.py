@@ -6,8 +6,11 @@ from core.database import DbSession
 from customer.app.ports.input.delete_customer_use_case import DeleteCustomerUseCase
 from customer.app.use_cases.delete_customer_interactor import DeleteCustomerInteractor
 from customer.dependencies.customer_wiring import (
+    build_consent_form_repository,
+    build_consent_signature_repository,
     build_customer_repository,
     build_customer_search,
+    utc_now,
 )
 from customer.dependencies.hub_ports import get_guardian_lifecycle, get_search_index, get_visit_ledger
 from hub.app.ports.guardian_lifecycle_port import GuardianLifecyclePort
@@ -22,5 +25,6 @@ def get_delete_customer_use_case(
 ) -> DeleteCustomerUseCase:
     return DeleteCustomerInteractor(
         customers=build_customer_repository(db), search=build_customer_search(db), ledger=ledger,
-        guardians=guardians, index=index,
+        guardians=guardians, index=index, forms=build_consent_form_repository(db),
+        signatures=build_consent_signature_repository(db), now=utc_now,
     )

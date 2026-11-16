@@ -5,7 +5,7 @@ from hub.app.dtos.guardian import GuardianContext
 from hub.app.dtos.shop_context import ShopContext
 from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.ports.shop_profile_port import ShopProfilePort
-from visit.app.services.public_context import public_context
+from hub.app.dtos.shop_context import public_context
 
 
 async def guardian_scope(

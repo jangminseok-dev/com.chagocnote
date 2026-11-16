@@ -9,6 +9,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from customer.adapter.outbound.pg.consent_form_pg_repository import ConsentFormPgRepository
+from customer.adapter.outbound.pg.consent_signature_pg_repository import ConsentSignaturePgRepository
 from customer.adapter.outbound.pg.customer_pg_repository import CustomerPgRepository
 from customer.adapter.outbound.pg.customer_search_pg_adapter import CustomerSearchPgAdapter
 from customer.adapter.outbound.pg.family_brief_pg_repository import FamilyBriefPgRepository
@@ -74,7 +76,9 @@ def _transition(session, visit_ids, action, reason=None):
 def _anonymize(session, customer_id):
     ledger = VisitLedgerInteractor(VisitPgRepository(session), VisitRecordPgRepository(session),
                                    ReportPgRepository(session), now=lambda: NOW)
-    return DeleteCustomerInteractor(CustomerPgRepository(session), CustomerSearchPgAdapter(session), ledger, NoGuardians(), index=NoSearchIndex()) \
+    return DeleteCustomerInteractor(CustomerPgRepository(session), CustomerSearchPgAdapter(session), ledger, NoGuardians(), index=NoSearchIndex(),
+                                    forms=ConsentFormPgRepository(session),
+                                    signatures=ConsentSignaturePgRepository(session), now=lambda: NOW) \
         .delete_customer(DeleteCustomerCommand(ctx=SHOP, customer_id=customer_id))
 
 

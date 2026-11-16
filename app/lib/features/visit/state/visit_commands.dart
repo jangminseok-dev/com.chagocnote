@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../customer/api/consent_models.dart';
+import '../../customer/state/consent_commands.dart';
 import '../../customer/state/customer_commands.dart';
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
@@ -125,6 +127,23 @@ class VisitCommands {
       _ref.invalidate(dayVisitsProvider);
       _ref.invalidate(visitChecksProvider);
     }
+  }
+
+  /// 방문 상세의 [동의서 보내기] — 그 아이의 동의서 링크를 만든다(있으면 같은 링크, ⑪). [forDate] 는 방문의
+  /// 날이다 — 그날에 유효한 동의를 받는다. 성공하든 실패하든 확인할 것을 다시 읽는다(보낸 날이 실린다).
+  Future<FormLink> consentFormLink(int shopId, int petId, {required DateTime forDate}) async {
+    try {
+      return await _ref.read(consentCommandsProvider).send(shopId, [petId], forDate: forDate);
+    } finally {
+      refreshChecks();
+    }
+  }
+
+  /// 확인할 것을 다시 읽는다 — 서명 화면에서 돌아왔을 때.
+  void refreshChecks() {
+    _ref.invalidate(visitDetailProvider);
+    _ref.invalidate(dayVisitsProvider);
+    _ref.invalidate(visitChecksProvider);
   }
 
   Future<T> _visitWrite<T>(Future<T> Function() action) async {

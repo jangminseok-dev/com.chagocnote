@@ -15,6 +15,7 @@ import '../../auth/state/shop_selection.dart';
 import '../state/customer_list_controller.dart';
 import '../state/customer_view_mode.dart';
 import '../../../core/time/search_debouncer.dart';
+import 'sent_forms_screen.dart';
 import 'family_card_view.dart';
 
 /// 홈의 "고객" 탭 — 제목과 반려동물 수, 보기 전환, 정렬, 무지개다리 포함,
@@ -126,6 +127,8 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
             ],
           ),
         ),
+        // 보낸 서류(⑪) — 살아 있는 링크가 있을 때만 보인다.
+        const SentFormsEntry(),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Row(

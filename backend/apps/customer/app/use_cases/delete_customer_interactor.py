@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from datetime import datetime
+
 from customer.app.dtos.delete_customer_dto import DeleteCustomerCommand
 from customer.app.ports.input.delete_customer_use_case import DeleteCustomerUseCase
+from customer.app.ports.output.consent_form_repository import ConsentFormRepository
+from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.domain.errors import CustomerHasUpcomingVisitsError
@@ -16,18 +21,25 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
     def __init__(
         self, customers: CustomerRepository, search: CustomerSearchPort, ledger: VisitLedgerPort,
         guardians: GuardianLifecyclePort, index: SearchIndexPort,
+        forms: ConsentFormRepository, signatures: ConsentSignatureRepository, now: Callable[[], datetime],
     ) -> None:
         self._customers = customers
         self._search = search
         self._ledger = ledger
         self._guardians = guardians
         self._index = index
+        self._forms = forms
+        self._signatures = signatures
+        self._now = now
 
     async def delete_customer(self, command: DeleteCustomerCommand) -> None:
         await self._customers.lock_active(command.ctx, command.customer_id)
         if await self._ledger.customer_has_upcoming(command.ctx, command.customer_id):
             raise CustomerHasUpcomingVisitsError("앞으로의 예약이 남아 있습니다. 예약을 먼저 취소해 주세요.")
         await self._customers.anonymize(command.ctx, command.customer_id)
+        # 서류(⑪) — 링크를 전부 닫고(이미 낸 것도) 서명(그림·적은 이름·보인 사실)을 지운다. 고객 행 → 서류 요청 행.
+        await self._forms.close_for_customer(command.ctx, command.customer_id, self._now())
+        await self._signatures.delete_for_customer(command.ctx, command.customer_id)
         # 보호자 계정과의 연결을 끝낸다 — 익명화한 고객의 기록이 보호자 쪽에 남지 않게(⑦ 설계 G9).
         await self._guardians.end_for_customer(command.ctx.shop_id, command.customer_id)
         await self._ledger.clear_customer_memos(command.ctx, command.customer_id)   # 방문 메모의 개인정보(V11)

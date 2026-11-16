@@ -9,7 +9,7 @@ from visit.app.dtos.report_view_dto import ReportShopView
 from visit.app.use_cases.get_visit_report_interactor import GetVisitReportInteractor
 from visit.domain.errors import VisitNoRecordYetError, VisitNotFoundError
 from visit.domain.services.report_rules import hide
-from visit.domain.services.report_token import read_token
+from core.link_token import read_token
 from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS, ReportSettings
 from visit.tests.helpers.builders import ctx, kst, record
 from visit.tests.helpers.fakes import (
