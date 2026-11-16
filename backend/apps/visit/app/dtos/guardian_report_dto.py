@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 
 from hub.app.dtos.guardian import GuardianContext
 from visit.app.dtos.report_view_dto import ReportCoverView
@@ -55,3 +56,61 @@ class GuardianReportPageView:
 class ReadGuardianReportQuery:
     guardian: GuardianContext
     report_id: int
+
+
+# --- 모아 보기(⑫ 설계 3.3·3.4) ---
+
+@dataclass(frozen=True)
+class SentMedia:
+    """보호자가 볼 수 있는 알림장에 나오는 미디어 한 줄(뺀 것·끊은 알림장의 것은 없다)."""
+
+    report_id: int
+    visit_id: int
+    starts_at: datetime
+    media_id: int
+    kind: str
+    phase: str
+    sort_order: int
+
+
+@dataclass(frozen=True)
+class ListGuardianMediaQuery:
+    guardian: GuardianContext
+    pet_id: int | None
+    year: int | None
+    phase: str | None
+    cursor: str | None
+
+
+@dataclass(frozen=True)
+class GuardianMediaItemView:
+    report_id: int
+    visit_date: date
+    kind: str
+    phase: str
+    width: int
+    height: int
+    duration_seconds: int | None
+    display_url: str
+    thumb_url: str
+    download_url: str
+
+
+@dataclass(frozen=True)
+class GuardianMediaPageView:
+    items: tuple[GuardianMediaItemView, ...]
+    next_cursor: str | None
+    years: tuple[int, ...]           # 받은 알림장이 있는 해(최근부터) — 아이를 골랐으면 그 아이의
+
+
+@dataclass(frozen=True)
+class ReadGuardianWeightsQuery:
+    guardian: GuardianContext
+    pet_id: int
+
+
+@dataclass(frozen=True)
+class GuardianWeightView:
+    visit_date: date
+    weight_kg: Decimal
+

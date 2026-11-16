@@ -199,9 +199,11 @@ from customer.dependencies.guardian_form_provider import get_guardian_form_use_c
 from visit.dependencies.visit_ledger_provider import get_visit_ledger_use_case
 from visit.dependencies.visit_search_source_provider import get_visit_search_source_use_case
 from visit.adapter.inbound.api.v1.guardian_reports_router import (
+    list_guardian_media_router,
     list_guardian_pets_router,
     list_guardian_reports_router,
     read_guardian_report_router,
+    read_guardian_weights_router,
 )
 from visit.dependencies.resolve_report_link_provider import get_resolve_report_link_use_case
 
@@ -358,6 +360,8 @@ app.include_router(guardian_settings_router)
 app.include_router(list_guardian_pets_router)
 app.include_router(list_guardian_reports_router)
 app.include_router(read_guardian_report_router)
+app.include_router(list_guardian_media_router)
+app.include_router(read_guardian_weights_router)
 
 app.include_router(media_myself_router)
 app.include_router(issue_upload_router)
