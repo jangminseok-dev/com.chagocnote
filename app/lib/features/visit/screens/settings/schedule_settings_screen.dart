@@ -24,6 +24,7 @@ import '../visit_labels.dart';
 import '../../state/visit_commands.dart';
 import '../../state/visit_form_rules.dart';
 import '../../state/visit_providers.dart';
+import 'revisit_settings_section.dart';
 import '../../state/schedule_input.dart';
 
 /// 설정 → 일정(사장만) — 영업시간, 기본 소요, 매주 쉬는 요일, 임시 휴무
@@ -404,6 +405,9 @@ class _ScheduleSettingsScreenState
             ],
           ),
         ),
+        const SizedBox(height: AppSpacing.lg),
+        // 다시 올 때(⑬) — 값이 따로라 따로 읽고 줄마다 바로 쓴다.
+        RevisitSettingsSection(shopId: shopId),
       ],
     );
   }

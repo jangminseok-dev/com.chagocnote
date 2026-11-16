@@ -526,6 +526,17 @@ class _NotificationSettingsScreenState
                         )
                       : null,
                 ),
+                // ⑬ — 아이에게 직접 정한 주기가 이 고정 주 수보다 앞선다.
+                const Padding(
+                  padding: EdgeInsets.only(left: AppSpacing.md, bottom: AppSpacing.sm),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      AppStrings.notificationNextVisitWeeksNote,
+                      style: AppTypography.caption,
+                    ),
+                  ),
+                ),
                 _ChoiceRow(
                   label: AppStrings.notificationCooldownLabel,
                   value: AppStrings.notificationDays(

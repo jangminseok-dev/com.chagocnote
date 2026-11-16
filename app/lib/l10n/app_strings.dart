@@ -256,6 +256,41 @@ class AppStrings {
   static const durationLabel = '소요';
   static const shorter = '소요 줄이기';
   static const longer = '소요 늘리기';
+
+  // 숫자 시트의 [−]·[+](⑬).
+  static const stepDown = '줄이기';
+  static const stepUp = '늘리기';
+  static String weeksUnit(int n) => '$n주';
+  static String daysUnit(int n) => '$n일';
+  static String visitsUnit(int n) => '$n번';
+
+  // ⑬ 예약 설정의 다시 올 때(설계 3.7 — 줄 이름만 읽고 무슨 일이 생기는지 알게).
+  static const revisitSectionTitle = '다시 올 때';
+  static const revisitDefaultWeeksLabel = '처음 온 아이의 다음 미용은 몇 주 뒤로 잡을까요';
+  static String revisitDefaultWeeksNote(int weeks) =>
+      "한 번 온 아이: $weeks주 뒤로 잡고, $weeks주가 지나면 '지남'에 올라요";
+  static const revisitSoonDaysLabel = "다시 올 날 며칠 전부터 '곧'에 올릴까요";
+  static String revisitSoonDaysNote(int days) => "다시 올 날 $days일 전부터 '곧'에 올려요";
+  static String revisitSoonCountNote(int count) => "지금 $count마리가 '곧'에 있어요";
+  static const revisitMessageLabel = '다시 올 때가 된 아이에게 보낼 글';
+  static const revisitCountUnsentLabel = '알림장을 안 보낸 방문을 남은 일로 세기';
+  static const revisitCountUnsentNote = '끄면 하루 머리와 달력에서 세지 않아요';
+  static const revisitSampleVisitsLabel = '미용 주기를 계산할 때 최근 몇 번의 방문을 볼까요';
+  static String revisitSampleVisitsNote(int visits) =>
+      '최근 $visits번의 방문 사이 간격의 가운데 값을 써요';
+  static const revisitMinGapLabel = '며칠 안에 다시 온 방문은 손질로 보고 뺄까요';
+  static String revisitMinGapNote(int days) =>
+      days == 0 ? '모든 방문을 셈에 넣어요' : '$days일 안에 다시 온 방문은 주기 계산에서 빼요';
+
+  // ⑬ 안내 글 템플릿.
+  static const revisitMessageTitle = '안내 글 템플릿';
+  static const revisitChipPet = '아이 이름';
+  static const revisitChipWeeks = '지난 주 수';
+  static const revisitChipShop = '매장 이름';
+  static const revisitSamplePet = '콩이';
+  static const revisitMessageEmpty = '글을 적어 주세요';
+  static const revisitMessageTooLong = '300자까지 적을 수 있어요';
+  static const revisitMessageSaved = '안내 글을 바꿨어요';
   static const visitMemoHint = '메모 (선택)';
   static const prefilledFromLast = '지난번과 같게 채웠어요. 그대로 저장해도 돼요.';
   static const pickPetFirst = '반려동물이나 "보호자만"을 골라 주세요';
@@ -927,6 +962,9 @@ class AppStrings {
   static const notificationTemplateRejected = '반려됐어요 · 운영자가 확인 중';
   static const notificationReminderTimeLabel = '보내는 시각';
   static const notificationNextVisitWeeksLabel = '지난 미용 뒤';
+
+  /// ⑬ — 알림톡의 고정 주 수보다 아이의 값이 앞선다.
+  static const notificationNextVisitWeeksNote = '아이에게 직접 정한 주기가 있으면 그 값이 앞서요';
   static String notificationWeeks(int weeks) => '$weeks주';
   static const notificationWeeksAuto = '지난 방문 간격대로';
   static const notificationCooldownLabel = '다시 보내지 않는 기간';

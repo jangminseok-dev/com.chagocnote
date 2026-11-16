@@ -36,6 +36,7 @@ class ScreenKeys {
   static const intakeQuestions = Key('screen_intake_questions');
   static const formTextEdit = Key('screen_form_text_edit');
   static const notificationSettings = Key('screen_notification_settings');
+  static const revisitMessage = Key('screen_revisit_message');
   static const day = Key('screen_day');
   static const salesVisits = Key('screen_sales_visits');
   static const duePets = Key('screen_due_pets');

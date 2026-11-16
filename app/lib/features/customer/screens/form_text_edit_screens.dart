@@ -187,6 +187,7 @@ class FormTextEdit extends StatefulWidget {
     required this.onSave,
     required this.onReset,
     this.slots = const [],
+    this.slotLabel,
   });
 
   static const inputKey = Key('form-text-input');
@@ -199,6 +200,9 @@ class FormTextEdit extends StatefulWidget {
   final int maxLength;
   final bool canEdit;
   final List<String> slots;
+
+  /// 칩의 이름표(⑬ — `{아이}` 를 `아이 이름` 으로). 없으면 자리 글 그대로다.
+  final String Function(String slot)? slotLabel;
 
   /// 저장을 막는 까닭. 괜찮으면 `null`.
   final String? Function(String text) notice;
@@ -324,7 +328,7 @@ class _FormTextEditState extends State<FormTextEdit> {
                 for (final slot in widget.slots)
                   AppChoiceChip(
                     key: ValueKey('form-slot-$slot'),
-                    label: slot,
+                    label: widget.slotLabel?.call(slot) ?? slot,
                     selected: false,
                     onTap: () => _insert(slot),
                   ),

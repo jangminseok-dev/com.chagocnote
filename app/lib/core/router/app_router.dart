@@ -38,6 +38,7 @@ import '../../features/visit/screens/report_preview_screen.dart';
 import '../../features/visit/screens/settings/menu_settings_screen.dart';
 import '../../features/visit/screens/settings/notification_settings_screen.dart';
 import '../../features/visit/screens/settings/report_settings_screen.dart';
+import '../../features/visit/screens/settings/revisit_message_screen.dart';
 import '../../features/visit/screens/settings/schedule_settings_screen.dart';
 import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
@@ -122,6 +123,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/schedule',
         builder: (context, state) => const ScheduleSettingsScreen(),
+      ),
+      // 다시 올 때가 된 아이에게 보낼 글의 템플릿(⑬).
+      GoRoute(
+        path: '/settings/revisit-message',
+        builder: (context, state) => const RevisitMessageScreen(),
       ),
       GoRoute(
         path: '/settings/menus',
