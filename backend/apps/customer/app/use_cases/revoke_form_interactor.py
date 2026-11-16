@@ -6,6 +6,7 @@ from datetime import datetime
 from customer.app.dtos.revoke_form_dto import RevokeFormCommand
 from customer.app.ports.input.revoke_form_use_case import RevokeFormUseCase
 from customer.app.ports.output.consent_form_repository import ConsentFormRepository
+from customer.app.ports.output.intake_form_repository import IntakeFormRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.domain.errors import CustomerNotFoundError
 
@@ -15,12 +16,24 @@ class RevokeFormInteractor(RevokeFormUseCase):
 
     def __init__(
         self, forms: ConsentFormRepository, customers: CustomerRepository, now: Callable[[], datetime],
+        intakes: IntakeFormRepository | None = None,
     ) -> None:
         self._forms = forms
+        self._intakes = intakes
         self._customers = customers
         self._now = now
 
     async def revoke_form(self, command: RevokeFormCommand) -> None:
+        # 문진표 요청이면 그쪽에서 끊는다 — 보낸 서류의 [링크 끊기]는 종류를 가리지 않는다.
+        intake = None if self._intakes is None else await self._intakes.get(command.ctx, command.form_id)
+        if intake is not None:
+            if intake.customer_id is not None:
+                try:
+                    await self._customers.lock_active(command.ctx, intake.customer_id)   # 고객 행 → 서류 요청 행
+                except CustomerNotFoundError:
+                    return
+            await self._intakes.revoke(command.ctx, intake.id, self._now())
+            return
         form = await self._forms.get(command.ctx, command.form_id)
         try:
             await self._customers.lock_active(command.ctx, form.customer_id)   # 고객 행 → 서류 요청 행

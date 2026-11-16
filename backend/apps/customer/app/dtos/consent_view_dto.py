@@ -23,13 +23,14 @@ class FormPetView:
 @dataclass(frozen=True)
 class SentFormView:
     form_id: int
-    kind: str
-    customer_id: int
-    customer_name: str
+    kind: str              # consent | intake
+    customer_id: int | None     # 새 손님용 문진표에는 고객이 없다
+    customer_name: str | None
     pets: tuple[FormPetView, ...]
     sent_on: date
     expires_on: date
     url: str
+    mode: str | None = None     # 문진표의 보내는 곳(new·add_pet·update). 동의서는 None
 
 
 @dataclass(frozen=True)

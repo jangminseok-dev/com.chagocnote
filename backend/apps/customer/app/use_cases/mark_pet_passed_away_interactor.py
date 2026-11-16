@@ -7,6 +7,7 @@ from customer.app.dtos.customer_view_dto import PetDetailView
 from customer.app.dtos.mark_pet_passed_away_dto import MarkPetPassedAwayCommand
 from customer.app.ports.input.mark_pet_passed_away_use_case import MarkPetPassedAwayUseCase
 from customer.app.ports.output.consent_form_repository import ConsentFormRepository
+from customer.app.ports.output.intake_form_repository import IntakeFormRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
@@ -22,7 +23,7 @@ class MarkPetPassedAwayInteractor(MarkPetPassedAwayUseCase):
     def __init__(
         self, customers: CustomerRepository, pets: PetRepository, search: CustomerSearchPort,
         ledger: VisitLedgerPort, today: Callable[[], date], forms: ConsentFormRepository,
-        now: Callable[[], datetime],
+        now: Callable[[], datetime], intakes: IntakeFormRepository | None = None,
     ) -> None:
         self._customers = customers
         self._pets = pets
@@ -31,6 +32,7 @@ class MarkPetPassedAwayInteractor(MarkPetPassedAwayUseCase):
         self._today = today
         self._forms = forms
         self._now = now
+        self._intakes = intakes
 
     async def mark_pet_passed_away(self, command: MarkPetPassedAwayCommand) -> PetDetailView:
         customer_id = await self._pets.lock_owner(command.ctx, command.pet_id)
@@ -39,6 +41,8 @@ class MarkPetPassedAwayInteractor(MarkPetPassedAwayUseCase):
         await self._pets.set_passed_away(command.ctx, command.pet_id, passed_away=True)
         # 살아 있는 동의서 링크에서 덜어 낸다(⑪). 서명 기록은 남는다.
         await drop_pets(command.ctx, customer_id, [command.pet_id], self._now(), self._forms)
+        if self._intakes is not None:
+            await self._intakes.close_for_pet(command.ctx, command.pet_id, self._now(), detach=False)
         await self._search.rebuild_search_entry(command.ctx, customer_id)
         return await read_pet_detail(
             command.ctx, command.pet_id, self._customers, self._pets, self._today()

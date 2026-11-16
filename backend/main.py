@@ -57,6 +57,7 @@ from customer.adapter.inbound.api.v1.update_form_settings_router import update_f
 from customer.adapter.inbound.api.v1.list_consent_texts_router import list_consent_texts_router
 from customer.adapter.inbound.api.v1.update_consent_text_router import update_consent_text_router
 from customer.adapter.inbound.api.v1.list_intake_questions_router import list_intake_questions_router
+from customer.adapter.inbound.api.v1.issue_intake_form_router import issue_intake_form_router
 from customer.adapter.inbound.api.v1.update_intake_questions_router import update_intake_questions_router
 from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
     set_pet_grooming_consent_router,
@@ -268,6 +269,7 @@ app.include_router(update_form_settings_router)
 app.include_router(list_consent_texts_router)
 app.include_router(update_consent_text_router)
 app.include_router(list_intake_questions_router)
+app.include_router(issue_intake_form_router)
 app.include_router(update_intake_questions_router)
 app.include_router(build_send_bundle_router)
 app.include_router(mark_pet_passed_away_router)

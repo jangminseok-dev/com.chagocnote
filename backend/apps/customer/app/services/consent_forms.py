@@ -7,13 +7,14 @@ from datetime import datetime
 from core.link_token import make_token
 from customer.app.ports.output.consent_form_repository import ConsentFormRepository
 from customer.domain.entities.consent_form import ConsentForm
+from customer.domain.entities.intake import IntakeForm
 from hub.app.dtos.shop_context import ShopContext
 
 FORM_PURPOSE = b"form:"   # 알림장 토큰과 서로의 경로에서 읽히지 않게 가르는 말
 
 
-def form_url(form: ConsentForm, *, link_key: bytes, web_base_url: str) -> str:
-    """보호자가 여는 주소. 로그·오류 메시지에 남기지 않는다."""
+def form_url(form: ConsentForm | IntakeForm, *, link_key: bytes, web_base_url: str) -> str:
+    """보호자가 여는 주소(동의서·문진표가 같은 모양이다). 로그·오류 메시지에 남기지 않는다."""
     return f"{web_base_url}/f/{make_token(form.public_id, link_key, FORM_PURPOSE)}"
 
 

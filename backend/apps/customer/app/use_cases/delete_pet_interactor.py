@@ -6,6 +6,7 @@ from datetime import datetime
 from customer.app.dtos.delete_pet_dto import DeletePetCommand
 from customer.app.ports.input.delete_pet_use_case import DeletePetUseCase
 from customer.app.ports.output.consent_form_repository import ConsentFormRepository
+from customer.app.ports.output.intake_form_repository import IntakeFormRepository
 from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.pet_repository import PetRepository
@@ -22,6 +23,7 @@ class DeletePetInteractor(DeletePetUseCase):
     def __init__(
         self, pets: PetRepository, search: CustomerSearchPort, ledger: VisitLedgerPort, events: DomainEventPort,
         forms: ConsentFormRepository, signatures: ConsentSignatureRepository, now: Callable[[], datetime],
+        intakes: IntakeFormRepository | None = None,
     ) -> None:
         self._pets = pets
         self._search = search
@@ -30,6 +32,7 @@ class DeletePetInteractor(DeletePetUseCase):
         self._forms = forms
         self._signatures = signatures
         self._now = now
+        self._intakes = intakes
 
     async def delete_pet(self, command: DeletePetCommand) -> None:
         # 고객 행을 잠근 뒤 센다. 잠금이 없으면 마지막 두 마리를 동시에 지워 반려동물 없는 가족이 남는다.
@@ -42,6 +45,9 @@ class DeletePetInteractor(DeletePetUseCase):
         # 서류(⑪) — 살아 있는 링크에서 덜어 내고 그 아이의 서명을 지운다(서명의 줄이 아이를 가리킨다).
         await drop_pets(command.ctx, customer_id, [command.pet_id], self._now(), self._forms)
         await self._signatures.delete_for_pet(command.ctx, command.pet_id)
+        # 그 아이의 정보를 다시 받던 문진표 링크를 끊고 아이와의 이음을 뗀다(요청 행이 아이를 가리킨다).
+        if self._intakes is not None:
+            await self._intakes.close_for_pet(command.ctx, command.pet_id, self._now(), detach=True)
         await self._pets.delete(command.ctx, command.pet_id)
         await self._search.rebuild_search_entry(command.ctx, customer_id)
         # 색인기가 빈 목록을 읽고 그 아이의 검색 문서를 지운다(⑨).
