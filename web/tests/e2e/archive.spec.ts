@@ -154,6 +154,11 @@ test('크게 보기에서 두 번 누르면 확대되고 다시 두 번 누르�
 
   await dialog.getByRole('link', { name: /알림장 보기$/ }).click()
   await expectPath(page, /^\/me\/\d+\/\d+$/, '한 장의 주소가 아니다')
+  // 크게 보기가 쌓은 칸은 한 장으로 바뀌었다 — 뒤로 가기 한 번이면 사진이다.
+  await page.goBack()
+  await expectPath(page, /^\/me\/\d+\/photos\?pet=\d+$/, '뒤로 가기 한 번에 사진으로 오지 않았다')
+  await page.goForward()
+  await expectPath(page, /^\/me\/\d+\/\d+$/, '한 장의 주소가 아니다')
   const reportId = new URL(page.url()).pathname.split('/').at(-1)
   const back = page.getByRole('link', { name: '사진 모아 보기' })
   await expect(back).toHaveAttribute('href', `${photosUrl.pathname}${photosUrl.search}#r${reportId}`)

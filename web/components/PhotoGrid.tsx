@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type MouseEvent, useState } from 'react'
 import { koreanDate, koreanFullDate, mediaLabel } from '../lib/format'
 import type { MediaItem } from '../lib/guardian'
 import { Lightbox } from './Lightbox'
@@ -37,7 +37,20 @@ export function PhotoGrid({ linkId, items }: { linkId: number; items: MediaItem[
           media={items}
           start={opened}
           onClose={() => setOpened(null)}
-          footer={(index) => <a href={`/me/${linkId}/${items[index].report_id}`}>{koreanDate(items[index].visit_date)} 알림장 보기</a>}
+          footer={(index) => {
+            const href = `/me/${linkId}/${items[index].report_id}`
+            // 크게 보기가 쌓아 둔 방문 기록 칸을 그 한 장으로 바꿔 끼운다 — 그냥 가면 한 장에서 뒤로 가기를
+            // 두 번 눌러야 사진을 떠난다. 스크립트가 없으면 보통 링크다.
+            const go = (event: MouseEvent<HTMLAnchorElement>) => {
+              event.preventDefault()
+              window.location.replace(href)
+            }
+            return (
+              <a href={href} onClick={go}>
+                {koreanDate(items[index].visit_date)} 알림장 보기
+              </a>
+            )
+          }}
         />
       )}
     </div>

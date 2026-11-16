@@ -12,6 +12,8 @@ const SWIPE = 40
 const TAP_ZOOM = 2.5
 const MAX_ZOOM = 4
 const DOUBLE_TAP_MS = 300
+/** 손가락이 떨어진 뒤 이 안에 오는 dblclick 은 브라우저가 터치로 만든 것이다. */
+const TOUCH_CLICK_MS = 600
 
 type Props = { media: Media[]; start: number; onClose: () => void; footer?: (index: number) => ReactNode }
 type Zoom = { scale: number; x: number; y: number }
@@ -33,6 +35,8 @@ export function Lightbox({ media, start, onClose, footer }: Props) {
   const pinch = useRef<{ distance: number; scale: number } | null>(null)
   const gesture = useRef<'none' | 'pinch' | 'pan'>('none')
   const lastTap = useRef(0)
+  /** 마지막 손가락이 떨어진 때 — 손가락의 두 번 누르기 뒤에 브라우저가 만들어 보내는 dblclick 을 거른다. */
+  const lastTouch = useRef(0)
   const item = media[index]
   const label = mediaLabel(item)
   const photo = item.kind === 'photo'
@@ -48,6 +52,12 @@ export function Lightbox({ media, start, onClose, footer }: Props) {
   function toggleZoom() {
     if (!photo) return
     setZoom((now) => (now.scale > 1 ? FIT : { scale: TAP_ZOOM, x: 0, y: 0 }))
+  }
+
+  /** 마우스의 두 번 누르기. 손가락으로 막 누른 뒤면 터치가 이미 바꿨다 — 두 번 바꾸지 않는다. */
+  function onDoubleClick() {
+    if (Date.now() - lastTouch.current < TOUCH_CLICK_MS) return
+    toggleZoom()
   }
 
   function onTouchStart(event: TouchEvent) {
@@ -79,13 +89,16 @@ export function Lightbox({ media, start, onClose, footer }: Props) {
     const kind = gesture.current
     gesture.current = 'none'
     pinch.current = null
-    if (kind !== 'none') return
+    lastTouch.current = Date.now()
+    const still = Math.abs(dx) < 10 && Math.abs(dy) < 10
+    // 확대 중의 손가락은 끌기다 — 거의 움직이지 않았을 때만 누르기로 친다(두 번 눌러 1배로 돌아오게).
+    if (kind === 'pinch' || (kind === 'pan' && !still)) return
     // 1배일 때만 넘긴다. 거의 움직이지 않은 두 번의 누름은 확대다.
     if (zoom.scale === 1 && Math.abs(dx) > SWIPE && Math.abs(dx) > Math.abs(dy)) {
       go(dx < 0 ? 1 : -1)
       return
     }
-    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+    if (still) {
       const now = Date.now()
       if (now - lastTap.current < DOUBLE_TAP_MS) {
         lastTap.current = 0
@@ -157,7 +170,7 @@ export function Lightbox({ media, start, onClose, footer }: Props) {
             key={index}
             src={item.display_url}
             alt={label}
-            onDoubleClick={toggleZoom}
+            onDoubleClick={onDoubleClick}
             draggable={false}
             style={zoom.scale > 1 ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})` } : undefined}
           />

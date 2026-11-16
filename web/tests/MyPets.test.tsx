@@ -1,5 +1,5 @@
-import { render, screen, within } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { expect, test, vi } from 'vitest'
 
 import { MyPets, type ShopPets } from '../components/MyPets'
 
@@ -162,3 +162,18 @@ test('초대가 끝났으면 한 가지 안내가 있다', () => {
   expect(screen.getAllByRole('status').map((s) => s.textContent)).toContain('초대가 끝났거나 이미 쓰였어요. 가족에게 새 초대를 부탁해 주세요.')
 })
 
+
+test('연결 끊기의 확인 글은 연결의 역할과 가족 수를 따른다 — 가족이 있으면 가족도 끊긴다고 말한다', () => {
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+  try {
+    show([PRIMARY, { ...SECOND, link: { ...SECOND.link, role: 'family', family_count: 0, family_max: 0 } }])
+    const [primary, family] = screen.getAllByRole('button', { name: '연결 끊기' })
+
+    fireEvent.click(primary)
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining('함께 보던 가족도 볼 수 없어요'))
+    fireEvent.click(family)
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining('가족에게 새 초대를 받아야 해요'))
+  } finally {
+    confirm.mockRestore()
+  }
+})

@@ -34,6 +34,48 @@ test('사진을 두 번 누르면 2.5배로 커지고 다시 두 번 누르면 �
   expect(scale()).toBe(1)
 })
 
+/** 손가락으로 거의 움직이지 않고 한 번 누른다. */
+function tap(stage: HTMLElement, x = 100, y = 100) {
+  fireEvent.touchStart(stage, { touches: [touch(x, y)], changedTouches: [touch(x, y)] })
+  fireEvent.touchEnd(stage, { touches: [], changedTouches: [touch(x + 3, y + 2)] })
+}
+
+test('손가락으로 두 번 누르면 2.5배, 확대한 채로 다시 두 번 누르면 1배로 돌아온다', () => {
+  const { stage, scale } = open()
+
+  tap(stage)
+  tap(stage)
+  expect(scale()).toBe(2.5)
+  tap(stage)
+  tap(stage)
+  expect(scale()).toBe(1)
+})
+
+test('손가락의 두 번 누르기 뒤에 브라우저가 만들어 보낸 dblclick 은 한 번 더 바꾸지 않는다', () => {
+  const { stage, scale } = open()
+
+  tap(stage)
+  tap(stage)
+  fireEvent.doubleClick(stage.querySelector('img')!)
+  expect(scale()).toBe(2.5)
+  tap(stage)
+  tap(stage)
+  fireEvent.doubleClick(stage.querySelector('img')!)
+  expect(scale()).toBe(1)
+})
+
+test('확대한 채로 끌어 옮긴 손가락은 누르기가 아니다', () => {
+  const { stage, scale } = open()
+
+  fireEvent.doubleClick(stage.querySelector('img')!)
+  for (let i = 0; i < 2; i += 1) {
+    fireEvent.touchStart(stage, { touches: [touch(100, 100)], changedTouches: [touch(100, 100)] })
+    fireEvent.touchMove(stage, { touches: [touch(160, 140)], changedTouches: [touch(160, 140)] })
+    fireEvent.touchEnd(stage, { touches: [], changedTouches: [touch(160, 140)] })
+  }
+  expect(scale()).toBe(2.5)
+})
+
 test('확대한 동안에는 손가락으로 밀어도 넘어가지 않고, 1배면 넘어간다', () => {
   const { dialog, stage } = open()
   fireEvent.doubleClick(stage.querySelector('img')!)
@@ -43,7 +85,9 @@ test('확대한 동안에는 손가락으로 밀어도 넘어가지 않고, 1배
   fireEvent.touchEnd(stage, { touches: [], changedTouches: [touch(80, 100)] })
   expect(dialog.getByText('1 / 3')).toBeInTheDocument()
 
-  fireEvent.doubleClick(stage.querySelector('img')!)
+  // 손가락으로 두 번 눌러 1배로 돌린 뒤에 밀면 넘어간다.
+  tap(stage)
+  tap(stage)
   fireEvent.touchStart(stage, { touches: [touch(200, 100)], changedTouches: [touch(200, 100)] })
   fireEvent.touchEnd(stage, { touches: [], changedTouches: [touch(80, 100)] })
   expect(dialog.getByText('2 / 3')).toBeInTheDocument()

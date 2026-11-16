@@ -70,6 +70,23 @@ test('누르면 크게 보기가 열리고 아래에 그 알림장으로 가는 
   expect(dialog.getByRole('link', { name: '10월 3일 알림장 보기' })).toHaveAttribute('href', '/me/11/501')
 })
 
+test('크게 보기 아래의 알림장 줄은 쌓아 둔 방문 기록 칸을 그 한 장으로 바꿔 끼운다 — 뒤로 가기 한 번이면 사진이다', () => {
+  const replace = vi.fn()
+  vi.stubGlobal('location', { ...window.location, replace })
+  try {
+    show()
+    fireEvent.click(screen.getAllByRole('button', { name: /크게 보기/ })[2])
+
+    const link = within(screen.getByRole('dialog')).getByRole('link', { name: '10월 3일 알림장 보기' })
+    // fireEvent 는 기본 동작을 막았으면 false 다.
+    expect(fireEvent.click(link)).toBe(false)
+    expect(replace).toHaveBeenCalledWith('/me/11/501')
+    expect(window.history.back).not.toHaveBeenCalled()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
 test('이 쪽만 받는다고 적고, 다음 쪽이 있으면 넘어가서 다시 누르라고 한다', () => {
   const { section } = show()
 
@@ -83,9 +100,24 @@ test('아이를 고르지 않았거나 몸무게가 없으면 몸무게 구역�
   cleanup()
   expect(show({ weights: [] }).sections()).not.toContain('weights')
   cleanup()
-  const empty = show({ page: { items: [], next_cursor: null, years: [] } })
+  const empty = show({ page: { items: [], next_cursor: null, years: [] }, weights: null })
   expect(empty.sections()).toEqual(['photos-head', 'tabs', 'empty'])
   expect(empty.section('empty')).toHaveTextContent('아직 받은 사진이 없어요')
+})
+
+test('거른 결과가 비면 거르기는 남아 다른 조건을 고를 수 있고, 그 조건에 없다고 말한다', () => {
+  const { sections, section } = show({ filter: { year: null, phase: 'before' }, page: { items: [], next_cursor: null, years: [2026] } })
+
+  expect(sections()).toEqual(['photos-head', 'tabs', 'filter', 'empty', 'weights'])
+  expect(section('empty')).toHaveTextContent('이 조건의 사진이 없어요')
+  expect(within(section('filter')).getByRole('link', { name: '전체' })).toHaveAttribute('href', '/me/11/photos?pet=7')
+})
+
+test('사진 없이 몸무게만 받은 아이도 몸무게를 본다', () => {
+  const { sections, section } = show({ page: { items: [], next_cursor: null, years: [] } })
+
+  expect(sections()).toEqual(['photos-head', 'tabs', 'empty', 'weights'])
+  expect(section('empty')).toHaveTextContent('아직 받은 사진이 없어요')
 })
 
 test('몸무게는 날짜와 kg 의 목록이고 점이 둘 이상이면 선 그림이 있다 — 풀이는 없다', () => {

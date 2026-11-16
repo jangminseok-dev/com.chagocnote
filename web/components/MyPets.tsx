@@ -54,7 +54,7 @@ export function MyPets({ shops, notice }: { shops: ShopPets[]; notice: 'taken' |
           )}
           <div className={styles.row}>
             <a href={`/me/${link.link_id}`}>전체 기록 보기</a>
-            <UnlinkButton linkId={link.link_id} shopName={link.shop_name} />
+            <UnlinkButton linkId={link.link_id} shopName={link.shop_name} role={link.role} familyCount={link.family_count} />
           </div>
           {link.role !== 'family' && family !== undefined && (
             <FamilySection linkId={link.link_id} members={family} count={link.family_count ?? 0} max={link.family_max ?? 0} />
