@@ -18,6 +18,7 @@ def _form(row: CustomerFormOrm) -> IntakeForm:
         id=row.id, shop_id=row.shop_id, public_id=bytes(row.public_id), customer_id=row.customer_id,
         pet_id=row.intake_pet_id, expires_at=row.expires_at, revoked_at=row.revoked_at,
         submitted_at=row.submitted_at, created_by_member_id=row.created_by_member_id, created_at=row.created_at,
+        answered=row.intake_answered,
     )
 
 

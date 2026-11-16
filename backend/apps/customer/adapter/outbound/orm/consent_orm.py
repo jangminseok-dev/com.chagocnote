@@ -41,6 +41,8 @@ class CustomerFormOrm(Base):
     for_date: Mapped[date | None] = mapped_column(Date)
     # 이미 있는 아이의 정보를 다시 받는 문진표가 가리키는 아이(0021). 그런 요청은 아이마다 하나만 산다.
     intake_pet_id: Mapped[int | None] = mapped_column(ForeignKey("pets.id"))
+    # 이 문진표 링크로 받은 답의 수(0022) — 답을 지워도 줄지 않는다(한 링크에 열 마리까지).
+    intake_answered: Mapped[int] = mapped_column(SmallInteger, server_default="0")
 
 
 class CustomerFormPetOrm(Base):

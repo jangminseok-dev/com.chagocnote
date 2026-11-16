@@ -47,6 +47,7 @@ class IntakeForm:
     submitted_at: datetime | None
     created_by_member_id: int
     created_at: datetime
+    answered: int = 0          # 이 링크로 받은 답의 수(지운 것도 센다)
 
     @property
     def mode(self) -> str:
