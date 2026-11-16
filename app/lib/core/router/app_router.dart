@@ -23,6 +23,7 @@ import '../../features/sales/screens/sales_visits_screen.dart';
 import '../../features/search/screens/search_screen.dart';
 import '../../features/shop/screens/members_screen.dart';
 import '../../features/customer/screens/form_settings_screen.dart';
+import '../../features/customer/screens/received_intake_screens.dart';
 import '../../features/customer/screens/form_text_edit_screens.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
@@ -210,6 +211,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/forms',
         builder: (context, state) => const SentFormsScreen(),
+      ),
+      GoRoute(path: '/intake-answers', builder: (context, state) => const ReceivedIntakeScreen()),
+      GoRoute(
+        path: '/intake-answers/:answerId',
+        builder: (context, state) => IntakeAnswerScreen(answerId: int.parse(state.pathParameters['answerId']!)),
+      ),
+      GoRoute(
+        path: '/intake-answers/:answerId/register',
+        builder: (context, state) => IntakeRegisterScreen(answerId: int.parse(state.pathParameters['answerId']!)),
       ),
       GoRoute(
         path: '/pets/:petId/signatures',

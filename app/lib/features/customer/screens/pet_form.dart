@@ -10,6 +10,7 @@ import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../api/customer_models.dart';
 import '../state/customer_input.dart';
+import '../state/intake_prefill.dart';
 import 'customer_labels.dart';
 
 enum _AgeMode { birthDate, birthYear, unknown }
@@ -43,6 +44,7 @@ class PetForm extends StatefulWidget {
     required this.busy,
     required this.onSubmit,
     this.initial,
+    this.prefill,
     this.errorText,
   });
 
@@ -54,6 +56,10 @@ class PetForm extends StatefulWidget {
 
   /// 수정할 때의 처음 값.
   final Pet? initial;
+
+  /// 받은 문진표 등으로 미리 채울 값(⑪-C). 있으면 [initial] 대신 이것으로 채운다 — 다시 받은 답은 지금 값 위에
+  /// 적어 낸 칸만 덮은 것이다. 비어 있는 칸은 비워 둔다(지어내지 않는다 — 사장이 채운다).
+  final PetPrefill? prefill;
 
   /// 서버가 거절한 문구(부모가 준다).
   final String? errorText;
@@ -86,6 +92,11 @@ class _PetFormState extends State<PetForm> {
   @override
   void initState() {
     super.initState();
+    final prefill = widget.prefill;
+    if (prefill != null) {
+      _applyPrefill(prefill);
+      return;
+    }
     final pet = widget.initial;
     if (pet == null) return;
     _name.text = pet.name;
@@ -110,6 +121,33 @@ class _PetFormState extends State<PetForm> {
         _others.add(
           _OtherEntry(label: c.customLabel ?? '', note: c.note ?? ''),
         );
+      } else {
+        _conditions[c.typeCode] = TextEditingController(text: c.note ?? '');
+      }
+    }
+  }
+
+  void _applyPrefill(PetPrefill prefill) {
+    _name.text = prefill.name ?? '';
+    _breed.text = prefill.breed ?? '';
+    _species = prefill.species;
+    _sex = prefill.sex;
+    _neutered = prefill.neutered;
+    if (prefill.birthDate != null) {
+      _ageMode = _AgeMode.birthDate;
+      _birthDate.text = formatDate(prefill.birthDate!);
+    } else if (prefill.birthYear != null) {
+      _ageMode = _AgeMode.birthYear;
+      _birthYear.text = '${prefill.birthYear}';
+    } else if (prefill.birthUnknown) {
+      _ageMode = _AgeMode.unknown;
+    }
+    if (prefill.weightKg != null) _weight.text = weightText(prefill.weightKg!);
+    _memo.text = prefill.memo ?? '';
+    _noKnownConditions = prefill.noKnownConditions ?? false;
+    for (final c in prefill.conditions) {
+      if (c.typeCode == ConditionType.otherCode) {
+        _others.add(_OtherEntry(label: c.customLabel ?? '', note: c.note ?? ''));
       } else {
         _conditions[c.typeCode] = TextEditingController(text: c.note ?? '');
       }

@@ -30,6 +30,10 @@ class ScreenKeys {
   static const reportPreview = Key('screen_report_preview');
   static const reportSettings = Key('screen_report_settings');
   static const formSettings = Key('screen_form_settings');
+  static const receivedIntake = Key('screen_received_intake');
+  static const intakeAnswer = Key('screen_intake_answer');
+  static const intakeRegister = Key('screen_intake_register');
+  static const intakeQuestions = Key('screen_intake_questions');
   static const formTextEdit = Key('screen_form_text_edit');
   static const notificationSettings = Key('screen_notification_settings');
   static const day = Key('screen_day');
