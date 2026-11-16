@@ -188,3 +188,38 @@ def test_보낸_날이_있으면_detail_에_실리고_없으면_칸이_없다():
     assert one(checks_for(subject(waiting)), "consent").detail["form_sent_on"] == date(2026, 11, 13)
     plain = PetFacts(birth_date=None, birth_year=2016, conditions=(), consent_on=None, passed_away=False)
     assert "form_sent_on" not in one(checks_for(subject(plain)), "consent").detail
+
+
+# --- 매장이 바꾼 기준값(⑪-B) ---------------------------------------------------------------------------------------
+
+def test_매장이_노령_나이를_여덟_살로_낮추면_여덟_살부터_동의를_받게_한다():
+    eight = pet(birth_year=2018)
+
+    assert "consent" not in codes(checks_for(subject(eight)))
+    lowered = CheckSubject(on=ON, pet=eight, caution=None, no_show_count=0, last_completed_on=RECENT, senior_age=8)
+    assert one(checks_for(lowered), "consent").detail["reasons"] == ["senior"]
+
+
+def test_매장이_노령_나이를_높이면_열_살이어도_뜨지_않는다():
+    raised = CheckSubject(on=ON, pet=pet(birth_year=2016), caution=None, no_show_count=0,
+                          last_completed_on=RECENT, senior_age=12)
+    assert "consent" not in codes(checks_for(raised))
+
+
+def test_매장이_동의_기한을_30일로_줄이면_31일_지난_동의는_expired_다():
+    senior = lambda consent_on: pet(birth_year=2010, consent_on=consent_on)      # noqa: E731
+    short = lambda p: CheckSubject(on=ON, pet=p, caution=None, no_show_count=0,   # noqa: E731
+                                   last_completed_on=RECENT, consent_days=30)
+
+    assert "consent" not in codes(checks_for(short(senior(date(2026, 10, 15)))))            # 30일째
+    assert one(checks_for(short(senior(date(2026, 10, 14)))), "consent").detail["state"] == "expired"
+    assert "consent" not in codes(checks_for(subject(senior(date(2026, 10, 14)))))          # 기본 365일이면 유효
+
+
+def test_서명으로_받은_동의는_낮춘_노령_나이에_닿으면_partial_senior_다():
+    signed = PetFacts(birth_date=None, birth_year=2018, conditions=(), consent_on=date(2026, 6, 1), passed_away=False,
+                      consent_cover=ConsentCoverFact(senior=False, condition_labels=frozenset()))
+    lowered = CheckSubject(on=ON, pet=signed, caution=None, no_show_count=0, last_completed_on=RECENT, senior_age=8)
+
+    detail = one(checks_for(lowered), "consent").detail
+    assert (detail["state"], detail["parts"], detail["received_on"]) == ("partial", ["senior"], date(2026, 6, 1))

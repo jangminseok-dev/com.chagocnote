@@ -8,6 +8,7 @@ from customer.dependencies.customer_wiring import (
     build_consent_signature_repository,
     build_customer_search,
     build_family_brief_repository,
+    build_form_settings_repository,
     build_pet_repository,
     utc_now,
 )
@@ -19,4 +20,5 @@ def get_customer_directory_use_case(db: DbSession) -> CustomerDirectoryPort:
         customers=build_customer_repository(db), pets=build_pet_repository(db),
         briefs=build_family_brief_repository(db), search=build_customer_search(db),
         signatures=build_consent_signature_repository(db), forms=build_consent_form_repository(db), now=utc_now,
+        settings=build_form_settings_repository(db),
     )

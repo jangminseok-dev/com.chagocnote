@@ -1,7 +1,7 @@
 """예약 앞에서 확인할 것의 판정(③-B 설계 3.1). 순수 함수 — DB 도 시계도 모른다.
 
 막지 않는다. 놓치는 것보다 한 번 더 뜨는 편이 낫다(재현율) — 애매하면 낸다. 기준일은 방문의 날이다.
-기준값은 고정이다(매장이 바꾸는 것은 ⑪-B).
+노령 나이와 동의 기한은 매장이 바꾼다(⑪-B 서류 설정) — 판정은 `CheckSubject` 에 실려 온 값을 쓴다.
 """
 from __future__ import annotations
 
@@ -9,8 +9,6 @@ from datetime import date
 
 from visit.domain.value_objects.check_facts import Check, CheckSubject, PetFacts
 
-SENIOR_AGE = 10        # 살
-CONSENT_DAYS = 365     # 받은 날로부터 365일째까지 유효
 ABSENCE_DAYS = 180     # 마지막 완료 방문이 이보다 오래됐으면 "오랜만"
 NO_SHOW_DAYS = 365     # 노쇼를 세는 창(방문 날 앞)
 
@@ -32,10 +30,11 @@ def age_on(birth_date: date | None, birth_year: int | None, on: date) -> int | N
     return None
 
 
-def _consent(pet: PetFacts, on: date) -> Check | None:
+def _consent(pet: PetFacts, subject: CheckSubject) -> Check | None:
+    on = subject.on
     reasons = []
     age = age_on(pet.birth_date, pet.birth_year, on)
-    if age is not None and age >= SENIOR_AGE:
+    if age is not None and age >= subject.senior_age:
         reasons.append("senior")
     if pet.conditions:
         reasons.append("conditions")
@@ -46,7 +45,7 @@ def _consent(pet: PetFacts, on: date) -> Check | None:
     if pet.consent_on is None:
         return Check(CONSENT, PET, {"reasons": reasons, "state": "missing", "received_on": None, **sent})
     # 받은 날이 방문 날보다 뒤여도(지난 채 남은 예약에서 오늘 받았다) 유효다 — 차이가 음수다.
-    if (on - pet.consent_on).days > CONSENT_DAYS:
+    if (on - pet.consent_on).days > subject.consent_days:
         return Check(CONSENT, PET, {"reasons": reasons, "state": "expired", "received_on": pet.consent_on, **sent})
     # 서명으로 받은 동의는 읽은 토막과 그때 보인 지병이 남아 있다 — 바뀐 토막만 다시 받는다(⑪ 3.3).
     # 손으로 적은 동의(consent_cover 가 None)는 토막을 가르지 않는다 — ③-B 그대로.
@@ -66,7 +65,7 @@ def _pet_checks(pet: PetFacts, subject: CheckSubject) -> list[Check]:
     found: list[Check] = []
     if subject.last_completed_on is None:
         found.append(Check(FIRST_VISIT, PET))
-    consent = _consent(pet, subject.on)
+    consent = _consent(pet, subject)
     if consent is not None:
         found.append(consent)
     if pet.conditions:

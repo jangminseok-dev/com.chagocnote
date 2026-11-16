@@ -40,6 +40,8 @@ class CheckSubject:
     caution: CautionMark | None       # 보호자의 살아 있는 주의 표시
     no_show_count: int                # 방문 날 앞 365일의 노쇼
     last_completed_on: date | None    # 이 방문 앞의 마지막 완료 방문의 날. 없으면 None(첫 방문)
+    senior_age: int = 10              # 매장이 정한 노령 나이(⑪-B). 정한 적이 없으면 10살
+    consent_days: int = 365           # 매장이 정한 동의 기한. 정한 적이 없으면 365일
 
 
 @dataclass(frozen=True)

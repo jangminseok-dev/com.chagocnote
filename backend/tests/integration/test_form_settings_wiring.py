@@ -3,7 +3,9 @@ import pytest
 
 from tests.integration.support import error_of
 from tests.integration.test_consent_wiring import count, document, send
-from tests.integration.test_visit_checks_wiring import _day, _family, _pet, _shop, _staff
+from tests.integration.test_visit_checks_wiring import (
+    _book, _checks, _day, _family, _move, _pet, _shop, _staff,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -92,3 +94,45 @@ async def test_노령_기준을_낮추면_그_나이의_아이_문서에_노령_
 
     after = (await document(wired, shop_id, headers, pet_id)).json()["pets"][0]["parts"]
     assert (before, after) == (["basic"], ["basic", "senior"])
+
+
+# --- 확인할 것(③-B)이 매장의 값을 읽는다 ----------------------------------------------------------------------------
+
+async def test_노령_나이를_낮추면_그_매장의_확인할_것과_하루_목록의_수가_바뀌고_다른_매장은_그대로다(wired):
+    shop_a, a, operator = await _shop(wired)
+    shop_b, b, _ = await _shop(wired, "다른 매장", "다른 사장", operator)
+    eight = _pet(birth_year=_day(0).year - 8)
+    visits = {}
+    for shop_id, headers in ((shop_a, a), (shop_b, b)):
+        customer_id, pet_id = await _family(wired, shop_id, headers, eight)
+        first = await _book(wired, shop_id, headers, customer_id, pet_id, days=-2)      # 첫 방문 표시를 지운다
+        await _move(wired, shop_id, headers, first, "complete")
+        visits[shop_id] = await _book(wired, shop_id, headers, customer_id, pet_id, days=1)
+    assert "consent" not in await _checks(wired, shop_a, a, visits[shop_a])
+
+    await put(wired, shop_a, a, senior_age=8)
+
+    consent = (await _checks(wired, shop_a, a, visits[shop_a]))["consent"]["detail"]
+    assert (consent["state"], consent["reasons"]) == ("missing", ["senior"])
+    assert "consent" not in await _checks(wired, shop_b, b, visits[shop_b])
+
+    async def counted(shop_id, headers):
+        day = (await wired.api.get(f"/v1/shops/{shop_id}/visits", headers=headers,
+                                   params={"date": _day(1).isoformat()})).json()
+        return [i["pet_check_count"] for i in day["items"]]
+
+    assert (await counted(shop_a, a), await counted(shop_b, b)) == ([1], [0])
+
+
+async def test_동의_기한을_줄이면_그보다_오래된_동의는_다시_받는다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=_day(0).year - 12))
+    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id, days=40)
+    received = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}/grooming-consent", headers=headers,
+                                   json={})
+    assert received.status_code == 200, received.text
+    assert "consent" not in await _checks(wired, shop_id, headers, visit_id)
+
+    await put(wired, shop_id, headers, consent_days=30)
+
+    assert (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]["state"] == "expired"

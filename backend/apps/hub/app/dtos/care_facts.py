@@ -51,3 +51,6 @@ class CareFacts:
     known_customers: frozenset[int]         # 살아 있는 이 매장의 고객
     cautions: dict[int, CautionFact]        # 고객 ID → 살아 있는 주의 표시만
     pets: dict[int, PetCareFact]
+    # 매장이 정한 기준값(⑪-B 서류 설정). 정한 적이 없으면 기본값이다.
+    senior_age: int = 10                    # 이 나이부터 노령이다
+    consent_days: int = 365                 # 미용 동의를 다시 받는 날 수
