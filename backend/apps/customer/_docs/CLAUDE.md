@@ -37,4 +37,7 @@
   - 익명화는 그 고객의 요청을 전부 닫고(이미 낸 것도) 서명을 지운다. 반려동물 삭제는 그 아이의 서명 줄을 지운다(아이가 남지 않은 서명도). 무지개다리는 링크에서만 뺀다.
   - 지병이 늘 때: 서명으로 받은 동의는 받은 날을 지우지 않는다(바뀐 토막만 다시 받는다). 손으로 적은 동의는 지금처럼 지운다.
   - `care_facts` 가 `consent_cover`(서명이 덮는 것)와 `consent_form_sent_on`(살아 있는 링크를 보낸 날)을 싣는다 — 판정은 visit 이 한다.
+- **문진표 끝의 동의서**(⑪-C1b, 0023) — 노령이거나 지병을 고른 답(매장이 `intake_consent_all` 을 켰으면 모든 답)은 문진표와 함께 서명해야 받는다(422 `CONSENT_REQUIRED`). 규칙은 `domain/services/intake_consent.py`(`consent_parts`·`texts_digest`)이고, 연 뒤 매장의 글·노령 나이·`모든 아이에게` 가 바뀌었으면 409 다.
+  - 서명은 **아이 없이 맡아 둔다** — `consent_signatures.customer_id` 가 비어 있고 `intake_answer_id` 로 답에 매달린다(CASCADE, 받은 길 `intake`). 고객·반려동물 표는 건드리지 않는다.
+  - 등록·반영은 `app/services/intake_answers.IntakeAnswerUse` 로 답을 쓴다 — 맨 앞 `check`, 아이를 저장한 뒤 `finish`(서명을 떼어 내 그 고객·아이에게 붙이고 답을 지운다). **답을 먼저 지우면 서명도 지워진다** — 순서를 바꾸지 않는다. 그 아이에게 살아 있는 동의가 없을 때만 받은 날을 **서명한 날**로 찍는다. 맡아 둔 서명은 자기가 보인 토막과 지병 이름만 덮는다.
 

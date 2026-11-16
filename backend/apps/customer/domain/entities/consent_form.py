@@ -63,6 +63,23 @@ class NewSignature:
 
 
 @dataclass(frozen=True)
+class HeldSignature:
+    """문진표에서 맡아 둔 서명을 아이에게 옮겨 붙인 결과(⑪-C1b) — 받은 날을 찍을 때 쓴다."""
+
+    signature_id: int
+    signed_at: datetime
+    by_member_id: int
+
+
+@dataclass(frozen=True)
+class HeldConsent:
+    """받은 문진표에 맡아 둔 서명의 요약 — 그림과 적은 이름은 싣지 않는다."""
+
+    signed_at: datetime
+    parts: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class SignatureBrief:
     signature_id: int
     signed_at: datetime

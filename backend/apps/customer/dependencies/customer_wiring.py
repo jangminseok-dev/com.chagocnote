@@ -33,6 +33,7 @@ from customer.app.ports.output.intake_form_repository import IntakeFormRepositor
 from customer.app.ports.output.intake_question_repository import IntakeQuestionRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.consent_source import ConsentSource
+from customer.app.services.intake_answers import IntakeAnswerUse
 from customer.app.services.intake_reader import IntakeReader
 from hub.app.ports.public_limiter_port import PublicLimiterPort
 
@@ -79,6 +80,14 @@ def build_intake_form_repository(db: AsyncSession) -> IntakeFormRepository:
 
 def build_intake_answer_repository(db: AsyncSession) -> IntakeAnswerRepository:
     return IntakeAnswerPgRepository(db)
+
+
+def build_intake_answer_use(db: AsyncSession) -> IntakeAnswerUse:
+    """등록·반영이 받은 문진표를 쓴다 — 맡아 둔 동의서 서명을 그 아이에게 옮기고 답을 지운다(⑪-C1b)."""
+    return IntakeAnswerUse(
+        answers=build_intake_answer_repository(db), signatures=build_consent_signature_repository(db),
+        pets=build_pet_repository(db), source=build_consent_source(db),
+    )
 
 
 def build_intake_reader(db: AsyncSession) -> IntakeReader:

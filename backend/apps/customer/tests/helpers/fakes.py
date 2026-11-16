@@ -459,6 +459,12 @@ class FakeConsentSignatures(ConsentSignatureRepository):
         self.journal.append(("delete_signatures_of_pet", pet_id))
         return count
 
+    async def adopt_held(self, ctx, answer_id, *, customer_id, pet_id):
+        return None      # 맡아 둔 서명은 통합 테스트가 본다(⑪-C1b)
+
+    async def held_for(self, ctx, answer_ids):
+        return {}
+
 
 def consent_stores(journal: Journal) -> dict:
     """서류(⑪)의 스텁 한 벌 — 인터랙터에 **로 넘긴다."""

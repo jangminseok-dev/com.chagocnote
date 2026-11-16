@@ -301,6 +301,30 @@
 - iOS 사파리의 날짜 칸이 폭 320 에서 넘치는지 보지 않았다(e2e 는 크로미움).
 - 컴포넌트 테스트에 빠진 갈래: 몸무게 [모르겠어요]의 잠금, 종을 바꿀 때 품종 초기화, 생일을 고른 본문.
 
+## ⑪-C1b 에서 정한 것 (2026-11-16) — 문진표 끝에서 동의서까지
+
+계획 `docs/superpowers/plans/2026-11-16-intake-consent-11c1b.md`. 마이그레이션 0023.
+
+- **맡아 둔 서명**: `consent_signatures` 에 고객 없이(`customer_id` NULL) 받은 문진표에 매달린다(`intake_answer_id`, 외래 키 CASCADE). 받은 길은 `intake`(문진표에서 서명). `consent_signature_pets.pet_id` 도 비어 있다. CHECK — 고객도 답도 없는 서명은 없다. 답이 지워지면(지우기·보관 기간·익명화) 서명도 함께 지워진다.
+- **언제 나타나나**: 매장의 `intake_consent_all`(기본 꺼짐)이 켜졌거나, 답의 생일·태어난 해로 그날(매장 시간대) 나이가 매장의 노령 나이 이상이거나, 지병을 하나 이상 골랐다(`domain/services/intake_consent.consent_parts` — 웹이 같은 규칙으로 그린다). 나이 모름·꺼진 칸은 노령이 아니다. 다시 받기는 적어 낸 칸으로만 본다(지금 값을 싣지 않으므로).
+- **낼 때**: 문진표 구성 읽기가 준 지문(`consent.digest` — 토막별 글의 출처·판, 노령 나이, `모든 아이에게`)이 다르면 409 `CONSENT_DOCUMENT_CHANGED`. 나타나야 하는 답인데 서명이 없거나 필요한 토막을 읽지 않았으면 422 `CONSENT_REQUIRED`. 둘 다 답도 쓰지 않는다. 필요 없는 아이가 서명해 보냈으면 받는다(읽은 토막 그대로).
+- **등록·반영이 옮긴다**(`app/services/intake_answers.IntakeAnswerUse`): 맨 앞 `check`(대상이 맞는지), 아이를 저장한 뒤 `finish` — 서명을 떼어 내 그 고객·아이에게 붙이고(한 번의 UPDATE 로 고객을 채우고 답에서 뗀다) 답을 지운다. 지울 답이 없으면 404 이고 트랜잭션이 통째로 되돌아간다. 그 아이에게 살아 있는 동의가 없을 때만 받은 날을 찍는다.
+
+### 실행하면서 정한 것 (Ruling)
+
+- **받은 날은 서명한 날이다**(매장 시간대) — 등록한 날이 아니다. 보호자가 동의한 때가 그날이다. 틀리면: 기한이 등록까지 걸린 날만큼(최대 보관 기간) 당겨진다.
+- **살아 있는 동의가 있는 아이의 다시 받기는 받은 날을 옮기지 않는다** — 현장·링크 서명과 같다(기한 안에서는 다시 받지 않는다). 손으로 적은 동의면 그대로 덮는다. 틀리면: 문진표의 서명이 갱신으로 쳐지지 않는다.
+- 맡아 둔 서명을 옮긴 뒤 그 아이의 다른 살아 있는 동의서 링크에서 아이를 덜어 내지 않는다(현장·링크 서명은 덜어 낸다). 새 아이에게는 링크가 있을 수 없고, 다시 받기의 아이에게 남은 링크는 열면 받을 것이 없다. 틀리면: 보낸 서류에 할 일 없는 링크가 남는다.
+- 받은 길을 새로 `intake` 로 두었다(`link` 는 서류 요청 하나에 서명 하나라는 유일 제약이 있어 한 링크로 아이 여럿을 내는 문진표와 맞지 않는다). 예전 앱은 모르는 받은 길의 서명 줄을 버린다.
+
+### API 계약 (⑪-C1b — 웹·앱이 기댄다)
+
+- 공개 `GET /v1/public/form`(문진표)에 `consent: {all, senior_age, texts: {basic|senior|condition: {body}}, digest}`. 아이의 지금 사실은 싣지 않는다.
+- 공개 `POST /v1/public/form/intake` 에 선택 `consent: {digest, parts: ["basic"|"senior"|"condition"](1~3), signer_name(1~50자), signature_png(base64, 600×240 이하·64KB)}` → 204 / 409 `CONSENT_DOCUMENT_CHANGED` / 422 `CONSENT_REQUIRED`·`VALIDATION_ERROR`.
+- `GET·PUT /form-settings` 에 `intake_consent_all: bool`(PUT 에서 빠지면 지금 값).
+- `GET /intake-answers/{id}` 에 `consent: {signed_on, parts} | null`(그림·이름은 싣지 않는다).
+- 서명 목록·한 장의 `channel` 에 `intake`.
+
 ## ⑪-C3 앱에서 정한 것 (2026-11-16) — 문진표 보내기·받은 문진표·등록·설정
 
 계획 `docs/superpowers/plans/2026-11-16-intake-11c-app.md`. 전부 `features/customer` 안이다(새 기능 폴더 없음).

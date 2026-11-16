@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from customer.adapter.outbound.orm.consent_orm import (
@@ -14,6 +14,8 @@ from customer.adapter.outbound.orm.consent_orm import (
 from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.domain.entities.consent import SignedCover
 from customer.domain.entities.consent_form import (
+    HeldConsent,
+    HeldSignature,
     NewSignature,
     SignatureBrief,
     SignatureDetail,
@@ -183,3 +185,40 @@ class ConsentSignaturePgRepository(ConsentSignatureRepository):
         ):
             labels.setdefault(sp_id, []).append(label)
         return {sp_id: _in_order(found) for sp_id, found in parts.items()}, labels
+
+    async def adopt_held(
+        self, ctx: ShopContext, answer_id: int, *, customer_id: int, pet_id: int,
+    ) -> HeldSignature | None:
+        # 고객을 채우는 것과 답에서 떼는 것을 한 번에 한다 — 고객도 답도 없는 서명은 없다(CHECK).
+        row = (
+            await self._session.execute(
+                update(ConsentSignatureOrm)
+                .where(ConsentSignatureOrm.shop_id == ctx.shop_id, ConsentSignatureOrm.intake_answer_id == answer_id,
+                       ConsentSignatureOrm.customer_id.is_(None))
+                .values(customer_id=customer_id, intake_answer_id=None)
+                .returning(ConsentSignatureOrm.id, ConsentSignatureOrm.signed_at, ConsentSignatureOrm.by_member_id)
+            )
+        ).first()
+        if row is None:
+            return None
+        await self._session.execute(
+            update(ConsentSignaturePetOrm).where(ConsentSignaturePetOrm.signature_id == row.id).values(pet_id=pet_id))
+        return HeldSignature(signature_id=row.id, signed_at=row.signed_at, by_member_id=row.by_member_id)
+
+    async def held_for(self, ctx: ShopContext, answer_ids: list[int]) -> dict[int, HeldConsent]:
+        if not answer_ids:
+            return {}
+        rows = (
+            await self._session.execute(
+                select(ConsentSignatureOrm.intake_answer_id, ConsentSignatureOrm.signed_at, ConsentSignaturePetOrm.id)
+                .join(ConsentSignaturePetOrm, ConsentSignaturePetOrm.signature_id == ConsentSignatureOrm.id)
+                .where(ConsentSignatureOrm.shop_id == ctx.shop_id,
+                       ConsentSignatureOrm.intake_answer_id.in_(answer_ids))
+            )
+        ).all()
+        parts, _ = await self._children([sp_id for _, _, sp_id in rows])
+        return {
+            answer_id: HeldConsent(signed_at=signed_at, parts=tuple(p.part for p in _in_order(parts.get(sp_id, []))))
+            for answer_id, signed_at, sp_id in rows
+        }
+

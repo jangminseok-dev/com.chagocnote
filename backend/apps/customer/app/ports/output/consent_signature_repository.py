@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 
 from customer.domain.entities.consent import SignedCover
-from customer.domain.entities.consent_form import NewSignature, SignatureBrief, SignatureDetail
+from customer.domain.entities.consent_form import HeldConsent, HeldSignature, NewSignature, SignatureBrief, SignatureDetail
 from hub.app.dtos.shop_context import ShopContext
 
 
@@ -42,3 +42,14 @@ class ConsentSignatureRepository(ABC):
     @abstractmethod
     async def delete_for_pet(self, ctx: ShopContext, pet_id: int) -> int:
         """그 아이의 줄을 지우고, 아이가 남지 않은 서명도 지운다(반려동물 삭제). 지운 줄 수."""
+
+    @abstractmethod
+    async def adopt_held(
+        self, ctx: ShopContext, answer_id: int, *, customer_id: int, pet_id: int,
+    ) -> HeldSignature | None:
+        """그 답에 맡아 둔 서명을 그 고객·아이에게 옮겨 붙인다(답에서 떼어 낸다). 없으면 None."""
+
+    @abstractmethod
+    async def held_for(self, ctx: ShopContext, answer_ids: list[int]) -> dict[int, HeldConsent]:
+        """답마다 맡아 둔 서명의 요약."""
+

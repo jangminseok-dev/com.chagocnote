@@ -18,7 +18,7 @@ ITEM_KEYS = {"answer_id", "mode", "pet_name", "guardian_name", "submitted_on", "
 DETAIL_KEYS = ITEM_KEYS | {
     "guardian_phone", "species", "breed", "sex", "neutered", "birth_date", "birth_year", "birth_unknown",
     "weight_kg", "no_known_conditions", "conditions", "dislikes", "style", "extras", "missing", "memo_draft",
-    "memo_over"}
+    "memo_over", "consent"}
 
 
 async def listed(wired, shop_id, headers):

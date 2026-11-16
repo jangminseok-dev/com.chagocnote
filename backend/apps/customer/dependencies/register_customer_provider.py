@@ -8,7 +8,7 @@ from customer.app.use_cases.register_customer_interactor import RegisterCustomer
 from customer.dependencies.customer_wiring import (
     build_condition_type_repository,
     build_customer_repository,
-    build_intake_answer_repository,
+    build_intake_answer_use,
     build_customer_search,
     build_pet_repository,
 )
@@ -23,5 +23,5 @@ def get_register_customer_use_case(
     return RegisterCustomerInteractor(
         customers=build_customer_repository(db), pets=build_pet_repository(db),
         condition_types=build_condition_type_repository(db), search=build_customer_search(db),
-        today=seoul_today, events=events, answers=build_intake_answer_repository(db),
+        today=seoul_today, events=events, intake=build_intake_answer_use(db),
     )
