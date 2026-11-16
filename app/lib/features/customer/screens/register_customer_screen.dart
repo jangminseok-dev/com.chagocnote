@@ -21,6 +21,7 @@ import '../state/customer_commands.dart';
 import '../state/customer_input.dart';
 import '../state/customer_providers.dart';
 import 'customer_form.dart';
+import 'intake_send_button.dart';
 import 'pet_form.dart';
 
 /// 새 고객 등록 — 전화번호 → 보호자 → 반려동물 3단계(설계 8.1).
@@ -283,6 +284,13 @@ class _RegisterCustomerScreenState
                   : null,
             ),
           ),
+          // 직접 적는 대신 보호자에게 문진표를 보낸다(⑪-C) — 답은 받은 문진표로 들어온다.
+          const SizedBox(height: AppSpacing.xl),
+          const Divider(height: 1),
+          const SizedBox(height: AppSpacing.lg),
+          const Text(AppStrings.intakeSendNewHint, style: AppTypography.caption),
+          const SizedBox(height: AppSpacing.sm),
+          const IntakeSendButton(key: ValueKey('intake-send-new'), label: AppStrings.intakeSendNew),
         ],
       ),
     );

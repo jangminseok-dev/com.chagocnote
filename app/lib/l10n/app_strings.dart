@@ -436,6 +436,13 @@ class AppStrings {
   /// 새 손님용 문진표에는 보호자가 없다 — 이름 없이 날짜만 적는다.
   static String sentFormMeta(String? owner, DateTime sent, DateTime expires) =>
       '${owner == null || owner.isEmpty ? '' : '$owner · '}${sent.month}월 ${sent.day}일에 보냄 · ${expires.month}월 ${expires.day}일까지';
+  // 문진표(⑪-C) — 보내기.
+  static const intakeSendNew = '문진표 링크 보내기';
+  static const intakeSendNewHint = '보호자가 직접 적어 보내면 받은 문진표로 들어와요. 다시 치지 않고 등록할 수 있어요.';
+  static const intakeSendAddPet = '새 아이 문진표 보내기';
+  static const intakeSendUpdate = '문진표 다시 받기';
+  static const intakeSendFailed = '문진표 링크를 만들지 못했어요. 다시 눌러 주세요.';
+  static const intakeShareFailed = '공유 창을 열지 못했어요. 보낸 서류에서 다시 공유할 수 있어요.';
   static const sentFormKindIntake = '문진표';
   static const sentIntakeNew = '새 손님';
   static const sentIntakeAddPet = '새 아이';
