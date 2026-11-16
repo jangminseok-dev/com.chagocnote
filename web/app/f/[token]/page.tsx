@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
+import { ConsentView } from '../../../components/ConsentView'
 import { ErrorScreen } from '../../../components/ErrorScreen'
+import { FormSubmitted } from '../../../components/FormSubmitted'
 import { clientIpFrom } from '../../../lib/client-ip'
 import { getForm } from '../../../lib/form'
 
@@ -33,9 +35,10 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function FormPage(props: Props) {
-  const { result } = await load(props)
+  const { token, result } = await load(props)
   if (result.kind === 'not_found') notFound()
   if (result.kind !== 'ok') return <ErrorScreen kind={result.kind} what="form" />
-  // 화면은 다음 작업에서 그린다.
-  return <main>{result.form.shop.name}</main>
+  const { form } = result
+  if (form.state === 'submitted') return <FormSubmitted shopName={form.shop.name} submittedOn={form.submitted_on} />
+  return <ConsentView form={form} token={token} />
 }
