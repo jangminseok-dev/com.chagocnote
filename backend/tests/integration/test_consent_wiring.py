@@ -486,12 +486,12 @@ async def test_같은_링크를_더_먼_예약_날로_다시_보내면_그_날�
     assert opened["pets"][0]["parts"] == ["basic", "senior"]
 
 
-async def test_예약_날이_너무_멀면_422_이고_지난_날은_오늘로_본다(wired):
+async def test_예약_날이_기한보다_멀어도_받을_수_있고_지난_날은_오늘로_본다(wired):
     shop_id, headers, _ = await _shop(wired)
     _, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=SENIOR_YEAR))
 
-    assert (await document(wired, shop_id, headers, pet_id, for_date=_day(366))).status_code == 422
-    assert (await send(wired, shop_id, headers, pet_id, for_date=_day(366))).status_code == 422
+    assert (await document(wired, shop_id, headers, pet_id, for_date=_day(366))).status_code == 200
+    assert (await send(wired, shop_id, headers, pet_id, for_date=_day(366))).status_code == 201
     assert (await document(wired, shop_id, headers, pet_id, for_date=_day(-30))).status_code == 200
     assert (await document(wired, shop_id, headers, pet_id, for_date=_day(365))).status_code == 200
 

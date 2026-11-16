@@ -15,6 +15,9 @@ class _Texts:
     def __init__(self):
         self.rows = []        # (part, version, body)
 
+    async def lock(self, ctx, part):
+        pass
+
     async def latest(self, ctx):
         found = {}
         for part, version, body in self.rows:

@@ -121,3 +121,19 @@ async def test_빈_글과_넘치는_글은_422_이고_직원과_다른_매장은
     await write(wired, shop_id, owner, "basic", "우리 가게의 글")
     theirs = {p["part"]: p for p in (await texts(wired, other_shop, other)).json()["parts"]}
     assert theirs["basic"]["edited"] is False
+
+
+async def test_같은_토막을_동시에_저장해도_둘_다_저장되고_판이_차례로_쌓인다(wired):
+    import asyncio
+
+    from sqlalchemy import text
+
+    shop_id, headers, _ = await _shop(wired)
+
+    one, two = await asyncio.gather(
+        write(wired, shop_id, headers, "basic", "첫째 글"), write(wired, shop_id, headers, "basic", "둘째 글"))
+
+    assert (one.status_code, two.status_code) == (200, 200)
+    async with wired.engine.connect() as conn:
+        versions = (await conn.execute(text("SELECT version FROM shop_consent_texts ORDER BY version"))).scalars().all()
+    assert versions == [1, 2]

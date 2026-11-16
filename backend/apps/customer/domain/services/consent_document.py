@@ -8,10 +8,9 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, timedelta
 
 from customer.domain.entities.consent import ConsentPolicy, DocumentPet, PetConsentFacts
-from customer.domain.errors import CustomerInputError
 from customer.domain.services.consent_coverage import needed_parts, uncovered
 
 __all__ = ["base_date", "build_document", "doc_digest", "needed_parts"]
@@ -20,14 +19,13 @@ __all__ = ["base_date", "build_document", "doc_digest", "needed_parts"]
 def base_date(today: date, for_date: date | None, policy: ConsentPolicy) -> date:
     """문서를 조립하는 기준일. 예약 날을 주면 그날에 유효한 동의를 지금 받는다 — 그날 기한이 지나는지, 그날 노령인지로 본다.
 
-    지난 날은 오늘로 본다. 기한보다 먼 날은 받지 않는다(그날의 동의는 어차피 다시 받아야 한다).
-    예약 앞의 확인할 것(visit)이 방문의 날로 판정하는 것과 맞물린다.
+    지난 날은 오늘로 본다. **기한보다 먼 날은 오늘에 기한을 더한 날로 본다** — 지금 받는 동의가 닿는 가장 먼 날이다.
+    (그 예약이 가까워지면 다시 받게 된다.) 예약 앞의 확인할 것(visit 의 `consent_day`)과 같은 규칙이어야 한다 —
+    한쪽은 받으라고 하는데 다른 쪽이 보낼 수 없다고 하지 않게.
     """
     if for_date is None or for_date <= today:
         return today
-    if (for_date - today).days > policy.consent_days:
-        raise CustomerInputError("기준일이 너무 멉니다.")
-    return for_date
+    return min(for_date, today + timedelta(days=policy.consent_days))
 
 
 def build_document(

@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from visit.domain.value_objects.check_facts import Check, CheckSubject, PetFacts
 
@@ -30,8 +30,16 @@ def age_on(birth_date: date | None, birth_year: int | None, on: date) -> int | N
     return None
 
 
+def consent_day(subject: CheckSubject) -> date:
+    """동의를 판정하는 날. 방문의 날이되, 기한보다 먼 예약은 오늘에 기한을 더한 날이다 — 지금 받는 동의가 닿는
+    가장 먼 날. customer 의 `base_date` 와 같은 규칙이다(동의서를 보낼 수 있는 날과 어긋나지 않게)."""
+    if subject.today is None or subject.on <= subject.today:
+        return subject.on
+    return min(subject.on, subject.today + timedelta(days=subject.consent_days))
+
+
 def _consent(pet: PetFacts, subject: CheckSubject) -> Check | None:
-    on = subject.on
+    on = consent_day(subject)
     reasons = []
     age = age_on(pet.birth_date, pet.birth_year, on)
     if age is not None and age >= subject.senior_age:

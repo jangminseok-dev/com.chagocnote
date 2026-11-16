@@ -15,6 +15,15 @@ def _pet(pet_id=1, name="콩이", birth_date=None, birth_year=None, labels=(), c
         consent_on=consent_on, via_signature=via_signature, signed=tuple(signed), passed_away=passed_away)
 
 
+def test_기한보다_먼_예약_날은_오늘에_기한을_더한_날로_본다():
+    from customer.domain.services.consent_document import base_date
+
+    assert base_date(TODAY, date(2027, 11, 16), POLICY) == date(2027, 11, 16)            # 365일째
+    assert base_date(TODAY, date(2027, 11, 17), POLICY) == date(2027, 11, 16)            # 하루 넘으면 눌린다
+    assert base_date(TODAY, date(2026, 12, 26), ConsentPolicy(consent_days=30)) == date(2026, 12, 16)
+    assert base_date(TODAY, date(2026, 1, 1), POLICY) == TODAY
+
+
 def test_아홉_살은_basic_만_열_살은_senior_가_붙는다():
     assert needed_parts(_pet(birth_date=date(2016, 11, 17)), TODAY, POLICY) == ("basic",)      # 생일 하루 전
     assert needed_parts(_pet(birth_date=date(2016, 11, 16)), TODAY, POLICY) == ("basic", "senior")

@@ -9,6 +9,10 @@ class ConsentTextRepository(ABC):
     """매장이 고친 동의서 글. 쌓기만 한다 — 옛 서명을 그 글자로 다시 보여야 한다."""
 
     @abstractmethod
+    async def lock(self, ctx: ShopContext, part: str) -> None:
+        """이 매장의 그 토막을 고치는 일을 트랜잭션이 끝날 때까지 한 줄로 세운다 — 판 번호가 겹치지 않는다."""
+
+    @abstractmethod
     async def latest(self, ctx: ShopContext) -> dict[str, tuple[int, str | None]]:
         """토막 → (가장 최근 판, 그 글). 고친 적 없는 토막은 빠진다. 글이 None 이면 기본 글로 되돌린 판이다."""
 

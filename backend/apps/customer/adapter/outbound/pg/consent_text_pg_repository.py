@@ -12,6 +12,10 @@ class ConsentTextPgRepository(ConsentTextRepository):
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def lock(self, ctx: ShopContext, part: str) -> None:
+        await self._session.execute(
+            select(func.pg_advisory_xact_lock(func.hashtext(f"consent_text:{ctx.shop_id}:{part}"))))
+
     async def latest(self, ctx: ShopContext) -> dict[str, tuple[int, str | None]]:
         newest = (
             select(ShopConsentTextOrm.part, func.max(ShopConsentTextOrm.version).label("version"))

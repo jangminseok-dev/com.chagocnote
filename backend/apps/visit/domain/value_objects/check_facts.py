@@ -42,6 +42,7 @@ class CheckSubject:
     last_completed_on: date | None    # 이 방문 앞의 마지막 완료 방문의 날. 없으면 None(첫 방문)
     senior_age: int = 10              # 매장이 정한 노령 나이(⑪-B). 정한 적이 없으면 10살
     consent_days: int = 365           # 매장이 정한 동의 기한. 정한 적이 없으면 365일
+    today: date | None = None         # 오늘(매장 시간대). 주면 기한보다 먼 예약의 동의를 지금 받을 수 있는 날로 본다
 
 
 @dataclass(frozen=True)

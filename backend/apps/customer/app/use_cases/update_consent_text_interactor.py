@@ -23,6 +23,7 @@ class UpdateConsentTextInteractor(UpdateConsentTextUseCase):
             raise CustomerInputError("동의서에 없는 토막입니다.")
         if command.body is not None:
             check_body(command.body)
+        await self._texts.lock(command.ctx, command.part)
         current = (await self._texts.latest(command.ctx)).get(command.part, (0, None))[1]
         # 지금 글과 같으면 판을 쌓지 않는다 — 저장을 두 번 눌러도 지문이 바뀌지 않는다.
         if command.body != current:

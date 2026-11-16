@@ -223,3 +223,18 @@ def test_서명으로_받은_동의는_낮춘_노령_나이에_닿으면_partial
 
     detail = one(checks_for(lowered), "consent").detail
     assert (detail["state"], detail["parts"], detail["received_on"]) == ("partial", ["senior"], date(2026, 6, 1))
+
+
+# --- 기한보다 먼 예약(최종 검토) — 지금 받을 수 있는 동의로 본다 -----------------------------------------------------
+
+def test_기한보다_먼_예약은_오늘에_기한을_더한_날로_동의를_본다():
+    # 기한 30일, 예약은 40일 뒤. 오늘 받은 동의는 40일 뒤에는 지났지만 지금 더 받을 길이 없다.
+    today = date(2026, 10, 5)
+    far = lambda consent_on, now: CheckSubject(                                    # noqa: E731
+        on=ON, pet=pet(birth_year=2010, consent_on=consent_on), caution=None, no_show_count=0,
+        last_completed_on=RECENT, consent_days=30, today=now)
+
+    assert one(checks_for(far(None, today)), "consent").detail["state"] == "missing"
+    assert "consent" not in codes(checks_for(far(today, today)))                   # 오늘 받았으면 지금은 더 받을 것이 없다
+    near = date(2026, 10, 16)                                                      # 예약 29일 전 — 이제 예약 날로 본다
+    assert one(checks_for(far(today, near)), "consent").detail["state"] == "expired"

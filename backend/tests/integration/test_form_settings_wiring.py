@@ -2,7 +2,7 @@
 import pytest
 
 from tests.integration.support import error_of
-from tests.integration.test_consent_wiring import count, document, send
+from tests.integration.test_consent_wiring import count, document, send, sign_here
 from tests.integration.test_visit_checks_wiring import (
     _book, _checks, _day, _family, _move, _pet, _shop, _staff,
 )
@@ -127,12 +127,41 @@ async def test_노령_나이를_낮추면_그_매장의_확인할_것과_하루_
 async def test_동의_기한을_줄이면_그보다_오래된_동의는_다시_받는다(wired):
     shop_id, headers, _ = await _shop(wired)
     customer_id, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=_day(0).year - 12))
-    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id, days=40)
+    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id, days=5)
     received = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}/grooming-consent", headers=headers,
-                                   json={})
+                                   json={"received_on": _day(-60).isoformat()})      # 예약 날 기준 65일 전
     assert received.status_code == 200, received.text
     assert "consent" not in await _checks(wired, shop_id, headers, visit_id)
 
     await put(wired, shop_id, headers, consent_days=30)
 
     assert (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]["state"] == "expired"
+
+
+# --- 기한보다 먼 예약(최종 검토) -------------------------------------------------------------------------------------
+
+async def test_기한보다_먼_예약에도_동의서를_보내고_받을_수_있고_받으면_확인할_것에서_사라진다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    await put(wired, shop_id, headers, consent_days=30)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=_day(0).year - 12))
+    visit_id = await _book(wired, shop_id, headers, customer_id, pet_id, days=40)
+    assert (await _checks(wired, shop_id, headers, visit_id))["consent"]["detail"]["state"] == "missing"
+
+    parts = (await wired.api.post(f"/v1/shops/{shop_id}/visits/{visit_id}/send-bundle", headers=headers)).json()["parts"]
+    sent = await send(wired, shop_id, headers, pet_id, for_date=_day(40))
+    signed = await sign_here(wired, shop_id, headers, pet_id, for_date=_day(40))
+
+    assert [p["kind"] for p in parts] == ["reservation", "consent"]
+    assert (sent.status_code, signed.status_code) == (200, 201)        # 묶음이 만든 링크와 같은 링크다
+    assert "consent" not in await _checks(wired, shop_id, headers, visit_id)
+
+
+async def test_먼_예약_날로_낸_링크는_기한을_줄여도_열린다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    _, pet_id = await _family(wired, shop_id, headers, _pet(birth_year=_day(0).year - 12))
+    token = (await send(wired, shop_id, headers, pet_id, for_date=_day(200))).json()["url"].rsplit("/", 1)[1]
+
+    await put(wired, shop_id, headers, consent_days=30)
+
+    opened = await wired.api.get("/v1/public/form", headers={"X-Form-Token": token})
+    assert opened.status_code == 200 and opened.json()["state"] == "open"
