@@ -14,7 +14,7 @@ from tests.integration.test_visit_checks_wiring import _family, _pet, _shop
 pytestmark = pytest.mark.integration
 
 OPEN_KEYS = {"kind", "state", "shop", "mode", "pet_name", "fields", "questions", "condition_types", "answered",
-             "guardian_needed"}
+             "guardian_needed", "keep_days"}
 ALL_FIELDS = ["species", "breed", "sex", "neutered", "birth", "weight", "dislikes", "style"]
 
 
@@ -62,6 +62,7 @@ async def test_새_손님의_문진표를_열면_켜진_칸과_지병_종류가_
     assert (body["kind"], body["state"], body["shop"], body["mode"], body["pet_name"], body["answered"]) == (
         "intake", "open", {"name": "Hiss Haus"}, "new", None, 0)
     assert body["fields"] == ALL_FIELDS and body["questions"] == []
+    assert body["keep_days"] == 30          # 개인정보 안내에 적는다 — 확인하지 않은 답을 지우는 날 수
     assert {"code", "label"} == set(body["condition_types"][0]) and len(body["condition_types"]) > 3
     assert opened.headers["cache-control"] == "private, no-store" and "noindex" in opened.headers["x-robots-tag"]
 

@@ -262,7 +262,7 @@
 - `GET …/intake-answers` → `{items: [{answer_id, mode, pet_name, guardian_name, submitted_on, matched_customer: {customer_id, name}|null, pet_id|null}]}`.
 - `GET …/intake-answers/{id}` → 위 칸 + `guardian_phone, species, breed, sex, neutered, birth_date, birth_year, birth_unknown, weight_kg, no_known_conditions, conditions: [{type_code, label, custom_label, note}], dislikes, style, extras: [{label, body}], missing: [칸 코드], memo_draft, memo_over`. `DELETE …/intake-answers/{id}` → 204.
 - 등록 `POST …/customers` 본문의 `intake_answer_id`, `POST …/customers/{id}/pets`·`PUT …/pets/{id}` 본문의 `intake_answer_id`.
-- 공개 `GET /v1/public/form`(문진표): `{kind: "intake", state: "open", shop: {name}, mode, pet_name|null, fields: [칸 코드], questions: [{question_id, label, required}], condition_types: [{code, label}], answered, guardian_needed}` / 닫힘·다 적음은 `{kind: "intake", state: "submitted", shop, submitted_on}`.
+- 공개 `GET /v1/public/form`(문진표): `{kind: "intake", state: "open", shop: {name}, mode, pet_name|null, fields: [칸 코드], questions: [{question_id, label, required}], condition_types: [{code, label}], answered, guardian_needed, keep_days}` / 닫힘·다 적음은 `{kind: "intake", state: "submitted", shop, submitted_on}`.
 - 공개 `POST /v1/public/form/intake` `{guardian: {name, phone}|null, pet: {name, species, breed, sex, neutered, birth_date, birth_year, birth_unknown, weight_kg, weight_unknown, no_known_conditions, conditions: [{type_code, custom_label, note}], dislikes, style}, extras: [{question_id, body}], privacy_agreed, done}` → 204 / 404 / 410 / 413 / 422 / 429.
 
 ## ⑪-A 의 API 계약 (웹·앱이 기댄다)

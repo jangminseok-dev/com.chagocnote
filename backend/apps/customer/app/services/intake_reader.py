@@ -18,6 +18,7 @@ from hub.app.dtos.shop_context import ShopContext
 @dataclass(frozen=True)
 class IntakeLayout:
     hidden: frozenset[str]
+    keep_days: int
     questions: list[IntakeQuestion]
     condition_types: tuple[tuple[str, str], ...]
 
@@ -37,7 +38,8 @@ class IntakeReader:
         """열 때마다 다시 읽는다 — 보낸 뒤 매장이 칸을 끄거나 질문을 고쳤으면 새 구성이다."""
         settings = await self._settings.get(ctx)
         return IntakeLayout(
-            hidden=frozenset(settings.intake_hidden), questions=await self._questions.list_live(ctx),
+            hidden=frozenset(settings.intake_hidden), keep_days=settings.intake_keep_days,
+            questions=await self._questions.list_live(ctx),
             condition_types=tuple((t.code, t.label) for t in await self._condition_types.list_all()),
         )
 
@@ -57,5 +59,6 @@ class IntakeReader:
             fields=tuple(code for code in INTAKE_HIDEABLE if code not in layout.hidden),
             questions=tuple(layout.questions), condition_types=layout.condition_types, answered=form.answered,
             # 제출이 쓰는 규칙과 같다 — 새 손님의 답 가운데 보호자를 적은 것이 남아 있지 않으면 묻는다.
+            keep_days=layout.keep_days,
             guardian_needed=form.mode == NEW and await self._answers.first_guardian(form.id) is None,
         )

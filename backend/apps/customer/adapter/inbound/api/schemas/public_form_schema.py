@@ -77,6 +77,7 @@ class PublicOpenIntakeSchema(BaseModel):
     condition_types: list[PublicConditionTypeSchema]
     answered: int                 # 이 링크로 이미 낸 답의 수
     guardian_needed: bool         # 보호자 이름·번호를 적어야 하나
+    keep_days: int                # 매장이 확인하지 않은 답을 지우는 날 수(개인정보 안내)
 
 
 def public_form_body(view: PublicFormView) -> dict[str, Any]:
@@ -90,7 +91,7 @@ def public_form_body(view: PublicFormView) -> dict[str, Any]:
                        for q in intake.questions],
             condition_types=[PublicConditionTypeSchema(code=code, label=label)
                              for code, label in intake.condition_types],
-            answered=intake.answered, guardian_needed=intake.guardian_needed,
+            answered=intake.answered, guardian_needed=intake.guardian_needed, keep_days=intake.keep_days,
         ).model_dump(mode="json")
     if view.document is None:
         return PublicSubmittedFormSchema(

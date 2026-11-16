@@ -33,6 +33,7 @@ class PublicIntakeView:
     questions: tuple[IntakeQuestion, ...]      # 매장이 더한 질문
     condition_types: tuple[tuple[str, str], ...]   # (코드, 이름)
     answered: int                              # 이 링크로 이미 낸 답의 수
+    keep_days: int = 30                        # 확인하지 않은 답을 지우는 날 수 — 개인정보 안내에 적는다
     guardian_needed: bool = False              # 보호자 이름·번호를 적어야 하나 — 새 손님의 첫 답(또는 첫 답을 매장이 이미 썼을 때)
 
 
