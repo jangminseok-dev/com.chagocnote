@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from hub.app.dtos.shop_context import ShopContext
 from visit.domain.entities.visit import Visit
+from visit.domain.value_objects.revisit import RevisitCandidate
 
 
 class VisitHistoryRepository(ABC):
@@ -57,3 +58,8 @@ class VisitHistoryRepository(ABC):
     @abstractmethod
     async def pets_with_upcoming(self, ctx: ShopContext, pet_ids: list[int], since: datetime) -> set[int]:
         """since(오늘 0시) 이후에 시작하는 예약됨·미용 중 방문이 있는 아이 — 다시 올 때가 된 아이에서 뺀다(⑬)."""
+
+    @abstractmethod
+    async def revisit_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[RevisitCandidate]:
+        """마지막 완료 방문이 today 로부터 한 해 안이고, 앞으로의 예약(since 이후의 예약됨, 날짜와 상관없이 미용 중)이
+        없는 아이들 — 마지막 방문의 날 순. 아이 수와 상관없이 질의 하나다."""

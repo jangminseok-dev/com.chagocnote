@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
@@ -10,7 +10,6 @@ from hub.app.dtos.shop_context import ShopContext
 from visit.app.ports.output.sales_repository import SalesRepository, SalesVisitKind
 from visit.domain.value_objects.sales import (
     DaySales,
-    DuePet,
     MenuSales,
     PetVisits,
     RemainingBookings,
@@ -18,9 +17,6 @@ from visit.domain.value_objects.sales import (
     SalesVisitRow,
 )
 
-# 다시 올 때가 지난 아이 — 마지막 완료 방문이 8주(56일)를 넘겼고 한 해를 넘기지 않았다(설계 ⑧ 3.3).
-DUE_AFTER_DAYS = 56
-DUE_WITHIN_DAYS = 365
 DAY_PET_LIMIT = 5
 
 # 방문이 든 날 — 시작 시각을 매장 시간대의 날짜로.
@@ -176,27 +172,3 @@ class SalesPgRepository(SalesRepository):
             ORDER BY v.starts_at DESC, v.id DESC LIMIT :limit
         """), params)).all()
         return [SalesVisitRow(*row) for row in rows]
-
-    async def due_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[DuePet]:
-        rows = (await self._session.execute(text("""
-            WITH latest AS (
-              SELECT v.pet_id, (max(v.starts_at) AT TIME ZONE :tz)::date AS last_day
-              FROM visits v
-              WHERE v.shop_id = :shop AND v.status = 'completed' AND v.pet_id IS NOT NULL
-              GROUP BY v.pet_id
-            )
-            SELECT latest.pet_id, latest.last_day
-            FROM latest
-            WHERE latest.last_day BETWEEN :oldest AND :newest
-              AND NOT EXISTS (
-                SELECT 1 FROM visits u
-                WHERE u.shop_id = :shop AND u.pet_id = latest.pet_id
-                  AND (u.status = 'in_progress' OR (u.status = 'reserved' AND u.starts_at >= :now))
-              )
-            ORDER BY latest.last_day, latest.pet_id
-        """), {
-            "shop": ctx.shop_id, "tz": ctx.timezone, "now": since,
-            "oldest": today - timedelta(days=DUE_WITHIN_DAYS),
-            "newest": today - timedelta(days=DUE_AFTER_DAYS + 1),
-        })).all()
-        return [DuePet(pet_id=pet_id, last_day=last_day) for pet_id, last_day in rows]

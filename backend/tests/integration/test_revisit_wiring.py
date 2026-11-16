@@ -216,3 +216,71 @@ async def test_다음_예약_초안은_날짜가_늘_있고_주기의_출처를_
     await wired.api.put(settings_url(shop_id), headers=o, json={"default_cycle_weeks": 8})
     eight = await _draft(wired, shop_id, o, single)
     assert (eight["cycle_source"], eight["cycle_weeks"]) == ("none", 8)
+
+
+# ── 다시 올 때가 된 아이 — 목록과 수 ─────────────────────────────────
+
+
+async def _list(wired, shop_id, headers, bucket):
+    got = await wired.api.get(f"/v1/shops/{shop_id}/revisits", params={"bucket": bucket}, headers=headers)
+    assert got.status_code == 200, got.text
+    return got.json()
+
+
+async def _counts(wired, shop_id, headers):
+    got = await wired.api.get(f"/v1/shops/{shop_id}/revisits/counts", headers=headers)
+    assert got.status_code == 200, got.text
+    return got.json()
+
+
+async def test_다시_올_때가_된_아이는_곧과_지남으로_나뉘고_수와_목록이_같고_직원도_본다(wired):
+    shop_id, o, operator = await _shop(wired)
+    staff = await _staff(wired, shop_id, o)
+    other_id, other, _ = await _shop(wired, name="다른 매장", owner="다른 사장", operator=operator)
+
+    kong_c, kong = await _family(wired, shop_id, o, phone="010-1111-0001", pet_name="콩이")
+    for d in (-134, -92, -50):                          # 6주 주기 — 8일 지남
+        await _done_on(wired, shop_id, o, kong_c, kong, d)
+    bori_c, bori = await _family(wired, shop_id, o, phone="010-1111-0002", pet_name="보리")
+    for d in (-81, -53, -25):                           # 4주 주기 — 3일 뒤
+        await _done_on(wired, shop_id, o, bori_c, bori, d)
+    two_c, two = await _family(wired, shop_id, o, phone="010-1111-0003", pet_name="두부")
+    for d in (-29, -15):                                # 2주 간격 하나 — 15일째에도 어디에도 없다
+        await _done_on(wired, shop_id, o, two_c, two, d)
+    lost_c, lost = await _family(wired, other_id, other, phone="010-1111-0004", pet_name="남의아이")
+    await _done_on(wired, other_id, other, lost_c, lost, -60)
+
+    due = await _list(wired, shop_id, staff, "due")
+    soon = await _list(wired, shop_id, staff, "soon")
+    assert [(i["pet"]["name"], i["cycle_source"], i["due_date"]) for i in due["items"]] == [
+        ("콩이", "computed", _day(-8).isoformat())]
+    assert [(i["pet"]["name"], i["cycle_weeks"]) for i in soon["items"]] == [("보리", 4)]
+    assert set(due["items"][0]) == {
+        "pet", "last_visit_date", "last_visit_id", "cycle_weeks", "cycle_source", "last_interval_weeks",
+        "due_date", "estimated", "nudged_on", "message"}
+    assert due["items"][0]["message"].startswith("안녕하세요, Hiss Haus예요.\n콩이가 미용한 지 7주가 됐어요.")
+    assert await _counts(wired, shop_id, staff) == {"soon": 1, "due": 1}
+
+    # 예약을 잡으면 빠진다. 매출 요약의 지난 아이 수는 지남의 수다.
+    await _visit(wired, shop_id, o, kong_c, kong, 11, days=5)
+    assert (await _counts(wired, shop_id, o))["due"] == 0
+    summary = (await wired.api.get(f"/v1/shops/{shop_id}/sales/summary", params={"span": "day"}, headers=o)).json()
+    assert summary["due_pet_count"] == 0
+
+    # 안내한 날은 마지막 방문 뒤에만 실린다.
+    await wired.api.put(f"/v1/shops/{shop_id}/pets/{bori}/revisit-nudge", headers=o)
+    assert (await _list(wired, shop_id, o, "soon"))["items"][0]["nudged_on"] == _day(0).isoformat()
+
+
+async def test_묶음은_soon_과_due_만이고_깨진_커서는_422_다(wired):
+    shop_id, o, _ = await _shop(wired)
+    bad = await wired.api.get(f"/v1/shops/{shop_id}/revisits", params={"bucket": "later"}, headers=o)
+    assert bad.status_code == 422
+    broken = await wired.api.get(f"/v1/shops/{shop_id}/revisits", params={"bucket": "due", "cursor": "깨짐"},
+                                 headers=o)
+    assert error_of(broken)[0] == 422
+
+
+async def test_예전_매출의_지난_아이_경로는_없다(wired):
+    shop_id, o, _ = await _shop(wired)
+    assert (await wired.api.get(f"/v1/shops/{shop_id}/sales/due-pets", headers=o)).status_code == 404

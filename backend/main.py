@@ -163,6 +163,8 @@ from visit.adapter.inbound.api.v1.delete_visit_record_router import delete_visit
 from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_visit_draft_router
 from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_settings_router
 from visit.adapter.inbound.api.v1.get_revisit_settings_router import get_revisit_settings_router
+from visit.adapter.inbound.api.v1.count_revisits_router import count_revisits_router
+from visit.adapter.inbound.api.v1.list_revisits_router import list_revisits_router
 from visit.adapter.inbound.api.v1.get_sales_goal_router import get_sales_goal_router
 from visit.adapter.inbound.api.v1.get_sales_summary_router import get_sales_summary_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
@@ -173,7 +175,6 @@ from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
 from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_router
-from visit.adapter.inbound.api.v1.list_due_pets_router import list_due_pets_router
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
 from visit.adapter.inbound.api.v1.list_sales_visits_router import list_sales_visits_router
 from visit.adapter.inbound.api.v1.list_visit_feed_router import list_visit_feed_router
@@ -305,10 +306,11 @@ app.include_router(get_report_settings_router)
 app.include_router(update_report_settings_router)
 app.include_router(get_revisit_settings_router)
 app.include_router(update_revisit_settings_router)
+app.include_router(count_revisits_router)
+app.include_router(list_revisits_router)
 # ⑧ 매출 — 모두 sales:read(사장만)
 app.include_router(get_sales_summary_router)
 app.include_router(list_sales_visits_router)
-app.include_router(list_due_pets_router)
 app.include_router(get_sales_goal_router)
 app.include_router(update_sales_goal_router)
 app.include_router(list_closed_dates_router)

@@ -48,7 +48,6 @@ from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.value_objects.sales import (
     DaySales,
-    DuePet,
     MenuSales,
     PetVisits,
     RemainingBookings,
@@ -385,8 +384,26 @@ class FakeVisits(
                 days[v.pet_id].append(local_date(v.starts_at, ctx.timezone))
         return days
 
+    def _upcoming(self, v, since) -> bool:
+        return v.status == "in_progress" or (v.status == "reserved" and v.starts_at >= since)
+
     async def pets_with_upcoming(self, ctx, pet_ids, since):
-        return {v.pet_id for v in self._mine(ctx) if v.pet_id in pet_ids and v.is_active and v.starts_at >= since}
+        return {v.pet_id for v in self._mine(ctx) if v.pet_id in pet_ids and self._upcoming(v, since)}
+
+    async def revisit_candidates(self, ctx, today, since):
+        from visit.domain.services.visit_schedule import local_date
+        from visit.domain.value_objects.revisit import RevisitCandidate
+
+        self.revisit_calls = getattr(self, "revisit_calls", 0) + 1
+        latest: dict[int, Visit] = {}
+        for v in self._mine(ctx):
+            if v.pet_id is not None and v.status == "completed":
+                if v.pet_id not in latest or (v.starts_at, v.id) > (latest[v.pet_id].starts_at, latest[v.pet_id].id):
+                    latest[v.pet_id] = v
+        busy = {v.pet_id for v in self._mine(ctx) if self._upcoming(v, since)}
+        found = [RevisitCandidate(pet_id=p, last_visit_id=v.id, last_day=local_date(v.starts_at, ctx.timezone))
+                 for p, v in latest.items() if p not in busy]
+        return sorted((c for c in found if (today - c.last_day).days <= 365), key=lambda c: (c.last_day, c.pet_id))
 
     async def pet_has_visits(self, ctx, pet_id, active_only):
         return any(v.pet_id == pet_id and (v.is_active or not active_only) for v in self._mine(ctx))
@@ -750,8 +767,6 @@ class FakeSalesRepository(SalesRepository):
         self.remaining_args: tuple | None = None
         self.visit_rows: list[SalesVisitRow] = []
         self.visit_args: tuple | None = None
-        self.due: list[DuePet] = []
-        self.due_args: tuple | None = None
 
     async def totals(self, ctx, start, until):
         self.calls.append("totals")
@@ -788,10 +803,6 @@ class FakeSalesRepository(SalesRepository):
         rows = [r for r in self.visit_rows if before is None or (r.starts_at, r.visit_id) < before]
         return rows[:limit]
 
-    async def due_candidates(self, ctx, today, since):
-        self.calls.append("due_candidates")
-        self.due_args = (today, since)
-        return list(self.due)
 
 
 class FakeChecks(VisitCheckRepository):

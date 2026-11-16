@@ -66,11 +66,3 @@ class SalesVisitRow:
     pet_id: int | None
     customer_id: int
     amount: int | None
-
-
-@dataclass(frozen=True)
-class DuePet:
-    """다시 올 때가 지난 아이 후보 — 마지막 완료 방문일."""
-
-    pet_id: int
-    last_day: date

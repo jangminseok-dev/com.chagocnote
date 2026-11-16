@@ -11,8 +11,10 @@ from visit.dependencies.hub_ports import get_customer_directory, get_media_libra
 from visit.dependencies.visit_wiring import (
     build_menu_repository,
     build_record_repository,
+    build_revisit_settings_repository,
     build_sales_goal_repository,
     build_sales_repository,
+    build_visit_repository,
 )
 from visit.domain.services.visit_schedule import utc_now
 
@@ -25,4 +27,5 @@ def get_get_sales_summary_use_case(
     return GetSalesSummaryInteractor(
         sales=build_sales_repository(db), goals=build_sales_goal_repository(db), menus=build_menu_repository(db),
         directory=directory, records=build_record_repository(db), library=library, now=utc_now,
+        history=build_visit_repository(db), revisit_settings=build_revisit_settings_repository(db),
     )

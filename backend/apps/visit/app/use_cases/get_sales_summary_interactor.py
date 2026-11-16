@@ -26,7 +26,10 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
-from visit.app.services.due_pets import due_pets, start_of_day
+from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
+from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
+from visit.app.services.revisit import revisit_board
+from visit.app.services.visit_day import start_of_day
 from visit.app.services.pet_cards import pet_cards, showable_pets
 from visit.domain.services.sales_period import (
     Period,
@@ -55,8 +58,10 @@ class GetSalesSummaryInteractor(GetSalesSummaryUseCase):
     def __init__(
         self, sales: SalesRepository, goals: SalesGoalRepository, menus: MenuRepository,
         directory: CustomerDirectoryPort, records: VisitRecordRepository, library: MediaLibraryPort,
-        now: Callable[[], datetime],
+        now: Callable[[], datetime], history: VisitHistoryRepository, revisit_settings: RevisitSettingsRepository,
     ) -> None:
+        self._history = history
+        self._revisit_settings = revisit_settings
         self._sales = sales
         self._goals = goals
         self._menus = menus
@@ -78,7 +83,9 @@ class GetSalesSummaryInteractor(GetSalesSummaryUseCase):
         menu_sales = await self._sales.by_menu(ctx, period.start, period.until)
         seen = await self._sales.pets(ctx, period.start, period.until)
         regular_rows = await self._regulars(ctx, period, seen, today)
-        due, _ = await due_pets(ctx, self._sales, self._directory, today)
+        # 다시 올 때가 지난 아이(⑬ — 아이의 주기로, 다시 올 때가 된 아이의 '지남'과 같은 함수).
+        board = await revisit_board(ctx, self._history, self._directory, await self._revisit_settings.get(ctx), today)
+        due = [r for r in board.rows if r.bucket == "due"]
         remaining = await self._sales.remaining_reserved(ctx, start_of_day(ctx, today), period.until) \
             if current else None
         report = await self._sales.report_counts(ctx, period.start, period.until) if totals.completed else None
