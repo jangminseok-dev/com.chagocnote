@@ -210,6 +210,42 @@
 - 방문 상세의 [보호자에게 보내기]에 진행 표시와 중복 방지가 없다. 지난 날짜의 예약에도 시트가 뜬다.
 - 서류 설정의 칩을 눌러도 보내는 동안 눌린 표시가 없다. 골든이 없다. `closeBundle` 이 세 파일에 복사돼 있다.
 
+## ⑪-C1 백엔드에서 정한 것 (2026-11-16) — 첫 방문 문진표
+
+마이그레이션 0021·0022. 문진표 끝의 동의서(맡아 두는 서명)는 다음 계획(⑪-C1b)이다.
+
+- **보내는 곳 셋**(`mode`): `new` 새 손님 · `add_pet` 등록된 고객의 새 아이 · `update` 이미 있는 아이의 정보를 다시 받기. 새 아이·다시 받기는 같은 대상의 살아 있는 요청이 있으면 같은 링크, 새 손님용은 대상이 없어 늘 새 링크다.
+- **낸 것은 받은 문진표다.** 고객·반려동물 표를 건드리지 않는다. 등록·반영은 기존 유스케이스의 `intake_answer_id` — **먼저 답을 지우고** 쓴다(답이 없으면 404 `INTAKE_ANSWER_NOT_FOUND`, 뒤에서 실패하면 지운 것도 되돌아간다). 같은 답으로 두 번 등록되지 않는다.
+- **칸의 필수 여부는 도메인이 본다**(`intake_rules.clean_entry`) — 켜진 칸은 필수, 끈 칸은 적어 보내도 버린다, 다시 받기는 전부 선택. 지운 질문의 답은 그 답만 버린다(422 로 통째로 막지 않는다).
+- **한 링크에 열 마리까지** — 받은 수를 요청 행(`customer_forms.intake_answered`)에 적는다. 답을 등록·지워도 한도가 다시 열리지 않는다.
+- **둘째 아이부터 보호자 칸은 첫 답의 것**이다. 그 첫 답을 이미 등록·지웠으면 보호자를 다시 묻는다(422).
+- **번호가 같은 고객을 미리 이어 둔다**(`matched_customer_id`) — 낼 때의 사실이다. 낸 뒤에 그 번호의 고객이 등록돼도 이어지지 않는다(앱이 번호 조회로 찾는다).
+- **보관 기간**(기본 30일, 7~90): 읽을 때 없는 것으로 치고, API 프로세스의 주기 작업(`form_sweeper`, 기동 직후와 그 뒤 24시간마다)이 지운다. 매장마다 `system_context` 로 자기 설정·자기 표만 만지고 지운 수만 로그에 적는다.
+- **서류 설정의 새 두 칸**(`intake_keep_days`·`intake_hidden`)은 PUT 에서 선택이다 — 빠지면 지금 값을 둔다. 이 칸을 모르는 앱(⑪-B)이 다섯 칸만 보내도 지워지지 않는다.
+- **보낸 서류**(`GET /forms`)에 문진표도 실린다 — `kind`·`mode`, 새 손님용은 `customer` 가 null. [링크 끊기]는 종류를 가리지 않는다.
+- 익명화: 그 고객의 문진표 요청을 닫고, 그 고객에 이어 둔 답과 그 고객에게 보낸 링크의 답을 지운다. 아이 지우기: 그 아이의 다시 받기 요청을 끊고 답을 지우고 이음을 뗀다. 무지개다리: 요청만 끊는다.
+- 권한: 보내기·등록·지우기 `customer:write`, 받은 문진표 읽기는 매장 멤버, 설정·질문은 `shop:update`.
+- 확인: 단위 2650·통합 761·계약 6·흐름(문진표 38줄·동의서 50줄·확인할 것·알림장·보호자).
+
+### 실행하면서 정한 것 (Ruling)
+
+- **받은 수를 요청 행에 적으려고 마이그레이션을 하나 더 냈다**(0022) — 0021 은 이미 개발 DB 에 올라 있었고 내려 고치는 것은 스키마를 파괴하는 명령이다. 틀리면: 번호가 하나 더 든다.
+- **열한 번째 제출의 410 은 통합 테스트로 보지 않는다** — 접속 주소당 10분에 10번의 한도(429)에 먼저 걸린다. 열 마리째에서 링크가 닫히는 것으로 본다.
+- **유스케이스의 단위 테스트는 두지 않고 통합으로 본다**(문진표 유스케이스 일곱) — 규칙은 순수 함수의 단위 테스트(`test_intake_rules` 28개)가 본다. 틀리면: 유스케이스의 갈래를 통합만 본다.
+- **고객 목록 응답에 받은 문진표 수·보낸 서류 수를 싣지 않았다**(설계 5.3) — 앱이 목록 두 개를 읽는다(보낸 서류와 같은 방식). 틀리면: 고객 탭이 요청을 둘 더 한다.
+
+### API 계약 (웹·앱이 기댄다)
+
+- `POST …/intake-forms {customer_id|null, pet_id|null}` → `{form_id, url, expires_on, sent_on}`(201/200).
+- `GET …/forms` 의 항목: `{form_id, kind: "consent"|"intake", mode: null|"new"|"add_pet"|"update", customer: {customer_id, name}|null, pets, sent_on, expires_on, url}`.
+- `GET·PUT …/intake-questions` → `{items: [{question_id, label, required}]}`. PUT 은 목록 전체(`question_id` 가 null 이면 새 질문, 빠진 질문은 지운 것). 5개·100자.
+- `GET·PUT …/form-settings` 에 `intake_keep_days`·`intake_hidden`(끌 수 있는 칸: `species`·`breed`·`sex`·`neutered`·`birth`·`weight`·`dislikes`·`style`).
+- `GET …/intake-answers` → `{items: [{answer_id, mode, pet_name, guardian_name, submitted_on, matched_customer: {customer_id, name}|null, pet_id|null}]}`.
+- `GET …/intake-answers/{id}` → 위 칸 + `guardian_phone, species, breed, sex, neutered, birth_date, birth_year, birth_unknown, weight_kg, no_known_conditions, conditions: [{type_code, label, custom_label, note}], dislikes, style, extras: [{label, body}], missing: [칸 코드], memo_draft, memo_over`. `DELETE …/intake-answers/{id}` → 204.
+- 등록 `POST …/customers` 본문의 `intake_answer_id`, `POST …/customers/{id}/pets`·`PUT …/pets/{id}` 본문의 `intake_answer_id`.
+- 공개 `GET /v1/public/form`(문진표): `{kind: "intake", state: "open", shop: {name}, mode, pet_name|null, fields: [칸 코드], questions: [{question_id, label, required}], condition_types: [{code, label}], answered}` / 닫힘·다 적음은 `{kind: "intake", state: "submitted", shop, submitted_on}`.
+- 공개 `POST /v1/public/form/intake` `{guardian: {name, phone}|null, pet: {name, species, breed, sex, neutered, birth_date, birth_year, birth_unknown, weight_kg, weight_unknown, no_known_conditions, conditions: [{type_code, custom_label, note}], dislikes, style}, extras: [{question_id, body}], privacy_agreed, done}` → 204 / 404 / 410 / 413 / 422 / 429.
+
 ## ⑪-A 의 API 계약 (웹·앱이 기댄다)
 
 매장(`/v1/shops/{shop_id}/…`):
