@@ -11,6 +11,7 @@ from core.redis import get_redis
 from customer.adapter.outbound.pg.condition_type_pg_repository import ConditionTypePgRepository
 from customer.adapter.outbound.pg.consent_form_pg_repository import ConsentFormPgRepository
 from customer.adapter.outbound.pg.consent_signature_pg_repository import ConsentSignaturePgRepository
+from customer.adapter.outbound.pg.consent_text_pg_repository import ConsentTextPgRepository
 from customer.adapter.outbound.pg.customer_pg_repository import CustomerPgRepository
 from customer.adapter.outbound.pg.customer_search_pg_adapter import CustomerSearchPgAdapter
 from customer.adapter.outbound.pg.family_brief_pg_repository import FamilyBriefPgRepository
@@ -19,6 +20,7 @@ from customer.adapter.outbound.pg.pet_pg_repository import PetPgRepository
 from customer.app.ports.output.condition_type_repository import ConditionTypeRepository
 from customer.app.ports.output.consent_form_repository import ConsentFormRepository
 from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
+from customer.app.ports.output.consent_text_repository import ConsentTextRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.customer_search_port import CustomerSearchPort
 from customer.app.ports.output.family_brief_repository import FamilyBriefRepository
@@ -64,9 +66,13 @@ def build_form_settings_repository(db: AsyncSession) -> FormSettingsRepository:
     return FormSettingsPgRepository(db)
 
 
+def build_consent_text_repository(db: AsyncSession) -> ConsentTextRepository:
+    return ConsentTextPgRepository(db)
+
+
 def build_consent_source(db: AsyncSession) -> ConsentSource:
-    """동의의 기준값을 매장의 서류 설정에서 읽는다(⑪-B)."""
-    return ConsentSource(settings=build_form_settings_repository(db))
+    """동의의 기준값과 글을 매장의 서류 설정에서 읽는다(⑪-B)."""
+    return ConsentSource(settings=build_form_settings_repository(db), texts=build_consent_text_repository(db))
 
 
 def build_public_form_limiter() -> PublicLimiterPort:

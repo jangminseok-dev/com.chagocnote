@@ -11,6 +11,7 @@ from customer.app.use_cases.issue_consent_form_interactor import IssueConsentFor
 from customer.app.use_cases.revoke_form_interactor import RevokeFormInteractor
 from customer.app.use_cases.sign_consent_in_shop_interactor import SignConsentInShopInteractor
 from customer.app.services.consent_reader import read_document
+from customer.app.services.consent_source import ConsentSource
 from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.errors import ConsentDocumentChangedError, FormNotFoundError
 from customer.tests.helpers.fakes import TODAY, FakeConsentForms, FakeConsentSignatures, family, today
@@ -20,10 +21,11 @@ NOW = datetime(2026, 9, 22, 1, 0, tzinfo=timezone.utc)
 POLICY = ConsentPolicy()
 
 
-class _Source:
-    """정해 둔 기준값을 주는 가짜 — 매장의 서류 설정 대신."""
+class _Source(ConsentSource):
+    """정해 둔 기준값을 주는 가짜 — 매장의 서류 설정 대신. 글은 기본 글이다."""
 
     def __init__(self, policy=POLICY):
+        super().__init__()
         self._policy = policy
 
     async def policy(self, ctx):

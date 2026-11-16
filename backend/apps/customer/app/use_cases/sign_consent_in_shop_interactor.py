@@ -41,4 +41,5 @@ class SignConsentInShopInteractor(SignConsentInShopUseCase):
             ),
             self._now(), self._today(), await self._source.policy(ctx),
             pets=self._pets, signatures=self._signatures, forms=self._forms,
+            texts=await self._source.texts(ctx),
         )

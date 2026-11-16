@@ -38,7 +38,7 @@ class GetConsentDocumentInteractor(GetConsentDocumentUseCase):
         policy = await self._source.policy(query.ctx)
         doc = await read_document(
             query.ctx, query.pet_ids, base_date(self._today(), query.for_date, policy), policy,
-            pets=self._pets, signatures=self._signatures)
+            pets=self._pets, signatures=self._signatures, texts=await self._source.texts(query.ctx))
         if not doc.pets:
             raise ConsentUpToDateError("이미 받은 동의입니다.")
         return document_view(doc)

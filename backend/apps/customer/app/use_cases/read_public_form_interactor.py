@@ -54,7 +54,7 @@ class ReadPublicFormInteractor(ReadPublicFormUseCase):
         try:
             doc = await read_document(
                 ctx, form.pet_ids, base_date(now.astimezone(zone).date(), form.for_date, policy), policy,
-                pets=self._pets, signatures=self._signatures)
+                pets=self._pets, signatures=self._signatures, texts=await self._source.texts(ctx))
         except (PetNotFoundError, CustomerInputError):
             # 익명화한 고객의 요청이거나 담은 아이가 없다 — 닫힌 것으로 읽힌다.
             raise FormClosedError("닫힌 서류입니다.") from None

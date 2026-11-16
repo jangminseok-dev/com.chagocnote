@@ -45,7 +45,9 @@ class IssueConsentFormInteractor(IssueConsentFormUseCase):
         customer_id = await self._pets.lock_owner(ctx, min(command.pet_ids))
         policy = await self._source.policy(ctx)
         on = base_date(self._today(), command.for_date, policy)
-        doc = await read_document(ctx, command.pet_ids, on, policy, pets=self._pets, signatures=self._signatures)
+        doc = await read_document(
+            ctx, command.pet_ids, on, policy, pets=self._pets, signatures=self._signatures,
+            texts=await self._source.texts(ctx))
         if not doc.pets:
             raise ConsentUpToDateError("이미 받은 동의입니다.")
         wanted = tuple(pet.pet_id for pet in doc.pets)

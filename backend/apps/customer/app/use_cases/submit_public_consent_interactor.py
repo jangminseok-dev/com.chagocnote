@@ -68,6 +68,7 @@ class SubmitPublicConsentInteractor(SubmitPublicConsentUseCase):
                 ),
                 now, now.astimezone(ZoneInfo(ctx.timezone)).date(), await self._source.policy(ctx),
                 pets=self._pets, signatures=self._signatures, forms=self._forms,
+                texts=await self._source.texts(ctx),
             )
         except PetNotFoundError:
             raise FormClosedError("닫힌 서류입니다.") from None

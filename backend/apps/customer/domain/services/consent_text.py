@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from customer.domain.errors import CustomerInputError
+
 PARTS = ("basic", "senior", "condition")   # 문서에 싣는 순서
 DEFAULT_VERSION = 1
 
@@ -32,3 +34,14 @@ _BODIES: dict[tuple[str, int], str] = {
 def default_body(part: str, version: int = DEFAULT_VERSION) -> str:
     """기본 글. 없는 토막·판이면 KeyError — 호출하는 쪽이 저장된 값만 넘긴다."""
     return _BODIES[(part, version)]
+
+
+BODY_MAX = 2000
+
+
+def check_body(body: str) -> None:
+    """매장이 고친 글의 규칙(⑪ 설계 3.2). 비워 둘 수 없다 — 비우려면 기본 글로 되돌린다. 오류 글에 그 글을 싣지 않는다."""
+    if not body.strip():
+        raise CustomerInputError("동의서의 글을 비워 둘 수 없습니다. 기본 글로 되돌려 주세요.")
+    if len(body) > BODY_MAX:
+        raise CustomerInputError(f"동의서의 글은 토막마다 {BODY_MAX}자까지 적을 수 있습니다.")
