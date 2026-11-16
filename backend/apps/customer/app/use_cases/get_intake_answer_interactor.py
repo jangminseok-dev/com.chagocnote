@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from customer.app.dtos.get_intake_answer_dto import GetIntakeAnswerQuery
-from customer.app.dtos.intake_answer_view_dto import IntakeAnswerView
+from customer.app.dtos.intake_answer_view_dto import IntakeAnswerView, IntakeConsentSummary
 from customer.app.ports.input.get_intake_answer_use_case import GetIntakeAnswerUseCase
 from customer.app.ports.output.condition_type_repository import ConditionTypeRepository
+from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.form_settings_repository import FormSettingsRepository
 from customer.app.ports.output.intake_answer_repository import IntakeAnswerRepository
@@ -21,6 +24,7 @@ class GetIntakeAnswerInteractor(GetIntakeAnswerUseCase):
     def __init__(
         self, answers: IntakeAnswerRepository, settings: FormSettingsRepository, customers: CustomerRepository,
         pets: PetRepository, condition_types: ConditionTypeRepository, now: Callable[[], datetime],
+        signatures: ConsentSignatureRepository | None = None,
     ) -> None:
         self._answers = answers
         self._settings = settings
@@ -28,6 +32,7 @@ class GetIntakeAnswerInteractor(GetIntakeAnswerUseCase):
         self._pets = pets
         self._condition_types = condition_types
         self._now = now
+        self._signatures = signatures
 
     async def get_intake_answer(self, query: GetIntakeAnswerQuery) -> IntakeAnswerView:
         ctx = query.ctx
@@ -36,4 +41,10 @@ class GetIntakeAnswerInteractor(GetIntakeAnswerUseCase):
             raise IntakeAnswerNotFoundError("받은 문진표를 찾을 수 없습니다.")
         (view,) = await describe_answers(
             ctx, [found], customers=self._customers, pets=self._pets, condition_types=self._condition_types)
-        return view
+        if self._signatures is None:
+            return view
+        held = (await self._signatures.held_for(ctx, [found.id])).get(found.id)
+        if held is None:
+            return view
+        signed_on = held.signed_at.astimezone(ZoneInfo(ctx.timezone)).date()
+        return replace(view, consent=IntakeConsentSummary(signed_on=signed_on, parts=held.parts))

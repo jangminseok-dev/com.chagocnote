@@ -1,4 +1,5 @@
 import '../../../core/time/shop_time.dart';
+import 'consent_models.dart';
 
 /// 문진표를 보낸 곳(⑪-C). 새 손님 · 등록된 고객의 새 아이 · 이미 있는 아이의 정보를 다시 받기.
 enum IntakeMode {
@@ -98,6 +99,7 @@ class IntakeAnswer extends IntakeAnswerItem {
     required this.missing,
     required this.memoDraft,
     required this.memoOver,
+    this.consent,
   });
 
   factory IntakeAnswer.fromJson(Map<String, dynamic> json) {
@@ -143,6 +145,7 @@ class IntakeAnswer extends IntakeAnswerItem {
       ],
       memoDraft: json['memo_draft'] as String? ?? '',
       memoOver: json['memo_over'] as int? ?? 0,
+      consent: IntakeConsent.tryParse(json['consent']),
     );
   }
 
@@ -163,6 +166,30 @@ class IntakeAnswer extends IntakeAnswerItem {
   final List<String> missing; // 등록에 꼭 있어야 하는데 빈 칸의 코드(species·breed·sex·neutered·weight)
   final String memoDraft; // 반려동물 메모의 초안
   final int memoOver; // 메모 칸(500자)을 넘친 글자 수
+  final IntakeConsent? consent; // 문진표 끝에서 한 서명(⑪-C1b) — 등록하면 그 아이의 동의가 된다
+}
+
+/// 받은 문진표에 맡아 둔 서명의 요약. 그림과 적은 이름은 오지 않는다. 모양이 깨졌으면 없는 것으로 본다.
+class IntakeConsent {
+  const IntakeConsent({required this.signedOn, required this.parts});
+
+  static IntakeConsent? tryParse(Object? raw) {
+    if (raw is! Map<String, dynamic> || raw['signed_on'] is! String) return null;
+    final DateTime signedOn;
+    try {
+      signedOn = parseDay(raw['signed_on'] as String);
+    } on FormatException {
+      return null;
+    }
+    final parts = [
+      for (final part in ConsentPart.values)
+        if ((raw['parts'] as List? ?? const []).contains(part.name)) part,
+    ];
+    return IntakeConsent(signedOn: signedOn, parts: parts);
+  }
+
+  final DateTime signedOn;
+  final List<ConsentPart> parts; // 보호자가 읽은 토막, 문서의 순서
 }
 
 /// 매장이 문진표에 더한 질문. [questionId] 가 `null` 이면 아직 저장하지 않은 새 질문이다.

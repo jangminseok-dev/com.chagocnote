@@ -60,6 +60,13 @@ class IntakeExtraSchema(BaseModel):
     body: str
 
 
+class IntakeConsentSchema(BaseModel):
+    """끝의 동의서에서 맡아 둔 서명의 요약 — 그림과 적은 이름은 싣지 않는다."""
+
+    signed_on: date           # 매장 시간대의 날
+    parts: list[str]          # 보호자가 읽은 토막
+
+
 class IntakeAnswerSchema(IntakeAnswerItemSchema):
     """한 장 — 답 전부. 끈 칸·모르겠어요는 null 이다(지어내지 않는다)."""
 
@@ -80,6 +87,7 @@ class IntakeAnswerSchema(IntakeAnswerItemSchema):
     missing: list[str]        # 등록에 꼭 있어야 하는데 빈 칸 — 등록할 때 사장에게 묻는다
     memo_draft: str           # 반려동물 메모의 초안(싫어하는 것·스타일·질문의 답)
     memo_over: int            # 메모 칸(500자)을 넘친 글자 수 — 자르지 않는다
+    consent: IntakeConsentSchema | None   # 끝의 동의서에서 맡아 둔 서명(⑪-C1b) — 등록하면 그 아이의 동의가 된다
 
     @classmethod
     def of(cls, view: IntakeAnswerView) -> "IntakeAnswerSchema":
@@ -100,4 +108,7 @@ class IntakeAnswerSchema(IntakeAnswerItemSchema):
             dislikes=a.dislikes, style=a.style,
             extras=[IntakeExtraSchema(label=label, body=body) for label, body in a.extras],
             missing=list(view.missing), memo_draft=view.memo_draft, memo_over=view.memo_over,
+            consent=None if view.consent is None else IntakeConsentSchema(
+                signed_on=view.consent.signed_on,
+                parts=list(view.consent.parts)),
         )

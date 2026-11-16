@@ -423,11 +423,13 @@ class AppStrings {
   static const signaturesEmpty = '받은 서명이 없어요';
   static const signatureViaLink = '링크로';
   static const signatureViaShop = '매장에서';
+  static const signatureViaIntake = '문진표에서';
   static String signatureRow(DateTime at, String via, String name) =>
       '${fullDate(at)} · $via · $name';
   static const signatureDetailTitle = '서명한 동의서';
   static const signatureNoteLink = '링크를 받은 분이 적은 서명이에요';
   static const signatureNoteShop = '매장에서 받은 서명이에요';
+  static const signatureNoteIntake = '문진표를 적으며 링크를 받은 분이 적은 서명이에요';
   static String signatureSigner(String name) => '적은 이름: $name';
   static const signatureImageLabel = '서명 그림';
   static String sentFormsEntry(int count) => '보낸 서류 $count';
@@ -472,6 +474,15 @@ class AppStrings {
   static const intakePreviewPetName = '아이 이름';
   static const intakePreviewConditions = '지병';
   static const intakePreviewPrivacy = '개인정보 안내와 동의';
+  // 문진표 끝의 동의서(⑪-C1b).
+  static const formIntakeConsentAll = '첫 방문 문진표에서 모든 아이에게 동의서 받기';
+  static const formIntakeConsentAllOff = '꺼져 있으면 나이가 많거나 지병이 있는 아이만 문진표 끝에서 미용 동의서에 서명해요.';
+  static const formIntakeConsentAllOn = '모든 아이가 문진표 끝에서 미용 동의서에 서명해요.';
+  static const intakePreviewConsentAll = '미용 동의서와 서명';
+  static const intakePreviewConsentSome = '미용 동의서와 서명 (나이가 많거나 지병이 있는 아이)';
+  static const intakeSectionConsent = '미용 동의서';
+  static String intakeConsentSigned(DateTime on) => '${on.month}월 ${on.day}일에 서명했어요';
+  static const intakeConsentNote = '등록하면 이 아이의 미용 동의로 남아요.';
 
   // 받은 문진표(⑪-C) — 다시 치지 않고 등록한다.
   static String receivedIntakeEntry(int count) => '받은 문진표 $count';

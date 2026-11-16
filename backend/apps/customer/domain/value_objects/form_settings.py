@@ -16,6 +16,7 @@ class FormSettings:
     consent_text: str | None       # 동의서 링크를 보내는 글의 템플릿. None 이면 기본 글
     intake_keep_days: int = 30     # 확인하지 않은 문진표를 지우는 날 수(7~90)
     intake_hidden: tuple[str, ...] = ()   # 문진표에서 매장이 끈 칸
+    intake_consent_all: bool = False      # 첫 방문 문진표에서 모든 아이에게 동의서 받기(꺼지면 노령·지병인 아이만)
 
     @property
     def policy(self) -> ConsentPolicy:

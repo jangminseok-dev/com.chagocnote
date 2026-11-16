@@ -24,5 +24,6 @@ async def submit_public_intake(
     use_case: SubmitPublicIntakeUseCase = Depends(get_submit_public_intake_use_case),
 ) -> Response:
     await use_case.submit_public_intake(SubmitPublicIntakeCommand(
-        token=x_form_token, client=client, entry=body.to_entry(), done=body.done))
+        token=x_form_token, client=client, entry=body.to_entry(), done=body.done,
+        consent=None if body.consent is None else body.consent.to_entry()))
     return Response(status_code=204, headers=PUBLIC_FORM_HEADERS)

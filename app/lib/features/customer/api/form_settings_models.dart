@@ -10,6 +10,7 @@ class FormSettingsValues {
     required this.consentText,
     this.intakeKeepDays = 30,
     this.intakeHidden = const [],
+    this.intakeConsentAll = false,
   });
 
   factory FormSettingsValues.fromJson(Map<String, dynamic> json) => FormSettingsValues(
@@ -24,6 +25,7 @@ class FormSettingsValues {
       for (final code in json['intake_hidden'] as List? ?? const [])
         if (code is String) code,
     ],
+    intakeConsentAll: json['intake_consent_all'] == true, // ⑪-C1b — 옛 서버면 꺼짐
   );
 
   final int linkDays; // 링크를 열 수 있는 날 수(1~30)
@@ -33,6 +35,7 @@ class FormSettingsValues {
   final String consentText; // 동의서 링크를 보내는 글의 템플릿
   final int intakeKeepDays; // 확인하지 않은 문진표를 지우는 날 수(7~90)
   final List<String> intakeHidden; // 문진표에서 매장이 끈 칸
+  final bool intakeConsentAll; // 첫 방문 문진표에서 모든 아이에게 동의서 받기(꺼지면 노령·지병인 아이만)
 }
 
 /// 매장의 서류 설정 — 지금 값과 기본값([defaults]). 화면에 빈칸이 없다.
@@ -45,6 +48,7 @@ class FormSettings extends FormSettingsValues {
     required super.consentText,
     super.intakeKeepDays,
     super.intakeHidden,
+    super.intakeConsentAll,
     required this.defaults,
   });
 
@@ -58,6 +62,7 @@ class FormSettings extends FormSettingsValues {
       consentText: now.consentText,
       intakeKeepDays: now.intakeKeepDays,
       intakeHidden: now.intakeHidden,
+      intakeConsentAll: now.intakeConsentAll,
       defaults: FormSettingsValues.fromJson(json['defaults'] as Map<String, dynamic>),
     );
   }
@@ -72,6 +77,7 @@ class FormSettings extends FormSettingsValues {
     String? consentText,
     int? intakeKeepDays,
     List<String>? intakeHidden,
+    bool? intakeConsentAll,
   }) => FormSettings(
     linkDays: linkDays ?? this.linkDays,
     seniorAge: seniorAge ?? this.seniorAge,
@@ -80,6 +86,7 @@ class FormSettings extends FormSettingsValues {
     consentText: consentText ?? this.consentText,
     intakeKeepDays: intakeKeepDays ?? this.intakeKeepDays,
     intakeHidden: intakeHidden ?? this.intakeHidden,
+    intakeConsentAll: intakeConsentAll ?? this.intakeConsentAll,
     defaults: defaults,
   );
 
@@ -92,6 +99,7 @@ class FormSettings extends FormSettingsValues {
     'consent_text': consentText == defaults.consentText ? null : consentText,
     'intake_keep_days': intakeKeepDays,
     'intake_hidden': intakeHidden,
+    'intake_consent_all': intakeConsentAll,
   };
 }
 

@@ -20,6 +20,7 @@ import 'consent_sign_screen.dart' show consentPartTitle;
 String _via(SignatureChannel channel) => switch (channel) {
   SignatureChannel.link => AppStrings.signatureViaLink,
   SignatureChannel.inShop => AppStrings.signatureViaShop,
+  SignatureChannel.intake => AppStrings.signatureViaIntake,
 };
 
 class _Head extends StatelessWidget {
@@ -158,6 +159,7 @@ class ConsentSignatureScreen extends ConsumerWidget {
           switch (detail.channel) {
             SignatureChannel.link => AppStrings.signatureNoteLink,
             SignatureChannel.inShop => AppStrings.signatureNoteShop,
+            SignatureChannel.intake => AppStrings.signatureNoteIntake,
           },
           style: AppTypography.caption,
         ),

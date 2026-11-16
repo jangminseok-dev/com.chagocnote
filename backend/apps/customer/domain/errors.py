@@ -86,6 +86,12 @@ class ConsentDocumentChangedError(CustomerError):
     code = "CONSENT_DOCUMENT_CHANGED"
 
 
+class ConsentRequiredError(CustomerError):
+    """문진표의 답으로 보아 동의서 구역이 나타나야 하는데 서명이 없거나 필요한 토막을 읽지 않았다(⑪-C1b)."""
+
+    code = "CONSENT_REQUIRED"
+
+
 class ConsentUpToDateError(CustomerError):
     """다시 받을 토막이 하나도 없다."""
 

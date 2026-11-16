@@ -8,6 +8,13 @@ export type ConsentPart = 'basic' | 'senior' | 'condition'
 /** 문서의 순서. */
 export const CONSENT_PARTS: ConsentPart[] = ['basic', 'senior', 'condition']
 
+/** 토막의 제목 — 동의서와 문진표 끝의 동의서가 함께 쓴다. */
+export const CONSENT_PART_TITLES: Record<ConsentPart, string> = {
+  basic: '미용 안내',
+  senior: '나이가 많은 아이',
+  condition: '지병이 있는 아이',
+}
+
 export type ConsentPet = { name: string; conditions: string[]; parts: ConsentPart[] }
 
 /** 열려 있는 동의서. 문안은 백엔드가 열 때 조립한 것이다 — 웹은 온 것만 그린다. */
@@ -39,6 +46,13 @@ export type OpenIntake = {
   answered: number // 이 링크로 이미 낸 답의 수
   guardian_needed: boolean // 보호자 이름·번호를 적어야 하나
   keep_days: number // 매장이 확인하지 않은 답을 지우는 날 수(개인정보 안내)
+  /** 끝의 동의서 구역(⑪-C1b). 어느 토막이 붙는지는 적은 답으로 정한다(`consentPartsOf`) — 백엔드가 같은 규칙으로 다시 본다. */
+  consent: {
+    all: boolean // 매장이 `모든 아이에게` 를 켰다
+    senior_age: number // 이 나이부터 노령 토막
+    texts: Partial<Record<ConsentPart, { body: string }>>
+    digest: string // 낼 때 그대로 돌려보낸다 — 연 뒤 글·기준이 바뀌었으면 409
+  }
 }
 
 /** 이미 낸(또는 그 사이 매장에서 받은) 서류. 낸 내용은 다시 오지 않는다. */
@@ -102,7 +116,7 @@ export async function submitConsent(token: string, clientIp: string | null, body
   }
 }
 
-const INTAKE_STATUSES = [204, 404, 410, 413, 422, 429]
+const INTAKE_STATUSES = [204, 404, 409, 410, 413, 422, 429] // 409 — 끝의 동의서의 글·기준이 연 뒤 바뀌었다(⑪-C1b)
 
 /** 문진표의 답을 보내고 웹이 낼 상태 코드를 돌려준다. 본문은 그대로 넘긴다 — 칸의 규칙은 백엔드가 본다. */
 export async function submitIntake(token: string, clientIp: string | null, body: unknown): Promise<number> {

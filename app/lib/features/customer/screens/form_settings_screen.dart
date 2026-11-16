@@ -233,6 +233,24 @@ class _FormSettingsScreenState extends ConsumerState<FormSettingsScreen> {
                     ),
                   ],
                 ),
+              // 문진표 끝의 동의서(⑪-C1b) — 누르면 바로 전체를 보낸다(다른 칸과 같다).
+              Row(
+                children: [
+                  const Expanded(
+                    child: ExcludeSemantics(child: Text(AppStrings.formIntakeConsentAll, style: AppTypography.body)),
+                  ),
+                  AppSwitch(
+                    key: const ValueKey('intake-consent-all'),
+                    value: shown.intakeConsentAll,
+                    semanticLabel: AppStrings.formIntakeConsentAll,
+                    onChanged: canEdit ? (on) => _set(shown.copyWith(intakeConsentAll: on)) : null,
+                  ),
+                ],
+              ),
+              Text(
+                shown.intakeConsentAll ? AppStrings.formIntakeConsentAllOn : AppStrings.formIntakeConsentAllOff,
+                style: AppTypography.caption,
+              ),
               const SizedBox(height: AppSpacing.xs),
               // 끌 수 없는 칸과 그 까닭 — 누구의 답인지, 어떤 동의가 필요한지가 여기서 정해진다.
               const Text(AppStrings.formIntakeAlways, style: AppTypography.caption),
@@ -263,6 +281,7 @@ class _FormSettingsScreenState extends ConsumerState<FormSettingsScreen> {
                   if (!shown.intakeHidden.contains(code)) AppStrings.intakeFieldNames[code] ?? code,
                 for (final q in questions)
                   q.required ? '${q.label} (${AppStrings.intakeQuestionRequired})' : q.label,
+                shown.intakeConsentAll ? AppStrings.intakePreviewConsentAll : AppStrings.intakePreviewConsentSome,
                 AppStrings.intakePreviewPrivacy,
               ])
                 Padding(

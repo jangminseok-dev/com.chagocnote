@@ -12,7 +12,7 @@
 //   GET /v1/public/form            ok 열림(아이 둘·토막 셋)  part 바뀐 부분만  sent 보냈어요  gone 410  rate 429  boom 500
 //                                  slow 매달린다  down 소켓을 끊는다  그 밖 404
 //   GET /v1/public/form (문진표)   iok 새 손님  iupd 다시 받기(두부)  isent 보냈어요  ibad 열림(제출은 422)
-//   POST /v1/public/form/intake    iok 204  ibad 422  gone 410  rate 429  boom 500  그 밖 404
+//   POST /v1/public/form/intake    iok 204  ichg 409(동의서 글이 바뀜)  ibad 422  gone 410  rate 429  boom 500  그 밖 404
 //   POST /v1/public/form/consent   ok 204  chg 409  gone 410  big 413  bad 422  rate 429  boom 500  그 밖 404
 //
 // 이 서버는 인증 프로세스도 맡는다(검사는 AUTH_BASE_URL 을 같은 주소로 둔다).
@@ -217,18 +217,20 @@ const OPEN_INTAKE = {
   answered: 0,
   guardian_needed: true,
   keep_days: 30,
+  // 끝의 동의서 구역(⑪-C1b) — 글과 기준뿐이다. 아이의 지금 사실은 없다.
+  consent: { all: false, senior_age: 10, texts: { basic: { body: '미용 안내의 글' }, senior: { body: '노령 안내의 글' }, condition: { body: '지병 안내의 글' } }, digest: 'c'.repeat(64) },
 }
 const UPDATE_INTAKE = { ...OPEN_INTAKE, mode: 'update', pet_name: '두부', guardian_needed: false, questions: [] }
 const SUBMITTED_INTAKE = { kind: 'intake', state: 'submitted', shop: { name: 'Hiss Haus' }, submitted_on: '2026-11-16' }
 const FORMS = {
   ok: OPEN_FORM, part: PARTIAL_FORM, sent: SUBMITTED_FORM, chg: OPEN_FORM, big: OPEN_FORM, bad: OPEN_FORM,
-  iok: OPEN_INTAKE, iupd: UPDATE_INTAKE, isent: SUBMITTED_INTAKE, ibad: OPEN_INTAKE,
+  iok: OPEN_INTAKE, iupd: UPDATE_INTAKE, isent: SUBMITTED_INTAKE, ibad: OPEN_INTAKE, ichg: OPEN_INTAKE,
 }
-const INTAKE_STATUS = { iok: [204], ibad: [422, 'VALIDATION_ERROR'] }
+const INTAKE_STATUS = { iok: [204], ibad: [422, 'VALIDATION_ERROR'], ichg: [409, 'CONSENT_DOCUMENT_CHANGED'] }
 const FORM_ERRORS = { gone: [410, 'FORM_CLOSED'], rate: [429, 'TOO_MANY_ATTEMPTS'], boom: [500, 'INTERNAL_ERROR'] }
 const CONSENT_STATUS = { ok: [204], chg: [409, 'CONSENT_DOCUMENT_CHANGED'], big: [413, 'PAYLOAD_TOO_LARGE'], bad: [422, 'VALIDATION_ERROR'] }
 const formPrefixOf = (token) =>
-  ['iok', 'iupd', 'isent', 'ibad', 'ok', 'part', 'sent', 'chg', 'big', 'bad', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
+  ['iok', 'iupd', 'isent', 'ibad', 'ichg', 'ok', 'part', 'sent', 'chg', 'big', 'bad', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
 
 async function formApi(req, url, send) {
   const prefix = formPrefixOf(String(req.headers['x-form-token'] ?? ''))

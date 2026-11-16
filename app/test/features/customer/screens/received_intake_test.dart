@@ -298,4 +298,24 @@ void main() {
 
     expect(find.text(AppStrings.receivedIntakeEntry(1)), findsOneWidget);
   });
+
+  testWidgets('문진표 끝에서 서명했으면 한 장에 미용 동의서 줄이 있고 등록하면 그 아이의 동의가 된다고 적혀 있다', (tester) async {
+    final world = _World(answers: [
+      intakeAnswerJson(consent: {'signed_on': '2026-11-16', 'parts': ['basic', 'senior']}),
+      intakeAnswerJson(answerId: 52, petName: '라떼'),
+    ]);
+    await world.open(tester, '/intake-answers/51');
+
+    expect(find.text(AppStrings.intakeSectionConsent), findsOneWidget);
+    expect(find.text(AppStrings.intakeConsentSigned(DateTime(2026, 11, 16))), findsOneWidget);
+    expect(find.text('미용 안내 · 나이가 많은 아이'), findsOneWidget);
+    expect(find.text(AppStrings.intakeConsentNote), findsOneWidget);
+  });
+
+  testWidgets('서명이 없는 답에는 미용 동의서 줄이 없다', (tester) async {
+    final world = _World();
+    await world.open(tester, '/intake-answers/51');
+
+    expect(find.text(AppStrings.intakeSectionConsent), findsNothing);
+  });
 }

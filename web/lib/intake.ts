@@ -1,4 +1,4 @@
-import type { OpenIntake } from './form'
+import { CONSENT_PARTS, type ConsentPart, type OpenIntake } from './form'
 
 /** 자주 쓰는 품종 — 고르면 글자를 치지 않는다. 없으면 `직접 적기`. */
 export const BREEDS: Record<'dog' | 'cat', string[]> = {
@@ -28,13 +28,17 @@ export type IntakeDraft = {
   style: string
   extras: Record<number, string> // 질문 ID → 답
   agreed: boolean
+  // 끝의 동의서(⑪-C1b) — 동의서가 붙는 답일 때만 묻는다.
+  signerName: string
+  signature: string | null // 그린 서명의 PNG(base64)
+  consentAgreed: boolean
 }
 
 export function emptyDraft(): IntakeDraft {
   return {
     guardianName: '', guardianPhone: '', petName: '', species: '', breed: '', sex: '', neutered: '',
     birthKind: '', birthDate: '', birthYear: '', weight: '', weightUnknown: false, noConditions: false,
-    conditions: [], dislikes: '', style: '', extras: {}, agreed: false,
+    conditions: [], dislikes: '', style: '', extras: {}, agreed: false, signerName: '', signature: null, consentAgreed: false,
   }
 }
 
@@ -76,6 +80,29 @@ function weightOf(value: string): number | null {
 }
 
 const OTHER = 'other'
+
+/** 그날의 나이 — 백엔드 `pet_age.age_years` 와 같다. 생일을 알면 만 나이, 태어난 해만 알면 해의 차이, 모르면 null. */
+function ageOn(draft: IntakeDraft, today: Date): number | null {
+  if (draft.birthKind === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(draft.birthDate)) {
+    const [year, month, day] = draft.birthDate.split('-').map(Number)
+    const beforeBirthday = today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)
+    return today.getFullYear() - year - (beforeBirthday ? 1 : 0)
+  }
+  if (draft.birthKind === 'year' && /^\d{4}$/.test(draft.birthYear.trim())) return today.getFullYear() - Number(draft.birthYear)
+  return null
+}
+
+/**
+ * 끝의 동의서에 붙는 토막(⑪-C1b). 빈 목록이면 동의서가 없다 — 백엔드 `intake_consent.consent_parts` 와 같은 규칙이다.
+ * 노령(매장의 노령 나이 이상)이거나 지병을 골랐거나 매장이 `모든 아이에게` 를 켰을 때. 나이 칸을 껐거나 모르면 노령이 아니다.
+ */
+export function consentPartsOf(form: OpenIntake, draft: IntakeDraft, today: Date = new Date()): ConsentPart[] {
+  const age = form.fields.includes('birth') ? ageOn(draft, today) : null
+  const senior = age !== null && age >= form.consent.senior_age
+  const condition = !draft.noConditions && draft.conditions.length > 0
+  if (!(form.consent.all || senior || condition)) return []
+  return CONSENT_PARTS.filter((part) => part === 'basic' || (part === 'senior' && senior) || (part === 'condition' && condition))
+}
 
 /**
  * 처음 걸리는 칸 하나(화면의 위에서부터). 없으면 null — 있으면 보내지 않고 그 칸을 짚는다.
@@ -130,14 +157,19 @@ export function problemOf(form: OpenIntake, draft: IntakeDraft, today: Date = ne
       }
     }
   }
+  if (consentPartsOf(form, draft, today).length > 0) {
+    if (line(draft.signerName) === '') return need('signerName', '서명하는 분의 이름을 적어 주세요')
+    if (draft.signature === null) return need('signature', '서명해 주세요')
+    if (!draft.consentAgreed) return need('consentAgreed', '미용 동의서에 동의해 주세요')
+  }
   if (!draft.agreed) return need('agreed', '개인정보 수집·이용 안내에 동의해 주세요')
   return null
 }
 
 type Json = Record<string, unknown>
 
-/** 보낼 본문. 끈 칸은 싣지 않고, 빈 글은 null 이다. 다시 받기는 적은 것만 싣는다. */
-export function bodyOf(form: OpenIntake, draft: IntakeDraft, done: boolean): { guardian: Json | null; pet: Json; extras: Json[]; privacy_agreed: boolean; done: boolean } {
+/** 보낼 본문. 끈 칸은 싣지 않고, 빈 글은 null 이다. 다시 받기는 적은 것만 싣는다. 동의서가 붙으면 서명을 함께 싣는다. */
+export function bodyOf(form: OpenIntake, draft: IntakeDraft, done: boolean, today: Date = new Date()): { guardian: Json | null; pet: Json; extras: Json[]; privacy_agreed: boolean; done: boolean; consent?: Json } {
   const update = form.mode === 'update'
   const shown = (code: string) => form.fields.includes(code)
   const text = (value: string) => (line(value) === '' ? null : line(value))
@@ -173,7 +205,11 @@ export function bodyOf(form: OpenIntake, draft: IntakeDraft, done: boolean): { g
   if (shown('dislikes')) put('dislikes', text(draft.dislikes), line(draft.dislikes) !== '')
   if (shown('style')) put('style', text(draft.style), line(draft.style) !== '')
 
+  const parts = consentPartsOf(form, draft, today)
   return {
+    ...(parts.length > 0
+      ? { consent: { digest: form.consent.digest, parts, signer_name: line(draft.signerName), signature_png: draft.signature } }
+      : {}),
     guardian: form.guardian_needed
       ? { name: line(draft.guardianName), phone: sentPhone(draft.guardianPhone) }
       : null,

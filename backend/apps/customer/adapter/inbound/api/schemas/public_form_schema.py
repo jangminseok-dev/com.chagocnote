@@ -8,13 +8,13 @@ from datetime import date
 from typing import Any
 
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field, StrictBool, StringConstraints, field_validator
 
 from customer.adapter.inbound.api.schemas.consent_schema import SignaturePng, decode_png
 from customer.adapter.inbound.api.schemas.text_validators import reject_control_chars
-from customer.app.dtos.public_form_dto import PublicFormView
+from customer.app.dtos.public_form_dto import IntakeConsentEntry, PublicFormView
 from customer.domain.services.intake_rules import IntakeEntry
 from customer.domain.value_objects.condition_entry import ConditionEntry
 
@@ -64,6 +64,13 @@ class PublicConditionTypeSchema(BaseModel):
     label: str
 
 
+class PublicIntakeConsentSchema(BaseModel):
+    all: bool
+    senior_age: int
+    texts: dict[str, PublicFormTextSchema]
+    digest: str
+
+
 class PublicOpenIntakeSchema(BaseModel):
     """열린 문진표의 구성. 지금 값(품종·몸무게·지병)·전화번호·ID 는 싣지 않는다."""
 
@@ -78,6 +85,7 @@ class PublicOpenIntakeSchema(BaseModel):
     answered: int                 # 이 링크로 이미 낸 답의 수
     guardian_needed: bool         # 보호자 이름·번호를 적어야 하나
     keep_days: int                # 매장이 확인하지 않은 답을 지우는 날 수(개인정보 안내)
+    consent: PublicIntakeConsentSchema   # 끝의 동의서 구역 — 글과 기준. 아이의 지금 사실은 싣지 않는다
 
 
 def public_form_body(view: PublicFormView) -> dict[str, Any]:
@@ -92,6 +100,11 @@ def public_form_body(view: PublicFormView) -> dict[str, Any]:
             condition_types=[PublicConditionTypeSchema(code=code, label=label)
                              for code, label in intake.condition_types],
             answered=intake.answered, guardian_needed=intake.guardian_needed, keep_days=intake.keep_days,
+            consent=PublicIntakeConsentSchema(
+                all=intake.consent.all, senior_age=intake.consent.senior_age,
+                texts={part: PublicFormTextSchema(body=body) for part, body in intake.consent.texts.items()},
+                digest=intake.consent.digest,
+            ),
         ).model_dump(mode="json")
     if view.document is None:
         return PublicSubmittedFormSchema(
@@ -166,12 +179,34 @@ class PublicIntakeExtraSchema(BaseModel):
     body: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200), _NoControl]
 
 
+class PublicIntakeConsentRequestSchema(BaseModel):
+    """문진표 끝의 동의서 구역에서 한 서명. 이름(1~50자)·그림의 규칙은 동의서 제출과 같고 유스케이스가 본다."""
+
+    digest: str = Field(min_length=1, max_length=128)
+    parts: Annotated[list[Literal["basic", "senior", "condition"]], Field(min_length=1, max_length=3)]
+    signer_name: str = Field(max_length=200)
+    signature_png: SignaturePng
+
+    @field_validator("signature_png")
+    @classmethod
+    def _is_base64(cls, value: str) -> str:
+        decode_png(value)
+        return value
+
+    def to_entry(self) -> IntakeConsentEntry:
+        return IntakeConsentEntry(
+            digest=self.digest, parts=tuple(dict.fromkeys(self.parts)), signer_name=self.signer_name,
+            signature_png=decode_png(self.signature_png),
+        )
+
+
 class SubmitPublicIntakeRequestSchema(BaseModel):
     guardian: PublicIntakeGuardianSchema | None = None
     pet: PublicIntakePetSchema
     extras: Annotated[list[PublicIntakeExtraSchema], Field(max_length=20)] = []
     privacy_agreed: StrictBool
     done: StrictBool = False
+    consent: PublicIntakeConsentRequestSchema | None = None   # 끝의 동의서 구역(⑪-C1b)
 
     def to_entry(self) -> IntakeEntry:
         guardian, pet = self.guardian or PublicIntakeGuardianSchema(), self.pet

@@ -158,6 +158,8 @@ const intakeFamily = await call('POST', `${S}/customers`, staff, {
 const intakeNew = await call('POST', `${S}/intake-forms`, staff, { customer_id: null, pet_id: null })
 const intakeUpdate = await call('POST', `${S}/intake-forms`, staff, { customer_id: null, pet_id: intakeFamily.pets[0].pet_id })
 const intakeGone = await call('POST', `${S}/intake-forms`, staff, { customer_id: null, pet_id: null })
+// 문진표 끝의 동의서(⑪-C1b) — 노령 아이를 적고 서명해 내는 새 손님용 링크.
+const intakeConsent = await call('POST', `${S}/intake-forms`, staff, { customer_id: null, pet_id: null })
 await call('DELETE', `${S}/forms/${intakeGone.form_id}`, staff)
 // 공개 서류의 제출은 접속 주소당 10분에 10번이다 — 동의서와 문진표 흐름을 이어 돌리면 넘는다. 개발 Redis 의 횟수만 비운다.
 const redis = (...args) => execFileSync('docker', ['compose', '-f', '../infra/docker-compose.yml', 'exec', '-T', 'redis', 'redis-cli', ...args])
@@ -172,6 +174,7 @@ writeFileSync('test-results/e2e-links.json', JSON.stringify(
     consentLive: signing.sent.url, consentClosed: revoked.sent.url, consentTwice: twice.sent.url, consentPetPath: `${S}/pets/${signing.petId}`,
     consentPetName: '초코', consentPetBody: consentPet('초코'),
     intakeNew: intakeNew.url, intakeUpdate: intakeUpdate.url, intakeClosed: intakeGone.url, intakeAnswers: `${S}/intake-answers`,
+    intakeConsent: intakeConsent.url,
     intakePetName: '보리', intakePhone: `010-${String((STAMP + 6) % 100000000).padStart(8, '0').replace(/(\d{4})(\d{4})/, '$1-$2')}`,
   }, null, 2,
 ))

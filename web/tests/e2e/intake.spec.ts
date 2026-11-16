@@ -11,6 +11,7 @@ type Links = {
   intakeAnswers: string
   intakePetName: string
   intakePhone: string
+  intakeConsent: string
 }
 const links: Links = JSON.parse(readFileSync('test-results/e2e-links.json', 'utf8'))
 
@@ -133,3 +134,37 @@ test('끊은 문진표 링크는 닫힌 화면이고 폼이 없다', async ({ pa
   await expect(page.getByLabel('아이 이름')).toHaveCount(0)
   await expect(page.getByRole('link', { name: /로그인/ })).toHaveCount(0)
 })
+
+test('노령 아이를 적으면 아래에 미용 동의서가 나타나고 서명과 함께 낸다 — 받은 문진표에 서명이 맡아져 있다', async ({ page, request }) => {
+  await page.goto(links.intakeConsent)
+  await page.getByLabel('보호자 이름').fill('김서명손님')
+  await page.getByLabel('전화번호').fill('010-5555-0101')
+  await fillPet(page, '호두')
+  await expect(page.getByRole('heading', { name: '미용 동의서' })).toHaveCount(0)
+
+  await chip(page, '태어난 해만 알아요').click()
+  await page.getByLabel('태어난 해').selectOption(String(new Date().getFullYear() - 12))
+
+  await expect(page.getByRole('heading', { name: '미용 동의서' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '나이가 많은 아이' })).toBeVisible()
+  await expect(page.getByLabel('서명하는 분의 이름')).toHaveValue('김서명손님')
+  await page.getByRole('button', { name: '보내기', exact: true }).click()
+  await expect(page.locator('form [role="alert"]')).toHaveText('서명해 주세요')
+
+  const canvas = page.getByLabel('서명하는 곳')
+  await canvas.scrollIntoViewIfNeeded()
+  const box = await canvas.boundingBox()
+  if (box === null) throw new Error('서명 칸이 없다')
+  await page.mouse.move(box.x + 30, box.y + 30)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 90, box.y + 60, { steps: 6 })
+  await page.mouse.move(box.x + 150, box.y + 30, { steps: 6 })
+  await page.mouse.up()
+  await page.getByLabel('위 내용을 읽었고 동의해요').check()
+  await page.getByRole('button', { name: '보내기', exact: true }).click()
+
+  await expect(page.locator('[data-section="submitted"]')).toContainText('보냈어요', { timeout: 20_000 })
+  const received = (await answers(request)).find((a) => a.guardian_name === '김서명손님')
+  expect(received.consent.parts).toEqual(['basic', 'senior'])
+})
+

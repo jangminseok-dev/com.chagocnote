@@ -60,7 +60,8 @@ class ConsentSignatureOrm(Base):
 
     __tablename__ = "consent_signatures"
     __table_args__ = (
-        CheckConstraint("channel IN ('link', 'in_shop')", name="ck_consent_signatures_channel"),
+        CheckConstraint("channel IN ('link', 'in_shop', 'intake')", name="ck_consent_signatures_channel"),
+        CheckConstraint("customer_id IS NOT NULL OR intake_answer_id IS NOT NULL", name="ck_consent_signatures_owner"),
         CheckConstraint("octet_length(signature_png) <= 65536", name="ck_consent_signatures_png_size"),
         CheckConstraint("(channel = 'link') = (form_id IS NOT NULL)", name="ck_consent_signatures_link_has_form"),
         UniqueConstraint("form_id", name="uq_consent_signatures_form_id"),
@@ -69,8 +70,11 @@ class ConsentSignatureOrm(Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     shop_id: Mapped[int] = mapped_column(BigInteger)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"))   # 맡아 둔 서명은 없다(⑪-C1b)
     form_id: Mapped[int | None] = mapped_column(ForeignKey("customer_forms.id"))
+    # 문진표 끝에서 받아 맡아 둔 서명 — 그 답에 매달려 있다가 등록·반영이 떼어 내 아이에게 붙인다(0023).
+    intake_answer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("intake_answers.id", ondelete="CASCADE"), index=True)
     channel: Mapped[str] = mapped_column(String(10))
     signer_name: Mapped[str] = mapped_column(String(50))
     signature_png: Mapped[bytes] = mapped_column(LargeBinary)

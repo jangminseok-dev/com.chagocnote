@@ -7,6 +7,27 @@ import type { OpenIntake } from '../lib/form'
 const refresh = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 
+// 서명 칸은 따로 본다(SignaturePad.test.tsx). 여기서는 버튼으로 갈아 끼우되 계약은 실제와 같다 —
+// resetKey 가 바뀌면 칸을 비우고 onChange(null) 을 부른다.
+vi.mock('../components/SignaturePad', async () => {
+  const { useEffect, useRef } = await import('react')
+  return {
+    SignaturePad: ({ onChange, resetKey }: { onChange: (png: string | null) => void; resetKey: number }) => {
+      const first = useRef(resetKey)
+      useEffect(() => {
+        if (resetKey !== first.current) onChange(null)
+      }, [resetKey]) // eslint-disable-line react-hooks/exhaustive-deps
+      return (
+        <div data-testid="pad" data-reset={resetKey}>
+          <button type="button" onClick={() => onChange('UE5H')}>
+            서명하기
+          </button>
+        </div>
+      )
+    },
+  }
+})
+
 const TOKEN = 'ok'.padEnd(43, 'A')
 const FORM: OpenIntake = {
   kind: 'intake',
@@ -23,6 +44,12 @@ const FORM: OpenIntake = {
   answered: 0,
   guardian_needed: true,
   keep_days: 30,
+  consent: {
+    all: false,
+    senior_age: 10,
+    texts: { basic: { body: '미용 중 생길 수 있는 일' }, senior: { body: '나이가 많은 아이는 쉬어 가며' }, condition: { body: '지병이 나빠질 수 있어요' } },
+    digest: 'c'.repeat(64),
+  },
 }
 const fetchMock = vi.fn<typeof fetch>()
 
@@ -142,6 +169,7 @@ test('지병을 고르면 한 줄 칸이 생기고 없어요를 누르면 고른
   type('심장 질환 — 알려 주실 것', '약 복용 중')
   pick('기타')
   type('기타 — 어떤 지병인가요', '슬개골')
+  signConsent()          // 지병을 고르면 끝의 동의서에 서명한다(⑪-C1b)
 
   await press(/^보내기$/)
   expect(sentBody().body.pet).toMatchObject({
@@ -299,3 +327,123 @@ test('개인정보 안내에 무엇을 왜 받고 언제 지우는지가 적혀 
   expect(notice).toHaveTextContent('Hiss Haus')
   expect(notice).toHaveTextContent('14일')
 })
+
+// ── 문진표 끝의 동의서(⑪-C1b) ─────────────────────────────────────────────────────────────
+
+const OLD = String(new Date().getFullYear() - 12)
+
+/** 노령 아이로 채운다 — 나이는 태어난 해로. */
+function fillSenior() {
+  fill()
+  pick('태어난 해만 알아요')
+  fireEvent.change(screen.getByLabelText('태어난 해'), { target: { value: OLD } })
+}
+
+function signConsent() {
+  fireEvent.click(screen.getByRole('button', { name: '서명하기' }))
+  fireEvent.click(screen.getByLabelText('위 내용을 읽었고 동의해요'))
+}
+
+test('노령이면 문진표 아래에 동의서가 나타나고 서명하는 분의 이름은 보호자 이름으로 채워져 있다', () => {
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fill()
+  expect(screen.queryByRole('heading', { name: '미용 동의서' })).toBeNull()      // 몰라요 — 노령이 아니다
+
+  pick('태어난 해만 알아요')
+  fireEvent.change(screen.getByLabelText('태어난 해'), { target: { value: OLD } })
+
+  expect(screen.getByRole('heading', { name: '미용 동의서' })).toBeInTheDocument()
+  expect(screen.getByText('미용 중 생길 수 있는 일')).toBeInTheDocument()
+  expect(screen.getByText('나이가 많은 아이는 쉬어 가며')).toBeInTheDocument()
+  expect(screen.queryByText('지병이 나빠질 수 있어요')).toBeNull()
+  expect(screen.getByLabelText('서명하는 분의 이름')).toHaveValue('김민지')
+})
+
+test('지병을 고르면 지병 토막과 고른 지병의 이름이 글 밖에 따로 보인다', () => {
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fill()
+  pick('심장 질환')
+
+  expect(screen.getByText('지병이 나빠질 수 있어요')).toBeInTheDocument()
+  expect(screen.getByText('알려 주신 지병: 심장 질환')).toBeInTheDocument()
+})
+
+test('서명 없이는 보내지 않고, 서명하면 지문·토막·이름·서명이 함께 간다', async () => {
+  respondWith(204)
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fillSenior()
+
+  await press(/^보내기$/)
+  expect(fetchMock).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent('서명해 주세요')
+
+  signConsent()
+  await press(/^보내기$/)
+
+  expect(sentBody().body.consent).toEqual({ digest: 'c'.repeat(64), parts: ['basic', 'senior'], signer_name: '김민지', signature_png: 'UE5H' })
+})
+
+test('409 면 내용이 바뀌었다고 알리고 다시 읽는다 — 적은 답은 남고 서명과 동의 체크만 비운다', async () => {
+  respondWith(409)
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fillSenior()
+  signConsent()
+
+  await press(/^보내기$/)
+
+  expect(screen.getByRole('alert')).toHaveTextContent('내용이 바뀌었어요. 다시 읽어 주세요')
+  expect(refresh).toHaveBeenCalledTimes(1)
+  expect(screen.getByLabelText('아이 이름')).toHaveValue('콩이')
+  expect(screen.getByLabelText('서명하는 분의 이름')).toHaveValue('김민지')
+  expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
+  expect(screen.getByTestId('pad')).toHaveAttribute('data-reset', '1')
+})
+
+test('다른 아이도 적기 뒤에는 서명이 비어 있고 서명하는 분의 이름은 남는다', async () => {
+  respondWith(204)
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fillSenior()
+  signConsent()
+
+  await press(/보내고 다른 아이도 적기/)
+  type('아이 이름', '라떼')
+  pick('태어난 해만 알아요')
+  fireEvent.change(screen.getByLabelText('태어난 해'), { target: { value: OLD } })
+
+  expect(screen.getByLabelText('서명하는 분의 이름')).toHaveValue('김민지')
+  expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
+  expect(screen.getByTestId('pad')).toHaveAttribute('data-reset', '1')
+})
+
+// ── 최종 검토 ──────────────────────────────────────────────────────────────
+
+test('서명한 뒤 지병을 풀었다가 다시 고르면 서명과 체크가 비어 있다 — 보이지 않던 서명이 따라가지 않는다', async () => {
+  respondWith(204)
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fill()
+  pick('심장 질환')
+  signConsent()
+
+  pick('없어요')
+  pick('심장 질환')
+
+  expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
+  await press(/^보내기$/)
+  expect(fetchMock).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent('서명해 주세요')
+})
+
+test('서명한 뒤 토막이 늘면(노령이 되면) 서명을 다시 받는다', () => {
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fill()
+  pick('심장 질환')
+  signConsent()
+
+  pick('태어난 해만 알아요')
+  fireEvent.change(screen.getByLabelText('태어난 해'), { target: { value: OLD } })
+
+  expect(screen.getByText('나이가 많은 아이는 쉬어 가며')).toBeInTheDocument()
+  expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
+  expect(screen.getByTestId('pad')).toHaveAttribute('data-reset', '1')
+})
+
