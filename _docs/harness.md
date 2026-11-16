@@ -42,6 +42,7 @@
 | 웹 서버 응답 | `pnpm check:server` — `pnpm build` 뒤. 가짜 백엔드와 `next start`를 빈 포트에 띄워 상태 코드·헤더 셋·첫 HTML·백엔드 호출 수·세션과 잇기 쿠키·로그인이 필요한 곳의 이동·기록에 토큰과 쿠키 값이 없는지를 보고 둘 다 끈다(가짜 백엔드가 인증도 맡는다) |
 | 웹 개발 서버 | compose 의 `web` (`infra/`에서 `docker compose up -d web`, http://127.0.0.1:3010. 지우기는 `docker compose rm -sf web` — 볼륨은 남는다) |
 | 웹 실제 브라우저 흐름 | `pnpm e2e:prepare && pnpm e2e` — 개발 스택과 compose 의 `web`이 떠 있어야 한다. 준비가 게이트웨이로 확인용 매장·방문·사진·알림장과 가로 넘침을 볼 긴 글 알림장을 만들고 링크를 `web/test-results/e2e-links.json`(gitignore)에 쓴다. 보호자 흐름(`guardian.spec.ts`)이 쓸 둘째 고객의 알림장 둘과 로그인 이름도 여기 있다 — compose 의 `web` 에 `DEV_LOGIN=1` 과 루트 `.env` 의 `WEB_SESSION_SECRET` 이 있어야 한다 |
+| 웹 동의서 (세 층에 들어 있다) | `pnpm test`(화면·서명 칸·제출) · `pnpm check:server`(동의서 18줄 — 상태 코드·헤더 셋·미리보기에 아이 이름이 없음·제출의 상태 코드·다른 출처 403·큰 본문 413·기록에 이름과 서명이 없음) · `pnpm e2e`(`consent.spec.ts` 8 — 열기·칸 수·빠진 것·읽는 사이 지병이 더해짐·보냈어요·끊은 링크·폭 320·스크립트 끔) |
 | CI (GitHub Actions) | 푸시마다 바뀐 영역의 워크플로만 돈다 — `backend.yml`(구조 계약·단위·통합), `web.yml`(Vitest·빌드·`check:server`), `app.yml`(analyze·test, 골든 비교 끔). Actions 화면에서 손으로도 돌린다 |
 
 - CI 는 우분투 러너만 쓴다(비공개 저장소라 무료 분이 월 2,000분이고 macOS 는 10배로 깎인다). 작업마다 시간 상한(백엔드 30분·웹과 앱 20분)이 있고 같은 브랜치에 새로 푸시하면 앞선 실행을 취소한다. 백엔드의 `.env`·`.env.auth`는 `generate_dev_env.py`로 실행마다 새로 만드는 일회용이다. 앱 골든은 맥에서 만들어 리눅스와 글꼴 렌더링이 달라서 CI 는 `--dart-define=SKIP_GOLDEN_COMPARE=true`로 비교만 끈다(`app/test/flutter_test_config.dart`) — 골든은 로컬에서 본다. 맥의 Flutter 를 올리면 `app.yml`의 `flutter-version`도, pnpm 은 `web/package.json`의 `packageManager`를 따른다.

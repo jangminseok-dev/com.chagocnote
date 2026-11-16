@@ -8,6 +8,11 @@
 //                                              slow  응답하지 않고 연결을 붙들고 있는다
 // POST /v1/public/report/viewed 도 같은 규칙이고 200 자리에 204 다.
 //
+// 서류(동의서) — X-Form-Token 의 앞머리로 고른다.
+//   GET /v1/public/form            ok 열림(아이 둘·토막 셋)  part 바뀐 부분만  sent 보냈어요  gone 410  rate 429  boom 500
+//                                  slow 매달린다  down 소켓을 끊는다  그 밖 404
+//   POST /v1/public/form/consent   ok 204  chg 409  gone 410  big 413  bad 422  rate 429  boom 500  그 밖 404
+//
 // 이 서버는 인증 프로세스도 맡는다(검사는 AUTH_BASE_URL 을 같은 주소로 둔다).
 // POST /v1/auth/social — 본문의 token(로그인 이름)의 앞머리로 고른다. session 이 "web" 이 아니면 422.
 //   down 소켓을 끊는다   bad 401   refresh 200 인데 리프레시 토큰을 준다   그 밖 200, access_token 은 "tok-<이름>"
@@ -28,6 +33,8 @@ let viewed = 0 // POST /v1/public/report/viewed
 let auth = 0 // POST /v1/auth/social
 let claims = 0 // POST /v1/me/guardian/links
 let guardian = 0 // 그 밖의 /v1/me/guardian/…
+let forms = 0 // GET /v1/public/form
+let consents = 0 // POST /v1/public/form/consent
 let last = null
 
 const photo = (name, phase) => ({
@@ -167,6 +174,52 @@ function guardianApi(req, url, send) {
   return error(404, 'REPORT_NOT_FOUND')
 }
 
+// 열려 있는 동의서 — 가족 둘, 토막 셋. 지병의 메모·ID 는 백엔드가 주지 않는다.
+const OPEN_FORM = {
+  kind: 'consent',
+  state: 'open',
+  shop: { name: 'Hiss Haus' },
+  previous_consent_on: null,
+  pets: [
+    { name: '두부', conditions: [], parts: ['basic', 'senior'] },
+    { name: '모카', conditions: ['심장 질환', '피부'], parts: ['basic', 'condition'] },
+  ],
+  texts: {
+    basic: { body: '미용하는 동안 작은 상처가 생길 수 있어요.\n많이 힘들어하면 미용을 멈출게요.' },
+    senior: { body: '나이가 많은 아이는 미용이 부담이 될 수 있어요.' },
+    condition: { body: '알려 주신 지병 때문에 상태가 나빠질 수 있어요.' },
+  },
+  doc_digest: 'd'.repeat(64),
+}
+const PARTIAL_FORM = {
+  ...OPEN_FORM,
+  previous_consent_on: '2026-03-02',
+  pets: [{ name: '모카', conditions: ['심장 질환', '피부'], parts: ['condition'] }],
+  texts: { condition: OPEN_FORM.texts.condition },
+}
+const SUBMITTED_FORM = { kind: 'consent', state: 'submitted', shop: { name: 'Hiss Haus' }, submitted_on: '2026-11-16' }
+const FORMS = { ok: OPEN_FORM, part: PARTIAL_FORM, sent: SUBMITTED_FORM, chg: OPEN_FORM, big: OPEN_FORM, bad: OPEN_FORM }
+const FORM_ERRORS = { gone: [410, 'FORM_CLOSED'], rate: [429, 'TOO_MANY_ATTEMPTS'], boom: [500, 'INTERNAL_ERROR'] }
+const CONSENT_STATUS = { ok: [204], chg: [409, 'CONSENT_DOCUMENT_CHANGED'], big: [413, 'PAYLOAD_TOO_LARGE'], bad: [422, 'VALIDATION_ERROR'] }
+const formPrefixOf = (token) =>
+  ['ok', 'part', 'sent', 'chg', 'big', 'bad', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
+
+async function formApi(req, url, send) {
+  const prefix = formPrefixOf(String(req.headers['x-form-token'] ?? ''))
+  const error = (status, code) => send(status, { code, message: '가짜 백엔드의 오류' })
+  if (prefix === 'down') return req.socket.destroy()
+  if (prefix === 'slow') return
+  if (prefix in FORM_ERRORS) return error(...FORM_ERRORS[prefix])
+  if (req.method === 'GET' && url.pathname === '/v1/public/form' && prefix in FORMS) return send(200, FORMS[prefix])
+  if (req.method === 'POST' && url.pathname === '/v1/public/form/consent' && prefix in CONSENT_STATUS) {
+    // 본문의 값은 적지 않는다. 칸의 이름만 남긴다 — 웹이 무엇을 넘겼는지 본다.
+    last.body_keys = Object.keys(await readJson(req)).sort()
+    const [status, code] = CONSENT_STATUS[prefix]
+    return status === 204 ? send(204) : error(status, code)
+  }
+  return error(404, 'FORM_NOT_FOUND')
+}
+
 const prefixOf = (token) => ['ok', 'min', 'vid', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
 
 http
@@ -175,9 +228,9 @@ http
       res.writeHead(status, { 'content-type': 'application/json' })
       res.end(body === undefined ? '' : JSON.stringify(body))
     }
-    if (req.url === '/__stats') return send(200, { count, reports, viewed, auth, claims, guardian, last })
+    if (req.url === '/__stats') return send(200, { count, reports, viewed, auth, claims, guardian, forms, consents, last })
     if (req.url === '/__reset') {
-      count = reports = viewed = auth = claims = guardian = 0
+      count = reports = viewed = auth = claims = guardian = forms = consents = 0
       last = null
       return send(200, {})
     }
@@ -193,6 +246,8 @@ http
       client_ip: req.headers['x-report-client-ip'] ?? null,
       bearer: req.headers.authorization !== undefined,
       report_token: req.headers['x-report-token'] !== undefined,
+      form_token: req.headers['x-form-token'] !== undefined,
+      body_keys: null, // 서명 본문의 칸 이름
       session: null, // 로그인 본문의 session
     }
 
@@ -205,6 +260,12 @@ http
       if (req.method === 'POST' && url.pathname === '/v1/me/guardian/links') claims += 1
       else guardian += 1
       return guardianApi(req, url, send)
+    }
+
+    if (url.pathname === '/v1/public/form' || url.pathname === '/v1/public/form/consent') {
+      if (req.method === 'GET') forms += 1
+      else consents += 1
+      return formApi(req, url, send)
     }
 
     const prefix = prefixOf(String(req.headers['x-report-token'] ?? ''))

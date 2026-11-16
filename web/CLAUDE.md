@@ -2,7 +2,7 @@
 
 저장소 루트의 `CLAUDE.md` 를 먼저 읽는다. 여기는 웹에만 해당하는 규칙이다. 알림장의 설계는 `docs/superpowers/specs/2026-09-28-report-design.md` 의 7·8절, 결정은 `_docs/decisions/008-report.md` 의 "⑤-2 웹에서 정한 것"이다. 로그인과 내 기록의 설계는 `docs/superpowers/specs/2026-11-13-guardian-design.md` 의 4.4절, 결정은 `_docs/decisions/010-guardian.md` 의 "⑦-2 웹에서 정한 것"이다.
 
-둘이다. (1) 보호자가 매장이 보낸 링크(`/r/<토큰>`)로 여는 알림장 한 장 — 웹 서버가 백엔드 공개 API 를 부르고 HTML 과 미리보기 정보(OG 태그)를 만든다. (2) 로그인한 보호자의 내 기록(`/me`) — 받은 알림장으로 계정을 잇고 지난 알림장을 모아 본다. 데이터를 저장하지 않는다(세션은 쿠키에만 있다).
+셋이다. (1) 보호자가 매장이 보낸 링크(`/r/<토큰>`)로 여는 알림장 한 장 — 웹 서버가 백엔드 공개 API 를 부르고 HTML 과 미리보기 정보(OG 태그)를 만든다. (2) 로그인한 보호자의 내 기록(`/me`) — 받은 알림장으로 계정을 잇고 지난 알림장을 모아 본다. (3) 매장이 보낸 링크(`/f/<토큰>`)로 여는 미용 동의서 — 로그인 없이 읽고 이름과 손가락 서명으로 보낸다(설계 `docs/superpowers/specs/2026-11-16-consent-intake-design.md`, 결정 `_docs/decisions/014-consent-intake.md` 의 "⑪-A2 웹에서 정한 것"). 데이터를 저장하지 않는다(세션은 쿠키에만 있다).
 
 ## 꼭 지킬 것
 
@@ -34,12 +34,27 @@
 - 화면 문구는 설계 8.2·7.3 의 글자 그대로다. 보호자에게 보이는 글은 한국어, 영문 장식("Grooming Note", "Care note", "Today's care", "Shop", 영문 월·요일, 오류 화면의 "Not found"·"Closed"·"One moment", 로그인·내 기록의 "Sign in"·"My notes"·"Notes")은 목업을 따른다. 오류 화면의 설명은 닫힌 화면에만 있다.
 - `next.config.ts` 의 `agentRules: false` 를 빼지 않는다(빼면 `next dev` 가 이 파일에 Next 의 에이전트 규칙 묶음을 끼워 넣는다 — `node_modules/next/dist/server/lib/generate-agent-files.js`). `allowedDevOrigins: ['127.0.0.1']` 도 빼지 않는다 — 백엔드가 만드는 링크는 `http://127.0.0.1:3010/r/…` 이고, 빼면 `next dev` 가 브라우저 쪽 코드를 막아 크게 보기·열람 신호·404 화면 글자가 동작하지 않는다.
 
+## 동의서 (`/f/<토큰>`)
+
+- 경로는 `app/f/[token]/page.tsx` 와 제출 `app/f/[token]/submit/route.ts`(POST) 둘이다. 알림장과 같은 규칙을 따른다 — 토큰 형식은 웹이 먼저 보고, 열 때 백엔드 조회는 한 번(`lib/form.ts` 의 `getForm` = `cache(fetchForm)`), 페이지의 상태 코드는 200·404 뿐이다(410 → 닫힌 화면, 429·5xx·연결 실패 → 잠시 후).
+- **토큰은 헤더 `X-Form-Token` 으로 보낸다**(알림장의 `X-Report-Token` 이 아니다 — 두 토큰은 서로의 경로에서 읽히지 않는다).
+- **웹은 온 문안을 그대로 그린다.** 어느 토막이 필요한지, 글이 무엇인지는 백엔드가 아이의 지금 사실로 조립한다. 아이의 이름과 지병의 이름은 문안 밖에서 늘 따로 그린다.
+- **제출은 브라우저의 fetch → 웹의 경로 핸들러 → 백엔드다.** 폼 POST·303 이 아니다 — 서명에 스크립트가 어차피 필요하고, 결과를 303 으로 알리려면 토큰이 든 주소에 질의를 붙여야 한다. 경로 핸들러는 상태 코드만 본문 없이 돌려준다(204·404·409·410·413·422·429, 그 밖 503). 다른 출처면 403, `Content-Length` 가 없거나 131,072 를 넘으면 본문을 읽지 않고 413, JSON 이 아니거나 세 칸(`doc_digest`·`signer_name`·`signature_png`)이 글자열이 아니면 422 — 이때 백엔드를 부르지 않는다. 세 칸 밖의 것은 넘기지 않는다.
+- **서명 칸**(`components/SignaturePad.tsx`)은 600×240 캔버스를 CSS 로 늘린다(화면 배율을 곱하지 않는다 — PNG 가 작게 남는다). base64 가 87,380글자를 넘으면 300×120 으로 줄여 그린 것을 보낸다. `touch-action: none` 을 빼지 않는다 — 서명하는 손가락을 따라 화면이 구른다.
+- **보내기 전에 빠진 것을 그 자리에서 말한다**(`components/ConsentSubmit.tsx` — 이름·서명·체크 순). 410 은 이미 낸 것이라 오류로 보이지 않고 화면을 다시 읽는다(`router.refresh()` → 보냈어요). 409 는 `내용이 바뀌었어요. 다시 읽어 주세요` 와 함께 다시 읽고, 이름은 남기고 서명과 체크를 비운다.
+- **미리보기(og)에는 매장 이름과 "미용 동의서"뿐이다.** 아이 이름·지병을 싣지 않는다.
+- 이름·서명·요청 본문을 `console.*` 에 넣지 않는다.
+- 닫힌 서류의 화면에는 로그인 링크가 없다(`ErrorScreen` 의 `what="form"`) — 서류는 계정에 잇지 않는다.
+- 구역: `head`·`partial`·`pets`·`part`·`sign`·`foot`, 낸 뒤 `submitted`.
+- 가짜 백엔드의 서류 앞머리: 읽기 `ok`(아이 둘·토막 셋)·`part`(바뀐 부분만)·`sent`(보냈어요)·`gone`·`rate`·`boom`·`slow`·`down`, 제출 `ok` 204·`chg` 409·`gone` 410·`big` 413·`bad` 422·`rate` 429.
+- **e2e 에서 `getByRole('alert')` 은 구역 안에서 찾는다** — `next dev` 의 경로 알림도 `role="alert"` 다. 스크립트를 끈 브라우저 테스트는 `<noscript>` 가 보이는지가 아니라 문서에 실려 왔는지를 본다(Playwright 가 스크립트를 끄는 방식으로는 크롬이 `<noscript>` 를 그리지 않는다).
+
 ## 폴더
 
 `app`(경로) · `components`(화면) · `lib`(설정·토큰·접속 주소·백엔드 호출·세션·경로 검증·표시 형식) · `public` · `tests` 만 쓴다. Next 의 통상 이름이고 새 폴더를 더 만들지 않는다.
 
 - 데이터 가져오기는 `lib/` 와 `page.tsx` 에, 화면은 props 를 받는 컴포넌트에 둔다 — Vitest 는 async 서버 컴포넌트를 렌더링하지 못한다.
-- 브라우저 동작이 필요한 것만 `'use client'` 다(`MediaGallery`·`Lightbox`·`SaveAllButton`·`KakaoNotice`·`ViewedSignal`·`UnlinkButton`).
+- 브라우저 동작이 필요한 것만 `'use client'` 다(`MediaGallery`·`Lightbox`·`SaveAllButton`·`KakaoNotice`·`ViewedSignal`·`UnlinkButton`·`ConsentSubmit`·`SignaturePad`).
 - 구역마다 `data-section` 이 있다(알림장 `head`·`date`·`title`·`hero`·`strip`·`note`·`care`·`save-all`·`shop`·`claim`·`foot`, 로그인 `login`, 내 기록 `me-head`·`notice`·`shop`·`empty`·`logout`, 목록 `list-head`·`item`·`more`·`empty`, 한 장 위의 `back`). 테스트가 이것으로 구역을 찾는다.
 
 ## 테스트 세 층

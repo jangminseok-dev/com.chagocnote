@@ -3,6 +3,7 @@
 // 화면이 옆으로 밀리지 않는지 볼 긴 글 알림장도 하나 더 만든다(같은 매장·반려동물의 다른 방문).
 // 보호자 흐름(guardian.spec.ts)이 쓸 둘째 고객도 만든다 — 살아 있는 알림장 하나와 끊은 알림장 하나, 로그인할 이름 둘.
 // 위의 살아 있는 링크는 "아직 아무도 열지 않았다"를 보는 데 쓰므로 보호자 흐름과 나눠 쓰지 않는다.
+// 동의서 흐름(consent.spec.ts)이 쓸 고객 둘도 만든다 — 서명할 동의서 링크 하나와 끊은 링크 하나.
 // 사용: infra/ 에서 개발 스택과 web 을 띄운 뒤 web/ 에서 pnpm e2e:prepare → pnpm e2e.
 // e2e 는 살아 있는 링크를 아직 아무도 열지 않았다고 보므로 e2e 를 돌릴 때마다 먼저 이것을 돌린다.
 // 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크가 남는다.
@@ -128,12 +129,33 @@ const closedVisit = await guardianVisit('17', false)
 const guardianClosed = (await call('PUT', `${closedVisit}/report`, staff, { hidden_media_ids: [] })).link.url
 await call('DELETE', `${closedVisit}/report`, staff)
 
+// 6. 동의서 흐름(consent.spec.ts) — 노령·지병 아이 둘(고객도 둘). 하나는 서명할 링크, 하나는 보낸 뒤 끊은 링크.
+const seniorYear = new Date().getFullYear() - 12
+const HEART = { type_code: 'heart_disease', custom_label: null, note: '약 복용 중' }
+const consentPet = (name) => ({
+  name, species: 'dog', breed: '말티즈', sex: 'female', neutered: true, birth_year: seniorYear, weight_kg: 3.2,
+  no_known_conditions: false, conditions: [HEART],
+})
+async function consentFamily(name, offset) {
+  const family = await call('POST', `${S}/customers`, staff, {
+    customer: { name: '김동의', phone: `010${String((STAMP + offset) % 100000000).padStart(8, '0')}`, marketing_consent: true },
+    pet: consentPet(name),
+  })
+  const petId = family.pets[0].pet_id
+  return { petId, sent: await call('POST', `${S}/consent-forms`, staff, { pet_ids: [petId] }) }
+}
+const signing = await consentFamily('초코', 2)
+const revoked = await consentFamily('라떼', 3)
+await call('DELETE', `${S}/forms/${revoked.sent.form_id}`, staff)
+
 mkdirSync('test-results', { recursive: true })
 writeFileSync('test-results/e2e-links.json', JSON.stringify(
   {
     live, closed, long, visitDate: startsAt.slice(0, 10), api: BASE, staffLogin, visitPath: V,
     guardianLive, guardianClosed, guardianShop: shop.name,
     guardianLogin: `e2e-guardian-${STAMP}`, guardianOther: `e2e-guardian-other-${STAMP}`,
+    consentLive: signing.sent.url, consentClosed: revoked.sent.url, consentPetPath: `${S}/pets/${signing.petId}`,
+    consentPetName: '초코', consentPetBody: consentPet('초코'),
   }, null, 2,
 ))
 console.log(`준비 완료 — 매장 ${shop.shop_id}, 방문 ${visit}. 링크는 test-results/e2e-links.json 에 있다.`)

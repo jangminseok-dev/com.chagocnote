@@ -38,7 +38,14 @@ const MALFORMED_TOKENS = {
 }
 
 /** 검사에 쓴 토큰 전부 — 웹 서버의 기록에 남으면 안 된다(R18). */
-const USED_TOKENS = [...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken'].map(token), ...Object.values(MALFORMED_TOKENS)]
+const USED_TOKENS = [
+  ...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken', 'part', 'sent', 'chg', 'big', 'bad'].map(token),
+  ...Object.values(MALFORMED_TOKENS),
+]
+
+/** 동의서 검사에서 보낸 이름과 서명 — 웹 서버의 기록에 남으면 안 된다. */
+const SIGNER = '서명한이름'
+const SIGNATURE = 'U0lHTkFUVVJFLUJZVEVT'
 
 /** 첫 HTML 의 <meta> 값. 없으면 null. */
 function meta(html, key) {
@@ -119,6 +126,164 @@ function goesToLogin(res, here) {
   assert.equal(res.status, 307)
   assert.equal(res.headers.get('location'), `/login?next=${encodeURIComponent(here)}`)
 }
+
+/** 같은 출처의 JSON POST — 동의서 제출. */
+function json(body, headers = {}) {
+  const text = typeof body === 'string' ? body : JSON.stringify(body)
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin', ...headers },
+    body: text,
+  }
+}
+
+const consentBody = () => ({ doc_digest: 'd'.repeat(64), signer_name: SIGNER, signature_png: SIGNATURE })
+
+/** 첫 HTML 의 글자 — React 가 이어 붙인 글자 사이의 <!-- --> 를 걷어 낸다. */
+const plain = (html) => html.replaceAll('<!-- -->', '')
+
+const formChecks = [
+  {
+    name: '동의서는 200 이고 헤더 셋이 있고 문안과 지병의 이름이 첫 HTML 에 있다',
+    async run({ get, stats, backend }) {
+      const res = await get(`/f/${token('ok')}`)
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = plain(await res.text())
+      for (const word of ['미용 동의서', 'Hiss Haus', '미용 안내', '나이가 많은 아이', '지병이 있는 아이', '두부', '모카',
+        '알려 주신 지병: 심장 질환 · 피부', '해당: 두부 · 모카', '동의하고 보내기', '위 내용을 읽었고 동의합니다',
+        '서명하려면 자바스크립트를 켜 주세요']) {
+        assert.ok(html.includes(word), `첫 HTML 에 없다: ${word}`)
+      }
+      assert.ok(!html.includes(backend), '첫 HTML 에 백엔드 주소가 있다')
+      assert.ok(!/법적|효력/.test(html), '첫 HTML 에 효력을 말하는 글이 있다')
+      const seen = await stats()
+      assert.equal(seen.forms, 1, `백엔드 조회가 한 번이 아니다: ${seen.forms}`)
+      assert.equal(seen.count, 1)
+      assert.equal(seen.last.form_token, true)
+      assert.equal(seen.last.report_token, false, '알림장 헤더로 보냈다')
+      assert.equal(seen.last.web_secret, WEB_SECRET)
+    },
+  },
+  {
+    name: '동의서의 미리보기 정보에는 매장 이름뿐이고 아이 이름·지병이 없다',
+    async run({ get }) {
+      const html = await (await get(`/f/${token('ok')}`)).text()
+      assert.equal(meta(html, 'og:title'), '미용 동의서')
+      assert.equal(meta(html, 'og:description'), 'Hiss Haus')
+      assert.match(meta(html, 'og:image') ?? '', /\/og-default\.png$/)
+      assert.equal(meta(html, 'og:url'), null)
+      const head = html.slice(0, html.indexOf('</head>'))
+      for (const word of ['두부', '모카', '심장', '피부']) assert.ok(!head.includes(word), `미리보기 정보에 있다: ${word}`)
+    },
+  },
+  {
+    name: '바뀐 부분만 받는 동의서는 지난 동의의 날을 알리고 그 토막만 그린다',
+    async run({ get }) {
+      const html = plain(await (await get(`/f/${token('part')}`)).text())
+      assert.ok(html.includes('지난번(2026년 3월 2일)에 동의하신 내용에 더해 바뀐 부분만 확인해 주세요'))
+      assert.ok(html.includes('지병이 있는 아이') && !html.includes('미용 안내') && !html.includes('나이가 많은 아이'))
+    },
+  },
+  {
+    name: '이미 낸 동의서는 200 이고 보냈어요 화면이다',
+    async run({ get }) {
+      const res = await get(`/f/${token('sent')}`)
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = plain(await res.text())
+      assert.ok(html.includes('보냈어요') && html.includes('Hiss Haus에서 확인할게요.') && html.includes('2026년 11월 16일에 보냈어요'))
+      assert.ok(!html.includes('동의하고 보내기'), '낸 뒤에도 보내기 버튼이 있다')
+    },
+  },
+  {
+    name: '닫힌 동의서는 200 이고 서류라고 말하고 로그인 링크가 없다',
+    async run({ get }) {
+      const res = await get(`/f/${token('gone')}`)
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = plain(await res.text())
+      assert.ok(html.includes('닫힌 서류예요') && html.includes('매장에 다시 요청해 주세요'))
+      assert.ok(!html.includes('알림장') || html.includes('차곡노트 미용 알림장'), '서류의 닫힌 화면이 알림장이라고 말한다')
+      assert.ok(!html.includes('href="/me"'), '닫힌 서류에 로그인 링크가 있다')
+      assert.equal(meta(html, 'og:title'), null)
+    },
+  },
+  {
+    name: '없는 동의서는 404 이고, 횟수 제한·백엔드 오류는 200 의 잠시 후 화면이다',
+    async run({ get }) {
+      const missing = await get(`/f/${token('nf')}`)
+      assert.equal(missing.status, 404)
+      hasHeaderSet(missing)
+      for (const prefix of ['rate', 'boom', 'down']) {
+        const res = await get(`/f/${token(prefix)}`)
+        assert.equal(res.status, 200, `${prefix} 가 200 이 아니다`)
+        assert.ok(plain(await res.text()).includes('잠시 후 다시 열어 주세요'))
+      }
+    },
+  },
+  {
+    name: '매달린 백엔드에도 동의서는 5초 뒤에 잠시 후 화면으로 답한다',
+    async run({ get }) {
+      const { res, body } = await timed(get, `/f/${token('slow')}`)
+      assert.equal(res.status, 200)
+      assert.ok(plain(body).includes('잠시 후 다시 열어 주세요'))
+    },
+  },
+  ...Object.entries(MALFORMED_TOKENS).map(([label, value]) => ({
+    name: `모양이 틀린 서류 토큰(${label})은 백엔드를 부르지 않고 404 다`,
+    async run({ get, stats }) {
+      assert.equal((await get(`/f/${value}`)).status, 404)
+      assert.equal((await get(`/f/${value}/submit`, json(consentBody()))).status, 404)
+      assertBackendNotCalled(await stats())
+    },
+  })),
+  {
+    name: '제출은 백엔드의 상태 코드를 본문 없이 옮기고 세 칸만 넘긴다',
+    async run({ get, stats }) {
+      const expected = { ok: 204, chg: 409, gone: 410, big: 413, bad: 422, rate: 429, boom: 503, down: 503, nf: 404 }
+      for (const [prefix, status] of Object.entries(expected)) {
+        const res = await get(`/f/${token(prefix)}/submit`, json(consentBody()))
+        assert.equal(res.status, status, `${prefix} 가 ${status} 이 아니다: ${res.status}`)
+        assert.equal(await res.text(), '', `${prefix} 의 응답에 본문이 있다`)
+      }
+      await get(`/f/${token('ok')}/submit`, json({ ...consentBody(), extra: 'x', pet_ids: [1] }))
+      const seen = await stats()
+      assert.deepEqual(seen.last.body_keys, ['doc_digest', 'signature_png', 'signer_name'])
+      assert.equal(seen.last.form_token, true)
+      assert.equal(seen.last.web_secret, WEB_SECRET)
+    },
+  },
+  {
+    name: '다른 출처의 제출은 403 이고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      for (const site of ['cross-site', 'same-site', 'none']) {
+        const res = await get(`/f/${token('ok')}/submit`, json(consentBody(), { 'Sec-Fetch-Site': site }))
+        assert.equal(res.status, 403, `${site} 가 403 이 아니다`)
+      }
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '큰 본문·JSON 이 아닌 본문·칸이 빠진 본문은 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      const huge = await get(`/f/${token('ok')}/submit`, json({ ...consentBody(), signature_png: 'A'.repeat(200_000) }))
+      assert.equal(huge.status, 413)
+      assert.equal((await get(`/f/${token('ok')}/submit`, json('{not json'))).status, 422)
+      assert.equal((await get(`/f/${token('ok')}/submit`, json({ doc_digest: 'd', signer_name: SIGNER }))).status, 422)
+      assert.equal((await get(`/f/${token('ok')}/submit`, json({ ...consentBody(), signer_name: 7 }))).status, 422)
+      assert.equal((await get(`/f/${token('ok')}/submit`, json('null'))).status, 422)
+      assertBackendNotCalled(await stats())
+    },
+  },
+  {
+    name: '제출 경로는 GET 을 받지 않는다',
+    async run({ get, stats }) {
+      assert.equal((await get(`/f/${token('ok')}/submit`)).status, 405)
+      assertBackendNotCalled(await stats())
+    },
+  },
+]
 
 const loginChecks = [
   {
@@ -984,6 +1149,7 @@ const checks = [
     },
   },
   ...loginChecks,
+  ...formChecks,
   ...['API_BASE_URL', 'REPORT_WEB_SECRET', 'AUTH_BASE_URL', 'WEB_SESSION_SECRET'].map((missing) => ({
     // 프로세스는 끝나지 않는다. 준비에 실패한 채로 모든 요청에 500 을 낸다.
     name: `${missing} 없이 띄우면 모든 요청이 500 이고 오류가 변수 이름을 말한다`,
@@ -1023,6 +1189,7 @@ const checks = [
       assert.ok(SEEN_COOKIES.size > 0, '쿠키를 하나도 받지 못했다')
       for (const value of SEEN_COOKIES) assert.ok(!text.includes(value), '기록에 쿠키 값이 있다')
       assert.ok(!text.includes('X-Amz-Signature'), '기록에 서명 주소가 있다')
+      assert.ok(!text.includes(SIGNER) && !text.includes(SIGNATURE), '기록에 동의서에 적은 이름이나 서명이 있다')
     },
   },
 ]
