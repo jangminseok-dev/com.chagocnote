@@ -273,13 +273,14 @@ class FakeLedger(VisitLedgerPort):
         self.journal.append(("latest_covers", sorted(pet_ids)))
         return {p: self.covers[p] for p in pet_ids if p in self.covers}
 
-    async def pet_revisit(self, ctx, pet_id, manual_weeks):
-        """주기를 계산하지 않는다 — 넘긴 직접 정한 값만 비춘다(계산은 visit 의 테스트가 본다)."""
+    async def pet_revisit(self, ctx, pet_id, fact):
+        """주기를 계산하지 않는다 — 넘긴 사실만 비춘다(계산·거르기는 visit 의 테스트가 본다)."""
+        manual_weeks = fact.grooming_cycle_weeks
         self.journal.append(("pet_revisit", pet_id, manual_weeks))
         return PetRevisitView(
             cycle_weeks=manual_weeks or 4, cycle_source="manual" if manual_weeks else "none", interval_count=0,
             last_interval_weeks=None, last_visit_date=None, due_date=None, estimated=manual_weeks is None,
-            has_upcoming=pet_id in self.pets_with_upcoming,
+            has_upcoming=pet_id in self.pets_with_upcoming, nudged_on=fact.revisit_nudged_on,
         )
 
 

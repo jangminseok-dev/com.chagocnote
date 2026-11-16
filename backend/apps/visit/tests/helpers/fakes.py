@@ -372,14 +372,10 @@ class FakeVisits(
         started = [v for v in self._mine(ctx) if v.pet_id == pet_id and v.status in STARTED_STATUSES]
         return max(started, key=lambda v: (v.starts_at, v.id)).id if started else None
 
-    async def completed_starts(self, ctx, customer_id, pet_id, limit):
-        done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
-                and v.status == "completed"]
-        return sorted(done, reverse=True)[:limit]
-
     async def completed_days(self, ctx, pet_ids, per_pet):
         from visit.domain.services.visit_schedule import local_date
 
+        self.completed_days_calls = getattr(self, "completed_days_calls", 0) + 1
         days: dict[int, list] = {}
         done = sorted((v for v in self._mine(ctx) if v.pet_id in pet_ids and v.status == "completed"),
                       key=lambda v: v.starts_at, reverse=True)

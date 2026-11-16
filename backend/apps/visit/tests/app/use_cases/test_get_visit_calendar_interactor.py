@@ -104,3 +104,20 @@ async def test_남은_일은_지난_날과_오늘만이고_익명화한_고객�
                     started_at=at, completed_at=at)
     view = await interactor.get_visit_calendar(GetVisitCalendarQuery(ctx=ctx(), year=2026, month=9))
     assert [d.unpaid_count for d in view.days[21:24]] == [1, 1, 0]
+
+
+async def test_달력은_주기도_아이의_사실도_읽지_않는다():
+    """달력은 한 달 전체를 읽는다 — 주기 계산(완료 날짜·revisit_facts)과 돌봄 사실(care_facts)을 부르지 않는다(⑬ R6)."""
+    visits, directory = FakeVisits(), FakeDirectory()
+    directory.family(1, pets=(101,))
+    interactor = GetVisitCalendarInteractor(visits, FakeSchedule(), FakeRecords(visits), FakeLibrary(), now=lambda: NOW,
+                                            reports=FakeReportRepository(visits),
+                                            revisit_settings=FakeRevisitSettingsRepository(), directory=directory)
+    for day in (2, 22):
+        at = kst(9, day, 11)
+        visits.seed(customer_id=1, pet_id=101, starts_at=at, status="completed", started_at=at, completed_at=at)
+    visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 25, 11))
+    await interactor.get_visit_calendar(GetVisitCalendarQuery(ctx=ctx(), year=2026, month=9))
+    assert (directory.revisit_calls, directory.care_calls) == ([], [])
+    assert (getattr(visits, "revisit_calls", 0), getattr(visits, "completed_days_calls", 0)) == (0, 0)
+

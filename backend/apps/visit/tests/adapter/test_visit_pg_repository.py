@@ -163,7 +163,7 @@ async def test_되돌리기가_중복이_되면_VISIT_DUPLICATE_이고_모두_�
     assert (await repo.get(A, canceled)).status == "canceled"
 
 
-async def test_아이의_지난_완료와_완료_시각들(db_session):
+async def test_아이의_지난_완료(db_session):
     repo = VisitPgRepository(db_session)
     await insert_visit(db_session, kst(8, 1, 14), "completed")
     last = await insert_visit(db_session, kst(9, 2, 14), "completed")
@@ -172,8 +172,6 @@ async def test_아이의_지난_완료와_완료_시각들(db_session):
     await insert_visit(db_session, kst(9, 4, 14), "completed", pet_id=None)
     assert (await repo.last_completed_of_pet(A, 101)).id == last
     assert await repo.last_completed_of_pet(A, 999) is None
-    assert await repo.completed_starts(A, 1, 101, limit=2) == [kst(9, 2, 14), kst(8, 1, 14)]
-    assert await repo.completed_starts(A, 1, None, limit=2) == [kst(9, 4, 14)]
 
 
 async def test_자기를_뺀_같은_아이의_가장_최근_완료_시작_시각(db_session):

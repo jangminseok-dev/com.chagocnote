@@ -166,6 +166,10 @@ async def test_안내한_날을_오늘로_적고_앞날_예약이_있으면_알�
     await _visit(wired, shop_id, o, customer_id, pet_id, 11, days=3)
     assert (await _revisit(wired, shop_id, o, pet_id))["has_upcoming"] is True
 
+    # 안내한 뒤 다녀가면(마지막 완료가 안내한 날과 같거나 뒤) 상세에도 안내한 날이 없다 — 목록과 같은 규칙.
+    await _done_on(wired, shop_id, o, customer_id, pet_id, 0, hour=0)
+    assert (await _revisit(wired, shop_id, o, pet_id))["nudged_on"] is None
+
 
 async def test_익명화하면_아이의_주기와_안내한_날이_비워진다(wired):
     shop_id, o, _ = await _shop(wired)

@@ -221,22 +221,6 @@ class VisitPgRepository(
             )
         ).scalar_one_or_none()
 
-    async def completed_starts(
-        self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
-    ) -> list[datetime]:
-        whose = VisitOrm.pet_id == pet_id if pet_id is not None else VisitOrm.pet_id.is_(None)
-        return list(
-            (
-                await self._session.execute(
-                    select(VisitOrm.starts_at)
-                    .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id, whose,
-                           VisitOrm.status == COMPLETED)
-                    .order_by(VisitOrm.starts_at.desc())
-                    .limit(limit)
-                )
-            ).scalars()
-        )
-
     async def completed_days(self, ctx: ShopContext, pet_ids: list[int], per_pet: int) -> dict[int, list[date]]:
         if not pet_ids:
             return {}

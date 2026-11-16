@@ -74,11 +74,18 @@ async def revisit_board(
         nudged = facts[c.pet_id].revisit_nudged_on if c.pet_id in facts else None
         rows.append(RevisitRow(
             pet_id=c.pet_id, bucket=bucket, cycle=cycle, last_visit_id=c.last_visit_id,
-            nudged_on=nudged if nudged is not None and nudged > c.last_day else None,
+            nudged_on=visible_nudge(nudged, c.last_day),
         ))
     # 지남은 오래 지난 순, 곧은 가까운 순 — 둘 다 다음 올 때가 이른 순이다.
     rows.sort(key=lambda r: (r.cycle.due_date, r.pet_id))
     return RevisitBoard(rows=rows, pets=pets)
+
+
+def visible_nudge(nudged_on: date | None, last_visit: date | None) -> date | None:
+    """안내한 날은 마지막 완료 방문보다 뒤일 때만 보인다 — 안내한 뒤 다녀갔으면 그 안내는 끝났다(목록·상세가 같다)."""
+    if nudged_on is None or (last_visit is not None and nudged_on <= last_visit):
+        return None
+    return nudged_on
 
 
 def weeks_since(last_visit: date, today: date) -> int:

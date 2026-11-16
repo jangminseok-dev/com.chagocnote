@@ -45,12 +45,6 @@ class VisitHistoryRepository(ABC):
         기록의 몸무게를 현재 몸무게로 넘길지 정한다(설계 8절)."""
 
     @abstractmethod
-    async def completed_starts(
-        self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
-    ) -> list[datetime]:
-        """그 아이(pet_id 가 None 이면 보호자만의 방문)의 완료 방문 시작 시각, 최근 것부터 limit 개."""
-
-    @abstractmethod
     async def completed_days(self, ctx: ShopContext, pet_ids: list[int], per_pet: int) -> dict[int, list[date]]:
         """{반려동물 ID: 완료 방문의 날(매장 시간대), 최근 것부터 per_pet 개} — 미용 주기 계산의 원본(⑬).
         완료 방문이 없는 아이는 빠진다. 아이 수와 상관없이 질의 하나다."""

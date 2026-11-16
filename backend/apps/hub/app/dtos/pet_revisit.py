@@ -25,3 +25,4 @@ class PetRevisitView:
     due_date: date | None
     estimated: bool
     has_upcoming: bool               # 오늘(매장 시간대) 0시 이후의 예약됨·미용 중이 있다
+    nudged_on: date | None           # 안내한 날 — 마지막 완료 방문보다 뒤일 때만(목록과 같은 규칙)

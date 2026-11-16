@@ -390,7 +390,7 @@ class FakeLedger(VisitLedgerPort):
     async def latest_covers(self, ctx, pet_ids):
         return {}
 
-    async def pet_revisit(self, ctx, pet_id, manual_weeks):
+    async def pet_revisit(self, ctx, pet_id, fact):
         raise AssertionError("알림 쪽은 아이의 주기를 장부에서 읽지 않는다 — 완료 이벤트로 받는다")
 
 

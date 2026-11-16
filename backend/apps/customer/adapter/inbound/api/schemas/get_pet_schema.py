@@ -62,7 +62,7 @@ class PetRevisitSchema(BaseModel):
     due_date: date | None
     estimated: bool
     has_upcoming: bool
-    nudged_on: date | None          # 다시 올 때라고 안내한 날
+    nudged_on: date | None          # 다시 올 때라고 안내한 날 — 마지막 완료 방문보다 뒤일 때만
 
 
 class PetOverviewSchema(PetDetailSchema):
@@ -78,7 +78,7 @@ class PetOverviewSchema(PetDetailSchema):
         revisit = None if r is None else PetRevisitSchema(
             cycle_weeks=r.cycle_weeks, cycle_source=r.cycle_source, interval_count=r.interval_count,
             last_interval_weeks=r.last_interval_weeks, last_visit_date=r.last_visit_date, due_date=r.due_date,
-            estimated=r.estimated, has_upcoming=r.has_upcoming, nudged_on=view.detail.pet.revisit_nudged_on,
+            estimated=r.estimated, has_upcoming=r.has_upcoming, nudged_on=r.nudged_on,
         )
         return cls(pet=PetWithPhotoSchema.with_photo(view.detail.pet, view.photo), owner=detail.owner,
                    siblings=detail.siblings, caution=detail.caution, revisit=revisit)

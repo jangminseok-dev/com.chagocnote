@@ -378,3 +378,19 @@ async def test_다시_올_때는_마지막_완료_방문으로_보고_앞으로�
 
     assert _pairs(await repo.revisit_candidates(A, today, now)) == [
         (103, date(2026, 8, 3)), (105, date(2026, 8, 5)), (106, date(2026, 8, 5)), (101, date(2026, 11, 1))]
+
+
+async def test_완료_날짜와_후보의_마지막_날은_매장_시간대의_날이다__자정_앞뒤(db_session):
+    """서울 00:30 은 UTC 로 전날이다 — 주기 계산의 날짜와 후보의 마지막 날이 서울 날짜여야 한다(⑬ R5)."""
+    repo = VisitPgRepository(db_session)
+    await _done(db_session, seoul(2026, 11, 2, 0, 30), 10_000, pet_id=101)     # UTC 11월 1일 15:30
+    await _done(db_session, seoul(2026, 10, 1, 23, 50), 10_000, pet_id=101)    # 하루의 끝
+    await _done(db_session, seoul(2026, 9, 1, 11), 10_000, pet_id=101)         # 셋째 — per_pet 2 에 들지 않는다
+    await _done(db_session, seoul(2026, 11, 3, 0, 10), 10_000, pet_id=102)
+    await _done(db_session, seoul(2026, 11, 4, 0, 10), 10_000, pet_id=103, shop_id=2)   # 다른 매장
+
+    assert await repo.completed_days(A, [101, 102, 103], 2) == {
+        101: [date(2026, 11, 2), date(2026, 10, 1)], 102: [date(2026, 11, 3)]}
+    assert _pairs(await repo.revisit_candidates(A, date(2026, 11, 14), kst(11, 14, 15))) == [
+        (101, date(2026, 11, 2)), (102, date(2026, 11, 3))]
+
