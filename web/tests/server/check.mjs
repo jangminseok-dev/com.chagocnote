@@ -39,13 +39,18 @@ const MALFORMED_TOKENS = {
 
 /** 검사에 쓴 토큰 전부 — 웹 서버의 기록에 남으면 안 된다(R18). */
 const USED_TOKENS = [
-  ...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken', 'part', 'sent', 'chg', 'big', 'bad'].map(token),
+  ...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken', 'part', 'sent', 'chg', 'big', 'bad', 'iok', 'iupd', 'isent', 'ibad'].map(token),
   ...Object.values(MALFORMED_TOKENS),
 ]
 
 /** 동의서 검사에서 보낸 이름과 서명 — 웹 서버의 기록에 남으면 안 된다. */
 const SIGNER = '서명한이름'
 const SIGNATURE = 'U0lHTkFUVVJFLUJZVEVT'
+
+/** 문진표 검사에서 보낸 이름·번호·글 — 웹 서버의 기록에 남으면 안 된다. */
+const GUARDIAN = '문진표보호자'
+const PHONE = '010-4242-4242'
+const DISLIKES = '드라이기소리싫어함'
 
 /** 첫 HTML 의 <meta> 값. 없으면 null. */
 function meta(html, key) {
@@ -283,6 +288,104 @@ const formChecks = [
     name: '제출 경로는 GET 을 받지 않는다',
     async run({ get, stats }) {
       assert.equal((await get(`/f/${token('ok')}/submit`)).status, 405)
+      assertBackendNotCalled(await stats())
+    },
+  },
+]
+
+const intakeBody = () => ({
+  guardian: { name: GUARDIAN, phone: PHONE },
+  pet: { name: '콩이', species: 'dog', no_known_conditions: true, conditions: [], dislikes: DISLIKES },
+  extras: [],
+  privacy_agreed: true,
+  done: true,
+})
+
+const intakeChecks = [
+  {
+    name: '문진표는 200 이고 헤더 셋이 있고 칸의 이름과 지병 종류·안내가 첫 HTML 에 있다',
+    async run({ get, stats }) {
+      const res = await get(`/f/${token('iok')}`)
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = plain(await res.text())
+      for (const word of ['문진표', 'Hiss Haus', '보호자 이름', '전화번호', '아이 이름', '심장 질환', '없어요',
+        '산책은 얼마나 하나요?', '개인정보 수집·이용 안내', '30일', '보내고 다른 아이도 적기']) {
+        assert.ok(html.includes(word), `첫 HTML 에 없다: ${word}`)
+      }
+      // 서버가 그린 버튼은 잠겨 있고 폼은 POST 다 — 스크립트 전에 눌러도 적은 것이 주소에 실리지 않는다.
+      assert.match(html, /<form[^>]*method="post"/)
+      assert.match(html, /<button[^>]*type="submit"[^>]*disabled/)
+      const seen = await stats()
+      assert.equal(seen.forms, 1, `백엔드 조회가 한 번이 아니다: ${seen.forms}`)
+      assert.equal(seen.last.form_token, true)
+    },
+  },
+  {
+    name: '문진표의 미리보기 정보에는 매장 이름과 문진표라는 말뿐이다',
+    async run({ get }) {
+      const html = await (await get(`/f/${token('iupd')}`)).text()
+      assert.equal(meta(html, 'og:title'), '문진표')
+      assert.equal(meta(html, 'og:description'), 'Hiss Haus')
+      const head = html.slice(0, html.indexOf('</head>'))
+      assert.ok(!head.includes('두부'), '미리보기 정보에 아이 이름이 있다')
+    },
+  },
+  {
+    name: '다시 받는 문진표는 아이 이름을 보이고 보호자 칸과 다른 아이도 적기가 없다',
+    async run({ get }) {
+      const html = plain(await (await get(`/f/${token('iupd')}`)).text())
+      assert.ok(html.includes('두부의 문진표') && html.includes('바뀐 것만 적어 주세요'))
+      // 개인정보 안내의 글에도 '보호자 이름'이 있다 — 칸으로 본다.
+      assert.ok(!html.includes('name="guardian_name"') && !html.includes('다른 아이도 적기'))
+    },
+  },
+  {
+    name: '다 적은 문진표는 200 이고 보냈어요 화면이다',
+    async run({ get }) {
+      const res = await get(`/f/${token('isent')}`)
+      assert.equal(res.status, 200)
+      hasHeaderSet(res)
+      const html = plain(await res.text())
+      assert.ok(html.includes('보냈어요') && html.includes('Hiss Haus에서 확인할게요.'))
+      assert.ok(!html.includes('name="pet_name"'))
+    },
+  },
+  {
+    name: '문진표 제출은 백엔드의 상태 코드를 본문 없이 옮기고 본문을 그대로 넘긴다',
+    async run({ get, stats }) {
+      const expected = { iok: 204, ibad: 422, gone: 410, rate: 429, boom: 503, down: 503, nf: 404 }
+      for (const [prefix, status] of Object.entries(expected)) {
+        const res = await get(`/f/${token(prefix)}/intake`, json(intakeBody()))
+        assert.equal(res.status, status, `${prefix} 가 ${status} 이 아니다: ${res.status}`)
+        assert.equal(await res.text(), '', `${prefix} 의 응답에 본문이 있다`)
+      }
+      await get(`/f/${token('iok')}/intake`, json(intakeBody()))
+      const seen = await stats()
+      assert.deepEqual(seen.last.body_keys, ['done', 'extras', 'guardian', 'pet', 'privacy_agreed'])
+      assert.deepEqual(seen.last.pet_keys, ['conditions', 'dislikes', 'name', 'no_known_conditions', 'species'])
+      assert.equal(seen.last.form_token, true)
+      assert.equal(seen.last.web_secret, WEB_SECRET)
+    },
+  },
+  {
+    name: '문진표의 다른 출처 제출은 403, 큰 본문은 413, 모양이 틀린 본문은 422 이고 백엔드를 부르지 않는다',
+    async run({ get, stats }) {
+      for (const site of ['cross-site', 'same-site', 'none']) {
+        const res = await get(`/f/${token('iok')}/intake`, json(intakeBody(), { 'Sec-Fetch-Site': site }))
+        assert.equal(res.status, 403, `${site} 가 403 이 아니다`)
+      }
+      const huge = { ...intakeBody(), pet: { ...intakeBody().pet, style: 'A'.repeat(200_000) } }
+      assert.equal((await get(`/f/${token('iok')}/intake`, json(huge))).status, 413)
+      assert.equal((await get(`/f/${token('iok')}/intake`, json('{not json'))).status, 422)
+      assert.equal((await get(`/f/${token('iok')}/intake`, json('null'))).status, 422)
+      assert.equal((await get(`/f/${token('iok')}/intake`, json('[]'))).status, 422)
+      assert.equal((await get(`/f/${token('iok')}/intake`, json({ ...intakeBody(), pet: '콩이' }))).status, 422)
+      assert.equal((await get(`/f/${token('iok')}/intake`, json({ pet: {}, privacy_agreed: 'yes' }))).status, 422)
+      assert.equal((await get(`/f/${token('iok')}/intake`)).status, 405)
+      for (const value of Object.values(MALFORMED_TOKENS)) {
+        assert.equal((await get(`/f/${value}/intake`, json(intakeBody()))).status, 404)
+      }
       assertBackendNotCalled(await stats())
     },
   },
@@ -1153,6 +1256,7 @@ const checks = [
   },
   ...loginChecks,
   ...formChecks,
+  ...intakeChecks,
   ...['API_BASE_URL', 'REPORT_WEB_SECRET', 'AUTH_BASE_URL', 'WEB_SESSION_SECRET'].map((missing) => ({
     // 프로세스는 끝나지 않는다. 준비에 실패한 채로 모든 요청에 500 을 낸다.
     name: `${missing} 없이 띄우면 모든 요청이 500 이고 오류가 변수 이름을 말한다`,
@@ -1193,6 +1297,7 @@ const checks = [
       for (const value of SEEN_COOKIES) assert.ok(!text.includes(value), '기록에 쿠키 값이 있다')
       assert.ok(!text.includes('X-Amz-Signature'), '기록에 서명 주소가 있다')
       assert.ok(!text.includes(SIGNER) && !text.includes(SIGNATURE), '기록에 동의서에 적은 이름이나 서명이 있다')
+      assert.ok(![GUARDIAN, PHONE, DISLIKES].some((value) => text.includes(value)), '기록에 문진표에 적은 이름·번호·글이 있다')
     },
   },
 ]

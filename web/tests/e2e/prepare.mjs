@@ -4,6 +4,7 @@
 // 보호자 흐름(guardian.spec.ts)이 쓸 둘째 고객도 만든다 — 살아 있는 알림장 하나와 끊은 알림장 하나, 로그인할 이름 둘.
 // 위의 살아 있는 링크는 "아직 아무도 열지 않았다"를 보는 데 쓰므로 보호자 흐름과 나눠 쓰지 않는다.
 // 동의서 흐름(consent.spec.ts)이 쓸 고객 둘도 만든다 — 서명할 동의서 링크 하나와 끊은 링크 하나.
+// 문진표 흐름(intake.spec.ts)이 쓸 링크 셋도 만든다 — 새 손님용, 있는 아이의 다시 받기, 끊은 링크.
 // 사용: infra/ 에서 개발 스택과 web 을 띄운 뒤 web/ 에서 pnpm e2e:prepare → pnpm e2e.
 // e2e 는 살아 있는 링크를 아직 아무도 열지 않았다고 보므로 e2e 를 돌릴 때마다 먼저 이것을 돌린다.
 // 개발 DB 와 버킷에 확인용 매장·유저·고객·방문·사진·알림장 링크가 남는다.
@@ -149,6 +150,19 @@ const revoked = await consentFamily('라떼', 3)
 const twice = await consentFamily('두유', 4) // 두 탭에서 같은 링크를 내는 테스트가 쓴다
 await call('DELETE', `${S}/forms/${revoked.sent.form_id}`, staff)
 
+// 7. 문진표 흐름(intake.spec.ts) — 새 손님용 링크, 있는 아이의 다시 받기 링크, 보낸 뒤 끊은 링크.
+const intakeFamily = await call('POST', `${S}/customers`, staff, {
+  customer: { name: '김문진', phone: `010${String((STAMP + 5) % 100000000).padStart(8, '0')}`, marketing_consent: false },
+  pet: { ...consentPet('보리'), birth_year: new Date().getFullYear() - 3, no_known_conditions: true, conditions: [] },
+})
+const intakeNew = await call('POST', `${S}/intake-forms`, staff, { customer_id: null, pet_id: null })
+const intakeUpdate = await call('POST', `${S}/intake-forms`, staff, { customer_id: null, pet_id: intakeFamily.pets[0].pet_id })
+const intakeGone = await call('POST', `${S}/intake-forms`, staff, { customer_id: null, pet_id: null })
+await call('DELETE', `${S}/forms/${intakeGone.form_id}`, staff)
+// 공개 서류의 제출은 접속 주소당 10분에 10번이다 — 동의서와 문진표 흐름을 이어 돌리면 넘는다. 개발 Redis 의 횟수만 비운다.
+const redis = (...args) => execFileSync('docker', ['compose', '-f', '../infra/docker-compose.yml', 'exec', '-T', 'redis', 'redis-cli', ...args])
+for (const key of String(redis('--scan', '--pattern', 'customer:form-*')).split('\n').filter(Boolean)) redis('del', key)
+
 mkdirSync('test-results', { recursive: true })
 writeFileSync('test-results/e2e-links.json', JSON.stringify(
   {
@@ -157,6 +171,8 @@ writeFileSync('test-results/e2e-links.json', JSON.stringify(
     guardianLogin: `e2e-guardian-${STAMP}`, guardianOther: `e2e-guardian-other-${STAMP}`,
     consentLive: signing.sent.url, consentClosed: revoked.sent.url, consentTwice: twice.sent.url, consentPetPath: `${S}/pets/${signing.petId}`,
     consentPetName: '초코', consentPetBody: consentPet('초코'),
+    intakeNew: intakeNew.url, intakeUpdate: intakeUpdate.url, intakeClosed: intakeGone.url, intakeAnswers: `${S}/intake-answers`,
+    intakePetName: '보리', intakePhone: `010-${String((STAMP + 6) % 100000000).padStart(8, '0').replace(/(\d{4})(\d{4})/, '$1-$2')}`,
   }, null, 2,
 ))
 console.log(`준비 완료 — 매장 ${shop.shop_id}, 방문 ${visit}. 링크는 test-results/e2e-links.json 에 있다.`)

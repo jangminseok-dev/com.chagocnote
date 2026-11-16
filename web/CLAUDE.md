@@ -2,7 +2,7 @@
 
 저장소 루트의 `CLAUDE.md` 를 먼저 읽는다. 여기는 웹에만 해당하는 규칙이다. 알림장의 설계는 `docs/superpowers/specs/2026-09-28-report-design.md` 의 7·8절, 결정은 `_docs/decisions/008-report.md` 의 "⑤-2 웹에서 정한 것"이다. 로그인과 내 기록의 설계는 `docs/superpowers/specs/2026-11-13-guardian-design.md` 의 4.4절, 결정은 `_docs/decisions/010-guardian.md` 의 "⑦-2 웹에서 정한 것"이다.
 
-셋이다. (1) 보호자가 매장이 보낸 링크(`/r/<토큰>`)로 여는 알림장 한 장 — 웹 서버가 백엔드 공개 API 를 부르고 HTML 과 미리보기 정보(OG 태그)를 만든다. (2) 로그인한 보호자의 내 기록(`/me`) — 받은 알림장으로 계정을 잇고 지난 알림장을 모아 본다. (3) 매장이 보낸 링크(`/f/<토큰>`)로 여는 미용 동의서 — 로그인 없이 읽고 이름과 손가락 서명으로 보낸다(설계 `docs/superpowers/specs/2026-11-16-consent-intake-design.md`, 결정 `_docs/decisions/014-consent-intake.md` 의 "⑪-A2 웹에서 정한 것"). 데이터를 저장하지 않는다(세션은 쿠키에만 있다).
+셋이다. (1) 보호자가 매장이 보낸 링크(`/r/<토큰>`)로 여는 알림장 한 장 — 웹 서버가 백엔드 공개 API 를 부르고 HTML 과 미리보기 정보(OG 태그)를 만든다. (2) 로그인한 보호자의 내 기록(`/me`) — 받은 알림장으로 계정을 잇고 지난 알림장을 모아 본다. (3) 매장이 보낸 링크(`/f/<토큰>`)로 여는 서류 — 미용 동의서(로그인 없이 읽고 이름과 손가락 서명으로 보낸다)와 첫 방문 문진표(아이의 정보를 적어 낸다, 아래 "문진표" 절)(설계 `docs/superpowers/specs/2026-11-16-consent-intake-design.md`, 결정 `_docs/decisions/014-consent-intake.md` 의 "⑪-A2 웹에서 정한 것"). 데이터를 저장하지 않는다(세션은 쿠키에만 있다).
 
 ## 꼭 지킬 것
 
@@ -51,12 +51,29 @@
 - 가짜 백엔드의 서류 앞머리: 읽기 `ok`(아이 둘·토막 셋)·`part`(바뀐 부분만)·`sent`(보냈어요)·`gone`·`rate`·`boom`·`slow`·`down`, 제출 `ok` 204·`chg` 409·`gone` 410·`big` 413·`bad` 422·`rate` 429.
 - **e2e 에서 `getByRole('alert')` 은 구역 안에서 찾는다** — `next dev` 의 경로 알림도 `role="alert"` 다. 스크립트를 끈 브라우저 테스트는 `<noscript>` 가 보이는지가 아니라 문서에 실려 왔는지를 본다(Playwright 가 스크립트를 끄는 방식으로는 크롬이 `<noscript>` 를 그리지 않는다).
 
+## 문진표 (`/f/<토큰>`)
+
+- 동의서와 **같은 주소·같은 토큰·같은 헤더**(`X-Form-Token`)다. `app/f/[token]/page.tsx` 가 백엔드가 준 `kind`(`consent`·`intake`)로 가른다 — 열 때 백엔드 조회는 여전히 한 번이다. 제출 경로는 따로다: `app/f/[token]/intake/route.ts`(POST). 설계는 `docs/superpowers/specs/2026-11-16-consent-intake-design.md` 3.4절, 결정은 `_docs/decisions/014-consent-intake.md` 의 "⑪-C2 웹에서 정한 것".
+- **웹은 온 구성만 그린다**(`lib/form.ts` 의 `OpenIntake`): 켜진 칸(`fields`), 매장이 더한 질문, 지병 종류, 보호자 칸을 물을지(`guardian_needed`), 보관 기간(`keep_days`). 매장이 끈 칸은 그리지도 보내지도 않는다. 지금 값(품종·몸무게·지병)은 오지 않는다 — 다시 받기(`mode: "update"`)에서도 아이 이름뿐이다.
+- **칸의 규칙과 보낼 본문은 순수 함수다**(`lib/intake.ts` 의 `problemOf`·`bodyOf`) — 화면(`components/IntakeForm.tsx`)은 그것을 쓴다. 규칙은 백엔드와 같다: 켜진 칸은 필수, 다시 받기는 전부 선택이고 적은 칸만 싣는다. 한 줄 칸에 붙여넣은 줄바꿈은 빈칸으로 바꾼다.
+- **필수로 글자를 치는 칸은 넷 이하다**(보호자 이름·번호·아이 이름 — `data-required-text="true"`, 품종은 목록에서 고르면 치지 않는다). 나머지는 칩이다. 테스트가 수를 고정한다.
+- **낼 때는 둘이다**: [보내기](`done: true` — 다 적었어요, 링크가 닫힌다)와 [보내고 다른 아이도 적기](`done: false` — 아이 칸만 비우고 방금 낸 아이의 이름을 알린 뒤 다시 읽는다. 둘째부터 보호자 칸이 없다). 다시 받기에는 [보내기]뿐이다.
+- 빠진 칸은 보내지 않고 그 칸의 이름으로 말한다(화면의 위에서부터 처음 걸리는 것 하나). 204 → `보냈어요`(`role="status"`, 포커스)와 다시 읽기, **410·404 → 오류 글 없이 다시 읽는다**(그 사이 닫혔다 — 다시 읽은 화면이 말한다), 413·422 → `적은 내용을 다시 확인해 주세요`, 그 밖 → `잠시 후 다시 보내 주세요`.
+- 제출 경로는 동의서와 같은 관문이다 — 다른 출처 403, `Content-Length` 가 없거나 131,072 를 넘으면 413, JSON 객체가 아니거나 `pet` 이 객체가 아니거나 `privacy_agreed` 가 불리언이 아니면 422(이때 백엔드를 부르지 않는다). **본문은 그대로 넘긴다** — 칸의 규칙은 백엔드가 본다. 상태 코드만 본문 없이 돌려준다(204·404·410·413·422·429, 그 밖 503).
+- **개인정보 수집·이용 안내**(받는 것·쓰는 곳·지우는 때 — `keep_days`)와 동의 체크가 폼의 끝에 있다. 빼지 않는다.
+- 서버가 그린 버튼은 잠겨 있고 폼은 `method="post"` 다(동의서와 같은 까닭). 미리보기(og)에는 매장 이름과 "문진표"뿐이다.
+- 이름·전화번호·적은 글·요청 본문을 `console.*` 에 넣지 않는다.
+- 구역: `guardian`·`pet`·`health`·`more`·`privacy`, 낸 뒤 `submitted`.
+- 가짜 백엔드의 문진표 앞머리: 읽기 `iok`(새 손님)·`iupd`(다시 받기 — 두부)·`isent`(보냈어요)·`ibad`, 제출 `iok` 204·`ibad` 422(`gone`·`rate`·`boom`·`down` 은 동의서와 같다).
+- **compose 의 `next dev` 는 새로 생긴 경로 폴더를 알아채지 못할 때가 있다** — 새 `route.ts` 가 404 면 `docker compose restart web`.
+- e2e 준비 스크립트는 공개 서류의 제출 횟수(접속 주소당 10분에 10번)를 비운다 — 동의서와 문진표 흐름을 이어 돌리면 넘는다.
+
 ## 폴더
 
 `app`(경로) · `components`(화면) · `lib`(설정·토큰·접속 주소·백엔드 호출·세션·경로 검증·표시 형식) · `public` · `tests` 만 쓴다. Next 의 통상 이름이고 새 폴더를 더 만들지 않는다.
 
 - 데이터 가져오기는 `lib/` 와 `page.tsx` 에, 화면은 props 를 받는 컴포넌트에 둔다 — Vitest 는 async 서버 컴포넌트를 렌더링하지 못한다.
-- 브라우저 동작이 필요한 것만 `'use client'` 다(`MediaGallery`·`Lightbox`·`SaveAllButton`·`KakaoNotice`·`ViewedSignal`·`UnlinkButton`·`ConsentSubmit`·`SignaturePad`).
+- 브라우저 동작이 필요한 것만 `'use client'` 다(`MediaGallery`·`Lightbox`·`SaveAllButton`·`KakaoNotice`·`ViewedSignal`·`UnlinkButton`·`ConsentSubmit`·`SignaturePad`·`IntakeForm`).
 - 구역마다 `data-section` 이 있다(알림장 `head`·`date`·`title`·`hero`·`strip`·`note`·`care`·`save-all`·`shop`·`claim`·`foot`, 로그인 `login`, 내 기록 `me-head`·`notice`·`shop`·`empty`·`logout`, 목록 `list-head`·`item`·`more`·`empty`, 한 장 위의 `back`). 테스트가 이것으로 구역을 찾는다.
 
 ## 테스트 세 층

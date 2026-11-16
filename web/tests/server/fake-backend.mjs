@@ -11,6 +11,8 @@
 // 서류(동의서) — X-Form-Token 의 앞머리로 고른다.
 //   GET /v1/public/form            ok 열림(아이 둘·토막 셋)  part 바뀐 부분만  sent 보냈어요  gone 410  rate 429  boom 500
 //                                  slow 매달린다  down 소켓을 끊는다  그 밖 404
+//   GET /v1/public/form (문진표)   iok 새 손님  iupd 다시 받기(두부)  isent 보냈어요  ibad 열림(제출은 422)
+//   POST /v1/public/form/intake    iok 204  ibad 422  gone 410  rate 429  boom 500  그 밖 404
 //   POST /v1/public/form/consent   ok 204  chg 409  gone 410  big 413  bad 422  rate 429  boom 500  그 밖 404
 //
 // 이 서버는 인증 프로세스도 맡는다(검사는 AUTH_BASE_URL 을 같은 주소로 둔다).
@@ -35,6 +37,7 @@ let claims = 0 // POST /v1/me/guardian/links
 let guardian = 0 // 그 밖의 /v1/me/guardian/…
 let forms = 0 // GET /v1/public/form
 let consents = 0 // POST /v1/public/form/consent
+let intakes = 0 // POST /v1/public/form/intake
 let last = null
 
 const photo = (name, phase) => ({
@@ -198,11 +201,34 @@ const PARTIAL_FORM = {
   texts: { condition: OPEN_FORM.texts.condition },
 }
 const SUBMITTED_FORM = { kind: 'consent', state: 'submitted', shop: { name: 'Hiss Haus' }, submitted_on: '2026-11-16' }
-const FORMS = { ok: OPEN_FORM, part: PARTIAL_FORM, sent: SUBMITTED_FORM, chg: OPEN_FORM, big: OPEN_FORM, bad: OPEN_FORM }
+// 열려 있는 문진표 — 새 손님용. 지금 값(품종·몸무게·지병)과 ID 는 백엔드가 주지 않는다(질문 ID 만).
+const OPEN_INTAKE = {
+  kind: 'intake',
+  state: 'open',
+  shop: { name: 'Hiss Haus' },
+  mode: 'new',
+  pet_name: null,
+  fields: ['species', 'breed', 'sex', 'neutered', 'birth', 'weight', 'dislikes', 'style'],
+  questions: [{ question_id: 7, label: '산책은 얼마나 하나요?', required: false }],
+  condition_types: [
+    { code: 'heart_disease', label: '심장 질환' },
+    { code: 'other', label: '기타' },
+  ],
+  answered: 0,
+  guardian_needed: true,
+  keep_days: 30,
+}
+const UPDATE_INTAKE = { ...OPEN_INTAKE, mode: 'update', pet_name: '두부', guardian_needed: false, questions: [] }
+const SUBMITTED_INTAKE = { kind: 'intake', state: 'submitted', shop: { name: 'Hiss Haus' }, submitted_on: '2026-11-16' }
+const FORMS = {
+  ok: OPEN_FORM, part: PARTIAL_FORM, sent: SUBMITTED_FORM, chg: OPEN_FORM, big: OPEN_FORM, bad: OPEN_FORM,
+  iok: OPEN_INTAKE, iupd: UPDATE_INTAKE, isent: SUBMITTED_INTAKE, ibad: OPEN_INTAKE,
+}
+const INTAKE_STATUS = { iok: [204], ibad: [422, 'VALIDATION_ERROR'] }
 const FORM_ERRORS = { gone: [410, 'FORM_CLOSED'], rate: [429, 'TOO_MANY_ATTEMPTS'], boom: [500, 'INTERNAL_ERROR'] }
 const CONSENT_STATUS = { ok: [204], chg: [409, 'CONSENT_DOCUMENT_CHANGED'], big: [413, 'PAYLOAD_TOO_LARGE'], bad: [422, 'VALIDATION_ERROR'] }
 const formPrefixOf = (token) =>
-  ['ok', 'part', 'sent', 'chg', 'big', 'bad', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
+  ['iok', 'iupd', 'isent', 'ibad', 'ok', 'part', 'sent', 'chg', 'big', 'bad', 'gone', 'rate', 'boom', 'down', 'slow'].find((prefix) => token.startsWith(prefix))
 
 async function formApi(req, url, send) {
   const prefix = formPrefixOf(String(req.headers['x-form-token'] ?? ''))
@@ -217,6 +243,14 @@ async function formApi(req, url, send) {
     const [status, code] = CONSENT_STATUS[prefix]
     return status === 204 ? send(204) : error(status, code)
   }
+  if (req.method === 'POST' && url.pathname === '/v1/public/form/intake' && prefix in INTAKE_STATUS) {
+    // 본문의 값은 적지 않는다. 칸의 이름만 남긴다 — 웹이 무엇을 넘겼는지 본다.
+    const body = await readJson(req)
+    last.body_keys = Object.keys(body).sort()
+    last.pet_keys = Object.keys(body.pet ?? {}).sort()
+    const [status, code] = INTAKE_STATUS[prefix]
+    return status === 204 ? send(204) : error(status, code)
+  }
   return error(404, 'FORM_NOT_FOUND')
 }
 
@@ -228,9 +262,9 @@ http
       res.writeHead(status, { 'content-type': 'application/json' })
       res.end(body === undefined ? '' : JSON.stringify(body))
     }
-    if (req.url === '/__stats') return send(200, { count, reports, viewed, auth, claims, guardian, forms, consents, last })
+    if (req.url === '/__stats') return send(200, { count, reports, viewed, auth, claims, guardian, forms, consents, intakes, last })
     if (req.url === '/__reset') {
-      count = reports = viewed = auth = claims = guardian = forms = consents = 0
+      count = reports = viewed = auth = claims = guardian = forms = consents = intakes = 0
       last = null
       return send(200, {})
     }
@@ -262,8 +296,9 @@ http
       return guardianApi(req, url, send)
     }
 
-    if (url.pathname === '/v1/public/form' || url.pathname === '/v1/public/form/consent') {
+    if (['/v1/public/form', '/v1/public/form/consent', '/v1/public/form/intake'].includes(url.pathname)) {
       if (req.method === 'GET') forms += 1
+      else if (url.pathname.endsWith('/intake')) intakes += 1
       else consents += 1
       return formApi(req, url, send)
     }

@@ -265,6 +265,17 @@
 - 공개 `GET /v1/public/form`(문진표): `{kind: "intake", state: "open", shop: {name}, mode, pet_name|null, fields: [칸 코드], questions: [{question_id, label, required}], condition_types: [{code, label}], answered, guardian_needed, keep_days}` / 닫힘·다 적음은 `{kind: "intake", state: "submitted", shop, submitted_on}`.
 - 공개 `POST /v1/public/form/intake` `{guardian: {name, phone}|null, pet: {name, species, breed, sex, neutered, birth_date, birth_year, birth_unknown, weight_kg, weight_unknown, no_known_conditions, conditions: [{type_code, custom_label, note}], dislikes, style}, extras: [{question_id, body}], privacy_agreed, done}` → 204 / 404 / 410 / 413 / 422 / 429.
 
+## ⑪-C2 웹에서 정한 것 (2026-11-16) — 문진표 화면
+
+- **동의서와 같은 주소다**(`/f/<토큰>`). 페이지가 `kind` 로 가르고 제출 경로만 따로 둔다(`/f/<토큰>/intake`).
+- **낼 때의 버튼은 둘이다**: [보내기](다 적었어요 — 링크가 닫힌다)와 [보내고 다른 아이도 적기]. 설계는 "낸 뒤 화면의 `다른 아이도 적기` 와 [다 적었어요]"였는데, 백엔드의 `done` 은 답과 함께만 온다 — 낸 뒤에 답 없이 닫는 요청을 따로 만들지 않고 버튼을 폼에 뒀다. 틀리면: 아이가 하나인 보호자에게 버튼 하나가 더 보인다.
+- **품종은 자주 쓰는 목록에서 고르고 없으면 [직접 적기]다**(강아지 9·고양이 6 — `lib/intake.ts` 의 `BREEDS`). 목록의 내용은 내가 정했다(설계 8절이 맡긴 것).
+- **생일은 셋 가운데 고른다**(생일을 알아요·태어난 해만 알아요·몰라요), 몸무게는 숫자 칸과 [모르겠어요].
+- **개인정보 안내의 글자**(받는 것·쓰는 곳·지우는 때)는 내가 정했다. 지우는 때를 정확히 적으려고 공개 응답에 `keep_days` 를 더했다.
+- **410·404 는 오류 글 없이 다시 읽는다** — 적던 글이 사라지는 것은 받아들인다(링크가 닫혔다).
+- 본문의 칸 검증은 웹 서버가 하지 않고 백엔드에 맡긴다(모양만 본다) — 규칙이 한 곳에 있다. 브라우저는 같은 규칙으로 미리 짚는다.
+- 확인: 단위 435·`check:server` 124줄·e2e 41(문진표 6). e2e 를 네 번 돌리는 동안 알림장의 저장 테스트가 한 번 실패했고 다시는 재현되지 않았다(이번 변경과 무관한 자리).
+
 ## ⑪-A 의 API 계약 (웹·앱이 기댄다)
 
 매장(`/v1/shops/{shop_id}/…`):
