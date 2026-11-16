@@ -282,6 +282,18 @@ class AppStrings {
   static String revisitMinGapNote(int days) =>
       days == 0 ? '모든 방문을 셈에 넣어요' : '$days일 안에 다시 온 방문은 주기 계산에서 빼요';
 
+  // ⑬ 반려동물 상세의 미용 주기 줄·시트.
+  static const cycleLabel = '미용 주기';
+  static const cycleHasUpcoming = '다음 예약이 잡혀 있어요';
+  static String cycleSheetPreview(DateTime due) => '이렇게 정하면 다음은 ${due.month}월 ${due.day}일쯤이에요';
+  static const cycleReset = '계산한 값으로 돌아가기';
+
+  /// 다시 올 때라고 안내한 날 — 오늘이면 `오늘 안내`.
+  static String revisitNudgedOn(DateTime day, DateTime today) =>
+      day.year == today.year && day.month == today.month && day.day == today.day
+      ? '오늘 안내'
+      : '${day.month}월 ${day.day}일에 안내';
+
   // ⑬ 안내 글 템플릿.
   static const revisitMessageTitle = '안내 글 템플릿';
   static const revisitChipPet = '아이 이름';

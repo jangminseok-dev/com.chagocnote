@@ -110,6 +110,18 @@ class CustomerCommands {
   Future<PetDetail> clearGroomingConsent(int shopId, int petId) =>
       _careWrite(() => _api.clearGroomingConsent(shopId, petId));
 
+  /// 아이의 미용 주기를 직접 정한다(⑬, 1~52주). 다시 올 때의 묶음이 이 값으로 정해지므로 방문 쪽에도 알린다.
+  Future<void> setGroomingCycle(int shopId, int petId, int weeks) =>
+      _careWrite(() => _api.setGroomingCycle(shopId, petId, weeks));
+
+  /// 직접 정한 주기를 지워 계산한 값으로 돌아간다(⑬).
+  Future<void> clearGroomingCycle(int shopId, int petId) =>
+      _careWrite(() => _api.clearGroomingCycle(shopId, petId));
+
+  /// 다시 올 때라고 안내한 날을 오늘로 적는다(⑬ — 공유 시트를 연 날).
+  Future<void> markRevisitNudged(int shopId, int petId) =>
+      _careWrite(() => _api.markRevisitNudged(shopId, petId));
+
   /// 주의 고객으로 표시한다. 사유는 다듬은 한 줄(`cleanCautionReason`)이다.
   Future<CustomerDetail> setCaution(int shopId, int customerId, String reason) =>
       _careWrite(() => _api.setCaution(shopId, customerId, reason));

@@ -31,6 +31,7 @@ import '../state/customer_providers.dart';
 import 'caution_row.dart';
 import 'customer_labels.dart';
 import 'grooming_consent_row.dart';
+import 'grooming_cycle_row.dart';
 import 'guardian_link_row.dart';
 import 'intake_send_button.dart';
 
@@ -312,7 +313,7 @@ class _DetailBody extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         switch (tab) {
-          0 => _BasicTab(pet: pet),
+          0 => _BasicTab(pet: pet, revisit: detail.revisit),
           1 => _ConditionsTab(pet: pet),
           2 => _OwnerTab(
             customerId: detail.owner.customerId,
@@ -386,9 +387,12 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _BasicTab extends StatelessWidget {
-  const _BasicTab({required this.pet});
+  const _BasicTab({required this.pet, required this.revisit});
 
   final Pet pet;
+
+  /// 미용 주기(⑬). 옛 응답이면 null — 줄이 없다.
+  final PetRevisit? revisit;
 
   @override
   Widget build(BuildContext context) {
@@ -410,6 +414,9 @@ class _BasicTab extends StatelessWidget {
         ),
         // 무지개다리를 건넌 아이는 미용을 받지 않는다 — 동의 줄이 없다.
         if (!pet.passedAway) GroomingConsentRow(pet: pet),
+        // 미용 주기(⑬) — 동의 줄 아래. 무지개다리를 건넌 아이에게는 없다.
+        if (!pet.passedAway && revisit != null)
+          GroomingCycleRow(petId: pet.petId, revisit: revisit!),
       ],
     );
   }
