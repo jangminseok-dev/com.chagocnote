@@ -25,6 +25,7 @@ import '../../features/shop/screens/members_screen.dart';
 import '../../features/customer/screens/form_settings_screen.dart';
 import '../../features/customer/screens/received_intake_screens.dart';
 import '../../features/customer/screens/form_text_edit_screens.dart';
+import '../../features/customer/screens/intake_questions_screen.dart';
 import '../../features/shop/screens/settings_screen.dart';
 import '../../features/shop/screens/shop_settings_screen.dart';
 import '../../features/visit/api/visit_models.dart';
@@ -131,6 +132,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ReportSettingsScreen(),
       ),
       GoRoute(path: '/settings/forms', builder: (context, state) => const FormSettingsScreen()),
+      GoRoute(path: '/settings/forms/questions', builder: (context, state) => const IntakeQuestionsScreen()),
       GoRoute(
         path: '/settings/forms/text/:part',
         builder: (context, state) => ConsentTextEditScreen(partName: state.pathParameters['part']!),

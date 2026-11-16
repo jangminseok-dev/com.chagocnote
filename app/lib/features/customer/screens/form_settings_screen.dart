@@ -15,13 +15,16 @@ import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
 import '../../../design/widgets/app_choice_chip.dart';
 import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_switch.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../api/consent_models.dart';
 import '../api/form_settings_models.dart';
+import '../api/intake_models.dart';
 import '../state/form_settings_commands.dart';
 import '../state/form_settings_providers.dart';
+import '../state/intake_providers.dart';
 import 'consent_sign_screen.dart';
 
 /// 설정 → 서류(⑪ 설계 3.6 의 6) — 동의서에 적힌 글, 보호자에게 보내는 글, 링크 기간·노령 나이·동의 기한.
@@ -83,6 +86,9 @@ class _FormSettingsScreenState extends ConsumerState<FormSettingsScreen> {
     final texts = shopId == null
         ? const AsyncValue<List<ConsentTextPart>>.loading()
         : ref.watch(consentTextsProvider(shopId));
+    final questions = shopId == null
+        ? const AsyncValue<List<IntakeQuestion>>.loading()
+        : ref.watch(intakeQuestionsProvider(shopId));
     final canEdit = ref.watch(isOwnerProvider);
     return Scaffold(
       key: ScreenKeys.formSettings,
@@ -105,7 +111,7 @@ class _FormSettingsScreenState extends ConsumerState<FormSettingsScreen> {
                 child: AsyncBody<FormSettings>(
                   value: settings,
                   onRetry: () => ref.invalidate(formSettingsProvider(shopId!)),
-                  builder: (data) => _body(data, texts.value ?? const [], canEdit: canEdit),
+                  builder: (data) => _body(data, texts.value ?? const [], questions.value?.length ?? 0, canEdit: canEdit),
                 ),
               ),
             ],
@@ -115,7 +121,7 @@ class _FormSettingsScreenState extends ConsumerState<FormSettingsScreen> {
     );
   }
 
-  Widget _body(FormSettings shown, List<ConsentTextPart> texts, {required bool canEdit}) {
+  Widget _body(FormSettings shown, List<ConsentTextPart> texts, int questions, {required bool canEdit}) {
     final notice = canEdit ? _errorText : AppStrings.reportSettingsOwnerOnly;
     return ListView(
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xxl),
@@ -164,6 +170,47 @@ class _FormSettingsScreenState extends ConsumerState<FormSettingsScreen> {
           ),
         ),
         const _Hint(AppStrings.formSectionMessagesHint),
+        const _Label(AppStrings.formSectionIntake),
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final code in intakeHideable)
+                Row(
+                  children: [
+                    // 이름은 스위치가 읽는다 — 글자를 한 번 더 읽지 않게 뺀다.
+                    Expanded(
+                      child: ExcludeSemantics(
+                        child: Text(AppStrings.intakeFieldNames[code] ?? code, style: AppTypography.body),
+                      ),
+                    ),
+                    AppSwitch(
+                      key: ValueKey('intake-field-$code'),
+                      value: !shown.intakeHidden.contains(code),
+                      semanticLabel: AppStrings.intakeFieldNames[code] ?? code,
+                      onChanged: canEdit
+                          ? (on) => _set(shown.copyWith(intakeHidden: [
+                              for (final other in intakeHideable)
+                                if (other == code ? !on : shown.intakeHidden.contains(other)) other,
+                            ]))
+                          : null,
+                    ),
+                  ],
+                ),
+              const SizedBox(height: AppSpacing.xs),
+              // 끌 수 없는 칸과 그 까닭 — 누구의 답인지, 어떤 동의가 필요한지가 여기서 정해진다.
+              const Text(AppStrings.formIntakeAlways, style: AppTypography.caption),
+              _LinkRow(
+                title: AppStrings.formIntakeQuestions(questions),
+                hint: AppStrings.formIntakeQuestionsHint,
+                edited: false,
+                onTap: () => context.push('/settings/forms/questions'),
+              ),
+            ],
+          ),
+        ),
+        const _Hint(AppStrings.formIntakeHiddenHint),
         _Choice(
           field: 'link_days',
           label: AppStrings.formLinkDaysLabel,
@@ -215,6 +262,24 @@ class _FormSettingsScreenState extends ConsumerState<FormSettingsScreen> {
                   shown.consentDays,
                   consentDaysRange,
                   (v) => shown.copyWith(consentDays: v),
+                )
+              : null,
+        ),
+        _Choice(
+          field: 'intake_keep_days',
+          label: AppStrings.formIntakeKeepLabel,
+          hint: AppStrings.formIntakeKeepHint(shown.intakeKeepDays),
+          value: shown.intakeKeepDays,
+          choices: const [7, 30, 90],
+          text: AppStrings.formDays,
+          onPick: canEdit ? (v) => _set(shown.copyWith(intakeKeepDays: v)) : null,
+          onCustom: canEdit
+              ? () => _custom(
+                  'intake_keep_days',
+                  AppStrings.formIntakeKeepLabel,
+                  shown.intakeKeepDays,
+                  intakeKeepDaysRange,
+                  (v) => shown.copyWith(intakeKeepDays: v),
                 )
               : null,
         ),

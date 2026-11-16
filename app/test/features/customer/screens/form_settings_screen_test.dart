@@ -2,7 +2,9 @@
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/design/widgets/app_choice_chip.dart';
+import 'package:chagocnote/design/widgets/app_switch.dart';
 import 'package:chagocnote/features/customer/screens/form_text_edit_screens.dart';
+import 'package:chagocnote/features/customer/screens/intake_questions_screen.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,10 +12,12 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/form_settings_fixtures.dart';
+import '../../../support/intake_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
 
 const _settings = '/v1/shops/3/form-settings';
 const _texts = '/v1/shops/3/consent-texts';
+const _questions = '/v1/shops/3/intake-questions';
 
 /// 서류 설정 서버 — 받은 본문을 적고 그대로 저장해 돌려준다. [putError] 가 있으면 저장하지 않는다.
 class _Server {
@@ -22,6 +26,8 @@ class _Server {
   FakeResponse? putError;
   final puts = <Map<String, dynamic>>[];
   final textPuts = <(String, Object?)>[];
+  List<Map<String, dynamic>> questions = [];
+  final questionPuts = <List<Map<String, dynamic>>>[];
 
   late final backend = VisitTestBackend({
     'GET $_settings': (o, b) => FakeResponse(statusCode: 200, data: settings),
@@ -39,6 +45,17 @@ class _Server {
         intakeHidden: [...(sent['intake_hidden'] as List? ?? const []).cast<String>()],
       );
       return FakeResponse(statusCode: 200, data: settings);
+    },
+    'GET $_questions': (o, b) => FakeResponse(statusCode: 200, data: {'items': questions}),
+    'PUT $_questions': (o, body) {
+      final sent = [...(bodyOf(body)['items'] as List).cast<Map<String, dynamic>>()];
+      questionPuts.add(sent);
+      if (putError case final error?) return error;
+      var next = 100;
+      questions = [
+        for (final q in sent) intakeQuestionJson(q['question_id'] as int? ?? next++, q['label'] as String, required: q['required'] as bool),
+      ];
+      return FakeResponse(statusCode: 200, data: {'items': questions});
     },
     'GET $_texts': (o, b) => FakeResponse(statusCode: 200, data: texts),
     for (final part in ['basic', 'senior', 'condition'])
@@ -128,7 +145,7 @@ void main() {
       ..putError = const FakeResponse(statusCode: 403, data: {'code': 'PERMISSION_DENIED', 'message': 'x'});
     await _open(tester, server);
 
-    await _tap(tester, find.widgetWithText(AppChoiceChip, '7일'));
+    await _tap(tester, find.widgetWithText(AppChoiceChip, '7일').first);   // 링크 기간(뒤의 것은 문진표 보관)
 
     expect(_chip(tester, '14일').selected, isTrue);
     expect(find.byKey(const ValueKey('form-settings-notice')), findsOneWidget);
@@ -139,7 +156,8 @@ void main() {
     await _open(tester, server, owner: false);
 
     expect(find.text(AppStrings.reportSettingsOwnerOnly), findsOneWidget);
-    expect(_chip(tester, '7일').onTap, isNull);
+    expect(tester.widget<AppChoiceChip>(find.widgetWithText(AppChoiceChip, '7일').first).onTap, isNull);
+    expect(tester.widget<AppSwitch>(find.byKey(const ValueKey('intake-field-breed'))).onChanged, isNull);
     await _tap(tester, find.text(AppStrings.consentPartTitleSenior));
     expect(find.byKey(ScreenKeys.formTextEdit), findsOneWidget);
     expect(find.byKey(FormTextEdit.saveKey), findsNothing);
@@ -229,5 +247,113 @@ void main() {
     expect(_saveButton(tester).onPressed, isNull);
     expect(find.text(AppStrings.formUnknownSlot), findsOneWidget);
     expect(server.puts, isEmpty);
+  });
+
+  // ── 문진표(⑪-C) ──────────────────────────────────────────────────────────
+  testWidgets('문진표의 칸을 끄면 끈 칸의 목록과 함께 전체를 보내고, 끌 수 없는 칸은 까닭과 함께 적혀 있다', (tester) async {
+    final server = _Server();
+    await _open(tester, server);
+
+    expect(find.text(AppStrings.formIntakeAlways), findsOneWidget);
+    expect(tester.widget<AppSwitch>(find.byKey(const ValueKey('intake-field-weight'))).value, isTrue);
+    await _tap(tester, find.byKey(const ValueKey('intake-field-weight')));
+    await _tap(tester, find.byKey(const ValueKey('intake-field-style')));
+
+    expect(server.puts.last['intake_hidden'], ['weight', 'style']);
+    expect(server.puts.last['link_days'], 14);                  // 다른 칸은 지금 값 그대로
+    expect(tester.widget<AppSwitch>(find.byKey(const ValueKey('intake-field-weight'))).value, isFalse);
+
+    await _tap(tester, find.byKey(const ValueKey('intake-field-weight')));   // 다시 켠다
+    expect(server.puts.last['intake_hidden'], ['style']);
+  });
+
+  testWidgets('확인하지 않은 문진표를 지우는 때는 칩으로 고르고 직접 정할 수도 있다', (tester) async {
+    final server = _Server();
+    await _open(tester, server);
+
+    expect(find.text(AppStrings.formIntakeKeepHint(30)), findsOneWidget);
+    await _tap(tester, find.widgetWithText(AppChoiceChip, '90일'));
+    expect(server.puts.single['intake_keep_days'], 90);
+    expect(find.text(AppStrings.formIntakeKeepHint(90)), findsOneWidget);
+
+    await _tap(tester, find.byKey(const ValueKey('form-custom-intake_keep_days')));
+    await tester.enterText(find.byKey(const ValueKey('form-custom-input')), '0');
+    await _tap(tester, find.byKey(const ValueKey('form-custom-save')));
+    expect(server.puts, hasLength(1));                           // 범위 밖은 보내지 않는다
+  });
+
+  testWidgets('매장이 더한 질문 — 더하고 꼭 답하기를 켜고 저장하면 목록 전체를 보내고 설정으로 돌아와 개수가 보인다', (tester) async {
+    final server = _Server()..questions = [intakeQuestionJson(1, '산책은 얼마나 하나요?')];
+    await _open(tester, server);
+
+    await _tap(tester, find.text(AppStrings.formIntakeQuestions(1)));
+    expect(find.byKey(ScreenKeys.intakeQuestions), findsOneWidget);
+    expect(tester.widget<AppButton>(find.byKey(IntakeQuestionsScreen.saveKey)).onPressed, isNull);   // 바꾼 것이 없다
+
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.addKey));
+    await tester.enterText(find.byKey(const ValueKey('intake-question-1')), ' 다른 아이와 잘 지내나요? ');
+    await _tap(tester, find.byKey(const ValueKey('intake-question-required-1')));
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.saveKey));
+
+    expect(server.questionPuts.single, [
+      {'question_id': 1, 'label': '산책은 얼마나 하나요?', 'required': false},
+      {'question_id': null, 'label': '다른 아이와 잘 지내나요?', 'required': true},
+    ]);
+    expect(find.byKey(ScreenKeys.intakeQuestions), findsNothing);
+    expect(find.text(AppStrings.formIntakeQuestions(2)), findsOneWidget);
+  });
+
+  testWidgets('질문을 고치고 지울 수 있다 — 지운 질문은 보내는 목록에서 빠진다', (tester) async {
+    final server = _Server()
+      ..questions = [intakeQuestionJson(1, '산책은 얼마나 하나요?'), intakeQuestionJson(2, '간식을 줘도 되나요?', required: true)];
+    await _open(tester, server, path: '/settings/forms/questions');
+
+    await _tap(tester, find.byKey(const ValueKey('intake-question-remove-0')));
+    await tester.enterText(find.byKey(const ValueKey('intake-question-0')), '간식을 드려도 될까요?');
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.saveKey));
+
+    expect(server.questionPuts.single, [
+      {'question_id': 2, 'label': '간식을 드려도 될까요?', 'required': true},
+    ]);
+  });
+
+  testWidgets('빈 질문은 보내지 않고 그 자리에서 말하고, 다섯 개가 차면 더할 수 없다', (tester) async {
+    final server = _Server()..questions = [for (var i = 1; i <= 4; i++) intakeQuestionJson(i, '질문 $i')];
+    await _open(tester, server, path: '/settings/forms/questions');
+
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.addKey));
+    expect(tester.widget<AppButton>(find.byKey(IntakeQuestionsScreen.addKey)).onPressed, isNull);
+    expect(find.text(AppStrings.intakeQuestionFull), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('intake-question-4'))).maxLength, 100);
+
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.saveKey));
+    expect(find.text(AppStrings.intakeQuestionEmpty), findsOneWidget);
+    expect(server.questionPuts, isEmpty);
+  });
+
+  testWidgets('질문 저장이 실패하면 적은 것이 남고 그 자리에서 말한다', (tester) async {
+    final server = _Server()
+      ..putError = const FakeResponse(statusCode: 500, data: {'code': 'INTERNAL', 'message': 'x'});
+    await _open(tester, server, path: '/settings/forms/questions');
+
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.addKey));
+    await tester.enterText(find.byKey(const ValueKey('intake-question-0')), '산책은 얼마나 하나요?');
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.saveKey));
+
+    expect(find.byKey(ScreenKeys.intakeQuestions), findsOneWidget);
+    expect(find.text('산책은 얼마나 하나요?'), findsOneWidget);
+    expect(tester.widget<AppButton>(find.byKey(IntakeQuestionsScreen.saveKey)).busy, isFalse);
+  });
+
+  testWidgets('직원에게 질문은 읽기 전용이다 — 더하기·지우기·저장이 없다', (tester) async {
+    final server = _Server()..questions = [intakeQuestionJson(1, '산책은 얼마나 하나요?')];
+    await _open(tester, server, path: '/settings/forms/questions', owner: false);
+
+    expect(find.text('산책은 얼마나 하나요?'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('intake-question-0'))).readOnly, isTrue);
+    expect(tester.widget<AppSwitch>(find.byKey(const ValueKey('intake-question-required-0'))).onChanged, isNull);
+    for (final key in [IntakeQuestionsScreen.addKey, IntakeQuestionsScreen.saveKey, const ValueKey('intake-question-remove-0')]) {
+      expect(find.byKey(key), findsNothing);
+    }
   });
 }

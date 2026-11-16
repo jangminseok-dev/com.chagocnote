@@ -443,6 +443,28 @@ class AppStrings {
   static const intakeSendUpdate = '문진표 다시 받기';
   static const intakeSendFailed = '문진표 링크를 만들지 못했어요. 다시 눌러 주세요.';
   static const intakeShareFailed = '공유 창을 열지 못했어요. 보낸 서류에서 다시 공유할 수 있어요.';
+  // 서류 설정의 문진표(⑪-C).
+  static const formSectionIntake = '문진표에서 물어볼 것';
+  static const formIntakeAlways = '보호자 이름·전화번호, 아이 이름, 지병, 개인정보 안내는 늘 물어요.';
+  static const formIntakeHiddenHint = '끈 칸은 보호자에게 보이지 않아요. 등록할 때 비어 있으면 그때 채워요.';
+  static const intakeFieldNames = {
+    'species': '종류(강아지·고양이)', 'breed': '품종', 'sex': '성별', 'neutered': '중성화', 'birth': '나이(생일)',
+    'weight': '몸무게', 'dislikes': '싫어하는 것·조심할 것', 'style': '원하는 스타일',
+  };
+  static String formIntakeQuestions(int count) => count == 0 ? '매장이 더한 질문' : '매장이 더한 질문 $count';
+  static const formIntakeQuestionsHint = '우리 매장만 묻고 싶은 것을 다섯 개까지 더할 수 있어요.';
+  static const formIntakeKeepLabel = '확인하지 않은 문진표를 지우는 때';
+  static String formIntakeKeepHint(int days) => '받고 $days일 동안 등록하지 않은 문진표는 지워요.';
+  static const intakeQuestionsTitle = '매장이 더한 질문';
+  static const intakeQuestionAdd = '질문 더하기';
+  static const intakeQuestionHint = '질문을 적어 주세요 (예: 산책은 얼마나 하나요?)';
+  static const intakeQuestionRequired = '꼭 답하기';
+  static const intakeQuestionRemove = '질문 지우기';
+  static const intakeQuestionEmpty = '비어 있는 질문이 있어요. 적거나 지워 주세요.';
+  static const intakeQuestionFull = '질문은 다섯 개까지 더할 수 있어요.';
+  static const intakeQuestionsNone = '더한 질문이 없어요. 기본 칸만 물어요.';
+  static const intakeQuestionsSaved = '저장했어요. 다음에 여는 문진표부터 보여요.';
+
   // 받은 문진표(⑪-C) — 다시 치지 않고 등록한다.
   static String receivedIntakeEntry(int count) => '받은 문진표 $count';
   static const receivedIntakeTitle = '받은 문진표';
