@@ -3,9 +3,11 @@ from datetime import timedelta
 
 import pytest
 
+from hub.app.dtos.pet_revisit import PetRevisitFact
 from hub.app.dtos.visit_events import VisitCanceled, VisitClosed, VisitReserved
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
 from visit.app.use_cases.transition_visits_interactor import TransitionVisitsInteractor
+from visit.domain.value_objects.revisit_settings import RevisitSettings
 from visit.domain.errors import (
     VisitDuplicateError,
     VisitGroupMismatchError,
@@ -21,6 +23,7 @@ from visit.tests.helpers.fakes import (
     FakeEvents,
     FakeMenus,
     FakeReportRepository,
+    FakeRevisitSettingsRepository,
     FakeVisits,
     Journal,
 )
@@ -36,7 +39,7 @@ def _with_reports(visits=None):
     reports = FakeReportRepository(visits)
     events = FakeEvents(journal)
     interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), reports, directory, events=events,
-                                            now=lambda: NOW)
+                                            now=lambda: NOW, settings=FakeRevisitSettingsRepository())
     return journal, visits, reports, interactor, events
 
 
@@ -159,7 +162,8 @@ async def test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_�
                            canceled_at=NOW, cancel_reason="customer_request")
     visits._swap_visit_id = canceled.id
     interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), FakeReportRepository(visits), directory,
-                                            events=FakeEvents(journal), now=lambda: NOW)
+                                            events=FakeEvents(journal), now=lambda: NOW,
+                                            settings=FakeRevisitSettingsRepository())
     with pytest.raises(VisitStateConflictError):
         await interactor.transition_visits(_act([canceled.id], "revert"))
 
@@ -266,6 +270,35 @@ async def test_완료는_같은_아이의_앞선_완료_시작_시각을_실은_
         (VisitClosed, kong.id, 1, 101, "completed", kst(9, 2, 14), NOW),
         (VisitClosed, alone.id, 1, None, "completed", kst(9, 12, 14), NOW),
         (VisitClosed, first.id, 2, 201, "completed", None, NOW)]
+
+
+async def test_완료의_VisitClosed_에는_아이의_주기와_매장의_기본_간격이_실린다():
+    """⑬ — 계산한 주기는 간격 둘 이상일 때만 싣고(cycle_weeks), 직접 정한 값은 manual, 모르면 none 이다."""
+    journal, visits, reports, interactor, events = _with_reports()
+    interactor._settings.rows[1] = RevisitSettings(default_cycle_weeks=5)
+    for month, day in ((7, 29), (8, 26)):          # 101: 이번(9/23)과 함께 4주·4주 → 계산 4주
+        _completed(visits, 101, month, day)
+    _completed(visits, 102, 9, 2)                  # 102: 이번과 함께 간격 하나 → single
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
+    bori = visits.seed(customer_id=1, pet_id=102, starts_at=kst(9, 23, 16))
+    momo = visits.seed(customer_id=2, pet_id=201, starts_at=kst(9, 23, 13))
+    alone = visits.seed(customer_id=1, pet_id=None, starts_at=kst(9, 23, 17))
+    await interactor.transition_visits(_act([kong.id], "complete"))
+    await interactor.transition_visits(_act([bori.id], "complete"))
+    await interactor.transition_visits(_act([momo.id], "complete"))
+    await interactor.transition_visits(_act([alone.id], "complete"))
+    assert [(e.visit_id, e.cycle_weeks, e.cycle_source, e.default_cycle_weeks) for e in events.published] == [
+        (kong.id, 4, "computed", 5), (bori.id, None, "single", 5), (momo.id, None, "none", 5),
+        (alone.id, None, "none", 5)]
+
+
+async def test_아이에게_직접_정한_주기는_manual_로_실린다():
+    _, visits, _, interactor, events = _with_reports()
+    interactor._directory.revisits[101] = PetRevisitFact(grooming_cycle_weeks=9, revisit_nudged_on=None)
+    kong = visits.seed(customer_id=1, pet_id=101, starts_at=kst(9, 23, 13))
+    await interactor.transition_visits(_act([kong.id], "complete"))
+    [event] = events.published
+    assert (event.cycle_weeks, event.cycle_source, event.default_cycle_weeks) == (9, "manual", 4)
 
 
 async def test_가족_묶음은_같은_시작_시각끼리_pet_id_를_함께_싣고_한_마리만_취소하면_그_아이뿐이다():

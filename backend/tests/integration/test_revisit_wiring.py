@@ -181,3 +181,38 @@ async def test_익명화하면_아이의_주기와_안내한_날이_비워진다
     assert await row() == (6, _day(0))
     assert (await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=o)).status_code == 204
     assert await row() == (None, None)
+
+
+# ── 다음 예약 초안 ─────────────────────────────────────────────────
+
+
+async def _draft(wired, shop_id, headers, visit_id):
+    got = await wired.api.get(f"/v1/shops/{shop_id}/visits/{visit_id}/next-draft", headers=headers)
+    assert got.status_code == 200, got.text
+    return got.json()
+
+
+async def test_다음_예약_초안은_날짜가_늘_있고_주기의_출처를_싣는다(wired):
+    shop_id, o, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, o)
+
+    once = await _done_on(wired, shop_id, o, customer_id, pet_id, -84)
+    first = await _draft(wired, shop_id, o, once)
+    assert (first["cycle_source"], first["cycle_weeks"], first["interval_weeks"]) == ("none", 4, 4)
+    assert first["starts_at"].startswith((_day(-84) + timedelta(weeks=4)).isoformat())
+
+    await _done_on(wired, shop_id, o, customer_id, pet_id, -42)
+    last = await _done_on(wired, shop_id, o, customer_id, pet_id, -1)
+    computed = await _draft(wired, shop_id, o, last)
+    assert (computed["cycle_source"], computed["cycle_weeks"]) == ("computed", 6)
+    assert computed["starts_at"].startswith((_day(-1) + timedelta(weeks=6)).isoformat())
+
+    await wired.api.put(cycle_url(shop_id, pet_id), headers=o, json={"weeks": 3})
+    assert (await _draft(wired, shop_id, o, last))["cycle_source"] == "manual"
+
+    # 매장의 기본 간격을 바꾸면 주기를 모르는 아이(한 번 온 아이)의 초안이 따라간다.
+    new_customer, new_pet = await _family(wired, shop_id, o, phone="010-2222-3333", pet_name="보리")
+    single = await _done_on(wired, shop_id, o, new_customer, new_pet, -3)
+    await wired.api.put(settings_url(shop_id), headers=o, json={"default_cycle_weeks": 8})
+    eight = await _draft(wired, shop_id, o, single)
+    assert (eight["cycle_source"], eight["cycle_weeks"]) == ("none", 8)

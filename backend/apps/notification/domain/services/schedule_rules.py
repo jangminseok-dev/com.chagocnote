@@ -21,7 +21,6 @@ RETRY_DELAYS = (timedelta(minutes=1), timedelta(minutes=5), timedelta(minutes=30
 STUCK_AFTER = timedelta(minutes=5)          # 이보다 오래 sending 이면 다음 루프가 되돌린다
 ACCEPTED_TIMEOUT = timedelta(hours=24)      # accepted 의 최종 상태를 기다리는 최대 시간
 TOO_LATE_MARGIN = timedelta(hours=1)        # 예약 이 시간 전을 넘기면 보내지 않는다
-DEFAULT_INTERVAL_WEEKS = 4
 MOBILE_NUMBER = re.compile(r"010[0-9]{8}")
 
 
@@ -40,12 +39,19 @@ def reminder_at(starts_at: datetime, reminder_time: time, tz: str, now: datetime
     return at if at > now else None
 
 
-def interval_weeks(previous_completed_at: datetime | None, completed_at: datetime, tz: str) -> int:
-    """두 완료일(매장 시간대 날짜)의 차를 주로 반올림, 최소 1. 앞선 완료가 없으면 기본 4주."""
-    if previous_completed_at is None:
-        return DEFAULT_INTERVAL_WEEKS
-    days = (_local_date(completed_at, tz) - _local_date(previous_completed_at, tz)).days
-    return max(1, round(days / 7))
+def next_visit_weeks(
+    cycle_weeks: int | None, cycle_source: str, default_cycle_weeks: int, fixed_weeks: int | None,
+) -> int:
+    """다음 예약 제안의 주 수(⑬ 설계 3.4) — 아이에게 직접 정한 값 → 매장 알림 설정의 고정 주 수 → 지난 방문에서
+    계산한 값(간격 둘 이상) → 매장의 기본 간격. 간격 하나(single)는 주기가 아니라 쓰지 않는다.
+    아이를 보고 정한 값이 "모든 아이에게 같은 주 수"보다 구체적이라 앞선다."""
+    if cycle_source == "manual" and cycle_weeks is not None:
+        return cycle_weeks
+    if fixed_weeks is not None:
+        return fixed_weeks
+    if cycle_source == "computed" and cycle_weeks is not None:
+        return cycle_weeks
+    return default_cycle_weeks
 
 
 def next_visit_at(completed_at: datetime, weeks: int, reminder_time: time, tz: str) -> datetime:

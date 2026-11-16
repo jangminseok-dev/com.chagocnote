@@ -306,18 +306,36 @@ async def test_완료는_대기_줄을_건드리지_않고_앞선_완료가_없�
         "starts_at": _iso(kst(10, 14, 9)), "completed_at": _iso(NOW), "interval_weeks": "4", "pet_ids": "101", "pet_visits": "101:7"}
 
 
-async def test_앞선_완료가_있으면_그_간격을_주로_반올림한_뒤다():
+# 주 수의 순서(⑬ 설계 3.4): 아이에게 직접 정한 값 → 매장 알림 설정의 고정 주 수 → 계산한 값(간격 둘 이상)
+# → 매장의 기본 간격. 간격 하나(single)는 쓰지 않는다 — 앞선 완료와의 간격 하나로 주기를 정하지 않는다.
+
+
+async def test_계산한_주기가_있으면_그_주_수_뒤다():
     world = _World()
-    await world.handle(_completed(previous=kst(9, 23, 11)))   # 21일 전 → 3주
+    await world.handle(_completed(previous=kst(9, 23, 11), cycle_weeks=3, cycle_source="computed"))
     assert world.pending() == [(NEXT_VISIT, kst(11, 4, 18))]
     assert world.only(NEXT_VISIT).variables["interval_weeks"] == "3"
 
 
-async def test_설정의_주_수가_있으면_간격보다_우선한다():
+async def test_간격_하나뿐이면_앞선_완료와의_간격이_아니라_매장의_기본_간격이다():
+    world = _World()
+    await world.handle(_completed(previous=kst(9, 23, 11), cycle_source="single", default_cycle_weeks=5))
+    assert world.pending() == [(NEXT_VISIT, kst(11, 18, 18))]
+    assert world.only(NEXT_VISIT).variables["interval_weeks"] == "5"
+
+
+async def test_설정의_주_수가_있으면_계산한_주기보다_앞선다():
     world = _World(next_visit_after_weeks=6)
-    await world.handle(_completed(previous=kst(9, 23, 11)))
+    await world.handle(_completed(previous=kst(9, 23, 11), cycle_weeks=3, cycle_source="computed"))
     assert world.pending() == [(NEXT_VISIT, kst(11, 25, 18))]
     assert world.only(NEXT_VISIT).variables["interval_weeks"] == "6"
+
+
+async def test_아이에게_직접_정한_주기는_설정의_주_수보다_앞선다():
+    world = _World(next_visit_after_weeks=6)
+    await world.handle(_completed(cycle_weeks=2, cycle_source="manual"))
+    assert world.pending() == [(NEXT_VISIT, kst(10, 28, 18))]
+    assert world.only(NEXT_VISIT).variables["interval_weeks"] == "2"
 
 
 @pytest.mark.parametrize("how", ["setting_off", "template_pending", "delivered"])
@@ -767,3 +785,23 @@ async def test_두_마리를_함께_완료하면_next_visit_은_한_통이고_pe
 
     rows = [m for m in world.messages.rows.values() if m.kind == NEXT_VISIT]
     assert len(rows) == 1 and (rows[0].visit_id, rows[0].variables["pet_ids"]) == (7, "101,102")
+
+
+async def test_함께_완료한_둘째_아이의_주기가_더_짧으면_묶음의_한_통을_그만큼_당긴다():
+    world = _World()
+    await world.handle(_completed(visit_id=7, pet_id=101, family_pet_ids=(101, 102), cycle_weeks=6,
+                                  cycle_source="computed"))
+    await world.handle(_completed(visit_id=8, pet_id=102, family_pet_ids=(101, 102), cycle_weeks=3,
+                                  cycle_source="manual"))
+    assert world.pending() == [(NEXT_VISIT, kst(11, 4, 18))]
+    assert world.only(NEXT_VISIT).variables["interval_weeks"] == "3"
+
+
+async def test_함께_완료한_둘째_아이의_주기가_더_길면_묶음의_한_통은_그대로다():
+    world = _World()
+    await world.handle(_completed(visit_id=7, pet_id=101, family_pet_ids=(101, 102), cycle_weeks=3,
+                                  cycle_source="computed"))
+    await world.handle(_completed(visit_id=8, pet_id=102, family_pet_ids=(101, 102), cycle_weeks=8,
+                                  cycle_source="manual"))
+    assert world.pending() == [(NEXT_VISIT, kst(11, 4, 18))]
+    assert world.only(NEXT_VISIT).variables["interval_weeks"] == "3"

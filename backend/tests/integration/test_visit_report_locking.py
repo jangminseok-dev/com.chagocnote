@@ -18,6 +18,7 @@ from media.tests.helpers.fakes import FakeStorage
 from tests.integration.support import NoEvents
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
+from visit.adapter.outbound.pg.revisit_settings_pg_repository import RevisitSettingsPgRepository
 from visit.adapter.outbound.pg.report_settings_pg_repository import ReportSettingsPgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
@@ -68,7 +69,7 @@ def _revert(session, visit_id):
     visits = VisitPgRepository(session)
     return TransitionVisitsInteractor(
         visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session),
-        events=FakeEvents(), now=_now,
+        events=FakeEvents(), now=_now, settings=RevisitSettingsPgRepository(session),
     ).transition_visits(TransitionVisitsCommand(ctx=SHOP, visit_ids=(visit_id,), action="revert",
                                                 cancel_reason=None))
 

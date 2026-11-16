@@ -45,6 +45,10 @@ class VisitCanceled(VisitEvent):
 class VisitClosed(VisitEvent):
     outcome: str              # "completed" | "no_show"
     previous_completed_at: datetime | None   # 완료일 때 같은 아이(보호자만이면 보호자만 방문)의 앞선 완료 방문 시작 시각. 노쇼는 None
+    # 아이의 미용 주기(⑬ 설계 3.4) — 다음 예약 제안의 주 수. cycle_weeks 는 직접 정한 값·계산한 값일 때만 있다.
+    cycle_weeks: int | None = None
+    cycle_source: str = "none"   # manual · computed · single · none
+    default_cycle_weeks: int = 4   # 매장의 기본 간격 — 주기를 모를 때
     family_pet_ids: tuple[int, ...] = ()
 
 

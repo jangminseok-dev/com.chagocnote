@@ -12,13 +12,17 @@ from visit.app.dtos.transition_visits_dto import TransitionedVisitsView, Transit
 from visit.app.ports.input.transition_visits_use_case import TransitionVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.report_repository import ReportRepository
+from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.app.services.completion_effects import apply_completion_effects
+from visit.app.services.revisit import pet_cycles
 from visit.app.services.visit_locking import lock_visits
 from visit.app.services.visit_reader import describe_visits
 from visit.domain.entities.visit import Visit
 from visit.domain.errors import VisitStateConflictError
+from visit.domain.services.visit_cycle import COMPUTED, MANUAL, NONE
+from visit.domain.services.visit_schedule import local_date
 from visit.domain.state.visit_state import pets_to_confirm, transition
 
 
@@ -28,7 +32,7 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
     def __init__(
         self, visits: VisitWriteRepository, history: VisitHistoryRepository, menus: MenuRepository,
         reports: ReportRepository, directory: CustomerDirectoryPort, events: DomainEventPort,
-        now: Callable[[], datetime],
+        now: Callable[[], datetime], settings: RevisitSettingsRepository,
     ) -> None:
         self._visits = visits
         self._history = history
@@ -37,6 +41,7 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
         self._directory = directory
         self._events = events
         self._now = now
+        self._settings = settings
 
     async def transition_visits(self, command: TransitionVisitsCommand) -> TransitionedVisitsView:
         ctx, ids = command.ctx, list(command.visit_ids)
@@ -67,6 +72,20 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
             visits=await describe_visits(ctx, changed, self._directory, self._menus)
         )
 
+    async def _cycle_of(self, ctx: ShopContext, pet_id: int | None, now: datetime) -> dict:
+        """다음 예약 제안의 주 수에 쓸 아이의 주기(⑬ 설계 3.4) — 이번 완료까지 넣어 계산한다(이미 완료로 썼다).
+        cycle_weeks 는 직접 정한 값·계산한 값일 때만 싣는다(간격 하나는 주기가 아니다)."""
+        settings = await self._settings.get(ctx)
+        if pet_id is None:
+            return dict(cycle_source=NONE, default_cycle_weeks=settings.default_cycle_weeks)
+        facts = await self._directory.revisit_facts(ctx, (pet_id,))
+        manual = {pet_id: facts[pet_id].grooming_cycle_weeks} if pet_id in facts else {}
+        cycle = (await pet_cycles(ctx, [pet_id], manual, self._history, settings,
+                                  local_date(now, ctx.timezone)))[pet_id]
+        known = cycle.source in (MANUAL, COMPUTED)
+        return dict(cycle_weeks=cycle.weeks if known else None, cycle_source=cycle.source,
+                    default_cycle_weeks=settings.default_cycle_weeks)
+
     async def _event_for(
         self, ctx: ShopContext, action: str, cancel_reason: str | None, visit: Visit, now: datetime,
         family: tuple[int, ...],
@@ -79,7 +98,8 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
         if action == "complete":
             previous = await self._history.latest_completed_start_excluding(
                 ctx, visit.customer_id, visit.pet_id, visit.id)
-            return VisitClosed(**common, outcome="completed", previous_completed_at=previous)
+            return VisitClosed(**common, outcome="completed", previous_completed_at=previous,
+                               **await self._cycle_of(ctx, visit.pet_id, now))
         if action == "no_show":
             return VisitClosed(**common, outcome="no_show", previous_completed_at=None)
         if action == "revert":

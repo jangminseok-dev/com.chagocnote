@@ -67,7 +67,7 @@ def _transition(session, visit_ids, action, reason=None):
     visits = VisitPgRepository(session)
     interactor = TransitionVisitsInteractor(
         visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session),
-        events=FakeEvents(), now=lambda: NOW,
+        events=FakeEvents(), now=lambda: NOW, settings=RevisitSettingsPgRepository(session),
     )
     return interactor.transition_visits(TransitionVisitsCommand(
         ctx=SHOP, visit_ids=tuple(visit_ids), action=action, cancel_reason=reason,

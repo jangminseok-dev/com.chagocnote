@@ -9,7 +9,8 @@ from visit.tests.helpers.api import STAFF, Recorder, build_app, client, error_of
 
 DRAFT = NextVisitDraftView(customer_id=1, pet_ids=[101, 102],
                            starts_at=datetime(2026, 10, 21, 14, tzinfo=ZoneInfo("Asia/Seoul")),
-                           duration_minutes=150, menus=[], interval_weeks=4)
+                           duration_minutes=150, menus=[], interval_weeks=4,
+                           cycle_weeks=4, cycle_source="none")
 
 
 async def test_다음_예약_초안을_준다():
@@ -17,7 +18,8 @@ async def test_다음_예약_초안을_준다():
     async with client(build_app(get_next_visit_draft_router, get_get_next_visit_draft_use_case, stub, STAFF)) as c:
         response = await c.get("/v1/shops/3/visits/9/next-draft")
     assert response.json() == {"customer_id": 1, "pet_ids": [101, 102], "starts_at": "2026-10-21T14:00:00+09:00",
-                               "duration_minutes": 150, "menus": [], "interval_weeks": 4}
+                               "duration_minutes": 150, "menus": [], "interval_weeks": 4,
+                               "cycle_weeks": 4, "cycle_source": "none"}
     assert stub.calls[0].visit_id == 9
 
 

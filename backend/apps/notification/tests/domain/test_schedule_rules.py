@@ -4,15 +4,14 @@ import pytest
 
 from notification.domain.errors import NotificationInputError
 from notification.domain.services.schedule_rules import (
-    DEFAULT_INTERVAL_WEEKS,
     MAX_ATTEMPTS,
     RETRY_DELAYS,
     check_settings,
     deferred_for_daytime,
-    interval_weeks,
     is_mobile_number,
     is_too_late,
     next_visit_at,
+    next_visit_weeks,
     reminder_at,
     retry_at,
 )
@@ -42,23 +41,20 @@ def test_리마인드_시각_1분_전이면_있다():
     assert reminder_at(kst(10, 15, 14), SIX_PM, TZ, now=kst(10, 14, 17, 59)) == kst(10, 14, 18)
 
 
-# 지난 방문 간격 — 매장 시간대 날짜 차를 주로 반올림, 최소 1
+# 다음 예약 제안의 주 수(⑬ 설계 3.4) — 직접 정한 값 → 알림 설정의 고정 주 수 → 계산한 값 → 매장의 기본 간격
 
 
-@pytest.mark.parametrize(("days", "weeks"), [(14, 2), (10, 1), (11, 2), (8, 1), (25, 4), (3, 1), (0, 1), (7, 1), (28, 4)])
-def test_간격은_날짜_차를_주로_반올림한다(days, weeks):
-    completed = kst(10, 1, 14) + timedelta(days=days)
-    assert interval_weeks(kst(10, 1, 14), completed, TZ) == weeks
-
-
-def test_간격의_날짜_차는_매장_시간대로_센다():
-    """KST 5일 00:30 → 15일 23:30 은 KST 로 10일(1주), UTC 로 세면 11일(2주)이다."""
-    assert interval_weeks(kst(10, 5, 0, 30), kst(10, 15, 23, 30), TZ) == 1
-
-
-def test_앞선_완료가_없으면_기본_4주다():
-    assert DEFAULT_INTERVAL_WEEKS == 4
-    assert interval_weeks(None, kst(10, 15, 14), TZ) == 4
+@pytest.mark.parametrize(("cycle_weeks", "source", "fixed", "expected"), [
+    (2, "manual", 6, 2),       # 아이에게 직접 정한 값이 가장 앞선다
+    (2, "manual", None, 2),
+    (3, "computed", 6, 6),     # 알림 설정의 고정 주 수가 계산한 값보다 앞선다
+    (3, "computed", None, 3),
+    (None, "single", None, 5),   # 간격 하나는 주기가 아니다 — 매장의 기본 간격
+    (None, "none", None, 5),
+    (None, "single", 6, 6),
+])
+def test_다음_예약_제안의_주_수의_순서(cycle_weeks, source, fixed, expected):
+    assert next_visit_weeks(cycle_weeks, source, 5, fixed) == expected
 
 
 # 다음 예약 제안 시각 — 완료일 + N주 되는 날 리마인드 시각
