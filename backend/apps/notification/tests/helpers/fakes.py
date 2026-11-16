@@ -197,14 +197,15 @@ class FakeMessages(MessageRepository, NotificationQueueRepository):
         return sorted((m for m in self._mine(ctx, customer_id=customer_id, status=SCHEDULED)
                        if m.kind in kinds and m.variables.get("starts_at") == starts_at_iso), key=lambda m: m.id)
 
-    async def rewrite_scheduled(self, ctx, message_id, variables, visit_id, pet_id):
+    async def rewrite_scheduled(self, ctx, message_id, variables, visit_id, pet_id, scheduled_at=None):
         current = await self.get(ctx, message_id)
         if current is None or current.status != SCHEDULED:
             return False
         if any(m.id != message_id and m.status in PENDING_STATUSES and (m.visit_id, m.kind) == (visit_id, current.kind)
                for m in self.rows.values()):
             raise MessageAlreadyPendingError("옮길 방문에 같은 종류의 알림이 이미 대기 중입니다.")
-        self._put(replace(current, variables=dict(variables), visit_id=visit_id, pet_id=pet_id))
+        self._put(replace(current, variables=dict(variables), visit_id=visit_id, pet_id=pet_id,
+                          scheduled_at=scheduled_at or current.scheduled_at))
         self.journal.append(("rewrite_scheduled", message_id))
         return True
 
@@ -358,6 +359,9 @@ class FakeDirectory(CustomerDirectoryPort):
     async def contact(self, ctx, customer_id):
         return self.contacts.get(customer_id) if ctx.shop_id == self.shop_id else None
 
+    async def revisit_facts(self, ctx, pet_ids):
+        return {}
+
 
 class FakeLedger(VisitLedgerPort):
     """VisitLedgerPort 스텁 — 디스패처는 customer_has_upcoming 만 쓴다. upcoming 은 앞으로의 예약이 있는 고객 ID."""
@@ -385,6 +389,9 @@ class FakeLedger(VisitLedgerPort):
 
     async def latest_covers(self, ctx, pet_ids):
         return {}
+
+    async def pet_revisit(self, ctx, pet_id, fact):
+        raise AssertionError("알림 쪽은 아이의 주기를 장부에서 읽지 않는다 — 완료 이벤트로 받는다")
 
 
 class SpyGateway(FakeGateway):

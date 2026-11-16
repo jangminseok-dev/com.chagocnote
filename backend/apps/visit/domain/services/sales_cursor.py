@@ -20,7 +20,7 @@ def decode_visit_cursor(cursor: str) -> tuple[datetime, int]:
 
 
 def encode_due_cursor(last_day: date, pet_id: int) -> str:
-    """다시 올 때가 지난 아이 — 마지막 줄의 (마지막 방문일, 반려동물 ID)."""
+    """다시 올 때가 된 아이(⑬) — 마지막 줄의 (다음 올 때, 반려동물 ID)."""
     return base64.urlsafe_b64encode(f"{last_day.isoformat()}|{pet_id}".encode()).decode().rstrip("=")
 
 

@@ -9,6 +9,7 @@ from customer.domain.entities.pet import Pet
 from customer.domain.services.care_marks import caution_active
 from customer.domain.services.pet_age import age_label
 from customer.domain.services.phone_number import mask_phone
+from hub.app.dtos.pet_revisit import PetRevisitView
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,8 @@ class PetView:
     passed_away_at: datetime | None
     grooming_consent_on: date | None = None   # 미용 동의를 받은 날(③-B)
     grooming_consent_via: str | None = None   # signature(서명으로) · manual(손으로 적음) · None(없음) — ⑪
+    grooming_cycle_weeks: int | None = None   # 직접 정한 미용 주기(⑬) — 응답에는 revisit 블록으로 나간다
+    revisit_nudged_on: date | None = None     # 안내한 날(⑬)
 
     @classmethod
     def of(cls, pet: Pet, today: date) -> PetView:
@@ -73,6 +76,7 @@ class PetView:
                 None if pet.grooming_consent_on is None
                 else "signature" if pet.grooming_consent_signature_id is not None else "manual"
             ),
+            grooming_cycle_weeks=pet.grooming_cycle_weeks, revisit_nudged_on=pet.revisit_nudged_on,
         )
 
 
@@ -159,3 +163,4 @@ class PetOverviewView:
 
     detail: PetDetailView
     photo: str | None
+    revisit: PetRevisitView | None = None   # 미용 주기와 다음 올 때(⑬) — visit 이 계산한다

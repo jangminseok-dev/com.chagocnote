@@ -35,6 +35,7 @@ class Visit:
     menu_ids: tuple[int, ...]
     created_by_member_id: int
     status_changed_by_member_id: int | None
+    report_skipped_at: datetime | None = None   # ⑬ 하루 마무리에서 "알림장을 보내지 않음"으로 넘긴 때
     # 저장하는 값이 아니다 — 방문을 쓰는 유스케이스가 잠근 뒤 살아 있는 알림장 링크를 읽어 채운다.
     has_live_report: bool = False
 

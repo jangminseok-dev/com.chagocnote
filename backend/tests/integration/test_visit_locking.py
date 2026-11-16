@@ -23,6 +23,7 @@ from customer.tests.helpers.profiles import customer_profile, pet_profile
 from hub.app.errors import FamilyNotFoundError
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
+from visit.adapter.outbound.pg.revisit_settings_pg_repository import RevisitSettingsPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
@@ -66,7 +67,7 @@ def _transition(session, visit_ids, action, reason=None):
     visits = VisitPgRepository(session)
     interactor = TransitionVisitsInteractor(
         visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session),
-        events=FakeEvents(), now=lambda: NOW,
+        events=FakeEvents(), now=lambda: NOW, settings=RevisitSettingsPgRepository(session),
     )
     return interactor.transition_visits(TransitionVisitsCommand(
         ctx=SHOP, visit_ids=tuple(visit_ids), action=action, cancel_reason=reason,
@@ -75,7 +76,8 @@ def _transition(session, visit_ids, action, reason=None):
 
 def _anonymize(session, customer_id):
     ledger = VisitLedgerInteractor(VisitPgRepository(session), VisitRecordPgRepository(session),
-                                   ReportPgRepository(session), now=lambda: NOW)
+                                   ReportPgRepository(session), now=lambda: NOW, history=VisitPgRepository(session),
+                                   revisit_settings=RevisitSettingsPgRepository(session))
     return DeleteCustomerInteractor(CustomerPgRepository(session), CustomerSearchPgAdapter(session), ledger, NoGuardians(), index=NoSearchIndex(),
                                     forms=ConsentFormPgRepository(session),
                                     signatures=ConsentSignaturePgRepository(session), now=lambda: NOW) \

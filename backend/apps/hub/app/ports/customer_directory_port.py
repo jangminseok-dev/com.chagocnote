@@ -8,6 +8,7 @@ from hub.app.dtos.care_facts import CareFacts
 from hub.app.dtos.customer_contact import CustomerContact
 from hub.app.dtos.draft_candidate import DraftCandidate
 from hub.app.dtos.family_brief import FamilyBriefs
+from hub.app.dtos.pet_revisit import PetRevisitFact
 from hub.app.dtos.shop_context import ShopContext
 
 
@@ -73,3 +74,7 @@ class CustomerDirectoryPort(ABC):
         """{고객 ID: 그 보호자를 대표해 열 반려동물 ID} — 무지개다리가 아닌 가장 먼저 등록한 아이, 그런 아이가
         없으면 가장 먼저 등록한 아이. 아이가 없는 고객, 익명화한 고객, 다른 매장의 고객은 빠진다. 잠그지 않는다.
         고객이 몇이든 읽는 횟수가 같다. 보호자에게 딸린 것(검색의 보호자 메모)을 눌렀을 때 열 화면을 정한다."""
+
+    @abstractmethod
+    async def revisit_facts(self, ctx: ShopContext, pet_ids: tuple[int, ...]) -> dict[int, PetRevisitFact]:
+        """{반려동물 ID: 직접 정한 주기·안내한 날}(⑬). 이 매장의 아이만 — 없는 아이는 빠진다. 질의 하나."""

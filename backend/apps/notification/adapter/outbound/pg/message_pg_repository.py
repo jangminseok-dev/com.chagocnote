@@ -104,12 +104,16 @@ class MessagePgRepository(MessageRepository, NotificationQueueRepository):
         )
 
     async def rewrite_scheduled(
-        self, ctx: ShopContext, message_id: int, variables: Mapping[str, str], visit_id: int, pet_id: int | None
+        self, ctx: ShopContext, message_id: int, variables: Mapping[str, str], visit_id: int, pet_id: int | None,
+        scheduled_at: datetime | None = None,
     ) -> bool:
+        values = dict(variables=dict(variables), visit_id=visit_id, pet_id=pet_id)
+        if scheduled_at is not None:
+            values["scheduled_at"] = scheduled_at
         statement = (
             update(_M)
             .where(_M.shop_id == ctx.shop_id, _M.id == message_id, _M.status == SCHEDULED)
-            .values(variables=dict(variables), visit_id=visit_id, pet_id=pet_id)
+            .values(**values)
         )
         try:
             async with self._session.begin_nested():

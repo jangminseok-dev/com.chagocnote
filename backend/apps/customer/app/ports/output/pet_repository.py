@@ -39,6 +39,18 @@ class PetRepository(ABC):
         """현재 몸무게만 바꾼다(미용 기록이 알려 준 값). 소속이 아니면 아무것도 바꾸지 않는다."""
 
     @abstractmethod
+    async def set_grooming_cycle(self, ctx: ShopContext, pet_id: int, weeks: int | None) -> None:
+        """직접 정한 미용 주기(⑬). None 이면 지운다(계산한 값으로 돌아간다)."""
+
+    @abstractmethod
+    async def set_revisit_nudged(self, ctx: ShopContext, pet_id: int, on: date) -> None:
+        """다시 올 때라고 안내한 날(⑬)."""
+
+    @abstractmethod
+    async def revisit_facts(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, tuple[int | None, date | None]]:
+        """{반려동물 ID: (직접 정한 주기, 안내한 날)} — 이 매장의 아이만. 질의 하나."""
+
+    @abstractmethod
     async def set_grooming_consent(
         self, ctx: ShopContext, pet_id: int, received_on: date | None, member_id: int | None,
         signature_id: int | None = None,

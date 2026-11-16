@@ -102,7 +102,7 @@ async def test_다른_매장의_매출은_볼_수_없고_섞이지_않는다(wir
     customer_id, pet_id = await _family(wired, b_shop, b)
     await _done(wired, b_shop, b, customer_id, pet_id, 11, {"payment_method": "card", "total_amount": 70_000})
 
-    for path in ("summary?span=month", "visits?span=month&filter=unrecorded", "due-pets", "goal"):
+    for path in ("summary?span=month", "visits?span=month&filter=unrecorded", "goal"):
         assert error_of(await wired.api.get(f"/v1/shops/{b_shop}/sales/{path}", headers=a)) == (403, "NOT_A_MEMBER")
     assert error_of(await wired.api.put(f"/v1/shops/{b_shop}/sales/goal", headers=a,
                                         json={"monthly_amount": 1})) == (403, "NOT_A_MEMBER")
@@ -115,7 +115,7 @@ async def test_직원은_매출의_어느_경로도_쓰지_못하고_로그인_�
     shop_id, o, _ = await _shop(wired)
     staff = await _staff(wired, shop_id, o)
     base = f"/v1/shops/{shop_id}/sales"
-    reads = ("summary?span=month", "visits?span=month&filter=unrecorded", "due-pets", "goal")
+    reads = ("summary?span=month", "visits?span=month&filter=unrecorded", "goal")
     for path in reads:
         assert error_of(await wired.api.get(f"{base}/{path}", headers=staff)) == (403, "PERMISSION_DENIED")
         assert (await wired.api.get(f"{base}/{path}")).status_code == 401
@@ -250,10 +250,11 @@ async def test_범위_끝의_입력은_어느_것도_500_이_아니다(wired):
         "summary?span=month&anchor=1999-12-31", "summary?span=month&anchor=2101-01-01", "summary?span=decade",
         "visits?span=month&filter=menu", "visits?span=month&filter=menu&menu_id=9223372036854775808",
         "visits?span=month&filter=no_show&cursor=!!!!", "visits?span=month&filter=no_show&cursor=YWJj",
-        "due-pets?cursor=!!!!", "due-pets?cursor=YWJj",
     )
     for path in bad:
         assert error_of(await wired.api.get(f"{base}/{path}", headers=o)) == (422, "VALIDATION_ERROR"), path
     huge = await wired.api.get(f"{base}/visits?span=month&filter=menu&menu_id=9223372036854775807", headers=o)
     assert (huge.status_code, huge.json()) == (200, {"items": [], "next_cursor": None})   # 없는(남의) 메뉴는 빈 목록
-    assert (await wired.api.get(f"{base}/due-pets", headers=o)).json() == {"items": [], "next_cursor": None}
+    revisits = await wired.api.get(f"/v1/shops/{shop_id}/revisits", params={"bucket": "due", "cursor": "YWJj"},
+                                   headers=o)
+    assert error_of(revisits) == (422, "VALIDATION_ERROR")   # 다시 올 때가 된 아이(⑬)의 깨진 커서

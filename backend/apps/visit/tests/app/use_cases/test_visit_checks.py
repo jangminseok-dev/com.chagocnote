@@ -15,6 +15,7 @@ from visit.app.use_cases.list_day_visits_interactor import ListDayVisitsInteract
 from visit.domain.errors import VisitInputError
 from visit.tests.helpers.builders import ctx, kst
 from visit.tests.helpers.fakes import (
+    FakeRevisitSettingsRepository,
     FakeChecks,
     FakeDirectory,
     FakeLibrary,
@@ -269,7 +270,8 @@ async def test_살아_있지_않은_방문에는_확인할_것이_없고_읽지�
 
 def _board(visits, directory, checks):
     return ListDayVisitsInteractor(visits, FakeMenus(), FakeSchedule(), directory, FakeRecords(visits),
-                                   FakeLibrary(), FakeReportRepository(visits), now=lambda: NOW, checks=checks)
+                                   FakeLibrary(), FakeReportRepository(visits), now=lambda: NOW, checks=checks,
+                                   revisit_settings=FakeRevisitSettingsRepository())
 
 
 async def test_하루_목록은_방문마다_보호자_항목과_아이_항목의_수를_준다():

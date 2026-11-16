@@ -18,6 +18,7 @@ class FeedItemSchema(BaseModel):
     care_note: str | None       # 앞 80자
     media_count: int
     report_sent: bool           # 살아 있는 알림장 링크가 있다
+    marks: list[str]            # 끝낸 일의 낱말 코드(⑬) — paid · report_sent 차례
 
 
 class VisitFeedSchema(BaseModel):

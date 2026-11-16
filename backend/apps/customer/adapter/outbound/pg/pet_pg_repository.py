@@ -128,6 +128,29 @@ class PetPgRepository(PetRepository):
             .values(weight_kg=weight_kg, updated_at=func.now())
         )
 
+    async def set_grooming_cycle(self, ctx: ShopContext, pet_id: int, weeks: int | None) -> None:
+        await self._session.execute(
+            update(PetOrm)
+            .where(PetOrm.id == pet_id, PetOrm.customer_id.in_(_owner_ids(ctx)))
+            .values(grooming_cycle_weeks=weeks, updated_at=func.now())
+        )
+
+    async def set_revisit_nudged(self, ctx: ShopContext, pet_id: int, on: date) -> None:
+        await self._session.execute(
+            update(PetOrm)
+            .where(PetOrm.id == pet_id, PetOrm.customer_id.in_(_owner_ids(ctx)))
+            .values(revisit_nudged_on=on, updated_at=func.now())
+        )
+
+    async def revisit_facts(self, ctx: ShopContext, pet_ids: list[int]) -> dict[int, tuple[int | None, date | None]]:
+        if not pet_ids:
+            return {}
+        rows = await self._session.execute(
+            select(PetOrm.id, PetOrm.grooming_cycle_weeks, PetOrm.revisit_nudged_on)
+            .where(PetOrm.id.in_(pet_ids), PetOrm.customer_id.in_(_owner_ids(ctx)))
+        )
+        return {pet_id: (weeks, nudged) for pet_id, weeks, nudged in rows}
+
     async def set_grooming_consent(
         self, ctx: ShopContext, pet_id: int, received_on: date | None, member_id: int | None,
         signature_id: int | None = None,

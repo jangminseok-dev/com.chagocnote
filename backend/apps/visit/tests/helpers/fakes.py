@@ -35,6 +35,7 @@ from visit.app.ports.output.guardian_report_repository import GuardianReportRepo
 from visit.app.ports.output.public_report_repository import PublicReportRepository
 from visit.app.ports.output.report_repository import ReportRepository
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
+from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
@@ -47,7 +48,6 @@ from visit.app.ports.output.visit_record_repository import VisitRecordRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.value_objects.sales import (
     DaySales,
-    DuePet,
     MenuSales,
     PetVisits,
     RemainingBookings,
@@ -67,6 +67,7 @@ from visit.domain.errors import (
 from visit.domain.services.report_rules import hide
 from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.closed_date import ClosedDate
+from visit.domain.value_objects.revisit_settings import DEFAULT_REVISIT_SETTINGS, RevisitSettings
 from visit.domain.value_objects.report_settings import DEFAULT_REPORT_SETTINGS, ReportSettings
 from visit.domain.value_objects.schedule_settings import DEFAULT_SETTINGS
 from visit.tests.helpers.builders import kst
@@ -175,6 +176,8 @@ class FakeDirectory(CustomerDirectoryPort):
         self.cautions: dict = {}     # 고객 ID → CautionFact (확인할 것)
         self.pet_facts: dict = {}    # 반려동물 ID → PetCareFact. 없으면 나이·지병·동의가 없는 아이다
         self.care_calls: list = []   # care_facts 가 받은 (고객 ID 들, 반려동물 ID 들, 오늘)
+        self.revisits: dict = {}     # 반려동물 ID → PetRevisitFact(⑬). 없으면 직접 정한 주기·안내한 날이 없다
+        self.revisit_calls: list = []   # revisit_facts 가 받은 반려동물 ID 들
 
     def family(self, customer_id=1, pets=(101,), shop_id=1, name="김민지", passed=()) -> None:
         self.families[customer_id] = (shop_id, {p: p in passed for p in pets})
@@ -243,6 +246,10 @@ class FakeDirectory(CustomerDirectoryPort):
         if self.families.get(customer_id, (None,))[0] != ctx.shop_id:
             return None
         return self.contacts.get(customer_id)
+
+    async def revisit_facts(self, ctx, pet_ids):
+        self.revisit_calls.append(tuple(pet_ids))
+        return {p: self.revisits[p] for p in pet_ids if p in self.revisits}
 
 
 class FakeVisits(
@@ -322,6 +329,10 @@ class FakeVisits(
         self.journal.append(("reschedule", sorted(visit_ids)))
         return [self.rows[i] for i in sorted(visit_ids)]
 
+    async def set_report_skipped(self, ctx, visit_id, at):
+        self.rows[visit_id] = replace(self._owned(ctx, visit_id), report_skipped_at=at)
+        self.journal.append(("set_report_skipped", visit_id, at))
+
     async def apply_changes(self, ctx, changes, member_id):
         for visit_id, change in changes:
             current = self._owned(ctx, visit_id)
@@ -361,10 +372,38 @@ class FakeVisits(
         started = [v for v in self._mine(ctx) if v.pet_id == pet_id and v.status in STARTED_STATUSES]
         return max(started, key=lambda v: (v.starts_at, v.id)).id if started else None
 
-    async def completed_starts(self, ctx, customer_id, pet_id, limit):
-        done = [v.starts_at for v in self._mine(ctx) if v.customer_id == customer_id and v.pet_id == pet_id
-                and v.status == "completed"]
-        return sorted(done, reverse=True)[:limit]
+    async def completed_days(self, ctx, pet_ids, per_pet):
+        from visit.domain.services.visit_schedule import local_date
+
+        self.completed_days_calls = getattr(self, "completed_days_calls", 0) + 1
+        days: dict[int, list] = {}
+        done = sorted((v for v in self._mine(ctx) if v.pet_id in pet_ids and v.status == "completed"),
+                      key=lambda v: v.starts_at, reverse=True)
+        for v in done:
+            if len(days.setdefault(v.pet_id, [])) < per_pet:
+                days[v.pet_id].append(local_date(v.starts_at, ctx.timezone))
+        return days
+
+    def _upcoming(self, v, since) -> bool:
+        return v.status == "in_progress" or (v.status == "reserved" and v.starts_at >= since)
+
+    async def pets_with_upcoming(self, ctx, pet_ids, since):
+        return {v.pet_id for v in self._mine(ctx) if v.pet_id in pet_ids and self._upcoming(v, since)}
+
+    async def revisit_candidates(self, ctx, today, since):
+        from visit.domain.services.visit_schedule import local_date
+        from visit.domain.value_objects.revisit import RevisitCandidate
+
+        self.revisit_calls = getattr(self, "revisit_calls", 0) + 1
+        latest: dict[int, Visit] = {}
+        for v in self._mine(ctx):
+            if v.pet_id is not None and v.status == "completed":
+                if v.pet_id not in latest or (v.starts_at, v.id) > (latest[v.pet_id].starts_at, latest[v.pet_id].id):
+                    latest[v.pet_id] = v
+        busy = {v.pet_id for v in self._mine(ctx) if self._upcoming(v, since)}
+        found = [RevisitCandidate(pet_id=p, last_visit_id=v.id, last_day=local_date(v.starts_at, ctx.timezone))
+                 for p, v in latest.items() if p not in busy]
+        return sorted((c for c in found if (today - c.last_day).days <= 365), key=lambda c: (c.last_day, c.pet_id))
 
     async def pet_has_visits(self, ctx, pet_id, active_only):
         return any(v.pet_id == pet_id and (v.is_active or not active_only) for v in self._mine(ctx))
@@ -436,6 +475,14 @@ class FakeRecords(VisitRecordRepository):
             if visit.pet_id in pet_ids and visit.status == "completed" and visit.id in self.rows \
                     and self.rows[visit.id].media:
                 found[visit.pet_id] = visit.id
+        return found
+
+    async def latest_payment_methods(self, ctx, customer_ids):
+        found = {}
+        for visit in sorted(self.visits._mine(ctx), key=lambda v: (v.starts_at, v.id)):
+            method = self.rows[visit.id].payment_method if visit.id in self.rows else None
+            if visit.customer_id in customer_ids and method is not None:
+                found[visit.customer_id] = method
         return found
 
     async def clear_notes(self, ctx, customer_id):
@@ -511,6 +558,11 @@ class FakeReportRepository(ReportRepository, PublicReportRepository, GuardianRep
     async def get_live(self, ctx, visit_id, now):
         self.reads.append("get_live")
         return next((r for r in self._open(ctx, id=visit_id) if r.is_live(now)), None)
+
+    async def visit_ids_with_report(self, ctx, visit_ids):
+        self.reads.append("visit_ids_with_report")
+        return {r.visit_id for r in self.rows
+                if r.visit_id in visit_ids and self.visits.rows[r.visit_id].shop_id == ctx.shop_id}
 
     async def live_visit_ids(self, ctx, visit_ids, now):
         self.reads.append("live_visit_ids")
@@ -605,6 +657,22 @@ class FakeReportSettingsRepository(ReportSettingsRepository):
 
     async def update(self, ctx, settings):
         self.journal.append(("update_report_settings", ctx.shop_id))
+        self.rows[ctx.shop_id] = settings
+        return settings
+
+
+class FakeRevisitSettingsRepository(RevisitSettingsRepository):
+    """rows 는 매장 ID → 다시 올 때 설정. 없는 매장은 처음 값이다."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.rows: dict[int, RevisitSettings] = {}
+
+    async def get(self, ctx):
+        return self.rows.get(ctx.shop_id, DEFAULT_REVISIT_SETTINGS)
+
+    async def update(self, ctx, settings):
+        self.journal.append(("update_revisit_settings", ctx.shop_id))
         self.rows[ctx.shop_id] = settings
         return settings
 
@@ -712,8 +780,6 @@ class FakeSalesRepository(SalesRepository):
         self.remaining_args: tuple | None = None
         self.visit_rows: list[SalesVisitRow] = []
         self.visit_args: tuple | None = None
-        self.due: list[DuePet] = []
-        self.due_args: tuple | None = None
 
     async def totals(self, ctx, start, until):
         self.calls.append("totals")
@@ -750,10 +816,6 @@ class FakeSalesRepository(SalesRepository):
         rows = [r for r in self.visit_rows if before is None or (r.starts_at, r.visit_id) < before]
         return rows[:limit]
 
-    async def due_candidates(self, ctx, today, since):
-        self.calls.append("due_candidates")
-        self.due_args = (today, since)
-        return list(self.due)
 
 
 class FakeChecks(VisitCheckRepository):

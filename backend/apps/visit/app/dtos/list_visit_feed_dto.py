@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from hub.app.dtos.shop_context import ShopContext
@@ -28,6 +28,7 @@ class FeedItemView:
     care_note: str | None    # 앞 80자
     media_count: int
     report_sent: bool        # 살아 있는 알림장 링크가 있다
+    marks: list[str] = field(default_factory=list)   # 끝낸 일의 낱말 코드(⑬) — paid · report_sent 차례
 
 
 @dataclass(frozen=True)

@@ -7,6 +7,7 @@ from core.redis import get_redis
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
 from visit.adapter.outbound.pg.report_settings_pg_repository import ReportSettingsPgRepository
+from visit.adapter.outbound.pg.revisit_settings_pg_repository import RevisitSettingsPgRepository
 from visit.adapter.outbound.pg.sales_goal_pg_repository import SalesGoalPgRepository
 from visit.adapter.outbound.pg.sales_pg_repository import SalesPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
@@ -17,6 +18,7 @@ from core.public_redis_limiter import PublicRedisLimiter
 from visit.app.ports.output.menu_repository import MenuRepository
 from hub.app.ports.public_limiter_port import PublicLimiterPort
 from visit.app.ports.output.report_settings_repository import ReportSettingsRepository
+from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
 from visit.app.ports.output.sales_goal_repository import SalesGoalRepository
 from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
@@ -48,6 +50,10 @@ def build_report_repository(db: AsyncSession) -> ReportPgRepository:
 
 def build_report_settings_repository(db: AsyncSession) -> ReportSettingsRepository:
     return ReportSettingsPgRepository(db)
+
+
+def build_revisit_settings_repository(db: AsyncSession) -> RevisitSettingsRepository:
+    return RevisitSettingsPgRepository(db)
 
 
 def build_check_repository(db: AsyncSession) -> VisitCheckRepository:

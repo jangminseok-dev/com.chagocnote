@@ -14,9 +14,9 @@ from visit.adapter.outbound.orm.visit_orm import (
 )
 from visit.adapter.outbound.pg.sales_pg_repository import SalesPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
+from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
 from visit.domain.value_objects.sales import (
     DaySales,
-    DuePet,
     MenuSales,
     PetVisits,
     RemainingBookings,
@@ -119,7 +119,7 @@ async def test_다른_매장의_방문은_어디에도_섞이지_않는다(db_se
     assert await repo.report_counts(A, *NOV) == (0, 0)
     assert await repo.remaining_reserved(A, kst(11, 14, 15), NOV[1]) == RemainingBookings(0, None)
     assert await repo.list_visits(A, *NOV, "menu", menus["목욕"], None, 20) == []
-    assert await repo.due_candidates(A, date(2027, 2, 1), seoul(2027, 2, 1, 9)) == []
+    assert await VisitPgRepository(db_session).revisit_candidates(A, date(2027, 2, 1), seoul(2027, 2, 1, 9)) == []
     assert (await repo.totals(B, *NOV)).revenue == 70_000
 
 
@@ -332,10 +332,15 @@ async def test_방문_목록은_쪽_경계에서_빠지거나_겹치지_않는�
     assert seen == [made[4], made[2], made[1], made[0], made[3]]
 
 
-# ---------- 다시 올 때가 지난 아이 ----------
+# ---------- 다시 올 때가 된 아이의 후보(⑬ — VisitPgRepository.revisit_candidates) ----------
 
-async def test_다시_올_때가_지난_아이는_57일_전부터_365일_전까지다(db_session):
-    repo = SalesPgRepository(db_session)
+
+def _pairs(found):
+    return [(c.pet_id, c.last_day) for c in found]
+
+
+async def test_다시_올_때의_후보는_한_해_안에_마지막으로_완료한_아이다(db_session):
+    repo = VisitPgRepository(db_session)
     today = date(2026, 11, 14)
     now = kst(11, 14, 15)
 
@@ -343,23 +348,23 @@ async def test_다시_올_때가_지난_아이는_57일_전부터_365일_전까�
         d = today - timedelta(days=n)
         return seoul(d.year, d.month, d.day, 11)
 
-    await _done(db_session, days_ago(56), 10_000, pet_id=101)       # 8주 — 아직 아니다
-    await _done(db_session, days_ago(57), 10_000, pet_id=102)       # 8주가 넘었다
+    await _done(db_session, days_ago(3), 10_000, pet_id=101)        # 며칠 전도 후보다 — 묶음은 주기가 가른다
+    await _done(db_session, days_ago(57), 10_000, pet_id=102)
     await _done(db_session, days_ago(365), 10_000, pet_id=103)
     await _done(db_session, days_ago(366), 10_000, pet_id=104)      # 한 해가 넘었다 — 떠난 손님
     await _done(db_session, days_ago(100), 10_000, pet_id=None)     # 보호자만의 방문
 
-    assert await repo.due_candidates(A, today, now) == [
-        DuePet(pet_id=103, last_day=today - timedelta(days=365)),
-        DuePet(pet_id=102, last_day=today - timedelta(days=57)),
-    ]
+    found = await repo.revisit_candidates(A, today, now)
+    assert _pairs(found) == [(103, today - timedelta(days=365)), (102, today - timedelta(days=57)),
+                             (101, today - timedelta(days=3))]
+    assert all(c.last_visit_id > 0 for c in found)
 
 
 async def test_다시_올_때는_마지막_완료_방문으로_보고_앞으로의_예약이_있으면_뺀다(db_session):
-    repo = SalesPgRepository(db_session)
+    repo = VisitPgRepository(db_session)
     today, now = date(2026, 11, 14), kst(11, 14, 15)
     await _done(db_session, kst(8, 1, 11), 10_000, pet_id=101)
-    await _done(db_session, kst(11, 1, 11), 10_000, pet_id=101)            # 최근에 왔다 — 빠진다
+    await _done(db_session, kst(11, 1, 11), 10_000, pet_id=101)            # 마지막 완료 방문은 11월 1일이다
     await _done(db_session, kst(8, 2, 11), 10_000, pet_id=102)
     await insert_visit(db_session, kst(11, 20, 11), "reserved", pet_id=102)     # 예약이 잡혀 있다 — 빠진다
     await _done(db_session, kst(8, 3, 11), 10_000, pet_id=103)
@@ -371,8 +376,21 @@ async def test_다시_올_때는_마지막_완료_방문으로_보고_앞으로�
     await insert_visit(db_session, kst(11, 6, 11), "canceled", pet_id=105)
     await _done(db_session, kst(8, 5, 15), 10_000, pet_id=106)                  # 같은 날이면 pet_id 순
 
-    assert await repo.due_candidates(A, today, now) == [
-        DuePet(pet_id=103, last_day=date(2026, 8, 3)),
-        DuePet(pet_id=105, last_day=date(2026, 8, 5)),
-        DuePet(pet_id=106, last_day=date(2026, 8, 5)),
-    ]
+    assert _pairs(await repo.revisit_candidates(A, today, now)) == [
+        (103, date(2026, 8, 3)), (105, date(2026, 8, 5)), (106, date(2026, 8, 5)), (101, date(2026, 11, 1))]
+
+
+async def test_완료_날짜와_후보의_마지막_날은_매장_시간대의_날이다__자정_앞뒤(db_session):
+    """서울 00:30 은 UTC 로 전날이다 — 주기 계산의 날짜와 후보의 마지막 날이 서울 날짜여야 한다(⑬ R5)."""
+    repo = VisitPgRepository(db_session)
+    await _done(db_session, seoul(2026, 11, 2, 0, 30), 10_000, pet_id=101)     # UTC 11월 1일 15:30
+    await _done(db_session, seoul(2026, 10, 1, 23, 50), 10_000, pet_id=101)    # 하루의 끝
+    await _done(db_session, seoul(2026, 9, 1, 11), 10_000, pet_id=101)         # 셋째 — per_pet 2 에 들지 않는다
+    await _done(db_session, seoul(2026, 11, 3, 0, 10), 10_000, pet_id=102)
+    await _done(db_session, seoul(2026, 11, 4, 0, 10), 10_000, pet_id=103, shop_id=2)   # 다른 매장
+
+    assert await repo.completed_days(A, [101, 102, 103], 2) == {
+        101: [date(2026, 11, 2), date(2026, 10, 1)], 102: [date(2026, 11, 3)]}
+    assert _pairs(await repo.revisit_candidates(A, date(2026, 11, 14), kst(11, 14, 15))) == [
+        (101, date(2026, 11, 2)), (102, date(2026, 11, 3))]
+

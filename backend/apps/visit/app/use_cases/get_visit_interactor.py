@@ -23,6 +23,7 @@ from visit.app.services.visit_checks import CheckTarget, read_checks
 from visit.app.services.visit_reader import describe_visits
 from visit.domain.entities.visit import ACTIVE_STATUSES
 from visit.domain.services.visit_schedule import local_date
+from visit.domain.services.visit_marks import marks_of
 
 
 class GetVisitInteractor(GetVisitUseCase):
@@ -69,6 +70,8 @@ class GetVisitInteractor(GetVisitUseCase):
             cover=covers.get(visit.id),
             report=describe_link(live, self._link_key, self._web_base_url).in_zone(ZoneInfo(ctx.timezone)),
             checks=await self._read_checks(ctx, visit, now),
+            marks=marks_of(visit, record, live is not None),
+            report_skipped=visit.report_skipped_at is not None,
         )
 
     async def _read_checks(self, ctx, visit, now: datetime) -> list[CheckView]:

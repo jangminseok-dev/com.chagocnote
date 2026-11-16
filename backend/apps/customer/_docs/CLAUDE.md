@@ -40,4 +40,7 @@
 - **문진표 끝의 동의서**(⑪-C1b, 0023) — 노령이거나 지병을 고른 답(매장이 `intake_consent_all` 을 켰으면 첫 방문의 모든 답 — 다시 받기는 빼고, `intake_reader.consent_for_all`)은 문진표와 함께 서명해야 받는다(422 `CONSENT_REQUIRED`). 규칙은 `domain/services/intake_consent.py`(`consent_parts`·`texts_digest`)이고, 연 뒤 매장의 글·노령 나이·`모든 아이에게` 가 바뀌었으면 409 다.
   - 서명은 **아이 없이 맡아 둔다** — `consent_signatures.customer_id` 가 비어 있고 `intake_answer_id` 로 답에 매달린다(CASCADE, 받은 길 `intake`). 고객·반려동물 표는 건드리지 않는다.
   - 등록·반영은 `app/services/intake_answers.IntakeAnswerUse` 로 답을 쓴다 — 맨 앞 `check`, 아이를 저장한 뒤 `finish`(서명을 떼어 내 그 고객·아이에게 붙이고 답을 지운다). **답을 먼저 지우면 서명도 지워진다** — 순서를 바꾸지 않는다. 그 아이에게 살아 있는 동의가 없을 때만 받은 날을 **서명한 날**로 찍는다. 맡아 둔 서명은 자기가 보인 토막과 지병 이름만 덮는다.
+- **아이의 미용 주기와 안내한 날**(⑬, 0025) — `pets.grooming_cycle_weeks`(직접 정한 주기, 1~52, CHECK)·`pets.revisit_nudged_on`(다시 올 때를 안내한 날). 쓰기 `PUT|DELETE /pets/{pet_id}/grooming-cycle`(`{weeks}` StrictInt 1~52, DELETE 는 계산으로 돌아가기)·`PUT /pets/{pet_id}/revisit-nudge`(본문 없음, 오늘 = `seoul_today` — 동의 받은 날과 같은 날짜 규칙) — `customer:write`(직원도), 고객 행 잠금, 204(앱이 상세를 다시 읽는다). 검색되는 글이 아니라 `SearchSourceChanged` 를 내지 않는다. **익명화가 두 칸을 비운다.**
+  - 주기 계산은 이 스포크가 하지 않는다 — 반려동물 상세의 `revisit`(`cycle_weeks`·`cycle_source`·`interval_count`·`last_interval_weeks`·`last_visit_date`·`due_date`·`estimated`·`has_upcoming`·`nudged_on`)은 visit 이 구현한 `VisitLedgerPort.pet_revisit(ctx, pet_id, PetRevisitFact)` 가 준다 — 안내한 날도 visit 이 목록과 같은 규칙(마지막 완료보다 뒤일 때만)으로 거른다.
+  - 허브 포트 `CustomerDirectoryPort.revisit_facts(ctx, pet_ids) -> {pet_id: PetRevisitFact}` — visit 의 다시 올 때가 된 아이·다음 예약 초안·완료 이벤트의 재료. 질의 하나, 이 매장의 살아 있는 고객의 아이만.
 

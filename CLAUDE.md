@@ -58,6 +58,7 @@
     docker compose run --rm backend python scripts/reregister_templates.py [--shop <id>] [--refresh]   # 알림톡 템플릿 재등록 / 심사 상태 조회
     bash ../backend/scripts/check_intake_flow.sh                                 # 첫 방문 문진표 흐름 확인 (보내기 → 로그인 없이 적어 내기 → 받은 문진표 → 등록 → 새 아이 → 다시 받기 → 칸 끄기·질문 → 끊기 → 익명화)
     bash ../backend/scripts/check_intake_consent_flow.sh                         # 문진표 끝의 동의서 흐름 확인 (서명 없이 422 → 글이 바뀌면 409 → 서명과 함께 냄 → 지병을 더해 등록 → 지병 토막만 남음 → 모든 아이에게)
+    bash ../backend/scripts/check_revisit_flow.sh                                # 미용 주기 흐름 확인 (방문 몇 번 → 주기를 손계산과 견준다 → 곧·지남 → 직접 정하기 → 예약하면 빠짐 → 안내한 날 → 남은 일·하루 마무리 → paid → 보내지 않음)
     bash ../backend/scripts/check_search_flow.sh                                 # 기록 검색 흐름 확인 (적기 → 글자·뜻으로 찾기 → 지우기 → 익명화 → 다른 매장 → embed 멈춤)
     docker compose run --rm backend python scripts/check_search_quality.py [--verbose]            # 기록 검색 품질 확인 (실제 모델, 질문 30개 중 24개 이상)
     docker compose run --rm backend python scripts/reindex_search.py [--shop <id>] [--purge-orphans]   # 검색 문서를 원본에 다시 맞춘다 (처음 채우기·모델 교체·어긋남)

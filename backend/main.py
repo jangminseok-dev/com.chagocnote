@@ -67,6 +67,8 @@ from customer.adapter.inbound.api.v1.update_intake_questions_router import updat
 from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
     set_pet_grooming_consent_router,
 )
+from customer.adapter.inbound.api.v1.set_pet_grooming_cycle_router import set_pet_grooming_cycle_router
+from customer.adapter.inbound.api.v1.mark_pet_revisit_nudged_router import mark_pet_revisit_nudged_router
 from customer.adapter.inbound.api.v1.unmark_pet_passed_away_router import (
     unmark_pet_passed_away_router,
 )
@@ -159,7 +161,11 @@ from visit.adapter.inbound.api.v1.create_menu_router import create_menu_router
 from visit.adapter.inbound.api.v1.delete_closed_date_router import delete_closed_date_router
 from visit.adapter.inbound.api.v1.delete_visit_record_router import delete_visit_record_router
 from visit.adapter.inbound.api.v1.get_next_visit_draft_router import get_next_visit_draft_router
+from visit.adapter.inbound.api.v1.get_day_wrap_up_router import get_day_wrap_up_router
 from visit.adapter.inbound.api.v1.get_report_settings_router import get_report_settings_router
+from visit.adapter.inbound.api.v1.get_revisit_settings_router import get_revisit_settings_router
+from visit.adapter.inbound.api.v1.count_revisits_router import count_revisits_router
+from visit.adapter.inbound.api.v1.list_revisits_router import list_revisits_router
 from visit.adapter.inbound.api.v1.get_sales_goal_router import get_sales_goal_router
 from visit.adapter.inbound.api.v1.get_sales_summary_router import get_sales_summary_router
 from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_calendar_router
@@ -170,7 +176,6 @@ from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
 from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_router
-from visit.adapter.inbound.api.v1.list_due_pets_router import list_due_pets_router
 from visit.adapter.inbound.api.v1.list_menus_router import list_menus_router
 from visit.adapter.inbound.api.v1.list_sales_visits_router import list_sales_visits_router
 from visit.adapter.inbound.api.v1.list_visit_feed_router import list_visit_feed_router
@@ -183,9 +188,11 @@ from visit.adapter.inbound.api.v1.register_visit_router import register_visit_ro
 from visit.adapter.inbound.api.v1.reschedule_visits_router import reschedule_visits_router
 from visit.adapter.inbound.api.v1.revoke_visit_report_router import revoke_visit_report_router
 from visit.adapter.inbound.api.v1.send_visit_report_router import send_visit_report_router
+from visit.adapter.inbound.api.v1.set_report_skip_router import set_report_skip_router
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
 from visit.adapter.inbound.api.v1.update_menu_router import update_menu_router
 from visit.adapter.inbound.api.v1.update_report_settings_router import update_report_settings_router
+from visit.adapter.inbound.api.v1.update_revisit_settings_router import update_revisit_settings_router
 from visit.adapter.inbound.api.v1.update_sales_goal_router import update_sales_goal_router
 from visit.adapter.inbound.api.v1.update_visit_router import update_visit_router
 from visit.adapter.inbound.api.v1.update_visit_settings_router import update_visit_settings_router
@@ -264,6 +271,8 @@ app.include_router(set_customer_caution_router)
 app.include_router(clear_customer_caution_router)
 app.include_router(set_pet_grooming_consent_router)
 app.include_router(clear_pet_grooming_consent_router)
+app.include_router(set_pet_grooming_cycle_router)
+app.include_router(mark_pet_revisit_nudged_router)
 app.include_router(add_pet_router)
 app.include_router(update_pet_router)
 # 서류(⑪) — 동의서 보내기·끊기·현장 서명·서명 보기
@@ -297,10 +306,13 @@ app.include_router(get_visit_settings_router)
 app.include_router(update_visit_settings_router)
 app.include_router(get_report_settings_router)
 app.include_router(update_report_settings_router)
+app.include_router(get_revisit_settings_router)
+app.include_router(update_revisit_settings_router)
+app.include_router(count_revisits_router)
+app.include_router(list_revisits_router)
 # ⑧ 매출 — 모두 sales:read(사장만)
 app.include_router(get_sales_summary_router)
 app.include_router(list_sales_visits_router)
-app.include_router(list_due_pets_router)
 app.include_router(get_sales_goal_router)
 app.include_router(update_sales_goal_router)
 app.include_router(list_closed_dates_router)
@@ -331,6 +343,8 @@ app.include_router(delete_visit_record_router)
 app.include_router(get_visit_report_router)
 app.include_router(send_visit_report_router)
 app.include_router(revoke_visit_report_router)
+app.include_router(set_report_skip_router)
+app.include_router(get_day_wrap_up_router)
 # 로그인 없이 열리는 경로 — 더할 때는 tests/route_inspection.py 의 허용 목록에도 적는다.
 app.include_router(read_public_report_router)
 app.include_router(mark_report_viewed_router)

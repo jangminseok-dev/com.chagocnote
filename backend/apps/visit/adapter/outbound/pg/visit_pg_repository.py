@@ -4,9 +4,9 @@ import base64
 import binascii
 import json
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
-from sqlalchemy import delete, func, insert, select, tuple_, update
+from sqlalchemy import and_, delete, func, insert, or_, select, tuple_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,12 +18,13 @@ from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepo
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
-from visit.domain.entities.visit import ACTIVE_STATUSES, COMPLETED, NO_SHOW, RESERVED, Visit
+from visit.domain.entities.visit import ACTIVE_STATUSES, COMPLETED, IN_PROGRESS, NO_SHOW, RESERVED, Visit
 from visit.domain.errors import VisitDuplicateError, VisitInputError, VisitNotFoundError
 from visit.domain.services.visit_schedule import MAX_DURATION
 from visit.domain.state.visit_state import StatusChange
 from visit.domain.state.visit_status import STARTED_STATUSES
 from visit.domain.value_objects.new_visit import NewVisit
+from visit.domain.value_objects.revisit import RevisitCandidate
 
 _DUPLICATE = {"uq_visits_pet_start_active", "uq_visits_customer_start_active"}
 
@@ -42,6 +43,14 @@ def _decode_feed_cursor(cursor: str) -> tuple[datetime, int]:
         return moment, visit_id
     except (ValueError, TypeError, OverflowError, binascii.Error, UnicodeDecodeError):
         raise VisitInputError("목록 위치(cursor)가 올바르지 않습니다.") from None
+
+
+REVISIT_WITHIN_DAYS = 365   # 마지막 완료 방문이 한 해를 넘긴 아이는 다시 올 때가 된 아이에 넣지 않는다(⑧ 그대로)
+
+
+def _upcoming(since: datetime):
+    """앞으로의 예약 — since(오늘 0시) 이후의 예약됨, 그리고 날짜와 상관없이 미용 중(⑧ 그대로)."""
+    return or_(VisitOrm.status == IN_PROGRESS, and_(VisitOrm.status == RESERVED, VisitOrm.starts_at >= since))
 
 
 class VisitPgRepository(
@@ -129,6 +138,12 @@ class VisitPgRepository(
             )
         return await self.get_many(ctx, visit_ids)
 
+    async def set_report_skipped(self, ctx: ShopContext, visit_id: int, at: datetime | None) -> None:
+        await self._session.execute(
+            update(VisitOrm).where(VisitOrm.id == visit_id, VisitOrm.shop_id == ctx.shop_id)
+            .values(report_skipped_at=at)
+        )
+
     async def apply_changes(
         self, ctx: ShopContext, changes: list[tuple[int, StatusChange]], member_id: int
     ) -> list[Visit]:
@@ -206,21 +221,53 @@ class VisitPgRepository(
             )
         ).scalar_one_or_none()
 
-    async def completed_starts(
-        self, ctx: ShopContext, customer_id: int, pet_id: int | None, limit: int
-    ) -> list[datetime]:
-        whose = VisitOrm.pet_id == pet_id if pet_id is not None else VisitOrm.pet_id.is_(None)
-        return list(
-            (
-                await self._session.execute(
-                    select(VisitOrm.starts_at)
-                    .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id, whose,
-                           VisitOrm.status == COMPLETED)
-                    .order_by(VisitOrm.starts_at.desc())
-                    .limit(limit)
-                )
-            ).scalars()
+    async def completed_days(self, ctx: ShopContext, pet_ids: list[int], per_pet: int) -> dict[int, list[date]]:
+        if not pet_ids:
+            return {}
+        ranked = (
+            select(
+                VisitOrm.pet_id.label("pet_id"),
+                func.date(func.timezone(ctx.timezone, VisitOrm.starts_at)).label("day"),
+                func.row_number().over(partition_by=VisitOrm.pet_id, order_by=VisitOrm.starts_at.desc()).label("n"),
+            )
+            .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id.in_(pet_ids), VisitOrm.status == COMPLETED)
+            .subquery()
         )
+        rows = await self._session.execute(
+            select(ranked.c.pet_id, ranked.c.day).where(ranked.c.n <= per_pet).order_by(ranked.c.pet_id, ranked.c.n)
+        )
+        days: dict[int, list[date]] = {}
+        for pet_id, day in rows:
+            days.setdefault(pet_id, []).append(day)
+        return days
+
+    async def pets_with_upcoming(self, ctx: ShopContext, pet_ids: list[int], since: datetime) -> set[int]:
+        if not pet_ids:
+            return set()
+        rows = await self._session.execute(
+            select(VisitOrm.pet_id).distinct().where(
+                VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id.in_(pet_ids), _upcoming(since),
+            )
+        )
+        return set(rows.scalars())
+
+    async def revisit_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[RevisitCandidate]:
+        day = func.date(func.timezone(ctx.timezone, VisitOrm.starts_at))
+        latest = (
+            select(VisitOrm.pet_id, VisitOrm.id.label("visit_id"), day.label("day"))
+            .distinct(VisitOrm.pet_id)
+            .where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id.is_not(None), VisitOrm.status == COMPLETED)
+            .order_by(VisitOrm.pet_id, VisitOrm.starts_at.desc(), VisitOrm.id.desc())
+            .subquery()
+        )
+        upcoming = select(VisitOrm.id).where(
+            VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id == latest.c.pet_id, _upcoming(since))
+        rows = await self._session.execute(
+            select(latest.c.pet_id, latest.c.visit_id, latest.c.day)
+            .where(latest.c.day >= today - timedelta(days=REVISIT_WITHIN_DAYS), ~upcoming.exists())
+            .order_by(latest.c.day, latest.c.pet_id)
+        )
+        return [RevisitCandidate(pet_id=p, last_visit_id=v, last_day=d) for p, v, d in rows]
 
     async def pet_has_visits(self, ctx: ShopContext, pet_id: int, active_only: bool) -> bool:
         stmt = select(VisitOrm.id).where(VisitOrm.shop_id == ctx.shop_id, VisitOrm.pet_id == pet_id)

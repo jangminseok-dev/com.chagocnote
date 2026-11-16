@@ -22,4 +22,6 @@ class NextVisitDraftView:
     starts_at: datetime          # 매장 시간대, 주기 뒤 같은 요일·같은 시각
     duration_minutes: int
     menus: list[MenuBriefView]   # 보관한 메뉴는 뺀다
-    interval_weeks: int
+    interval_weeks: int          # (예전 앱이 읽는 칸 — cycle_weeks 와 같다)
+    cycle_weeks: int             # 날짜에 쓴 주(⑬)
+    cycle_source: str            # manual · computed · single · none — 완료 시트가 "보통 오는 간격"·"어림"을 가른다

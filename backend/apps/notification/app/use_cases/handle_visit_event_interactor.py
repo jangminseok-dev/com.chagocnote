@@ -22,7 +22,7 @@ from notification.app.ports.output.template_repository import TemplateRepository
 from notification.domain.entities.notification_settings import NotificationSettings
 from notification.domain.errors import MessageAlreadyPendingError
 from notification.domain.services.family_group import PET_IDS, PET_VISITS, pet_visits_of, with_pets, without_pets
-from notification.domain.services.schedule_rules import interval_weeks, next_visit_at, reminder_at
+from notification.domain.services.schedule_rules import next_visit_at, next_visit_weeks, reminder_at
 from notification.domain.value_objects.message_kind import CANCEL, CHANGE, CONFIRM, NEXT_VISIT, REMINDER, REPORT
 from notification.domain.value_objects.new_message import NewMessage
 from notification.domain.value_objects.template_status import APPROVED
@@ -121,14 +121,14 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
             kept = await self._leave_group(ctx, event, event.starts_at, "no_show", _GROUP_KINDS, keep_stranded=True)
             await self._messages.cancel_pending(ctx, "no_show", event.visit_id, except_ids=kept)   # N17
             return
-        # 완료는 대기 줄을 건드리지 않는다. 주 수는 설정값, 없으면 앞선 완료와의 간격(없으면 4주).
+        # 완료는 대기 줄을 건드리지 않는다.
         if not await self._allowed(ctx, settings, NEXT_VISIT, event.visit_id):
             return
-        weeks = settings.next_visit_after_weeks
-        if weeks is None:
-            weeks = interval_weeks(event.previous_completed_at, event.occurred_at, ctx.timezone)
+        weeks = next_visit_weeks(event.cycle_weeks, event.cycle_source, event.default_cycle_weeks,
+                                 settings.next_visit_after_weeks)
         at = next_visit_at(event.occurred_at, weeks, settings.reminder_time, ctx.timezone)
         # 가족 묶음을 함께 완료하면 제안도 한 통 — 둘째 방문은 묶음의 줄(같은 보호자·시작 시각)이 맡는다.
+        # 묶음의 주 수는 아이들 가운데 짧은 쪽이다(둘째가 더 짧으면 줄을 당긴다).
         await self._create_for_group(ctx, event, NEXT_VISIT, at, completed_at=_iso(event.occurred_at),
                                      interval_weeks=str(weeks))
 
@@ -214,8 +214,12 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         if host is None:
             return
         joined = with_pets(host, self._pets(event), event.pet_id, event.visit_id)
+        sooner = kind == NEXT_VISIT and int(variables["interval_weeks"]) < int(host.variables.get("interval_weeks", "0"))
+        if sooner:
+            joined = {**(joined or host.variables), "interval_weeks": variables["interval_weeks"]}
         if joined is not None:
-            await self._messages.rewrite_scheduled(ctx, host.id, joined, host.visit_id, host.pet_id)
+            await self._messages.rewrite_scheduled(ctx, host.id, joined, host.visit_id, host.pet_id,
+                                                   scheduled_at=scheduled_at if sooner else None)
 
     @staticmethod
     def _pets(event: VisitEvent) -> tuple[int, ...]:

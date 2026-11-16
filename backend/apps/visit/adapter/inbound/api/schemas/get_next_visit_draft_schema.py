@@ -14,7 +14,9 @@ class NextVisitDraftSchema(BaseModel):
     starts_at: datetime
     duration_minutes: int
     menus: list[MenuBriefSchema]
-    interval_weeks: int
+    interval_weeks: int     # (예전 앱이 읽는 칸 — cycle_weeks 와 같다)
+    cycle_weeks: int        # 날짜에 쓴 주(⑬)
+    cycle_source: str       # manual · computed · single · none
 
     @classmethod
     def of(cls, view: NextVisitDraftView) -> NextVisitDraftSchema:

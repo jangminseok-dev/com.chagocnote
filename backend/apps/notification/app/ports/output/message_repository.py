@@ -37,9 +37,10 @@ class MessageRepository(ABC):
 
     @abstractmethod
     async def rewrite_scheduled(
-        self, ctx: ShopContext, message_id: int, variables: Mapping[str, str], visit_id: int, pet_id: int | None
+        self, ctx: ShopContext, message_id: int, variables: Mapping[str, str], visit_id: int, pet_id: int | None,
+        scheduled_at: datetime | None = None,
     ) -> bool:
-        """scheduled 일 때만 variables·visit_id·pet_id 를 바꾼다. 바꿨으면 True. 옮길 방문에 같은 종류의 대기 줄이 있으면
+        """scheduled 일 때만 variables·visit_id·pet_id(scheduled_at 을 주면 보낼 시각도)를 바꾼다. 바꿨으면 True. 옮길 방문에 같은 종류의 대기 줄이 있으면
         MessageAlreadyPendingError — create 처럼 세이브포인트 안이라 트랜잭션은 계속 쓸 수 있다."""
 
     @abstractmethod

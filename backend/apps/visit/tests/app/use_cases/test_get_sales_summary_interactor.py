@@ -1,5 +1,5 @@
 """매출 요약 — 낱말의 뜻(설계 ⑧ 3.1)을 스텁 포트로 하나씩 본다. 오늘은 2026-11-14 토요일 15:00(서울)이다."""
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -9,7 +9,6 @@ from visit.app.use_cases.get_sales_summary_interactor import GetSalesSummaryInte
 from visit.domain.errors import VisitInputError
 from visit.domain.value_objects.sales import (
     DaySales,
-    DuePet,
     MenuSales,
     PetVisits,
     RemainingBookings,
@@ -21,6 +20,7 @@ from visit.tests.helpers.fakes import (
     FakeLibrary,
     FakeMenus,
     FakeRecords,
+    FakeRevisitSettingsRepository,
     FakeSalesGoalRepository,
     FakeSalesRepository,
     FakeVisits,
@@ -46,7 +46,8 @@ class _World:
         self.directory.family(1, pets=tuple(range(101, 121)))
         self.interactor = GetSalesSummaryInteractor(
             sales=self.sales, goals=self.goals, menus=self.menus, directory=self.directory,
-            records=self.records, library=self.library, now=lambda: now,
+            records=self.records, library=self.library, now=lambda: now, history=self.visits,
+            revisit_settings=FakeRevisitSettingsRepository(),
         )
 
     async def summary(self, span="month", anchor=None, shop_id=1):
@@ -386,15 +387,19 @@ async def test_지난_해를_보면_그_해의_단골이다():
     assert [r.pet.pet_id for r in year.regulars] == [110]
 
 
-async def test_다시_올_때가_지난_아이의_수는_무지개다리와_익명화와_지운_아이를_뺀_수다():
+async def test_다시_올_때가_지난_아이의_수는_다시_올_때가_된_아이의_지남과_같다():
+    """⑬ — 8주 고정이 아니라 아이의 주기로 센다(같은 함수). 무지개다리·익명화·지운 아이는 빠진다."""
     w = _World()
     w.directory.family(2, pets=(201, 202), passed=(202,))
     w.directory.pet_names[102] = None
-    w.sales.due = [DuePet(101, date(2026, 8, 1)), DuePet(102, date(2026, 8, 2)), DuePet(202, date(2026, 8, 3)),
-                   DuePet(999, date(2026, 8, 4)), DuePet(201, date(2026, 8, 5))]
+    for pet, days in ((101, (30,)), (102, (60,)), (202, (60,)), (201, (20,)), (103, (36, 64, 92))):
+        for d in days:
+            at = NOW - timedelta(days=d)
+            w.visits.seed(customer_id=2 if pet >= 200 else 1, pet_id=pet, starts_at=at, status="completed",
+                          started_at=at, completed_at=at)
     s = await w.summary("day")
+    # 101: 한 번 → 어림 4주, 2일 지남 / 201: 20일 전 → 아직 / 103: 4주 주기, 8일 지남 / 102·202: 빠짐.
     assert s.due_pet_count == 2
-    assert w.sales.due_args == (TODAY, MIDNIGHT)
 
 
 async def test_요약_한_번의_저장소_호출_수는_방문_수와_상관없다():
@@ -408,6 +413,6 @@ async def test_요약_한_번의_저장소_호출_수는_방문_수와_상관없
     assert sorted(w.sales.calls) == sorted([
         "totals", "by_day", "by_payment", "by_menu", "pets",       # 이 기간
         "pets",                                                    # 단골(올해)
-        "due_candidates", "remaining_reserved", "report_counts",
+        "remaining_reserved", "report_counts",                     # 지난 아이는 방문 표의 후보(⑬)
         "totals", "totals",                                        # 앞 기간·작년
     ])

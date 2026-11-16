@@ -117,7 +117,7 @@ expect "6 0 을 보내면 목표가 지워진다" "$(call PUT "$G" "$owner" "$cl
 visit "$kong_owner" "$kong" "$(at 1 11)" >/dev/null
 want=1; [ "$(day 1 | cut -c1-4)" = "$(day 0 | cut -c1-4)" ] || want=0
 expect "7 올해의 남은 예약" "$(call GET "$SUM?span=year&anchor=$TODAY" "$owner" | field "['bookings']['remaining']")" "$want"
-expect "7 다시 올 때가 지난 아이는 아직 없다" "$(call GET "$S/sales/due-pets" "$owner" | field "['items'].__len__()")" "0"
+expect "7 다시 올 때가 지난 아이는 아직 없다" "$(call GET "$S/revisits/counts" "$owner" | field "['due']")" "0"
 
 # 8. 직원은 매출을 보지 못한다
 expect "8 직원의 요약은 403" "$(call GET "$SUM?span=month" "$staff" | field "['code']")" "PERMISSION_DENIED"

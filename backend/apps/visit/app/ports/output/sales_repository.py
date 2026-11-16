@@ -7,7 +7,6 @@ from typing import Literal
 from hub.app.dtos.shop_context import ShopContext
 from visit.domain.value_objects.sales import (
     DaySales,
-    DuePet,
     MenuSales,
     PetVisits,
     RemainingBookings,
@@ -61,9 +60,3 @@ class SalesRepository(ABC):
     ) -> list[SalesVisitRow]:
         """시작 시각 최신순(같으면 방문 ID 큰 순). before 는 앞 쪽의 마지막 줄(시작 시각, 방문 ID)이다.
         unrecorded — 총액이 없는 완료 방문, menu — 그 메뉴를 항목에 적은(총액이 있는) 완료 방문."""
-
-    @abstractmethod
-    async def due_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[DuePet]:
-        """마지막 완료 방문이 57일~365일 전이고 앞으로의 예약(since 이후의 예약·미용 중)이 없는 아이.
-        부르는 쪽은 since 에 매장 시간대의 오늘 0시를 넘긴다 — 오늘 예약한 아이는 그 시각이 지났어도 뺀다.
-        오래된 순(같으면 pet_id 순). 무지개다리·익명화는 여기서 모른다 — 부르는 쪽이 거른다."""

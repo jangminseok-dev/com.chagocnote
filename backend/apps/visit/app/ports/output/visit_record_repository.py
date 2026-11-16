@@ -26,6 +26,11 @@ class VisitRecordRepository(ABC):
         """{반려동물 ID: 방문 ID} — 사진·영상이 붙은 기록이 있는 가장 최근(시작 시각) 완료 방문."""
 
     @abstractmethod
+    async def latest_payment_methods(self, ctx: ShopContext, customer_ids: list[int]) -> dict[int, str]:
+        """{고객 ID: 결제 수단} — 결제 수단을 적은 기록 가운데 방문 시작 시각이 가장 늦은 것(하루 마무리의 채움, ⑬).
+        적은 적이 없는 고객은 빠진다. 질의 하나."""
+
+    @abstractmethod
     async def clear_notes(self, ctx: ShopContext, customer_id: int) -> None:
         """그 보호자의 방문 기록들의 케어 메모·내부 메모를 비운다(익명화)."""
 

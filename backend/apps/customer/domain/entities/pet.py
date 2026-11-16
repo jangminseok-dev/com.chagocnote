@@ -35,6 +35,8 @@ class Pet:
     conditions: tuple[PetCondition, ...]
     grooming_consent_on: date | None = None   # 미용 동의를 가장 최근에 받은 날(③-B)
     grooming_consent_signature_id: int | None = None   # 그날을 찍은 서명(⑪). 손으로 적은 동의면 None
+    grooming_cycle_weeks: int | None = None   # 직접 정한 미용 주기(⑬, 1~52주) — 없으면 visit 이 계산한다
+    revisit_nudged_on: date | None = None     # 다시 올 때라고 안내한 날(⑬ — 공유 시트를 연 날)
 
     @property
     def has_conditions(self) -> bool:

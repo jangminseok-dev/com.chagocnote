@@ -51,6 +51,14 @@ class ReportPgRepository(ReportRepository, PublicReportRepository, GuardianRepor
         ).scalar_one_or_none()
         return to_report(row) if row is not None else None
 
+    async def visit_ids_with_report(self, ctx: ShopContext, visit_ids: list[int]) -> set[int]:
+        if not visit_ids:
+            return set()
+        rows = await self._session.execute(
+            select(VisitReportOrm.visit_id).distinct().where(VisitReportOrm.visit_id.in_(visit_ids), _of_shop(ctx))
+        )
+        return set(rows.scalars())
+
     async def live_visit_ids(self, ctx: ShopContext, visit_ids: list[int], now: datetime) -> set[int]:
         if not visit_ids:
             return set()

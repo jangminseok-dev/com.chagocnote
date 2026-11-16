@@ -67,6 +67,21 @@ class VisitRecordPgRepository(VisitRecordRepository):
         )
         return dict(rows.all())
 
+    async def latest_payment_methods(self, ctx: ShopContext, customer_ids: list[int]) -> dict[int, str]:
+        if not customer_ids:
+            return {}
+        rows = await self._session.execute(
+            select(VisitOrm.customer_id, VisitRecordOrm.payment_method)
+            .join(VisitRecordOrm, VisitRecordOrm.visit_id == VisitOrm.id)
+            .distinct(VisitOrm.customer_id)
+            .where(
+                VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id.in_(customer_ids),
+                VisitRecordOrm.payment_method.is_not(None),
+            )
+            .order_by(VisitOrm.customer_id, VisitOrm.starts_at.desc(), VisitOrm.id.desc())
+        )
+        return dict(rows.all())
+
     async def clear_notes(self, ctx: ShopContext, customer_id: int) -> None:
         await self._session.execute(
             update(VisitRecordOrm)

@@ -69,7 +69,7 @@ unrecorded_count, due_pet_count
 
 **`GET /visits?span=&anchor=&filter=unrecorded|no_show|canceled|menu&menu_id=&cursor=`** → `{items: [{visit_id, date, pet: PetCard|null, amount: int|null}], next_cursor}` 최신순 20개. `filter=menu` 면 `menu_id` 필수(없으면 422). 남의 매장·없는 메뉴는 빈 목록. `pet` 은 보호자만의 방문·익명화·지운 아이면 null(방문은 보인다).
 
-**`GET /due-pets?cursor=`** → `{items: [{pet: PetCard, last_visit_date}], next_cursor}` 오래된 순 20개. 요약의 `due_pet_count` 와 같은 거르기다.
+**`GET /due-pets?cursor=`** → `{items: [{pet: PetCard, last_visit_date}], next_cursor}` 오래된 순 20개. 요약의 `due_pet_count` 와 같은 거르기다. — **⑬ 에서 지웠다.** 다시 올 때가 된 아이는 `/revisits` 이고 `due_pet_count` 는 그 '지남'의 수다(016).
 
 **`GET /goal`** → `{monthly_amount: int|null}`. **`PUT /goal`** 본문 `{monthly_amount: int|null}`(0~100,000,000, 0·null 은 지우기) → 같은 모양.
 

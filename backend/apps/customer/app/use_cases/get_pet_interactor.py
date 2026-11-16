@@ -10,6 +10,7 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.detail_reader import read_pet_detail
 from customer.app.services.pet_photos import pet_photos
+from hub.app.dtos.pet_revisit import PetRevisitFact
 from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
@@ -28,4 +29,7 @@ class GetPetInteractor(GetPetUseCase):
     async def get_pet(self, query: GetPetQuery) -> PetOverviewView:
         detail = await read_pet_detail(query.ctx, query.pet_id, self._customers, self._pets, self._today())
         photos = await pet_photos(query.ctx, [query.pet_id], self._ledger, self._library)
-        return PetOverviewView(detail=detail, photo=photos.get(query.pet_id))
+        # 주기는 visit 이 계산한다(⑬) — 직접 정한 값만 넘긴다. customer 는 계산 규칙을 모른다.
+        revisit = await self._ledger.pet_revisit(query.ctx, query.pet_id, PetRevisitFact(
+            grooming_cycle_weeks=detail.pet.grooming_cycle_weeks, revisit_nudged_on=detail.pet.revisit_nudged_on))
+        return PetOverviewView(detail=detail, photo=photos.get(query.pet_id), revisit=revisit)

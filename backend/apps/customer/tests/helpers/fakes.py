@@ -30,6 +30,7 @@ from hub.app.dtos.media_urls import MediaUrls
 from hub.app.ports.domain_event_port import DomainEventPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from hub.app.ports.search_index_port import SearchIndexPort
+from hub.app.dtos.pet_revisit import PetRevisitView
 from hub.app.ports.visit_ledger_port import VisitLedgerPort
 
 TODAY = date(2026, 9, 22)
@@ -176,6 +177,17 @@ class FakePets(PetRepository):
         self.journal.append(("set_grooming_consent", pet_id, received_on, member_id))
         return self.rows[pet_id]
 
+    async def set_grooming_cycle(self, ctx, pet_id, weeks):
+        self.rows[pet_id] = replace(self._owned(ctx, pet_id), grooming_cycle_weeks=weeks)
+        self.journal.append(("set_grooming_cycle", pet_id, weeks))
+
+    async def set_revisit_nudged(self, ctx, pet_id, on):
+        self.rows[pet_id] = replace(self._owned(ctx, pet_id), revisit_nudged_on=on)
+        self.journal.append(("set_revisit_nudged", pet_id, on))
+
+    async def revisit_facts(self, ctx, pet_ids):
+        return {p.id: (p.grooming_cycle_weeks, p.revisit_nudged_on) for p in self.rows.values() if p.id in pet_ids}
+
     async def count_for_customer(self, ctx, customer_id):
         return len([p for p in self.rows.values() if p.customer_id == customer_id])
 
@@ -260,6 +272,16 @@ class FakeLedger(VisitLedgerPort):
     async def latest_covers(self, ctx, pet_ids):
         self.journal.append(("latest_covers", sorted(pet_ids)))
         return {p: self.covers[p] for p in pet_ids if p in self.covers}
+
+    async def pet_revisit(self, ctx, pet_id, fact):
+        """주기를 계산하지 않는다 — 넘긴 사실만 비춘다(계산·거르기는 visit 의 테스트가 본다)."""
+        manual_weeks = fact.grooming_cycle_weeks
+        self.journal.append(("pet_revisit", pet_id, manual_weeks))
+        return PetRevisitView(
+            cycle_weeks=manual_weeks or 4, cycle_source="manual" if manual_weeks else "none", interval_count=0,
+            last_interval_weeks=None, last_visit_date=None, due_date=None, estimated=manual_weeks is None,
+            has_upcoming=pet_id in self.pets_with_upcoming, nudged_on=fact.revisit_nudged_on,
+        )
 
 
 class FakeLibrary(MediaLibraryPort):
