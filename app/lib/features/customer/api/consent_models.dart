@@ -13,7 +13,8 @@ enum ConsentPart { basic, senior, condition }
 /// 서명을 받은 길.
 enum SignatureChannel {
   link('link'),
-  inShop('in_shop');
+  inShop('in_shop'),
+  intake('intake'); // 문진표 끝에서 한 서명(⑪-C1b)
 
   const SignatureChannel(this.wire);
 

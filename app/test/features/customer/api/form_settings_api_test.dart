@@ -55,6 +55,7 @@ void main() {
       'consent_text': '서명 부탁드려요\n{링크}',
       'intake_keep_days': 30,
       'intake_hidden': <String>[],
+      'intake_consent_all': false,
     });
     expect(saved.linkDays, 3);
   });
@@ -73,9 +74,13 @@ void main() {
     expect(got.intakeHidden, ['weight']);
     expect(sent['intake_keep_days'], 7);
     expect(sent['intake_hidden'], ['weight', 'style']);
-    final old = FormSettings.fromJson(formSettingsJson()..remove('intake_keep_days')..remove('intake_hidden'));
+    final old = FormSettings.fromJson(formSettingsJson()
+      ..remove('intake_keep_days')
+      ..remove('intake_hidden')
+      ..remove('intake_consent_all'));
     expect(old.intakeKeepDays, 30);
     expect(old.intakeHidden, isEmpty);
+    expect(old.intakeConsentAll, isFalse);      // ⑪-C1b 의 칸을 모르는 옛 서버
   });
 
   test('동의서의 글 — 토막의 순서 그대로, 모르는 토막은 버린다', () async {

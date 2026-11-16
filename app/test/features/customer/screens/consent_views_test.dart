@@ -34,10 +34,17 @@ class _World {
       },
       'GET /v1/shops/3/pets/11': (o, b) => FakeResponse(statusCode: 200, data: petDetailJson(pet: pet)),
       'GET /v1/shops/3/pets/11/consent-signatures': (o, b) => FakeResponse(statusCode: 200, data: {
-        'items': [signatureBriefJson(), signatureBriefJson(id: 90, channel: 'link', parts: const ['basic'])],
+        'items': [
+          signatureBriefJson(),
+          signatureBriefJson(id: 90, channel: 'link', parts: const ['basic']),
+          signatureBriefJson(id: 89, channel: 'intake', parts: const ['basic', 'condition']),
+          signatureBriefJson(id: 88, channel: 'phone'),      // 모르는 받은 길 — 버린다
+        ],
       }),
       'GET /v1/shops/3/consent-signatures/91': (o, b) => FakeResponse(statusCode: 200, data: signatureDetailJson(channel: 'in_shop')),
       'GET /v1/shops/3/consent-signatures/91/image': (o, b) => FakeResponse(statusCode: 200, data: _png),
+      'GET /v1/shops/3/consent-signatures/89': (o, b) => FakeResponse(statusCode: 200, data: signatureDetailJson(id: 89, channel: 'intake')),
+      'GET /v1/shops/3/consent-signatures/89/image': (o, b) => FakeResponse(statusCode: 200, data: _png),
       'POST /v1/shops/3/consent-forms': (o, b) => FakeResponse(statusCode: 201, data: formLinkJson()),
       'GET /v1/shops/3/consent-document': (o, b) => FakeResponse(statusCode: 200, data: consentDocumentJson()),
     });
@@ -170,6 +177,21 @@ void main() {
       expect(find.textContaining('법적'), findsNothing);
       expect(world.setup.calls, contains('GET /v1/shops/3/consent-signatures/91/image'));
       expect(find.byKey(ConsentSignatureScreen.imageKey), findsOneWidget);
+    });
+  });
+
+  group('문진표에서 받은 서명(⑪-C1b)', () {
+    testWidgets('받은 길은 문진표에서이고 한 장에 문진표를 적으며 한 서명이라고 적혀 있다 — 모르는 받은 길은 버린다', (tester) async {
+      final world = _World(pet: _signedPet());
+      await world.open(tester, '/pets/11/signatures');
+
+      expect(find.text('2026년 11월 16일 · ${AppStrings.signatureViaIntake} · 김민지'), findsOneWidget);
+      expect(find.byKey(const ValueKey('signature-88')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('signature-89')));
+      await settle(tester);
+
+      expect(find.text(AppStrings.signatureNoteIntake), findsOneWidget);
     });
   });
 

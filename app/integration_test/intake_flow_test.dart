@@ -62,7 +62,7 @@ void main() {
     if (find.byKey(ScreenKeys.login).evaluate().isEmpty) await logout();
     await login(ownerName);
 
-    await step('I1', '고객 탭에 받은 문진표 1 — 누르면 목록, 줄을 누르면 한 장(빈 칸 없음)', () async {
+    await step('I1', '고객 탭에 받은 문진표 1 — 누르면 목록, 줄을 누르면 한 장(빈 칸 없음, 문진표 끝의 서명)', () async {
       await tap(find.text(AppStrings.tabCustomers));
       await waitFor(find.text(AppStrings.receivedIntakeEntry(1)));
       await shot('I1-entry');
@@ -72,6 +72,8 @@ void main() {
       await tap(find.text('모카'));
       await waitFor(find.byKey(ScreenKeys.intakeAnswer));
       await waitFor(find.byKey(IntakeAnswerScreen.registerKey));
+      await reveal(find.text(AppStrings.intakeSectionConsent));
+      soft(find.text(AppStrings.intakeConsentNote).evaluate().isNotEmpty, '한 장에 맡아 둔 서명이 없다');
       await shot('I1-answer');
     });
 
@@ -79,6 +81,9 @@ void main() {
       await tap(find.byKey(IntakeAnswerScreen.registerKey));
       await waitFor(find.byKey(ScreenKeys.petDetail));
       await waitFor(find.text('모카'));
+      // 문진표 끝의 서명이 그 아이의 미용 동의가 됐다(⑪-C1b) — 받은 날은 서명한 날(오늘).
+      final now = DateTime.now();
+      await reveal(find.text(AppStrings.groomingConsentSignedOn(DateTime(now.year, now.month, now.day))));
       await shot('I2-pet');
       final left = await container.read(intakeApiProvider).answers(shopId);
       soft(left.isEmpty, '등록한 답이 남아 있다(${left.length})');

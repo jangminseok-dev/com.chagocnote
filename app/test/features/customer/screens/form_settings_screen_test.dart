@@ -43,6 +43,7 @@ class _Server {
         consentText: sent['consent_text'] as String? ?? defaultConsentText,
         intakeKeepDays: sent['intake_keep_days'] as int? ?? 30,
         intakeHidden: [...(sent['intake_hidden'] as List? ?? const []).cast<String>()],
+        intakeConsentAll: sent['intake_consent_all'] as bool? ?? false,
       );
       return FakeResponse(statusCode: 200, data: settings);
     },
@@ -75,7 +76,7 @@ class _Server {
 Future<CustomerTestSetup> _open(WidgetTester tester, _Server server, {String path = '/settings/forms', bool owner = true}) async {
   final setup = CustomerTestSetup(server.backend.call, role: owner ? 'owner' : 'staff');
   addTearDown(setup.container.dispose);
-  useTallView(tester, height: 1800);
+  useTallView(tester, height: 2400);   // 게으른 목록 — 문진표 칸들 아래의 칩까지 한 화면에 그린다
   await pushOnHome<Object?>(tester, setup, path);
   return setup;
 }
@@ -117,7 +118,7 @@ void main() {
 
     expect(server.puts.single, {
       'link_days': 14, 'senior_age': 8, 'consent_days': 365, 'reservation_text': null, 'consent_text': null,
-      'intake_keep_days': 30, 'intake_hidden': <String>[],
+      'intake_keep_days': 30, 'intake_hidden': <String>[], 'intake_consent_all': false,
     });
     expect(_chip(tester, '8살').selected, isTrue);
     expect(find.text(AppStrings.formPartWhenSenior(8)), findsOneWidget);
@@ -402,5 +403,31 @@ void main() {
 
     await _tap(tester, find.byKey(const ValueKey('intake-field-weight')));
     expect(inPreview('몸무게'), findsNothing);
+  });
+
+  testWidgets('첫 방문 문진표에서 모든 아이에게 동의서 받기 — 기본 꺼짐이고 켜면 전체를 보내고 무슨 일이 생기는지 적혀 있다', (tester) async {
+    final server = _Server();
+    await _open(tester, server);
+    AppSwitch toggle() => tester.widget<AppSwitch>(find.byKey(const ValueKey('intake-consent-all')));
+
+    expect(toggle().value, isFalse);
+    expect(find.text(AppStrings.formIntakeConsentAllOff), findsOneWidget);
+    await _tap(tester, find.byKey(const ValueKey('intake-consent-all')));
+
+    expect(server.puts.single['intake_consent_all'], isTrue);
+    expect(server.puts.single['link_days'], 14);
+    expect(toggle().value, isTrue);
+    expect(find.text(AppStrings.formIntakeConsentAllOn), findsOneWidget);
+    // 보호자가 받는 모습에도 동의서 줄이 따라 바뀐다.
+    expect(
+      find.descendant(of: find.byKey(const ValueKey('intake-preview')), matching: find.text(AppStrings.intakePreviewConsentAll)),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('직원에게는 모든 아이에게 동의서 받기도 읽기 전용이다', (tester) async {
+    await _open(tester, _Server(), owner: false);
+
+    expect(tester.widget<AppSwitch>(find.byKey(const ValueKey('intake-consent-all'))).onChanged, isNull);
   });
 }

@@ -43,6 +43,7 @@ Map<String, dynamic> intakeAnswerJson({
   List<String> missing = const [],
   String memoDraft = '조심할 것: 드라이기 소리\n원하는 스타일: 곰돌이 컷',
   int memoOver = 0,
+  Map<String, dynamic>? consent,
 }) => {
   ...intakeItemJson(
     answerId: answerId, mode: mode, petName: petName, guardianName: guardianName,
@@ -65,6 +66,7 @@ Map<String, dynamic> intakeAnswerJson({
   'missing': missing,
   'memo_draft': memoDraft,
   'memo_over': memoOver,
+  'consent': consent,
 };
 
 Map<String, dynamic> intakeQuestionJson(int id, String label, {bool required = false}) => {

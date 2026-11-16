@@ -10,6 +10,7 @@ Map<String, dynamic> formSettingsJson({
   String consentText = defaultConsentText,
   int intakeKeepDays = 30,
   List<String> intakeHidden = const [],
+  bool intakeConsentAll = false,
 }) => {
   'link_days': linkDays,
   'senior_age': seniorAge,
@@ -18,6 +19,7 @@ Map<String, dynamic> formSettingsJson({
   'consent_text': consentText,
   'intake_keep_days': intakeKeepDays,
   'intake_hidden': intakeHidden,
+  'intake_consent_all': intakeConsentAll,
   'defaults': {
     'link_days': 14,
     'senior_age': 10,
@@ -26,6 +28,7 @@ Map<String, dynamic> formSettingsJson({
     'consent_text': defaultConsentText,
     'intake_keep_days': 30,
     'intake_hidden': <String>[],
+    'intake_consent_all': false,
   },
 };
 

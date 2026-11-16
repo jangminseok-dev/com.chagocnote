@@ -27,6 +27,7 @@ import '../state/customer_providers.dart';
 import '../state/intake_commands.dart';
 import '../state/intake_prefill.dart';
 import '../state/intake_providers.dart';
+import 'consent_sign_screen.dart' show consentPartTitle;
 import 'customer_labels.dart';
 import 'pet_form.dart';
 
@@ -425,6 +426,8 @@ class _IntakeAnswerScreenState extends ConsumerState<IntakeAnswerScreen> {
           (AppStrings.intakeStyle, a.style),
           for (final extra in a.extras) (extra.label, extra.body),
         ], skipEmpty: true),
+        // 문진표 끝에서 한 서명(⑪-C1b) — 등록·반영하면 그 아이의 동의가 된다.
+        if (a.consent case final consent?) _ConsentSection(consent),
         const SizedBox(height: AppSpacing.lg),
         if (direct) ...[
           AppButton(
@@ -450,6 +453,39 @@ class _Note extends StatelessWidget {
     padding: const EdgeInsets.only(top: AppSpacing.sm),
     child: Text(text, style: AppTypography.bodyStrong),
   );
+}
+
+/// 문진표 끝에서 한 서명의 요약 — 언제, 무엇을 읽었는지. 그림과 적은 이름은 오지 않는다.
+class _ConsentSection extends StatelessWidget {
+  const _ConsentSection(this.consent);
+
+  final IntakeConsent consent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(AppStrings.intakeSectionConsent, style: AppTypography.caption),
+          const SizedBox(height: AppSpacing.sm),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(AppStrings.intakeConsentSigned(consent.signedOn), style: AppTypography.bodyStrong),
+                if (consent.parts.isNotEmpty)
+                  Text([for (final part in consent.parts) consentPartTitle(part)].join(' · '), style: AppTypography.body),
+                const SizedBox(height: AppSpacing.xs),
+                const Text(AppStrings.intakeConsentNote, style: AppTypography.caption),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// 답의 한 묶음. 값이 없는 줄은 `적지 않았어요` 로 보인다 — [skipEmpty] 면 그 줄을 뺀다(다시 받기·선택 칸).
