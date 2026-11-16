@@ -33,10 +33,11 @@ const _items = [
 ];
 
 /// 설정 → 알림장(⑤ 설계 2절·9.1, 목업 ⑤) — 링크가 열려 있는 기간(7일·30일·계속)과 알림장에 보여 줄
-/// 항목 넷.
+/// 항목 넷, 그리고 ⑫ 의 리뷰 남기기 줄·가족과 함께 보기.
 ///
-/// [저장] 버튼이 없다 — 누르면 바로 다섯 칸 전체를 보낸다. 낙관적으로 그리지 않고, 다시 읽은 서버 값으로
-/// 그린다. 바꾸는 것은 사장만이고(`shop:update`) 직원에게는 읽기 전용이다.
+/// 칩·스위치는 [저장] 없이 누르면 바로 일곱 칸 전체를 보낸다(글을 치는 리뷰 구역만 [저장]이 있다).
+/// 낙관적으로 그리지 않고, 다시 읽은 서버 값으로 그린다. 바꾸는 것은 사장만이고(`shop:update`) 직원에게는
+/// 읽기 전용이다.
 class ReportSettingsScreen extends ConsumerStatefulWidget {
   const ReportSettingsScreen({super.key});
 
@@ -148,11 +149,15 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
         AppSpacing.xxl,
       ),
       children: [
+        // 자리는 늘 둔다 — 안내가 생기고 사라질 때 아래 구역의 순번이 밀리면 리뷰 구역이 다시 만들어져
+        // 적던 글을 잃는다.
         if (notice != null)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: Text(notice, style: AppTypography.caption),
-          ),
+          )
+        else
+          const SizedBox.shrink(),
         const Text(
           AppStrings.reportLinkDaysLabel,
           style: AppTypography.caption,
@@ -225,6 +230,7 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
         ),
         const SizedBox(height: AppSpacing.xl),
         ReportReviewSection(
+          key: const ValueKey('report-review-section'),
           shown: shown,
           shopName: ref.watch(shopNameProvider),
           canEdit: canEdit,
@@ -233,7 +239,11 @@ class _ReportSettingsScreenState extends ConsumerState<ReportSettingsScreen> {
         ),
         if (_shopId case final shopId?) ...[
           const SizedBox(height: AppSpacing.xl),
-          ReportFamilySection(shopId: shopId, canEdit: canEdit),
+          ReportFamilySection(
+            key: const ValueKey('report-family-section'),
+            shopId: shopId,
+            canEdit: canEdit,
+          ),
         ],
       ],
     );

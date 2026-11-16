@@ -67,15 +67,21 @@ class _ReportReviewSectionState extends ConsumerState<ReportReviewSection> {
   void didUpdateWidget(ReportReviewSection old) {
     super.didUpdateWidget(old);
     final now = widget.shown;
-    // 고치지 않은 칸(보낼 값이 앞 서버 값과 같다)만 새 서버 값을 따라간다.
-    if (now.reviewUrl != old.shown.reviewUrl &&
-        cleanReviewUrl(_url.text) == old.shown.reviewUrl) {
-      _url.text = now.reviewUrl ?? '';
+    // 서버 값이 바뀌면, 고치지 않은 칸(보낼 값이 앞 서버 값과 같다)과 방금 저장한 칸(보낼 값이 새 서버 값과
+    // 같다)만 새 서버 값으로 그린다 — 저장한 뒤 칸이 서버가 둔 모양(소문자 스킴·기본 문구)을 따라간다.
+    // 고치던 칸은 그대로 둔다.
+    if (now.reviewUrl != old.shown.reviewUrl) {
+      final typed = cleanReviewUrl(_url.text);
+      if (typed == old.shown.reviewUrl || typed == now.reviewUrl) {
+        _url.text = now.reviewUrl ?? '';
+      }
     }
-    if ((now.reviewText != old.shown.reviewText ||
-            now.reviewTextDefault != old.shown.reviewTextDefault) &&
-        _cleanText(old.shown) == old.shown.reviewText) {
-      _text.text = _textOf(now);
+    if (now.reviewText != old.shown.reviewText ||
+        now.reviewTextDefault != old.shown.reviewTextDefault) {
+      if (_cleanText(old.shown) == old.shown.reviewText ||
+          _cleanText(now) == now.reviewText) {
+        _text.text = _textOf(now);
+      }
     }
   }
 

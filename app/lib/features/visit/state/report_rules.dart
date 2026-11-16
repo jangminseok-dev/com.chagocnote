@@ -36,10 +36,16 @@ const reviewTextMax = 60;
 final _hidden = RegExp(r'[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]', unicode: true);
 final _space = RegExp(r'\s', unicode: true);
 
-/// 리뷰 주소 칸의 글을 보낼 값으로 — 앞뒤 공백을 걷고(서버도 걷는다), 비면 null(줄을 지운다).
+/// 리뷰 주소 칸의 글을 보낼 값으로 — 앞뒤 공백을 걷고(서버도 걷는다), 비면 null(줄을 지운다). 스킴만
+/// 소문자로 바꾼다(`HTTPS://` → `https://`, 서버의 `normalized_review_url` 과 같다 — 저장한 값과 견줄 때
+/// 어긋나지 않게).
 String? cleanReviewUrl(String input) {
   final text = input.trim();
-  return text.isEmpty ? null : text;
+  if (text.isEmpty) return null;
+  final cut = text.indexOf('://');
+  return cut < 0
+      ? text
+      : '${text.substring(0, cut).toLowerCase()}${text.substring(cut)}';
 }
 
 /// 리뷰 문구 칸의 글을 보낼 값으로 — 앞뒤 공백을 걷고, 비거나 기본 문구([defaultText])와 같으면 null

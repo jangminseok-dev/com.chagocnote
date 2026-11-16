@@ -455,6 +455,56 @@ void main() {
     expect(_buttonEnabled(tester, AppStrings.save), isTrue);
   });
 
+  testWidgets('리뷰를 [저장]하다 실패하면 맨 위에 까닭이 뜨고 적은 주소·문구는 칸에 남는다', (tester) async {
+    final server = _Server()
+      ..putError = (o, b) =>
+          throw DioException.connectionError(requestOptions: o, reason: '끊김');
+    await _open(tester, server, height: 2400);
+
+    await tester.enterText(_key('report-review-url'), 'https://naver.me/typed');
+    await tester.enterText(_key('report-review-text'), '후기 부탁드려요');
+    await settle(tester);
+    await _tap(tester, _button(AppStrings.save));
+
+    expect(server.puts, hasLength(1));
+    expect(_field(tester, 'report-review-url').text, 'https://naver.me/typed');
+    expect(_field(tester, 'report-review-text').text, '후기 부탁드려요');
+    expect(_buttonEnabled(tester, AppStrings.save), isTrue);
+
+    // 다른 조작으로 맨 위의 까닭이 사라져도 칸은 그대로다.
+    server.putError = null;
+    await _tap(tester, _switch('금액'));
+    expect(_field(tester, 'report-review-url').text, 'https://naver.me/typed');
+  });
+
+  testWidgets('리뷰를 적던 중 누른 스위치가 실패해도 적던 글은 칸에 남는다', (tester) async {
+    final server = _Server()
+      ..putError = (o, b) =>
+          throw DioException.connectionError(requestOptions: o, reason: '끊김');
+    await _open(tester, server, height: 2400);
+
+    await tester.enterText(_key('report-review-url'), 'https://naver.me/typed');
+    await settle(tester);
+    await _tap(tester, _switch('금액'));
+
+    expect(server.puts, hasLength(1));
+    expect(_field(tester, 'report-review-url').text, 'https://naver.me/typed');
+  });
+
+  testWidgets('대문자 스킴으로 넣어도 저장한 뒤에는 서버가 둔 값(소문자 스킴)을 따라가고 [저장]이 꺼진다', (tester) async {
+    final server = _Server();
+    await _open(tester, server, height: 2400);
+
+    await tester.enterText(_key('report-review-url'), 'HTTPS://naver.me/ABC');
+    await settle(tester);
+    await _tap(tester, _button(AppStrings.save));
+
+    // 서버처럼 스킴만 소문자로 보낸다(경로는 그대로).
+    expect(server.puts.single['review_url'], 'https://naver.me/ABC');
+    expect(_field(tester, 'report-review-url').text, 'https://naver.me/ABC');
+    expect(_buttonEnabled(tester, AppStrings.save), isFalse);
+  });
+
   testWidgets('[열어 보기] — 맞는 주소는 기기의 브라우저로 열고, 틀린 주소는 열지 않고 까닭, 열지 못하면 알린다', (tester) async {
     final setup = await _open(tester, _Server(), height: 2400);
 

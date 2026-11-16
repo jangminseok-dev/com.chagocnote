@@ -141,6 +141,12 @@ void main() {
       expect(cleanReviewUrl('   '), isNull);
     });
 
+    test('주소의 스킴만 소문자로 바꾼다 — 서버(normalized_review_url)와 같다', () {
+      expect(cleanReviewUrl('HTTPS://naver.me/ABC'), 'https://naver.me/ABC');
+      expect(cleanReviewUrl('HtTpS://Naver.me/a'), 'https://Naver.me/a');
+      expect(cleanReviewUrl('naver.me/ABC'), 'naver.me/ABC');
+    });
+
     test('문구는 앞뒤 공백을 걷고, 비거나 기본 문구와 같으면 null(기본 문구가 나간다)', () {
       expect(cleanReviewText(' 후기 부탁드려요 ', defaultText: reviewTextDefault), '후기 부탁드려요');
       expect(cleanReviewText('  ', defaultText: reviewTextDefault), isNull);
