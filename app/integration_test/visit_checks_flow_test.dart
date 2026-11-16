@@ -180,6 +180,7 @@ void main() {
       );
       await waitFor(save);
       await tap(save);
+      await closeBundle();
       final end = DateTime.now().add(const Duration(seconds: 20));
       while (find.byKey(ScreenKeys.registerVisit).evaluate().isNotEmpty) {
         if (DateTime.now().isAfter(end)) throw TestFailure('저장 뒤에도 등록 화면이 남아 있다');

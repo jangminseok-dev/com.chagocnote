@@ -137,6 +137,20 @@ Future<void> enter(String key, String text) async {
 String fieldText(String key) =>
     t.widget<TextField>(find.byKey(ValueKey(key))).controller!.text;
 
+/// 예약을 저장하면 보낼 것 시트(⑪-B)가 뜰 수 있다 — 떠 있으면 [나중에]로 닫는다. 등록 화면이 이미 닫혔으면
+/// (보낼 글이 없었다) 아무것도 하지 않는다.
+Future<void> closeBundle() async {
+  final end = DateTime.now().add(const Duration(seconds: 8));
+  while (DateTime.now().isBefore(end)) {
+    await pumpFor(const Duration(milliseconds: 200));
+    if (find.text(AppStrings.bundleLater).evaluate().isNotEmpty) {
+      await tap(find.text(AppStrings.bundleLater));
+      return;
+    }
+    if (find.byKey(ScreenKeys.registerVisit).evaluate().isEmpty) return;
+  }
+}
+
 Future<void> step(String id, String title, Future<void> Function() body) async {
   current = id;
   debugPrint('STEP $id 시작 — $title');

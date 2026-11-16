@@ -354,6 +354,19 @@ int durationNow() {
   throw TestFailure('소요 값을 못 읽었다');
 }
 
+/// 예약을 저장하면 보낼 것 시트(⑪-B)가 뜰 수 있다 — 떠 있으면 [나중에]로 닫는다.
+Future<void> closeBundle() async {
+  final end = DateTime.now().add(const Duration(seconds: 8));
+  while (DateTime.now().isBefore(end)) {
+    await pumpFor(const Duration(milliseconds: 200));
+    if (find.text(AppStrings.bundleLater).evaluate().isNotEmpty) {
+      await tap(find.text(AppStrings.bundleLater));
+      return;
+    }
+    if (find.byKey(ScreenKeys.registerVisit).evaluate().isEmpty) return;
+  }
+}
+
 Finder saveReservationBtn() => btnWhere((l) => l.startsWith('예약 저장'));
 
 /// 홈에서 [date]를 고르고 + → ① → ② → 저장까지.
@@ -391,6 +404,7 @@ Future<void> reserve({
   }
   await waitEnabled(saveReservationBtn());
   await tap(saveReservationBtn());
+  await closeBundle();
   await waitGone(find.byKey(ScreenKeys.registerVisit));
   await pumpFor(const Duration(milliseconds: 800));
 }
@@ -999,6 +1013,7 @@ void main() {
       await waitEnabled(saveReservationBtn());
       await shot('12a-past-form');
       await tap(saveReservationBtn());
+      await closeBundle();
       await pumpFor(const Duration(seconds: 2));
       if (find.byKey(ScreenKeys.registerVisit).evaluate().isNotEmpty) {
         final texts = find.byType(Text).evaluate().map((e) => (e.widget as Text).data).whereType<String>().where((s) => s.contains('니다') || s.contains('요')).toList();
