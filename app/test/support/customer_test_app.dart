@@ -1,4 +1,5 @@
 import 'package:chagocnote/core/proxy/api_client.dart';
+import 'package:chagocnote/core/proxy/external_link.dart';
 import 'package:chagocnote/core/proxy/network_watcher.dart';
 import 'package:chagocnote/core/proxy/providers.dart';
 import 'package:chagocnote/core/proxy/share_sheet.dart';
@@ -15,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import 'fake_external_link.dart';
 import 'fake_http_client_adapter.dart';
 import 'fake_session_gateway.dart';
 import 'fake_share_sheet.dart';
@@ -63,6 +65,8 @@ class CustomerTestSetup {
         speechRecognizerProvider.overrideWithValue(speech),
         // 테스트에는 공유 시트 채널이 없다 — 넘긴 글과 버튼 사각형은 [shareSheet]에 적힌다.
         shareSheetProvider.overrideWithValue(shareSheet),
+        // 테스트에는 바깥 주소 열기 채널이 없다 — 연 주소는 [externalLink]에 적힌다(⑫).
+        externalLinkProvider.overrideWithValue(externalLink),
         apiClientProvider.overrideWith(
           (ref) => ApiClient(
             tokenStore: MemoryTokenStore(),
@@ -81,6 +85,7 @@ class CustomerTestSetup {
   final network = FakeNetworkWatcher();
   final speech = FakeSpeechRecognizer();
   final shareSheet = FakeShareSheet();
+  final externalLink = FakeExternalLink();
   final MemoryPrefsStore prefs;
   late final ProviderContainer container;
 
