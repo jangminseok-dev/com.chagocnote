@@ -9,13 +9,18 @@ from customer.app.ports.output.form_settings_repository import FormSettingsRepos
 from customer.app.ports.output.intake_answer_repository import IntakeAnswerRepository
 from customer.app.ports.output.intake_question_repository import IntakeQuestionRepository
 from customer.app.ports.output.pet_repository import PetRepository
-from customer.domain.entities.intake import NEW, IntakeForm, IntakeQuestion
+from customer.domain.entities.intake import NEW, UPDATE, IntakeForm, IntakeQuestion
 from customer.domain.errors import FormClosedError, PetNotFoundError
 from customer.app.services.consent_source import ConsentSource, ConsentText, default_texts
 from customer.domain.entities.consent import ConsentPolicy
 from customer.domain.services.form_settings_rules import INTAKE_HIDEABLE
 from customer.domain.services.intake_consent import texts_digest
 from hub.app.dtos.shop_context import ShopContext
+
+
+def consent_for_all(setting: bool, mode: str) -> bool:
+    """`첫 방문 문진표에서 모든 아이에게` 는 첫 방문(새 손님·새 아이)에만 걸린다. 다시 받기는 노령·지병일 때만 서명한다."""
+    return setting and mode != UPDATE
 
 
 @dataclass(frozen=True)
@@ -77,7 +82,7 @@ class IntakeReader:
             keep_days=layout.keep_days,
             guardian_needed=form.mode == NEW and await self._answers.first_guardian(form.id) is None,
             consent=PublicIntakeConsent(
-                all=layout.consent_all, senior_age=layout.policy.senior_age,
+                all=consent_for_all(layout.consent_all, form.mode), senior_age=layout.policy.senior_age,
                 texts={part: text.body for part, text in layout.texts.items()}, digest=layout.consent_digest,
             ),
         )

@@ -125,21 +125,21 @@ async def test_번호가_같은_고객의_새_아이로_더해도_서명이_옮�
 
 async def test_살아_있는_동의가_있는_아이의_다시_받기는_받은_날을_옮기지_않는다(wired):
     shop_id, headers, _ = await _shop(wired)
-    await put(wired, shop_id, headers, intake_consent_all=True)
     _, pet_id = await _family(wired, shop_id, headers, _pet(conditions=[]))
     marked = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}/grooming-consent", headers=headers,
                                  json={"received_on": _day(-10).isoformat()})
     assert marked.status_code == 200, marked.text
     token = token_of(await issue(wired, shop_id, headers, pet_id=pet_id))
     opened = (await read(wired, token)).json()
+    # 태어난 해를 고쳐 적어 노령이 됐다 — 동의서 구역이 나타나 서명한다.
     sent = await wired.api.post("/v1/public/form/intake", headers={"X-Form-Token": token}, json={
-        "guardian": None, "pet": {"weight_kg": 5.1}, "extras": [], "privacy_agreed": True,
-        "consent": signed(opened, ["basic"])})
+        "guardian": None, "pet": {"birth_year": SENIOR}, "extras": [], "privacy_agreed": True,
+        "consent": signed(opened, ["basic", "senior"])})
     assert sent.status_code == 204, sent.text
     (item,) = await listed(wired, shop_id, headers)
 
     updated = await wired.api.put(f"/v1/shops/{shop_id}/pets/{pet_id}", headers=headers,
-                                  json=_pet(conditions=[]) | {"weight_kg": 5.1, "intake_answer_id": item["answer_id"]})
+                                  json=_pet(conditions=[], birth_year=SENIOR) | {"intake_answer_id": item["answer_id"]})
 
     assert updated.status_code == 200, updated.text
     assert updated.json()["pet"]["grooming_consent_on"] == _day(-10).isoformat()
@@ -159,3 +159,22 @@ async def test_답을_지우거나_익명화하면_맡아_둔_서명도_사라�
 
     assert (await wired.api.delete(f"/v1/shops/{shop_id}/customers/{customer_id}", headers=headers)).status_code == 204
     assert await count(wired, "consent_signatures") == 0
+
+
+# --- 최종 검토 ------------------------------------------------------------------------------------------------------
+
+async def test_모든_아이에게는_첫_방문_문진표에만_걸린다_다시_받기는_노령_지병일_때만_서명한다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    await put(wired, shop_id, headers, intake_consent_all=True)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet(conditions=[]))
+    update_token = token_of(await issue(wired, shop_id, headers, pet_id=pet_id))
+    add_token = token_of(await issue(wired, shop_id, headers, customer_id=customer_id))
+
+    assert (await read(wired, update_token)).json()["consent"]["all"] is False
+    assert (await read(wired, add_token)).json()["consent"]["all"] is True        # 새 아이는 첫 방문이다
+    weight_only = {"guardian": None, "pet": {"weight_kg": 5.1}, "extras": [], "privacy_agreed": True}
+    sent = await wired.api.post("/v1/public/form/intake", headers={"X-Form-Token": update_token}, json=weight_only)
+
+    assert sent.status_code == 204, sent.text
+    assert await count(wired, "consent_signatures") == 0
+

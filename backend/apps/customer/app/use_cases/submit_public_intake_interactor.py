@@ -12,7 +12,7 @@ from customer.app.ports.output.customer_repository import CustomerRepository
 from customer.app.ports.output.intake_answer_repository import IntakeAnswerRepository
 from customer.app.ports.output.intake_form_repository import IntakeFormRepository
 from customer.app.services.consent_signer import SIGNER_NAME_MAX
-from customer.app.services.intake_reader import IntakeLayout, IntakeReader
+from customer.app.services.intake_reader import IntakeLayout, IntakeReader, consent_for_all
 from customer.app.services.public_form_gate import open_form
 from customer.domain.entities.consent_form import NewSignature, NewSignaturePet, SignedPart
 from customer.domain.entities.intake import ANSWERS_PER_FORM, NEW, UPDATE, IntakeForm
@@ -77,7 +77,8 @@ class SubmitPublicIntakeInteractor(SubmitPublicIntakeUseCase):
             today=today, first=guardian is None,
         )
         # 동의서 구역(⑪-C1b) — 답을 쓰기 전에 본다. 받지 않으면 답도 남지 않는다.
-        signing = self._check_consent(command.consent, answer, layout, today)
+        signing = self._check_consent(
+            command.consent, answer, layout, today, for_all=consent_for_all(layout.consent_all, form.mode))
         if guardian is not None:
             answer = replace(answer, guardian_name=guardian[0], guardian_phone=guardian[1])   # 둘째 아이 — 같은 보호자다
         matched = form.customer_id
@@ -93,7 +94,7 @@ class SubmitPublicIntakeInteractor(SubmitPublicIntakeUseCase):
 
     @staticmethod
     def _check_consent(
-        consent: IntakeConsentEntry | None, answer: CleanAnswer, layout: IntakeLayout, today: date,
+        consent: IntakeConsentEntry | None, answer: CleanAnswer, layout: IntakeLayout, today: date, *, for_all: bool,
     ) -> IntakeConsentEntry | None:
         """받을 서명을 돌려준다(없으면 None). 연 뒤 매장의 글·기준이 바뀌었으면 409, 필요한데 없으면 422.
 
@@ -101,7 +102,7 @@ class SubmitPublicIntakeInteractor(SubmitPublicIntakeUseCase):
         """
         if consent is not None and consent.digest != layout.consent_digest:
             raise ConsentDocumentChangedError("동의서의 내용이 바뀌었습니다. 다시 읽어 주세요.")
-        needed = consent_parts(answer, on=today, policy=layout.policy, for_all=layout.consent_all)
+        needed = consent_parts(answer, on=today, policy=layout.policy, for_all=for_all)
         if needed and (consent is None or not set(needed) <= set(consent.parts)):
             raise ConsentRequiredError("동의서에 서명해 주세요.")
         if consent is None:

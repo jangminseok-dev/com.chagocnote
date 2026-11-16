@@ -7,16 +7,26 @@ import type { OpenIntake } from '../lib/form'
 const refresh = vi.fn()
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }))
 
-// 서명 칸은 따로 본다(SignaturePad.test.tsx). 여기서는 버튼으로 갈아 끼운다.
-vi.mock('../components/SignaturePad', () => ({
-  SignaturePad: ({ onChange, resetKey }: { onChange: (png: string | null) => void; resetKey: number }) => (
-    <div data-testid="pad" data-reset={resetKey}>
-      <button type="button" onClick={() => onChange('UE5H')}>
-        서명하기
-      </button>
-    </div>
-  ),
-}))
+// 서명 칸은 따로 본다(SignaturePad.test.tsx). 여기서는 버튼으로 갈아 끼우되 계약은 실제와 같다 —
+// resetKey 가 바뀌면 칸을 비우고 onChange(null) 을 부른다.
+vi.mock('../components/SignaturePad', async () => {
+  const { useEffect, useRef } = await import('react')
+  return {
+    SignaturePad: ({ onChange, resetKey }: { onChange: (png: string | null) => void; resetKey: number }) => {
+      const first = useRef(resetKey)
+      useEffect(() => {
+        if (resetKey !== first.current) onChange(null)
+      }, [resetKey]) // eslint-disable-line react-hooks/exhaustive-deps
+      return (
+        <div data-testid="pad" data-reset={resetKey}>
+          <button type="button" onClick={() => onChange('UE5H')}>
+            서명하기
+          </button>
+        </div>
+      )
+    },
+  }
+})
 
 const TOKEN = 'ok'.padEnd(43, 'A')
 const FORM: OpenIntake = {
@@ -401,6 +411,38 @@ test('다른 아이도 적기 뒤에는 서명이 비어 있고 서명하는 분
   fireEvent.change(screen.getByLabelText('태어난 해'), { target: { value: OLD } })
 
   expect(screen.getByLabelText('서명하는 분의 이름')).toHaveValue('김민지')
+  expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
+  expect(screen.getByTestId('pad')).toHaveAttribute('data-reset', '1')
+})
+
+// ── 최종 검토 ──────────────────────────────────────────────────────────────
+
+test('서명한 뒤 지병을 풀었다가 다시 고르면 서명과 체크가 비어 있다 — 보이지 않던 서명이 따라가지 않는다', async () => {
+  respondWith(204)
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fill()
+  pick('심장 질환')
+  signConsent()
+
+  pick('없어요')
+  pick('심장 질환')
+
+  expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
+  await press(/^보내기$/)
+  expect(fetchMock).not.toHaveBeenCalled()
+  expect(screen.getByRole('alert')).toHaveTextContent('서명해 주세요')
+})
+
+test('서명한 뒤 토막이 늘면(노령이 되면) 서명을 다시 받는다', () => {
+  render(<IntakeForm form={FORM} token={TOKEN} />)
+  fill()
+  pick('심장 질환')
+  signConsent()
+
+  pick('태어난 해만 알아요')
+  fireEvent.change(screen.getByLabelText('태어난 해'), { target: { value: OLD } })
+
+  expect(screen.getByText('나이가 많은 아이는 쉬어 가며')).toBeInTheDocument()
   expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
   expect(screen.getByTestId('pad')).toHaveAttribute('data-reset', '1')
 })

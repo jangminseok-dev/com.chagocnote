@@ -85,6 +85,15 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
     setDraft((now) => ({ ...now, signature: null, consentAgreed: false }))
     setResetKey((key) => key + 1)
   }
+  // 서명한 뒤 붙는 토막이나 보인 지병 이름이 바뀌면(구역이 사라졌다 다시 나타나도) 서명을 다시 받는다 —
+  // 맡아 둔 서명은 보호자가 본 것만 덮는다. 보지 않은 토막·지병에 서명한 것으로 남기지 않는다.
+  const consentKey = `${consentParts.join(',')}|${shownConditions.join('·')}`
+  const seenKey = useRef(consentKey)
+  useEffect(() => {
+    if (seenKey.current === consentKey) return
+    seenKey.current = consentKey
+    if (draft.signature !== null || draft.consentAgreed) resetSignature()
+  }, [consentKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleCondition = (code: string) => {
     const picked = draft.conditions.some((c) => c.code === code)
@@ -343,7 +352,9 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
             onChange={(e) => { setSignerEdited(true); set({ signerName: e.target.value }) }} />
           <div className={styles.label}>서명</div>
           <div data-field="signature">
-            <SignaturePad resetKey={resetKey} onChange={(png) => set({ signature: png })} />
+            {/* 칸을 비울 때(onChange(null))는 안내를 지우지 않는다 — 409 의 안내가 곧바로 사라지지 않게. */}
+            <SignaturePad resetKey={resetKey}
+              onChange={(png) => (png === null ? setDraft((now) => ({ ...now, signature: null })) : set({ signature: png }))} />
           </div>
           <div className={styles.agree} data-field="consentAgreed">
             <input id={`${id}-consent`} type="checkbox" checked={draft.consentAgreed} onChange={(e) => set({ consentAgreed: e.target.checked })} />
