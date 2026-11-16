@@ -91,15 +91,6 @@ def bucket_of(cycle: PetCycle, today: date, soon_days: int) -> str | None:
     return None
 
 
-def interval_weeks(completed_starts: list[datetime]) -> int:
-    """(옛 규칙 — 다음 예약 초안이 pet_cycle 로 옮겨 가면 지운다) 최근 두 완료 방문의 간격, 1~12주."""
-    if len(completed_starts) < 2:
-        return DEFAULT_WEEKS
-    latest, previous = sorted(completed_starts, reverse=True)[:2]
-    weeks = round((latest - previous) / timedelta(weeks=1))
-    return max(1, min(12, weeks))
-
-
 def next_start(source_starts_at: datetime, weeks: int, tz: str) -> datetime:
     """weeks 주 뒤의 같은 요일·같은 벽시계 시각."""
     local = source_starts_at.astimezone(ZoneInfo(tz))
