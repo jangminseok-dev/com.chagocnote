@@ -9,7 +9,7 @@ from customer.app.ports.output.consent_form_repository import ConsentFormReposit
 from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.consent_signer import SigningInput, sign
-from customer.domain.entities.consent import ConsentPolicy
+from customer.app.services.consent_source import ConsentSource
 from customer.domain.errors import CustomerInputError
 
 
@@ -18,14 +18,14 @@ class SignConsentInShopInteractor(SignConsentInShopUseCase):
 
     def __init__(
         self, pets: PetRepository, signatures: ConsentSignatureRepository, forms: ConsentFormRepository,
-        today: Callable[[], date], now: Callable[[], datetime], policy: ConsentPolicy,
+        today: Callable[[], date], now: Callable[[], datetime], source: ConsentSource,
     ) -> None:
         self._pets = pets
         self._signatures = signatures
         self._forms = forms
         self._today = today
         self._now = now
-        self._policy = policy
+        self._source = source
 
     async def sign_consent_in_shop(self, command: SignConsentInShopCommand) -> int:
         ctx = command.ctx
@@ -39,6 +39,6 @@ class SignConsentInShopInteractor(SignConsentInShopUseCase):
                 signature_png=command.signature_png, channel="in_shop", form_id=None, by_member_id=ctx.member_id,
                 for_date=command.for_date,
             ),
-            self._now(), self._today(), self._policy,
+            self._now(), self._today(), await self._source.policy(ctx),
             pets=self._pets, signatures=self._signatures, forms=self._forms,
         )

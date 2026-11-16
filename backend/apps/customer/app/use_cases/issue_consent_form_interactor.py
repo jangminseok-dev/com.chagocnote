@@ -13,7 +13,7 @@ from customer.app.ports.output.consent_signature_repository import ConsentSignat
 from customer.app.ports.output.pet_repository import PetRepository
 from customer.app.services.consent_forms import drop_pets, form_url
 from customer.app.services.consent_reader import read_document
-from customer.domain.entities.consent import ConsentPolicy
+from customer.app.services.consent_source import ConsentSource
 from customer.domain.entities.consent_form import ConsentForm
 from customer.domain.errors import ConsentUpToDateError, CustomerInputError
 from customer.domain.services.consent_document import base_date
@@ -24,7 +24,7 @@ class IssueConsentFormInteractor(IssueConsentFormUseCase):
 
     def __init__(
         self, pets: PetRepository, signatures: ConsentSignatureRepository, forms: ConsentFormRepository,
-        today: Callable[[], date], now: Callable[[], datetime], policy: ConsentPolicy,
+        today: Callable[[], date], now: Callable[[], datetime], source: ConsentSource,
         link_key: bytes, web_base_url: str,
     ) -> None:
         self._pets = pets
@@ -32,7 +32,7 @@ class IssueConsentFormInteractor(IssueConsentFormUseCase):
         self._forms = forms
         self._today = today
         self._now = now
-        self._policy = policy
+        self._source = source
         self._link_key = link_key
         self._web_base_url = web_base_url
 
@@ -43,8 +43,9 @@ class IssueConsentFormInteractor(IssueConsentFormUseCase):
         now = self._now()
         # 고객 행을 먼저 잠근다 — 같은 가족에게 동시에 보내도 요청이 하나만 생긴다(고객 행 → 서류 요청 행).
         customer_id = await self._pets.lock_owner(ctx, min(command.pet_ids))
-        on = base_date(self._today(), command.for_date, self._policy)
-        doc = await read_document(ctx, command.pet_ids, on, self._policy, pets=self._pets, signatures=self._signatures)
+        policy = await self._source.policy(ctx)
+        on = base_date(self._today(), command.for_date, policy)
+        doc = await read_document(ctx, command.pet_ids, on, policy, pets=self._pets, signatures=self._signatures)
         if not doc.pets:
             raise ConsentUpToDateError("이미 받은 동의입니다.")
         wanted = tuple(pet.pet_id for pet in doc.pets)
@@ -58,7 +59,7 @@ class IssueConsentFormInteractor(IssueConsentFormUseCase):
             return self._view(ctx.timezone, same, created=False)
         await drop_pets(ctx, customer_id, wanted, now, self._forms)
         form = await self._forms.create(
-            ctx, customer_id, wanted, new_public_id(), now + timedelta(days=self._policy.link_days),
+            ctx, customer_id, wanted, new_public_id(), now + timedelta(days=policy.link_days),
             for_date=None if command.for_date is None else on)
         return self._view(ctx.timezone, form, created=True)
 

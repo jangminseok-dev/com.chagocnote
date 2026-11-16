@@ -52,6 +52,8 @@ from customer.adapter.inbound.api.v1.read_public_form_router import read_public_
 from customer.adapter.inbound.api.v1.register_customer_router import register_customer_router
 from customer.adapter.inbound.api.v1.set_customer_caution_router import set_customer_caution_router
 from customer.adapter.inbound.api.v1.submit_public_consent_router import submit_public_consent_router
+from customer.adapter.inbound.api.v1.get_form_settings_router import get_form_settings_router
+from customer.adapter.inbound.api.v1.update_form_settings_router import update_form_settings_router
 from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
     set_pet_grooming_consent_router,
 )
@@ -254,6 +256,8 @@ app.include_router(get_consent_signature_router)
 app.include_router(get_consent_signature_image_router)
 app.include_router(read_public_form_router)
 app.include_router(submit_public_consent_router)
+app.include_router(get_form_settings_router)
+app.include_router(update_form_settings_router)
 app.include_router(mark_pet_passed_away_router)
 app.include_router(unmark_pet_passed_away_router)
 app.include_router(delete_pet_router)
