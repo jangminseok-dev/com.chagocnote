@@ -602,6 +602,10 @@ class AppStrings {
   static const endGuardianLinkConfirm =
       '보호자가 지난 기록을 더는 볼 수 없어요. 알림장을 다시 보내면 다시 이을 수 있어요.';
   static const guardianLinkEnded = '보호자 연결을 끊었어요.';
+  // 함께 보는 가족(⑫) — 수만 온다.
+  static String guardianFamilyCount(int count) => '가족 $count명';
+  static const endGuardianLinkConfirmFamily =
+      '보호자가 지난 기록을 더는 볼 수 없어요. 함께 보던 가족도 볼 수 없어요. 알림장을 다시 보내면 다시 이을 수 있어요.';
 
   // 매출(⑧) — 홈의 매출 탭. 비교·목표 문장은 features/sales/state/sales_rules.dart 가 만든다.
   static const salesOwnerOnly = '매출은 사장님만 볼 수 있어요.';

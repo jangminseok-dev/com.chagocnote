@@ -141,14 +141,13 @@ class GuardianSettings {
     required this.defaultFamilyMax,
   });
 
-  factory GuardianSettings.fromJson(Map<String, dynamic> json) =>
-      GuardianSettings(
-        familyMax: json['family_max'] as int,
-        defaultFamilyMax:
-            (json['defaults'] as Map<String, dynamic>?)?['family_max']
-                as int? ??
-            3,
-      );
+  factory GuardianSettings.fromJson(
+    Map<String, dynamic> json,
+  ) => GuardianSettings(
+    familyMax: json['family_max'] as int,
+    defaultFamilyMax:
+        (json['defaults'] as Map<String, dynamic>?)?['family_max'] as int? ?? 3,
+  );
 
   /// 범위 — 서버와 같다.
   static const min = 0;

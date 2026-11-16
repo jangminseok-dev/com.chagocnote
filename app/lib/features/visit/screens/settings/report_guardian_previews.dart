@@ -33,7 +33,10 @@ class WeightPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(AppStrings.reportGuardianSees, style: AppTypography.caption),
+          const Text(
+            AppStrings.reportGuardianSees,
+            style: AppTypography.caption,
+          ),
           const SizedBox(height: AppSpacing.xs),
           Row(
             children: [
@@ -73,7 +76,9 @@ class _SampleLinePainter extends CustomPainter {
     final path = Path();
     for (final (i, y) in _points.indexed) {
       final point = Offset(i * step, y * size.height + 4);
-      i == 0 ? path.moveTo(point.dx, point.dy) : path.lineTo(point.dx, point.dy);
+      i == 0
+          ? path.moveTo(point.dx, point.dy)
+          : path.lineTo(point.dx, point.dy);
       canvas.drawCircle(point, 2.5, dot);
     }
     canvas.drawPath(path, paint);

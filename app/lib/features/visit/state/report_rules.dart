@@ -61,9 +61,7 @@ String? reviewUrlProblem(String input) {
   final rest = url.substring('https://'.length);
   final end = rest.indexOf(RegExp('[/?#]'));
   final netloc = end < 0 ? rest : rest.substring(0, end);
-  if (netloc.contains('@') ||
-      _space.hasMatch(url) ||
-      _hidden.hasMatch(url)) {
+  if (netloc.contains('@') || _space.hasMatch(url) || _hidden.hasMatch(url)) {
     return AppStrings.reviewUrlInvalid;
   }
   final Uri uri;

@@ -182,6 +182,31 @@ void main() {
     expect(find.text(_linkedText), findsOneWidget);
   });
 
+  // ⑫ — 보호자와 함께 보는 가족의 수만 온다(누구인지는 없다).
+  testWidgets('가족이 함께 보면 줄에 "· 가족 N명" 이 붙고, 끊기 확인에 가족도 볼 수 없다고 적는다', (tester) async {
+    final server = _Server()
+      ..link = () => FakeResponse(
+        statusCode: 200,
+        data: guardianLinkJson(familyCount: 2),
+      );
+    await _openOwnerTab(tester, server);
+
+    expect(find.text('$_linkedText · 가족 2명'), findsOneWidget);
+    await _openConfirm(tester);
+    expect(
+      find.text(
+        '보호자가 지난 기록을 더는 볼 수 없어요. 함께 보던 가족도 볼 수 없어요. 알림장을 다시 보내면 다시 이을 수 있어요.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('함께 보는 가족이 없으면 줄과 확인 글은 지금 그대로다', (tester) async {
+    await _openOwnerTab(tester, _Server());
+
+    expect(find.textContaining('가족'), findsNothing);
+  });
+
   testWidgets('··· 를 누르면 [연결 끊기] 하나가 있는 시트가 뜬다', (tester) async {
     await _openOwnerTab(tester, _Server());
 
