@@ -347,6 +347,39 @@ class AppStrings {
   static const signaturePadLabel = '서명하는 곳';
   static const signaturePadHint = '여기에 서명해 주세요';
   static const signatureAgain = '다시 쓰기';
+  static const consentSend = '동의서 보내기';
+  static const consentShareAgain = '다시 공유';
+  static const consentSignHere = '여기서 서명';
+  static const consentSendUpToDate =
+      '이미 받은 동의예요. 다시 받으려면 반려동물 화면에서 받은 기록을 지워 주세요.';
+  static const consentShareFailed = '공유 창을 열지 못했어요. 다시 눌러 주세요.';
+  static const consentSignTitle = '미용 동의서';
+  static const consentPartTitleBasic = '미용 안내';
+  static const consentPartTitleSenior = '나이가 많은 아이';
+  static const consentPartTitleCondition = '지병이 있는 아이';
+  static String consentConditions(List<String> labels) =>
+      '알려 주신 지병: ${labels.join(' · ')}';
+  static String consentAppliesTo(List<String> names) =>
+      '해당: ${names.join(' · ')}';
+  static String consentPartialNotice(DateTime previous) =>
+      '지난번(${fullDate(previous)})에 동의하신 내용에 더해 바뀐 부분만 확인해 주세요';
+  static const consentNameLabel = '이름';
+  static const consentSignatureLabel = '서명';
+  static const consentAgree = '위 내용을 읽었고 동의해요';
+  static const consentSubmit = '동의하고 보내기';
+  static const consentNameMissing = '이름을 적어 주세요';
+  static const consentSignatureMissing = '서명해 주세요';
+  static const consentAgreeMissing = '동의에 체크해 주세요';
+  static const consentChanged = '내용이 바뀌었어요. 다시 읽어 주세요';
+  static const consentSignatureTooBig = '서명을 조금 간단하게 다시 적어 주세요';
+  static const consentDoneTitle = '보냈어요';
+  static const consentDoneText = '동의서를 받았어요. 폰을 매장에 돌려주세요.';
+  static const consentUpToDateTitle = '이미 받은 동의예요';
+  static const consentUpToDateText = '지금은 더 받을 것이 없어요.';
+  static const consentClose = '닫기';
+  static const consentLeaveAsk = '서명을 그만둘까요?';
+  static const consentLeave = '그만두기';
+  static const consentStay = '계속 서명하기';
   static String fullDate(DateTime d) => '${d.year}년 ${d.month}월 ${d.day}일';
 
   // 미용 동의서·주의 고객(③-B) — 반려동물 상세.

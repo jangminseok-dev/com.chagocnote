@@ -70,7 +70,7 @@
 - 동의 줄(방문 상세에만): 상태 글 아래에 `[동의서 보내기]`(보낸 날이 있으면 `[다시 공유]`)·`[여기서 서명]`·`[받았어요]`. `VisitChecksBlock` 은 `onSend(petId, origin)`·`onSignHere(petId)`·`onConsent(petId)` 를 받는다 — 주지 않은 것은 그리지 않는다(예약 등록의 미리 보기에는 버튼이 없다).
 - 보내기: `ConsentCommands.send(shopId, [petId], forDate: 방문의 날)` → `shareSheetProvider.shareText(AppStrings.consentShareText(shopName, url), origin: 버튼의 사각형)`. 409 `CONSENT_UP_TO_DATE` 면 Review Focus 1 의 글.
 - 경로 `/consent/sign?pet_ids=1,2&for_date=YYYY-MM-DD` → `ConsentSignScreen(petIds, forDate)`.
-- `ConsentSignScreen`: `AsyncBody` 로 문서를 읽는다 → 아이·지병·토막(웹과 같은 제목 `미용 안내`·`나이가 많은 아이`·`지병이 있는 아이`, 가족이면 `해당:`), `바뀐 부분만` 줄 → 이름 칸 → `SignaturePad` → 체크 `위 내용을 읽었고 동의합니다` → `[동의하고 보내기]`. 빠진 것은 그 자리에서 말한다(웹과 같은 글 셋). 성공하면 `보냈어요` 한 장과 `[닫기]`. 409 변경 → `내용이 바뀌었어요. 다시 읽어 주세요` + 다시 읽기 + 서명 비우기. 409 `CONSENT_UP_TO_DATE` → `이미 받은 동의예요` 와 [닫기]. 뒤로 가기는 `PopScope` 가 받아 `서명을 그만둘까요?` 를 묻는다.
+- `ConsentSignScreen`: `AsyncBody` 로 문서를 읽는다 → 아이·지병·토막(웹과 같은 제목 `미용 안내`·`나이가 많은 아이`·`지병이 있는 아이`, 가족이면 `해당:`), `바뀐 부분만` 줄 → 이름 칸 → `SignaturePad` → 체크 `위 내용을 읽었고 동의해요` → `[동의하고 보내기]`. 빠진 것은 그 자리에서 말한다(웹과 같은 글 셋). 성공하면 `보냈어요` 한 장과 `[닫기]`. 409 변경 → `내용이 바뀌었어요. 다시 읽어 주세요` + 다시 읽기 + 서명 비우기. 409 `CONSENT_UP_TO_DATE` → `이미 받은 동의예요` 와 [닫기]. 뒤로 가기는 `PopScope` 가 받아 `서명을 그만둘까요?` 를 묻는다.
 - `SignaturePad({onChanged, controller})` — `SignatureController { strokes: List<List<Offset>>(0~1 로 정규화), isEmpty, clear() }`. 한 번에 포인터 하나만(`Listener` 의 `pointer` ID). 빈 칸에는 `여기에 서명해 주세요`. 비율 5:2, [다시 쓰기].
 - `signaturePng(strokes) → Future<Uint8List>` — `PictureRecorder` 로 600×240 흰 바탕에 검은 선(굵기 3, 둥근 끝) → `toByteData(png)`. 65,536 을 넘으면 300×120.
 

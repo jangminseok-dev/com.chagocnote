@@ -151,7 +151,7 @@ const formChecks = [
       hasHeaderSet(res)
       const html = plain(await res.text())
       for (const word of ['미용 동의서', 'Hiss Haus', '미용 안내', '나이가 많은 아이', '지병이 있는 아이', '두부', '모카',
-        '알려 주신 지병: 심장 질환 · 피부', '해당: 두부 · 모카', '동의하고 보내기', '위 내용을 읽었고 동의합니다',
+        '알려 주신 지병: 심장 질환 · 피부', '해당: 두부 · 모카', '동의하고 보내기', '위 내용을 읽었고 동의해요',
         '서명하려면 자바스크립트를 켜 주세요']) {
         assert.ok(html.includes(word), `첫 HTML 에 없다: ${word}`)
       }

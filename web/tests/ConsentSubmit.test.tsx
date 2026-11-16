@@ -29,7 +29,7 @@ function respondWith(status: number) {
 function fill({ name = '김민지', sign = true, agree = true } = {}) {
   if (name) fireEvent.change(screen.getByLabelText('이름'), { target: { value: name } })
   if (sign) fireEvent.click(screen.getByText('서명하기'))
-  if (agree) fireEvent.click(screen.getByLabelText('위 내용을 읽었고 동의합니다'))
+  if (agree) fireEvent.click(screen.getByLabelText('위 내용을 읽었고 동의해요'))
 }
 
 async function send() {
@@ -164,7 +164,7 @@ test('내용이 바뀌었으면 알리고 다시 읽고, 이름은 남기고 서
   expect(refresh).toHaveBeenCalledTimes(1)
   expect(screen.getByLabelText('이름')).toHaveValue('김민지')
   expect(screen.getByTestId('pad').dataset.reset).toBe('1')
-  expect(screen.getByLabelText('위 내용을 읽었고 동의합니다')).not.toBeChecked()
+  expect(screen.getByLabelText('위 내용을 읽었고 동의해요')).not.toBeChecked()
 
   // 서명을 다시 하지 않고 보내면 보내지 않는다.
   fetchMock.mockClear()

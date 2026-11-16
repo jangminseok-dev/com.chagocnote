@@ -146,7 +146,7 @@ export function ConsentSubmit({ token, digest, shopName }: Props) {
             if (event.target.checked) setNotice(null)
           }}
         />
-        <label htmlFor={agreeId}>위 내용을 읽었고 동의합니다</label>
+        <label htmlFor={agreeId}>위 내용을 읽었고 동의해요</label>
       </div>
       {notice !== null && (
         <p className={styles.notice} role="alert">

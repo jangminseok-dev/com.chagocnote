@@ -182,7 +182,7 @@ test('빠진 것이 있으면 보내지 않고 무엇이 빠졌는지 말한다'
 
   // 서명을 지우면 다시 서명하라고 한다.
   await page.getByRole('button', { name: '다시 쓰기' }).click()
-  await page.getByLabel('위 내용을 읽었고 동의합니다').check()
+  await page.getByLabel('위 내용을 읽었고 동의해요').check()
   await send(page)
   await expect(notice(page)).toHaveText('서명해 주세요')
   expect(submits).toBe(0)
@@ -217,7 +217,7 @@ test('읽는 사이 지병이 더해지면 다시 읽게 하고, 다시 서명�
   await page.goto(links.consentLive)
   await page.getByLabel('이름').fill('김동의')
   await sign(page)
-  await page.getByLabel('위 내용을 읽었고 동의합니다').check()
+  await page.getByLabel('위 내용을 읽었고 동의해요').check()
 
   // 보호자가 읽는 사이 매장이 지병을 하나 더 적는다.
   const updated = await request.put(`${links.api}${links.consentPetPath}`, {
@@ -233,12 +233,12 @@ test('읽는 사이 지병이 더해지면 다시 읽게 하고, 다시 서명�
   await expect(notice(page)).toHaveText('내용이 바뀌었어요. 다시 읽어 주세요')
   await expect(page.locator('[data-section="pets"]')).toContainText('알려 주신 지병: 심장 질환 · 알레르기')
   await expect(page.getByLabel('이름')).toHaveValue('김동의')
-  await expect(page.getByLabel('위 내용을 읽었고 동의합니다')).not.toBeChecked()
+  await expect(page.getByLabel('위 내용을 읽었고 동의해요')).not.toBeChecked()
   expect((await pet(request)).grooming_consent_on).toBeNull()
 
   // 서명 칸은 비워졌다 — 다시 서명하지 않고 보내면 보내지 않는다.
   expect((await ink(page)).dark).toBe(0)
-  await page.getByLabel('위 내용을 읽었고 동의합니다').check()
+  await page.getByLabel('위 내용을 읽었고 동의해요').check()
   await send(page)
   await expect(notice(page)).toHaveText('서명해 주세요')
 
@@ -284,7 +284,7 @@ test('두 탭에서 같은 링크를 내면 둘째도 오류가 아니라 보냈
     await tab.goto(links.consentTwice)
     await tab.getByLabel('이름').fill('김동의')
     await sign(tab)
-    await tab.getByLabel('위 내용을 읽었고 동의합니다').check()
+    await tab.getByLabel('위 내용을 읽었고 동의해요').check()
   }
 
   // 화면을 다시 읽는 요청을 잠깐 붙들어 둔다 — 그 사이에도 보냈다는 것이 보여야 한다(느린 망).
