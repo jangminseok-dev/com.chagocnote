@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { bodyOf, emptyDraft, problemOf, type IntakeDraft } from '../lib/intake'
+import { bodyOf, consentPartsOf, emptyDraft, problemOf, type IntakeDraft } from '../lib/intake'
 import type { OpenIntake } from '../lib/form'
 
 const FORM: OpenIntake = {
@@ -20,6 +20,12 @@ const FORM: OpenIntake = {
   answered: 0,
   guardian_needed: true,
   keep_days: 30,
+  consent: {
+    all: false,
+    senior_age: 10,
+    texts: { basic: { body: '미용 중 생길 수 있는 일' }, senior: { body: '나이가 많은 아이는 쉬어 가며' }, condition: { body: '지병이 나빠질 수 있어요' } },
+    digest: 'c'.repeat(64),
+  },
 }
 
 const FULL: IntakeDraft = {
@@ -176,7 +182,9 @@ test.each([
 
 test('생일은 1990년부터 오늘까지다 — 앞날과 치다 만 연도를 짚는다', () => {
   const today = new Date(2026, 10, 16)
-  const withDate = (birthDate: string) => problemOf(FORM, { ...FULL, birthKind: 'date', birthYear: '', birthDate }, today)
+  // 노령이면 끝의 동의서가 붙는다(⑪-C1b) — 서명해 둔 답으로 생일의 범위만 본다.
+  const signed: IntakeDraft = { ...FULL, signerName: '김민지', signature: 'UE5H', consentAgreed: true }
+  const withDate = (birthDate: string) => problemOf(FORM, { ...signed, birthKind: 'date', birthYear: '', birthDate }, today)
   expect(withDate('2026-11-16')).toBeNull()
   expect(withDate('1990-01-01')).toBeNull()
   expect(withDate('2026-11-17')).toEqual({ field: 'birth', message: '생일을 다시 확인해 주세요' })
@@ -195,3 +203,46 @@ test('붙여넣은 글의 제어 문자는 걷어 낸다 — 서버가 받지 �
   expect(body.pet.name).toBe('콩이')
   expect(body.pet.dislikes).toBe('발 만지기')
 })
+
+// ── 문진표 끝의 동의서(⑪-C1b) — 백엔드 `intake_consent.consent_parts` 와 같은 경계 ─────────────────────────
+
+const TODAY = new Date(2026, 10, 16)
+const BLANK: IntakeDraft = { ...FULL, birthKind: 'unknown', birthYear: '', noConditions: true, conditions: [] }
+const parts = (change: Partial<IntakeDraft>, form: OpenIntake = FORM) => consentPartsOf(form, { ...BLANK, ...change }, TODAY)
+
+test('노령이거나 지병을 골랐을 때만 동의서 토막이 붙는다', () => {
+  expect(parts({})).toEqual([])
+  expect(parts({ birthKind: 'year', birthYear: '2016' })).toEqual(['basic', 'senior'])
+  expect(parts({ birthKind: 'year', birthYear: '2017' })).toEqual([])
+  expect(parts({ birthKind: 'date', birthDate: '2016-11-16' })).toEqual(['basic', 'senior'])     // 생일 당일 10살
+  expect(parts({ birthKind: 'date', birthDate: '2016-11-17' })).toEqual([])                      // 하루 모자란 9살
+  expect(parts({ noConditions: false, conditions: [{ code: 'heart_disease', customLabel: '', note: '' }] })).toEqual(['basic', 'condition'])
+  expect(parts({ birthKind: 'year', birthYear: '2010', noConditions: false, conditions: [{ code: 'other', customLabel: '눈물', note: '' }] }))
+    .toEqual(['basic', 'senior', 'condition'])
+})
+
+test('매장의 노령 나이를 따르고, 모든 아이에게를 켜면 미용 안내만이라도 붙고, 나이 칸을 껐으면 노령이 아니다', () => {
+  const eight = { birthKind: 'year' as const, birthYear: '2018' }
+  expect(parts(eight)).toEqual([])
+  expect(parts(eight, { ...FORM, consent: { ...FORM.consent, senior_age: 8 } })).toEqual(['basic', 'senior'])
+  expect(parts({}, { ...FORM, consent: { ...FORM.consent, all: true } })).toEqual(['basic'])
+  expect(parts({ birthKind: 'year', birthYear: '2010' }, { ...FORM, fields: FORM.fields.filter((f) => f !== 'birth') })).toEqual([])
+})
+
+test('동의서가 붙으면 이름·서명·동의 체크를 차례로 묻는다 — 개인정보 동의보다 먼저(화면의 위)', () => {
+  const senior: IntakeDraft = { ...FULL, birthYear: '2014', agreed: false }
+  expect(problemOf(FORM, senior, TODAY)?.field).toBe('signerName')
+  expect(problemOf(FORM, { ...senior, signerName: '김민지' }, TODAY)?.field).toBe('signature')
+  expect(problemOf(FORM, { ...senior, signerName: '김민지', signature: 'UE5H' }, TODAY)?.field).toBe('consentAgreed')
+  expect(problemOf(FORM, { ...senior, signerName: '김민지', signature: 'UE5H', consentAgreed: true }, TODAY)?.field).toBe('agreed')
+  expect(problemOf(FORM, { ...FULL, agreed: true }, TODAY)).toBeNull()       // 2021년생 — 동의서가 없다
+})
+
+test('보낼 본문 — 동의서가 붙었을 때만 지문·읽은 토막·이름·서명을 싣는다', () => {
+  const signed: IntakeDraft = { ...FULL, birthYear: '2014', signerName: ' 김민지 ', signature: 'UE5H', consentAgreed: true }
+  expect(bodyOf(FORM, signed, true, TODAY).consent).toEqual({
+    digest: 'c'.repeat(64), parts: ['basic', 'senior'], signer_name: '김민지', signature_png: 'UE5H',
+  })
+  expect('consent' in bodyOf(FORM, FULL, true, TODAY)).toBe(false)
+})
+

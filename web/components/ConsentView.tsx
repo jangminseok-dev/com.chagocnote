@@ -1,13 +1,7 @@
 import { koreanFullDate } from '../lib/format'
-import { CONSENT_PARTS, type ConsentPart, type OpenForm } from '../lib/form'
+import { CONSENT_PART_TITLES, CONSENT_PARTS, type OpenForm } from '../lib/form'
 import styles from './Consent.module.css'
 import { ConsentSubmit } from './ConsentSubmit'
-
-const PART_TITLES: Record<ConsentPart, string> = {
-  basic: '미용 안내',
-  senior: '나이가 많은 아이',
-  condition: '지병이 있는 아이',
-}
 
 /**
  * 미용 동의서 화면. 온 것만 그린다 — 문안은 백엔드가 아이의 지금 사실로 조립한 것이다.
@@ -40,7 +34,7 @@ export function ConsentView({ form, token }: { form: OpenForm; token: string }) 
       </section>
       {parts.map((part) => (
         <section key={part} className={styles.part} data-section="part">
-          <h2>{PART_TITLES[part]}</h2>
+          <h2>{CONSENT_PART_TITLES[part]}</h2>
           {family && (
             <div className={styles.whom}>
               해당: {form.pets.filter((pet) => pet.parts.includes(part)).map((pet) => pet.name).join(' · ')}

@@ -2,12 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
-import type { OpenIntake } from '../lib/form'
-import { BREEDS, bodyOf, emptyDraft, type IntakeDraft, localDay, problemOf } from '../lib/intake'
+import { CONSENT_PART_TITLES, type OpenIntake } from '../lib/form'
+import { BREEDS, bodyOf, consentPartsOf, emptyDraft, type IntakeDraft, localDay, problemOf } from '../lib/intake'
 import styles from './Intake.module.css'
+import { SignaturePad } from './SignaturePad'
 
 const NOTICE_CHECK = '적은 내용을 다시 확인해 주세요'
 const NOTICE_LATER = '잠시 후 다시 보내 주세요'
+const NOTICE_CHANGED = '내용이 바뀌었어요. 다시 읽어 주세요'
 const OTHER = 'other'
 
 type ChoiceProps<T extends string> = {
@@ -51,6 +53,9 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState<string | null>(null) // 방금 낸 아이의 이름 — 다음 아이를 적을 때 알려 준다
   const [done, setDone] = useState(false)
+  // 끝의 동의서(⑪-C1b) — 서명하는 분의 이름은 고치기 전까지 보호자 이름을 따라간다. resetKey 가 바뀌면 서명 칸을 비운다.
+  const [signerEdited, setSignerEdited] = useState(false)
+  const [resetKey, setResetKey] = useState(0)
   // 스크립트가 오기 전에는 버튼을 잠근다 — 그때 누르면 브라우저가 폼을 그대로 내, 적은 것이 주소에 실린다.
   const [ready, setReady] = useState(false)
 
@@ -71,6 +76,15 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
   const more = !update && form.answered < 9
   /** 걸린 칸의 표시. */
   const invalid = (field: string) => (bad === field ? { 'aria-invalid': true as const } : {})
+
+  const consentParts = consentPartsOf(form, draft)
+  const shownConditions = draft.conditions.map((c) =>
+    c.code === OTHER && c.customLabel.trim() !== '' ? c.customLabel.trim() : (form.condition_types.find((t) => t.code === c.code)?.label ?? c.code))
+  /** 서명을 다시 받는다 — 서명 칸과 동의 체크를 비운다. 적은 답과 이름은 남는다. */
+  const resetSignature = () => {
+    setDraft((now) => ({ ...now, signature: null, consentAgreed: false }))
+    setResetKey((key) => key + 1)
+  }
 
   const toggleCondition = (code: string) => {
     const picked = draft.conditions.some((c) => c.code === code)
@@ -113,11 +127,18 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
       if (more) {
         // 다음 아이를 적는다 — 아이의 칸만 비운다. 다시 읽으면 보호자 칸이 사라진다(둘째부터는 묻지 않는다).
         setSent(draft.petName.trim())
-        setDraft(emptyDraft())
+        // 서명하는 분은 같은 보호자다 — 이름은 남기고 서명은 아이마다 새로 받는다.
+        setDraft({ ...emptyDraft(), signerName: draft.signerName })
+        setResetKey((key) => key + 1)
         setCustomBreed(false)
       } else {
         setDone(true)
       }
+      router.refresh()
+    } else if (status === 409) {
+      // 연 뒤 매장이 동의서의 글이나 기준을 바꿨다 — 새 글을 읽고 다시 서명한다. 적은 답은 남긴다.
+      setNotice(NOTICE_CHANGED)
+      resetSignature()
       router.refresh()
     } else if (status === 410 || status === 404) {
       // 그 사이 닫혔거나 끊겼다 — 오류 글이 아니라 다시 읽은 화면(보냈어요·닫힘)이 말한다.
@@ -160,7 +181,8 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
           <h2>보호자</h2>
           <label className={styles.label} htmlFor={`${id}-gn`}>보호자 이름</label>
           <input id={`${id}-gn`} className={styles.input} type="text" name="guardian_name" data-field="guardianName" data-required-text="true" {...invalid('guardianName')}
-            value={draft.guardianName} maxLength={50} autoComplete="name" onChange={(e) => set({ guardianName: e.target.value })} />
+            value={draft.guardianName} maxLength={50} autoComplete="name"
+            onChange={(e) => set({ guardianName: e.target.value, ...(signerEdited ? {} : { signerName: e.target.value }) })} />
           <label className={styles.label} htmlFor={`${id}-gp`}>전화번호</label>
           <input id={`${id}-gp`} className={styles.input} type="tel" name="guardian_phone" data-field="guardianPhone" data-required-text="true" {...invalid('guardianPhone')}
             value={draft.guardianPhone} maxLength={20} inputMode="tel" autoComplete="tel" onChange={(e) => set({ guardianPhone: e.target.value })} />
@@ -295,6 +317,38 @@ export function IntakeForm({ form, token }: { form: OpenIntake; token: string })
                 onChange={(e) => set({ extras: { ...draft.extras, [question.question_id]: e.target.value } })} />
             </div>
           ))}
+        </section>
+      )}
+
+      {consentParts.length > 0 && (
+        // 문진표 끝의 동의서(⑪-C1b) — 적은 답으로 보아 노령이거나 지병이 있으면(매장이 모든 아이에게를 켰으면 늘) 나타난다.
+        <section className={styles.section} data-section="consent">
+          <h2>미용 동의서</h2>
+          <p className={styles.hint}>미용 전에 아래 내용을 읽고 서명해 주세요.</p>
+          {shownConditions.length > 0 && <p className={styles.facts}>알려 주신 지병: {shownConditions.join(' · ')}</p>}
+          {consentParts.map((part) => (
+            <div key={part} className={styles.part} data-part={part}>
+              <h3>{CONSENT_PART_TITLES[part]}</h3>
+              {(form.consent.texts[part]?.body ?? '')
+                .split('\n')
+                .filter((text) => text.trim() !== '')
+                .map((text, index) => (
+                  <p key={index}>{text}</p>
+                ))}
+            </div>
+          ))}
+          <label className={styles.label} htmlFor={`${id}-signer`}>서명하는 분의 이름</label>
+          <input id={`${id}-signer`} className={styles.input} type="text" name="signer_name" data-field="signerName" {...invalid('signerName')}
+            value={draft.signerName} maxLength={50} autoComplete="name"
+            onChange={(e) => { setSignerEdited(true); set({ signerName: e.target.value }) }} />
+          <div className={styles.label}>서명</div>
+          <div data-field="signature">
+            <SignaturePad resetKey={resetKey} onChange={(png) => set({ signature: png })} />
+          </div>
+          <div className={styles.agree} data-field="consentAgreed">
+            <input id={`${id}-consent`} type="checkbox" checked={draft.consentAgreed} onChange={(e) => set({ consentAgreed: e.target.checked })} />
+            <label htmlFor={`${id}-consent`}>위 내용을 읽었고 동의해요</label>
+          </div>
         </section>
       )}
 

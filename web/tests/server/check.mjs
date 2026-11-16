@@ -39,7 +39,7 @@ const MALFORMED_TOKENS = {
 
 /** 검사에 쓴 토큰 전부 — 웹 서버의 기록에 남으면 안 된다(R18). */
 const USED_TOKENS = [
-  ...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken', 'part', 'sent', 'chg', 'big', 'bad', 'iok', 'iupd', 'isent', 'ibad'].map(token),
+  ...['ok', 'min', 'vid', 'nf', 'gone', 'rate', 'boom', 'down', 'slow', 'taken', 'part', 'sent', 'chg', 'big', 'bad', 'iok', 'iupd', 'isent', 'ibad', 'ichg'].map(token),
   ...Object.values(MALFORMED_TOKENS),
 ]
 
@@ -354,7 +354,8 @@ const intakeChecks = [
   {
     name: '문진표 제출은 백엔드의 상태 코드를 본문 없이 옮기고 본문을 그대로 넘긴다',
     async run({ get, stats }) {
-      const expected = { iok: 204, ibad: 422, gone: 410, rate: 429, boom: 503, down: 503, nf: 404 }
+      // 409 는 끝의 동의서의 글·기준이 연 뒤 바뀐 것이다(⑪-C1b) — 화면이 다시 읽도록 그대로 옮긴다.
+      const expected = { iok: 204, ichg: 409, ibad: 422, gone: 410, rate: 429, boom: 503, down: 503, nf: 404 }
       for (const [prefix, status] of Object.entries(expected)) {
         const res = await get(`/f/${token(prefix)}/intake`, json(intakeBody()))
         assert.equal(res.status, status, `${prefix} 가 ${status} 이 아니다: ${res.status}`)
@@ -363,6 +364,11 @@ const intakeChecks = [
       await get(`/f/${token('iok')}/intake`, json(intakeBody()))
       const seen = await stats()
       assert.deepEqual(seen.last.body_keys, ['done', 'extras', 'guardian', 'pet', 'privacy_agreed'])
+      // 끝의 동의서에서 한 서명도 그대로 넘긴다(값은 적지 않는다).
+      const signed = { ...intakeBody(), consent: { digest: 'c'.repeat(64), parts: ['basic'], signer_name: GUARDIAN, signature_png: 'UE5H' } }
+      assert.equal((await get(`/f/${token('iok')}/intake`, json(signed))).status, 204)
+      assert.deepEqual((await stats()).last.body_keys, ['consent', 'done', 'extras', 'guardian', 'pet', 'privacy_agreed'])
+      await get(`/f/${token('iok')}/intake`, json(intakeBody()))
       assert.deepEqual(seen.last.pet_keys, ['conditions', 'dislikes', 'name', 'no_known_conditions', 'species'])
       assert.equal(seen.last.form_token, true)
       assert.equal(seen.last.web_secret, WEB_SECRET)
