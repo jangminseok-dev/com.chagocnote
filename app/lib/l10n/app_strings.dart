@@ -342,6 +342,11 @@ class AppStrings {
   static String checkConditionNote(String label, String note) =>
       '$label — $note';
   static const consentReceived = '받았어요';
+
+  // --- 전자 동의서(⑪) ---
+  static const signaturePadLabel = '서명하는 곳';
+  static const signaturePadHint = '여기에 서명해 주세요';
+  static const signatureAgain = '다시 쓰기';
   static String fullDate(DateTime d) => '${d.year}년 ${d.month}월 ${d.day}일';
 
   // 미용 동의서·주의 고객(③-B) — 반려동물 상세.
