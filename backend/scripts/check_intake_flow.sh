@@ -46,11 +46,13 @@ expect "2 링크의 토큰은 43글자다" "${#token}" "43"
 opened=$(pub "$token")
 expect "2 로그인 없이 열린다" "$(echo "$opened" | field "['kind']+':'+d['state']+':'+d['mode']")" "intake:open:new"
 expect "2 켜진 칸이 여덟이다" "$(echo "$opened" | field "['fields'].__len__()")" "8"
-expect "2 고객·반려동물의 값은 싣지 않는다" "$(echo "$opened" | python3 -c "import json,sys; print(sorted(json.load(sys.stdin)))")" "['answered', 'condition_types', 'fields', 'kind', 'mode', 'pet_name', 'questions', 'shop', 'state']"
+expect "2 고객·반려동물의 값은 싣지 않는다" "$(echo "$opened" | python3 -c "import json,sys; print(sorted(json.load(sys.stdin)))")" "['answered', 'condition_types', 'fields', 'guardian_needed', 'kind', 'mode', 'pet_name', 'questions', 'shop', 'state']"
 
 # 3. 아이 둘을 적어 낸다 — 둘째는 보호자 칸을 묻지 않고, 다 적었어요로 닫는다
+expect "3 첫 아이에게는 보호자 칸을 묻는다" "$(echo "$opened" | field "['guardian_needed']")" "True"
 expect "3 첫 아이 204" "$(pub_send "$token" "$(answer 모카 "$GUARDIAN" false)")" "204"
 expect "3 틀린 답은 422" "$(pub_send "$token" "$(answer 모카 null false | sed 's/"species":"dog"/"species":"bird"/')")" "422"
+expect "3 둘째 아이부터는 묻지 않는다" "$(pub "$token" | field "['guardian_needed']")" "False"
 expect "3 둘째 아이 204" "$(pub_send "$token" "$(answer 라떼 null true)")" "204"
 expect "3 다 적으면 닫힌다" "$(pub "$token" | field "['state']")" "submitted"
 expect "3 닫힌 링크로는 낼 수 없다" "$(pub_send "$token" "$(answer 셋째 null false)")" "410"
