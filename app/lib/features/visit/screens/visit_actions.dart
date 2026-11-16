@@ -139,16 +139,7 @@ class _NextReservationSheetState extends ConsumerState<_NextReservationSheet> {
 
   /// 그 방문 아이의 주기 시트(가족이면 첫 아이 — 아이 ID 순). 저장했으면 초안을 다시 읽는다.
   Future<void> _changePetInterval(int petId) => _guard(() async {
-    final PetDetail pet;
-    try {
-      pet = await ref.read(petDetailProvider((shopId: widget.shopId, petId: petId)).future);
-    } catch (e) {
-      if (mounted) AppSnackBar.show(context, messageFor(e));
-      return;
-    }
-    final revisit = pet.revisit;
-    if (revisit == null || !mounted) return;
-    final saved = await showGroomingCycleSheet(context, petId: petId, revisit: revisit);
+    final saved = await openPetCycleSheet(context, ref, shopId: widget.shopId, petId: petId);
     if (saved) await _reload();
   });
 
@@ -351,3 +342,23 @@ Future<void> sendVisitAction(
       action: choice.action,
       cancelReason: choice.cancelReason,
     );
+
+/// 아이의 미용 주기 시트(customer)를 연다 — 반려동물 상세를 읽어 지금 주기를 건넨다. 저장·되돌리기를 했으면 true.
+/// 상세를 못 읽으면 스낵바로 알리고 false. 완료 시트·다시 올 때 목록이 함께 쓴다.
+Future<bool> openPetCycleSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required int shopId,
+  required int petId,
+}) async {
+  final PetDetail pet;
+  try {
+    pet = await ref.read(petDetailProvider((shopId: shopId, petId: petId)).future);
+  } catch (e) {
+    if (context.mounted) AppSnackBar.show(context, messageFor(e));
+    return false;
+  }
+  final revisit = pet.revisit;
+  if (revisit == null || !context.mounted) return false;
+  return showGroomingCycleSheet(context, petId: petId, revisit: revisit);
+}

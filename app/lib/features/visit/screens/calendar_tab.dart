@@ -147,6 +147,17 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
                   ),
                 ),
               ),
+            // 다시 올 때가 된 아이(⑬) — 달력과 따로 읽는다(늦어도 달력은 먼저 뜬다). 0·읽는 중·실패면 줄이 없다.
+            if ((ref.watch(revisitCountsProvider(shopId)).value?.total ?? 0) > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: _BannerLine(
+                  text: AppStrings.revisitBanner(
+                    ref.watch(revisitCountsProvider(shopId)).value!.total,
+                  ),
+                  onTap: () => context.push('/revisits'),
+                ),
+              ),
             const SizedBox(height: AppSpacing.md),
             const _WeekHeader(),
             const SizedBox(height: AppSpacing.xs),
@@ -173,6 +184,30 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
       ],
     );
   }
+}
+
+/// 달력 위의 알림 줄(⑬ — 다시 올 때가 된 아이). 정리 안 된 예약 줄과 같은 모양이다.
+class _BannerLine extends StatelessWidget {
+  const _BannerLine({required this.text, required this.onTap});
+
+  final String text;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Pressable(
+    semanticLabel: text,
+    onTap: onTap,
+    child: AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Text(text, style: AppTypography.bodyStrong),
+          const Spacer(),
+          const Icon(Icons.chevron_right, size: 18),
+        ],
+      ),
+    ),
+  );
 }
 
 /// 탭 머리 — [달력 / 피드] 토글과 설정 버튼.

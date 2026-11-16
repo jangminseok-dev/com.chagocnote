@@ -303,19 +303,6 @@ class SalesVisitItem {
   );
 }
 
-/// 다시 올 때가 지난 아이 — 마지막으로 다녀간 날.
-class DuePetItem {
-  const DuePetItem({required this.pet, required this.lastVisitDate});
-
-  final PetCard pet;
-  final DateTime lastVisitDate;
-
-  factory DuePetItem.fromJson(Map<String, dynamic> json) => DuePetItem(
-    pet: PetCard.fromJson(json['pet'] as Map<String, dynamic>),
-    lastVisitDate: parseDay(json['last_visit_date'] as String),
-  );
-}
-
 /// 목록 한 쪽. [nextCursor]가 null 이면 마지막 쪽이다.
 class SalesPage<T> {
   const SalesPage({required this.items, required this.nextCursor});

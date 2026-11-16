@@ -121,16 +121,3 @@ final salesVisitsProvider = AsyncNotifierProvider.autoDispose
     .family<SalesVisitsController, SalesPagedState<SalesVisitItem>, SalesVisitsKey>(
       SalesVisitsController.new,
     );
-
-class DuePetsController extends SalesPagedController<DuePetItem> {
-  DuePetsController(this.shopId);
-
-  final int shopId;
-
-  @override
-  Future<SalesPage<DuePetItem>> fetch(String? cursor) =>
-      ref.read(salesApiProvider).duePets(shopId, cursor: cursor);
-}
-
-final duePetsProvider = AsyncNotifierProvider.autoDispose
-    .family<DuePetsController, SalesPagedState<DuePetItem>, int>(DuePetsController.new);

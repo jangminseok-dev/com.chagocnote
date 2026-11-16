@@ -178,15 +178,6 @@ int? parseGoal(String text) {
   return amount == 0 ? null : amount;
 }
 
-/// 마지막으로 다녀간 지 얼마나 됐나 — 이레가 안 됐으면 `3일 전`, 그 밖은 `9주 전`(버림).
-String sinceLabel(DateTime lastVisit, DateTime today) {
-  final days = DateTime(today.year, today.month, today.day)
-      .difference(DateTime(lastVisit.year, lastVisit.month, lastVisit.day))
-      .inDays;
-  if (days <= 0) return AppStrings.salesToday;
-  return days < 7 ? AppStrings.salesDaysAgo(days) : AppStrings.salesWeeksAgo(days ~/ 7);
-}
-
 /// 방문 목록 화면의 제목.
 String visitsTitle(SalesVisitFilter filter, {String? menuName}) => switch (filter) {
   SalesVisitFilter.unrecorded => AppStrings.salesVisitsUnrecorded,

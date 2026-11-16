@@ -9,6 +9,7 @@ import 'package:chagocnote/design/widgets/app_photo_fan.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/features/visit/state/calendar_selection.dart';
+import 'package:chagocnote/features/visit/state/visit_providers.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -273,6 +274,26 @@ void main() {
     expect(find.byKey(ScreenKeys.day), findsOneWidget);
     expect(find.text('30'), findsOneWidget);
     expect(find.text(AppStrings.yearMonth(2026, 8)), findsOneWidget);
+  });
+
+  testWidgets('다시 올 때가 된 아이(⑬) — 0 이면 줄이 없고, 있으면 곧+지남의 수이고 누르면 목록이 열린다', (tester) async {
+    final backend = _backend();
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _pumpHome(tester, setup);
+    expect(find.textContaining('다시 올 때가 된 아이'), findsNothing);
+
+    backend.routes['GET /v1/shops/3/revisits/counts'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: {'soon': 3, 'due': 4});
+    backend.routes['GET /v1/shops/3/revisits'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: revisitPageJson());
+    setup.container.invalidate(revisitCountsProvider);
+    await settle(tester);
+    expect(find.text(AppStrings.revisitBanner(7)), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.revisitBanner(7)));
+    await settle(tester);
+    expect(find.byKey(ScreenKeys.revisits), findsOneWidget);
   });
 
   testWidgets('미리보기를 누르면 고른 날의 하루 화면으로 간다', (tester) async {

@@ -294,6 +294,26 @@ class AppStrings {
       ? '오늘 안내'
       : '${day.month}월 ${day.day}일에 안내';
 
+  // ⑬ 다시 올 때가 된 아이(목록).
+  static const revisitsTitle = '다시 올 때가 된 아이';
+  static String revisitBanner(int count) => '다시 올 때가 된 아이 $count';
+  static String revisitsDueTab(int? count) => count == null ? '지남' : '지남 $count';
+  static String revisitsSoonTab(int? count) => count == null ? '곧' : '곧 $count';
+  static String revisitSoonHeader(int days) => '$days일 안';
+  static const revisitChange = '바꾸기';
+  static const revisitsDueEmpty = '다시 올 때가 지난 아이가 없어요';
+  static const revisitsSoonEmpty = '곧 올 아이가 없어요';
+  static const revisitBook = '예약';
+  static const revisitNudge = '안내';
+  static String revisitDueLine(int weeks, int days) => '$weeks주마다 · $days일 지남';
+  static String revisitSoonLine(int weeks, int days) =>
+      days == 0 ? '$weeks주마다 · 오늘쯤' : '$weeks주마다 · $days일 뒤쯤';
+  static String revisitEstimatedLine(int weeksAgo) => '$weeksAgo주 전에 왔어요 · 어림';
+  static const revisitNudgeTitle = '안내 글';
+  static const revisitNudgeSend = '보내기';
+  static const revisitTemplateLink = '안내 글 템플릿 바꾸기';
+  static const revisitNudgeShareFailed = '공유 창을 열지 못했어요. 다시 해 주세요.';
+
   // ⑬ 안내 글 템플릿.
   static const revisitMessageTitle = '안내 글 템플릿';
   static const revisitChipPet = '아이 이름';
@@ -712,11 +732,6 @@ class AppStrings {
   static const salesVisitsMenu = '메뉴의 방문';
   static String salesVisitsOfMenu(String menu) => '$menu 한 방문';
   static const salesVisitsEmpty = '해당하는 방문이 없어요';
-  static const salesDuePetsTitle = '다시 올 때가 지난 아이';
-  static const salesDuePetsEmpty = '다시 올 때가 지난 아이가 없어요';
-  static const salesToday = '오늘';
-  static String salesDaysAgo(int days) => '$days일 전';
-  static String salesWeeksAgo(int weeks) => '$weeks주 전';
   static const salesShowAllMenus = '모두 보기';
   static const salesSetGoal = '이번 달 목표 정하기';
   static const salesGoalTitle = '이번 달 목표';
@@ -728,7 +743,6 @@ class AppStrings {
   static const salesShareFailed = '공유 화면을 열지 못했어요. 다시 시도해 주세요.';
   static const salesUnitHeads = '마리';
   static String salesVisitRowLabel(String who, String date) => '$who $date 방문 보기';
-  static String salesDuePetRowLabel(String name, String since) => '$name $since';
   static String salesMenuRowLabel(String menu) => '$menu 한 방문 보기';
   static String salesFactLabel(String label, int count) => '$label $count건 보기';
   // 영문 장식(구역 이름 옆) — 화면 읽기에서는 뺀다.

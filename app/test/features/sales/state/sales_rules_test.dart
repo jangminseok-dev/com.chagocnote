@@ -244,18 +244,6 @@ void main() {
     });
   });
 
-  test('마지막으로 다녀간 지 — 이레 안은 날, 그 밖은 주(버림)', () {
-    final today = DateTime(2026, 11, 14, 15, 30);
-    expect(sinceLabel(DateTime(2026, 11, 14), today), '오늘');
-    expect(sinceLabel(DateTime(2026, 11, 13), today), '1일 전');
-    expect(sinceLabel(DateTime(2026, 11, 8), today), '6일 전');
-    expect(sinceLabel(DateTime(2026, 11, 7), today), '1주 전');
-    expect(sinceLabel(DateTime(2026, 9, 18), today), '8주 전'); // 57일
-    expect(sinceLabel(DateTime(2026, 9, 12), today), '9주 전'); // 63일
-    expect(sinceLabel(DateTime(2025, 11, 14), today), '52주 전');
-    expect(sinceLabel(DateTime(2026, 11, 20), today), '오늘', reason: '앞날이 와도 죽지 않는다');
-  });
-
   test('방문 목록의 제목', () {
     expect(visitsTitle(SalesVisitFilter.unrecorded), '금액을 적지 않은 방문');
     expect(visitsTitle(SalesVisitFilter.noShow), '노쇼한 방문');

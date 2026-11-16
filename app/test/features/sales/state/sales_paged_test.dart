@@ -80,21 +80,21 @@ void main() {
       if (options.queryParameters['cursor'] == null) {
         return FakeResponse(
           statusCode: 200,
-          data: salesPageJson([duePetJson(101, '보리', '2026-08-01')], nextCursor: 'c1'),
+          data: salesPageJson([salesVisitJson(1)], nextCursor: 'c1'),
         );
       }
       if (failNext) return const FakeResponse(statusCode: 503, data: {});
-      return FakeResponse(statusCode: 200, data: salesPageJson([duePetJson(102, '코코', '2026-09-01')]));
+      return FakeResponse(statusCode: 200, data: salesPageJson([salesVisitJson(2)]));
     });
     addTearDown(setup.container.dispose);
-    final provider = duePetsProvider(customerTestShopId);
+    final provider = salesVisitsProvider(_noShow);
     setup.container.listen(provider, (_, _) {});
     await setup.container.read(provider.future);
 
     await setup.container.read(provider.notifier).loadMore();
 
     var state = setup.container.read(provider).value!;
-    expect(state.items.map((i) => i.pet.name), ['보리']);
+    expect(state.items.map((i) => i.visitId), [1]);
     expect(state.loadMoreError, isA<ApiException>());
     expect((state.hasMore, state.loadingMore), (true, false));
 
@@ -102,9 +102,9 @@ void main() {
     await setup.container.read(provider.notifier).loadMore();
 
     state = setup.container.read(provider).value!;
-    expect(state.items.map((i) => i.pet.name), ['보리', '코코']);
+    expect(state.items.map((i) => i.visitId), [1, 2]);
     expect(state.loadMoreError, isNull);
-    expect(setup.adapter.requests.last.path, '/v1/shops/3/sales/due-pets');
+    expect(setup.adapter.requests.last.path, '/v1/shops/3/sales/visits');
   });
 
   test('다음 쪽을 부르는 중에 또 부르면 요청은 하나다', () async {

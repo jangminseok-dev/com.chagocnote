@@ -39,7 +39,8 @@ class ScreenKeys {
   static const revisitMessage = Key('screen_revisit_message');
   static const day = Key('screen_day');
   static const salesVisits = Key('screen_sales_visits');
-  static const duePets = Key('screen_due_pets');
+  static const revisits = Key('screen_revisits');
+  static const wrapUp = Key('screen_wrap_up');
   static const search = Key('screen_search');
   static const consentSign = Key('screen_consent_sign');
   static const consentSignatures = Key('screen_consent_signatures');

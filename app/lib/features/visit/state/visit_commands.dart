@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/plugs/care_marks_plug.dart';
 import '../../customer/api/consent_models.dart';
 import '../../customer/state/consent_commands.dart';
 import '../../customer/state/consent_providers.dart';
@@ -12,6 +13,7 @@ import '../api/revisit_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
 import 'feed_controller.dart';
+import 'revisit_list.dart';
 import 'visit_providers.dart';
 
 /// 방문·일정·메뉴 쓰기. 모든 호출은 매장 범위 공통 처리(`NOT_A_MEMBER` →
@@ -193,6 +195,7 @@ class VisitCommands {
     } finally {
       _ref.invalidate(revisitSettingsProvider);
       _ref.invalidate(revisitCountsProvider);
+      _ref.invalidate(revisitsProvider);
       _ref.invalidate(dayVisitsProvider);
       _ref.invalidate(calendarMonthProvider);
       _ref.invalidate(dayWrapUpProvider);
@@ -208,6 +211,7 @@ class VisitCommands {
       // 남은 일(⑬)·다시 올 때가 방문에 따라 바뀐다.
       _ref.invalidate(dayWrapUpProvider);
       _ref.invalidate(revisitCountsProvider);
+      _ref.invalidate(revisitsProvider);
       _ref.invalidate(visitDetailProvider);
       _ref.invalidate(visitSlotsProvider);
       _ref.invalidate(feedControllerProvider);
@@ -239,3 +243,14 @@ class VisitCommands {
 final visitCommandsProvider = Provider<VisitCommands>(
   (ref) => VisitCommands(ref),
 );
+
+/// 확인할 것·다시 올 때를 다시 읽게 한다 — 미용 동의·주의 표시가 바뀌면 방문 상세의 묶음, 하루 목록의 수,
+/// 미리 보기가 낡고, 아이의 주기·안내한 날(⑬)이 바뀌면 다시 올 때의 수와 목록이 낡는다.
+/// `app.dart`가 `careMarksChangedPlugProvider`에 꽂는다(customer 는 visit 를 import 하지 않는다).
+CareMarksChanged careMarksChanged(Ref ref) => () {
+  ref.invalidate(visitDetailProvider);
+  ref.invalidate(dayVisitsProvider);
+  ref.invalidate(visitChecksProvider);
+  ref.invalidate(revisitCountsProvider);
+  ref.invalidate(revisitsProvider);
+};

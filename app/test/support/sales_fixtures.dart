@@ -118,11 +118,6 @@ Map<String, dynamic> salesVisitJson(
   int? amount,
 }) => {'visit_id': visitId, 'date': date, 'pet': pet, 'amount': amount};
 
-Map<String, dynamic> duePetJson(int petId, String name, String lastVisit, {String? photo}) => {
-  'pet': petCardJson(petId, name, photo: photo),
-  'last_visit_date': lastVisit,
-};
-
 Map<String, dynamic> salesPageJson(List<Map<String, dynamic>> items, {String? nextCursor}) => {
   'items': items,
   'next_cursor': nextCursor,
