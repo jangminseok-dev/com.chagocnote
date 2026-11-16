@@ -167,6 +167,9 @@ class PetCondition {
 }
 
 /// 반려동물 전체.
+/// 미용 동의를 받은 길(⑪) — 전자 서명, 또는 손으로 [받았어요].
+enum ConsentVia { signature, manual }
+
 class Pet {
   const Pet({
     required this.petId,
@@ -187,6 +190,7 @@ class Pet {
     required this.passedAwayAt,
     required this.photo,
     this.groomingConsentOn,
+    this.groomingConsentVia,
   });
 
   factory Pet.fromJson(Map<String, dynamic> json) => Pet(
@@ -216,6 +220,12 @@ class Pet {
     groomingConsentOn: json['grooming_consent_on'] == null
         ? null
         : DateTime.parse(json['grooming_consent_on'] as String),
+    // 모르는 값이면 손으로 적은 것으로 본다 — [서명 보기]를 잘못 보이지 않는다.
+    groomingConsentVia: switch (json['grooming_consent_via']) {
+      'signature' => ConsentVia.signature,
+      null => null,
+      _ => ConsentVia.manual,
+    },
   );
 
   final int petId;
@@ -246,6 +256,9 @@ class Pet {
 
   /// 미용 동의서를 받은 날(③-B). 받은 적이 없거나 지병을 더해 비워졌으면 null.
   final DateTime? groomingConsentOn;
+
+  /// 그 동의를 어떻게 받았나(⑪) — 서명으로, 또는 손으로 적어서. 받은 것이 없으면 null.
+  final ConsentVia? groomingConsentVia;
 
   bool get passedAway => passedAwayAt != null;
 }

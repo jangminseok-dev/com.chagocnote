@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../error/api_exception.dart';
@@ -40,6 +42,23 @@ class ApiClient {
     bool public = false,
   }) =>
       _send('GET', path, queryParameters: queryParameters, public: public);
+
+  /// 본문을 바이트 그대로 받는다(그림 등). 오류는 다른 요청과 같은 [ApiException] 이다.
+  Future<Uint8List> getBytes(String path) async {
+    try {
+      final response = await _dio.request<List<int>>(
+        path,
+        options: Options(
+          method: 'GET',
+          responseType: ResponseType.bytes,
+          extra: {'public': false},
+        ),
+      );
+      return Uint8List.fromList(response.data ?? const []);
+    } on DioException catch (e) {
+      throw _toApiException(e);
+    }
+  }
 
   Future<dynamic> post(String path, {Object? data, bool public = false}) =>
       _send('POST', path, data: data, public: public);

@@ -329,6 +329,12 @@ class AppStrings {
       : '미용 동의서를 받아 주세요 (${reasons.join(' · ')})';
   static String checkConsentExpired(DateTime receivedOn) =>
       '미용 동의서를 다시 받아 주세요 · 지난번 ${fullDate(receivedOn)}';
+  static const consentPartBasic = '미용 안내';
+  static String checkConsentPartial(List<String> parts) => parts.isEmpty
+      ? '미용 동의서의 바뀐 부분만 다시 받아 주세요'
+      : '미용 동의서의 바뀐 부분만 다시 받아 주세요 (${parts.join(' · ')})';
+  static String checkConsentSent(String line, DateTime sentOn) =>
+      '$line · ${sentOn.month}월 ${sentOn.day}일에 보냈어요';
   static String checkConditions(List<String> labels) =>
       '지병 · ${labels.join(', ')}';
   static String checkLongAbsence(int days, DateTime lastVisitOn) =>
