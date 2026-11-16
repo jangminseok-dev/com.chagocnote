@@ -197,4 +197,9 @@ const conditionTypesJson = [
 Map<String, dynamic> guardianLinkJson({
   bool linked = true,
   String? linkedAt = '2026-11-13T10:30:00+09:00',
-}) => {'linked': linked, 'linked_at': linked ? linkedAt : null};
+  int familyCount = 0,
+}) => {
+  'linked': linked,
+  'linked_at': linked ? linkedAt : null,
+  'family_count': linked ? familyCount : 0,
+};

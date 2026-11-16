@@ -968,6 +968,14 @@ class AppStrings {
   static const reportItemWeightHint = '기록에 적은 날만 보여요';
   static const reportItemShopInfoHint = '이름 · 전화 · 주소';
 
+  // 리뷰 남기기 줄(⑫ 설계 3.6) — 칸 아래의 까닭.
+  static const reviewUrlNotHttps = 'https:// 로 시작하는 주소를 넣어 주세요.';
+  static const reviewUrlTooLong = '주소가 너무 길어요. 300자까지 넣을 수 있어요.';
+  static const reviewUrlInvalid = '주소를 다시 확인해 주세요. 띄어쓰기나 @ 가 들어가면 안 돼요.';
+  static const reviewTextTooLong = '60자까지 쓸 수 있어요.';
+  static const reviewTextOneLine = '줄을 바꾸지 말고 한 줄로 써 주세요.';
+  static const reviewTextNoLink = '문구에는 주소를 넣을 수 없어요.';
+
   /// 링크 기간 칩 — '7일'·'30일', 기간이 없으면(null) '계속'.
   static String reportLinkDays(int? days) => days == null ? '계속' : '$days일';
 

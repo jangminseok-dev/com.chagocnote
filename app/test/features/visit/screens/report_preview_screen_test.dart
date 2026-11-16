@@ -218,6 +218,7 @@ void main() {
 
       expect(server.puts.single, {
         'hidden_media_ids': [1, 2],
+        'show_review': true,
       });
       expect(app.setup.shareSheet.shared, [_url]);
       // 아이패드의 말풍선이 붙을 자리 — 버튼의 화면 사각형.
@@ -247,6 +248,7 @@ void main() {
 
     expect(server.puts.single, {
       'hidden_media_ids': [1],
+      'show_review': true,
     });
   });
 
@@ -271,6 +273,7 @@ void main() {
     await _tap(tester, _button('보내기'));
     expect(server.puts.single, {
       'hidden_media_ids': [51],
+      'show_review': true,
     });
     expect(closed.closed, isTrue);
   });
@@ -331,6 +334,7 @@ void main() {
 
     expect(server.puts.single, {
       'hidden_media_ids': [51],
+      'show_review': true,
     });
     expect(app.setup.shareSheet.shared, isEmpty);
     expect(closed.closed, isTrue);

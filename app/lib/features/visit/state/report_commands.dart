@@ -23,11 +23,15 @@ class ReportCommands {
   ///
   /// [onlyIfLive] — 보낼 사진 고르기: 살아 있는 링크의 뺌만 고친다. 다시 읽은 링크가 닫혀 있으면
   /// PUT(없으면 링크를 만든다)을 보내지 않고 `REPORT_NOT_FOUND` 로 끝낸다.
+  ///
+  /// [showReview] — 이 알림장에 리뷰 줄을 넣을지(⑫). 화면이 고르지 않았으면(null) 다시 읽은 링크의 값
+  /// (링크가 없으면 넣음)을 싣는다 — 서버는 빠진 칸을 '넣음'으로 보므로 앞서 뺀 줄이 되살아나지 않게.
   Future<VisitReportPreview> send(
     int shopId,
     int visitId, {
     required Map<int, bool> changes,
     bool onlyIfLive = false,
+    bool? showReview,
   }) => _linkWrite(() async {
     final now = await _api.preview(shopId, visitId);
     if (onlyIfLive && !now.link.live) {
@@ -41,6 +45,7 @@ class ReportCommands {
       shopId,
       visitId,
       hiddenMediaIds: hiddenIdsOf(now.media, changes),
+      showReview: showReview ?? now.link.showReview ?? true,
     );
   });
 
@@ -63,6 +68,21 @@ class ReportCommands {
     } finally {
       _ref.invalidate(reportSettingsProvider);
       _ref.invalidate(visitReportProvider);
+    }
+  }
+
+  /// 가족 수 바꾸기(⑫). **성공하든 실패하든** 가족 설정을 다시 읽게 한다 — 화면은 다시 읽은 값으로 그린다.
+  Future<GuardianSettings> updateGuardianSettings(
+    int shopId, {
+    required int familyMax,
+  }) async {
+    try {
+      return await runShopScoped(
+        _ref,
+        () => _api.updateGuardianSettings(shopId, familyMax: familyMax),
+      );
+    } finally {
+      _ref.invalidate(guardianSettingsProvider);
     }
   }
 

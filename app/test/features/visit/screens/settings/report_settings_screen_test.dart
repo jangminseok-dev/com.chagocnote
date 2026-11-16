@@ -83,6 +83,10 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await settle(tester);
 }
 
+/// 보낸 본문 — 받은 설정에서 읽기 전용인 기본 문구를 뺀 일곱 칸(⑫).
+Map<String, dynamic> _sent(Map<String, dynamic> json) =>
+    {...json}..remove('review_text_default');
+
 void main() {
   testWidgets('서버의 설정대로 기간과 스위치 넷을 보인다', (tester) async {
     final server = _Server();
@@ -122,7 +126,7 @@ void main() {
 
     await _tap(tester, _chip('7일'));
 
-    expect(server.puts, [reportSettingsJson(linkDays: 7)]);
+    expect(server.puts, [_sent(reportSettingsJson(linkDays: 7))]);
     expect(_reads(setup), 2);
     expect(_period(tester), '7일');
     expect(_on(tester), ['메뉴 이름', '매장 정보']);
@@ -140,7 +144,7 @@ void main() {
 
     // 본문에 키가 있고 값이 null 이다 — 서버는 다섯 칸 모두를 요구한다.
     expect(server.puts.single.containsKey('link_days'), isTrue);
-    expect(server.puts, [reportSettingsJson(linkDays: null)]);
+    expect(server.puts, [_sent(reportSettingsJson(linkDays: null))]);
     expect(_period(tester), '계속');
   });
 
@@ -152,7 +156,7 @@ void main() {
 
     await _tap(tester, _switch('금액'));
 
-    expect(server.puts, [reportSettingsJson(showAmount: true)]);
+    expect(server.puts, [_sent(reportSettingsJson(showAmount: true))]);
     expect(_on(tester), ['메뉴 이름', '금액', '매장 정보']);
 
     // 다음 누름은 다시 읽은 서버 값(금액 켬) 위에서 제 칸만 뒤집는다.
@@ -164,7 +168,10 @@ void main() {
     ]) {
       final before = server.settings;
       await _tap(tester, _switch(label));
-      expect(server.puts.last, {...before, field: !(before[field] as bool)});
+      expect(server.puts.last, {
+        ..._sent(before),
+        field: !(before[field] as bool),
+      });
     }
     expect(_on(tester), ['몸무게']);
   });
@@ -180,7 +187,7 @@ void main() {
     await settle(tester);
     await _tap(tester, _switch('매장 정보'));
 
-    expect(server.puts, [reportSettingsJson(showAmount: true)]);
+    expect(server.puts, [_sent(reportSettingsJson(showAmount: true))]);
     // 낙관적으로 그리지 않는다 — 응답이 오기 전에는 서버의 값 그대로다.
     expect(_on(tester), ['메뉴 이름', '매장 정보']);
 
@@ -212,7 +219,10 @@ void main() {
     server.getGate = null;
     await settle(tester);
     await _tap(tester, _switch('몸무게'));
-    expect(server.puts.last, reportSettingsJson(showAmount: true, showWeight: true));
+    expect(
+      server.puts.last,
+      _sent(reportSettingsJson(showAmount: true, showWeight: true)),
+    );
 
     // 다시 읽기가 실패해 "이전 내용"을 보이는 동안에도 눌리지 않는다 — [다시 시도]로 읽은 뒤에 눌린다.
     server.getError = const FakeResponse(statusCode: 503, data: 'x');

@@ -120,12 +120,18 @@ void main() {
       ),
     );
 
-    final sent = await s.api.send(3, 101, hiddenMediaIds: [51]);
+    final sent = await s.api.send(
+      3,
+      101,
+      hiddenMediaIds: [51],
+      showReview: false,
+    );
 
     final request = s.adapter.requests.single;
     expect('${request.method} ${request.path}', 'PUT $_reportPath');
     expect(_json(s.adapter.lastBodyByPath[_reportPath]), {
       'hidden_media_ids': [51],
+      'show_review': false,
     });
     expect(sent.media.map((m) => (m.mediaId, m.hidden)), [
       (52, false),
@@ -134,9 +140,10 @@ void main() {
     expect(sent.link.live, isTrue);
     expect(sent.link.expiresAt!.wall, DateTime(2026, 11, 1, 15, 30));
 
-    await s.api.send(3, 101, hiddenMediaIds: []);
+    await s.api.send(3, 101, hiddenMediaIds: [], showReview: true);
     expect(_json(s.adapter.lastBodyByPath[_reportPath]), {
       'hidden_media_ids': <int>[],
+      'show_review': true,
     });
   });
 
@@ -189,22 +196,111 @@ void main() {
         showShopInfo: false,
         showWeight: true,
         showAmount: false,
+        reviewUrl: 'https://naver.me/abc',
+        reviewText: null,
+        reviewTextDefault: '기본 문구',
       ),
     );
 
     expect(s.adapter.requests.last.method, 'PUT');
+    // 일곱 칸 — 기본 문구는 읽기 전용이라 싣지 않는다.
     expect(_json(s.adapter.lastBodyByPath[_settingsPath]), {
       'link_days': null,
       'show_menus': true,
       'show_shop_info': false,
       'show_weight': true,
       'show_amount': false,
+      'review_url': 'https://naver.me/abc',
+      'review_text': null,
     });
     expect(saved.linkDays, isNull);
     expect(
       (saved.showMenus, saved.showShopInfo, saved.showWeight, saved.showAmount),
       (true, true, false, false),
     );
+  });
+
+  test('설정은 리뷰 주소·문구·기본 문구를 읽고, 예전 서버(칸 없음)의 설정도 읽는다', () async {
+    var legacy = false;
+    final s = _build((options, body) {
+      final json = reportSettingsJson(
+        reviewUrl: 'https://m.place.naver.com/place/1/review',
+        reviewText: '후기 부탁드려요',
+      );
+      if (legacy) {
+        json
+          ..remove('review_url')
+          ..remove('review_text')
+          ..remove('review_text_default');
+      }
+      return FakeResponse(statusCode: 200, data: json);
+    });
+
+    final read = await s.api.settings(3);
+    expect(
+      (read.reviewUrl, read.reviewText, read.reviewTextDefault),
+      (
+        'https://m.place.naver.com/place/1/review',
+        '후기 부탁드려요',
+        reviewTextDefault,
+      ),
+    );
+
+    legacy = true;
+    final old = await s.api.settings(3);
+    expect((old.reviewUrl, old.reviewText, old.reviewTextDefault), (
+      null,
+      null,
+      null,
+    ));
+  });
+
+  test('미리보기는 리뷰 주소·문구와 링크의 show_review 를 읽는다(없으면 null)', () async {
+    var withReview = true;
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: visitReportJson(
+          reviewUrl: withReview ? 'https://naver.me/abc' : null,
+          reviewText: '후기 부탁드려요',
+          link: reportLinkJson(live: withReview, showReview: false),
+        ),
+      ),
+    );
+
+    final read = await s.api.preview(3, 101);
+    expect((read.reviewUrl, read.reviewText, read.link.showReview), (
+      'https://naver.me/abc',
+      '후기 부탁드려요',
+      false,
+    ));
+
+    withReview = false;
+    final none = await s.api.preview(3, 101);
+    expect((none.reviewUrl, none.reviewText, none.link.showReview), (
+      null,
+      null,
+      null,
+    ));
+  });
+
+  test('가족 설정 읽기·바꾸기 — family_max 한 칸을 보낸다', () async {
+    const path = '/v1/shops/3/guardian-settings';
+    final s = _build(
+      (options, body) => FakeResponse(
+        statusCode: 200,
+        data: guardianSettingsJson(familyMax: options.method == 'GET' ? 3 : 5),
+      ),
+    );
+
+    final read = await s.api.guardianSettings(3);
+    expect('${s.adapter.requests.single.method} ${s.adapter.requests.single.path}', 'GET $path');
+    expect((read.familyMax, read.defaultFamilyMax), (3, 3));
+
+    final saved = await s.api.updateGuardianSettings(3, familyMax: 5);
+    expect(s.adapter.requests.last.method, 'PUT');
+    expect(_json(s.adapter.lastBodyByPath[path]), {'family_max': 5});
+    expect(saved.familyMax, 5);
   });
 
   test('방문 상세의 report, 하루 목록·피드 항목의 report_sent 를 읽는다', () async {

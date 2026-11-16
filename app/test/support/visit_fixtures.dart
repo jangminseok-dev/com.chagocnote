@@ -301,11 +301,15 @@ Map<String, dynamic> feedJson({
 
 /// 알림장 링크의 상태(방문 상세의 `report`, 미리보기의 `link`). 안 보냈으면 나머지 칸은 null 이다.
 /// 주소는 가짜다 — 진짜 링크에는 토큰이 들어 있어 테스트에 옮겨 적지 않는다.
+///
+/// [showReview] 는 그 링크에 리뷰 줄을 넣는가(⑫) — 링크가 없으면 null 이다.
 Map<String, dynamic> reportLinkJson({
   bool live = false,
   String? firstViewedAt,
   String? expiresAt = '2026-11-01T15:30:00+09:00',
+  bool showReview = true,
 }) => {
+  'show_review': live ? showReview : null,
   'status': live ? 'live' : 'none',
   'url': live ? 'http://127.0.0.1:3010/r/TEST-TOKEN' : null,
   'expires_at': live ? expiresAt : null,
@@ -333,30 +337,50 @@ Map<String, dynamic> reportMediaJson({
   'download_url': 'http://media.test/b/original/shops/3/$mediaId.jpg?sig=a',
 };
 
-/// 알림장 설정(요청·응답이 같은 모양). 기본값은 서버의 기본값이다.
+/// 서버의 리뷰 줄 기본 문구(⑫).
+const reviewTextDefault = '미용이 마음에 드셨다면 후기를 남겨 주세요';
+
+/// 알림장 설정(응답 모양 — 요청은 `review_text_default` 를 뺀 일곱 칸). 기본값은 서버의 기본값이다.
 Map<String, dynamic> reportSettingsJson({
   int? linkDays = 30,
   bool showMenus = true,
   bool showShopInfo = true,
   bool showWeight = false,
   bool showAmount = false,
+  String? reviewUrl,
+  String? reviewText,
 }) => {
   'link_days': linkDays,
   'show_menus': showMenus,
   'show_shop_info': showShopInfo,
   'show_weight': showWeight,
   'show_amount': showAmount,
+  'review_url': reviewUrl,
+  'review_text': reviewText,
+  'review_text_default': reviewTextDefault,
+};
+
+/// 가족과 함께 보기 설정(⑫, `guardian-settings`).
+Map<String, dynamic> guardianSettingsJson({int familyMax = 3}) => {
+  'family_max': familyMax,
+  'defaults': {'family_max': 3},
 };
 
 /// 알림장 미리보기(GET·PUT 응답). 앱은 `report` 에서 미디어와 케어 메모만 읽는다 — 나머지 칸은
 /// 서버가 주는 모양대로 채워 둔다(끈 항목은 null).
+///
+/// 리뷰 줄(⑫)의 두 칸은 매장이 주소를 넣었을 때만 있다([reviewUrl]) — 미리보기는 그 알림장이 뺐어도 준다.
 Map<String, dynamic> visitReportJson({
   List<Map<String, dynamic>> media = const [],
   String? careNote,
   Map<String, dynamic>? link,
   Map<String, dynamic>? settings,
+  String? reviewUrl,
+  String reviewText = reviewTextDefault,
 }) => {
   'report': {
+    'review_url': ?reviewUrl,
+    if (reviewUrl != null) 'review_text': reviewText,
     'pet_name': '두부',
     'visit_date': '2026-10-02',
     'care_note': careNote,

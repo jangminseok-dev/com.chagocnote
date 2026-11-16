@@ -26,3 +26,12 @@ final reportSettingsProvider = FutureProvider.autoDispose
         () => ref.read(reportApiProvider).settings(shopId),
       ),
     );
+
+/// 가족과 함께 보기 설정(⑫) — 알림장 설정 화면이 알림장 설정과 따로 읽는다.
+final guardianSettingsProvider = FutureProvider.autoDispose
+    .family<GuardianSettings, int>(
+      (ref, shopId) => runShopScoped(
+        ref,
+        () => ref.read(reportApiProvider).guardianSettings(shopId),
+      ),
+    );
