@@ -352,7 +352,32 @@ class AppStrings {
   static const consentSignHere = '여기서 서명';
   static const consentSendUpToDate =
       '이미 받은 동의예요. 다시 받으려면 반려동물 화면에서 받은 기록을 지워 주세요.';
+  static const consentSendUpToDateHere =
+      '이미 받은 동의예요. 다시 받으려면 받은 기록을 먼저 지워 주세요.';
   static const consentShareFailed = '공유 창을 열지 못했어요. 다시 눌러 주세요.';
+  static String groomingConsentSignedOn(DateTime d) => '${fullDate(d)}에 서명 받음';
+  static const consentViewSignatures = '서명 보기';
+  static const signaturesTitle = '받은 서명';
+  static const signaturesEmpty = '받은 서명이 없어요';
+  static const signatureViaLink = '링크로';
+  static const signatureViaShop = '매장에서';
+  static String signatureRow(DateTime at, String via, String name) =>
+      '${fullDate(at)} · $via · $name';
+  static const signatureDetailTitle = '서명한 동의서';
+  static const signatureNoteLink = '링크를 받은 분이 적은 서명이에요';
+  static const signatureNoteShop = '매장에서 받은 서명이에요';
+  static String signatureSigner(String name) => '적은 이름: $name';
+  static const signatureImageLabel = '서명 그림';
+  static String sentFormsEntry(int count) => '보낸 서류 $count';
+  static const sentFormsTitle = '보낸 서류';
+  static const sentFormsEmpty = '보낸 서류가 없어요';
+  static String sentFormMeta(String owner, DateTime sent, DateTime expires) =>
+      '$owner · ${sent.month}월 ${sent.day}일에 보냄 · ${expires.month}월 ${expires.day}일까지';
+  static const sentFormKind = '미용 동의서';
+  static const sentFormRevoke = '링크 끊기';
+  static const sentFormRevokeAsk = '이 링크를 끊을까요? 받은 분이 더는 열 수 없어요.';
+  static const sentFormRevokeConfirm = '끊기';
+  static const sentFormKeep = '그대로 두기';
   static const consentSignTitle = '미용 동의서';
   static const consentPartTitleBasic = '미용 안내';
   static const consentPartTitleSenior = '나이가 많은 아이';
