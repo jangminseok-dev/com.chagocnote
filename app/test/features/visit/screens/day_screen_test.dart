@@ -495,6 +495,46 @@ void main() {
     expect(find.text('목욕 · 박하늘'), findsOneWidget);
   });
 
+  testWidgets('결제한 방문의 카드와 시간표 블록에 "결제 완료"가 "알림장 보냄" 앞에 붙는다(⑬)', (tester) async {
+    final items = [
+      dayItemJson(
+        _v(1, '10:00', status: 'completed'),
+        reportSent: true,
+        marks: ['report_sent', 'paid'],
+      ),
+      dayItemJson(_v(4, '14:00', status: 'completed', pet: '몽이', owner: '박하늘', customerId: 9)),
+    ];
+    final setup = CustomerTestSetup(_backend(items).call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    expect(
+      find.text('목욕 · 김민지 · ${AppStrings.paidMark} · ${AppStrings.reportSentMark}'),
+      findsOneWidget,
+    );
+    expect(find.text('목욕 · 박하늘'), findsOneWidget);
+  });
+
+  testWidgets('시간표 블록에도 "결제 완료"를 적는다(⑬)', (tester) async {
+    final items = [
+      dayItemJson(
+        _v(1, '10:00', status: 'completed'),
+        reportSent: true,
+        marks: ['report_sent', 'paid'],
+      ),
+    ];
+    final setup = CustomerTestSetup(_backend(items).call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
+    await _open(tester, setup);
+    expect(
+      find.text(
+        '목욕 · 김민지 · ${AppStrings.statusCompleted} · ${AppStrings.paidMark} · ${AppStrings.reportSentMark}',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('시간표의 블록에도 "알림장 보냄"을 적는다', (tester) async {
     final setup = CustomerTestSetup(
       _backend(sentItems()).call,

@@ -40,6 +40,9 @@ class _Server {
           group: [if (withBori) _bori()],
           record: record,
           report: report,
+          // 서버 계약 — 살아 있는 링크면 report_sent, 결제를 적었으면 paid(⑬).
+          marks: [if (paid) 'paid', if (report['status'] == 'live') 'report_sent'],
+          reportSkipped: reportSkipped,
         ),
       ),
       'GET /v1/shops/3/visits/102': (o, b) => FakeResponse(
@@ -81,6 +84,10 @@ class _Server {
         report = reportLinkJson();
         return const FakeResponse(statusCode: 204);
       },
+      'DELETE /v1/shops/3/visits/101/report-skip': (o, b) {
+        reportSkipped = false;
+        return const FakeResponse(statusCode: 204);
+      },
     });
   }
 
@@ -88,6 +95,8 @@ class _Server {
   String? cancelReason;
   Map<String, dynamic>? record;
   Map<String, dynamic> report = reportLinkJson();
+  bool paid = false;
+  bool reportSkipped = false;
   final bool withBori;
   final transitions = <Map<String, dynamic>>[];
   final recordPuts = <Map<String, dynamic>>[];
@@ -1116,6 +1125,45 @@ void main() {
         expect(_button(AppStrings.reportShareAgain), findsNothing);
       },
     );
+
+    testWidgets('결제를 적은 방문의 이름 카드에 "결제 완료"가 붙는다(⑬)', (tester) async {
+      await open(tester, sent()..paid = true);
+
+      expect(
+        find.text('완료 · ${AppStrings.paidMark} · ${AppStrings.reportSentMark}'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('하루 마무리에서 넘긴 방문은 "보내지 않기로 했어요"와 [되돌리기] — 누르면 되돌리고 다시 읽는다(⑬)', (
+      tester,
+    ) async {
+      final server = done()..reportSkipped = true;
+      final setup = await open(tester, server);
+
+      expect(find.text(AppStrings.reportSkipped), findsOneWidget);
+      expect(find.text(AppStrings.reportNotSent), findsNothing);
+      await _tap(tester, _button(AppStrings.reportUnskip));
+
+      expect(
+        setup.calls.where((c) => c == 'DELETE /v1/shops/3/visits/101/report-skip'),
+        hasLength(1),
+      );
+      expect(find.text(AppStrings.reportSkipped), findsNothing);
+      expect(find.text(AppStrings.reportNotSent), findsOneWidget);
+    });
+
+    testWidgets('되돌리기가 실패하면 문구를 보이고 그대로 둔다', (tester) async {
+      final server = done()..reportSkipped = true;
+      server.backend.routes['DELETE /v1/shops/3/visits/101/report-skip'] = (o, b) =>
+          const FakeResponse(statusCode: 500, data: {'code': 'INTERNAL', 'message': 'x'});
+      await open(tester, server);
+
+      await _tap(tester, _button(AppStrings.reportUnskip));
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text(AppStrings.reportSkipped), findsOneWidget);
+    });
 
     testWidgets('알림장을 보내기 전 골든', (tester) async {
       await open(tester, done());

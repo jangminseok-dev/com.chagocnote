@@ -1,3 +1,4 @@
+import '../api/visit_marks.dart';
 import '../api/visit_models.dart';
 
 /// 하루 목록의 가족 묶음 하나 — 같은 보호자·같은 시작 시각의 방문들(서버의
@@ -25,14 +26,22 @@ class DayGroup {
   bool get overlapping => items.any((i) => i.overlapping);
   bool get unresolved => items.any((i) => i.unresolved);
 
-  /// 완료한 방문이 모두 알림장을 보냈는가(완료가 없으면 false). 일부만 보냈는데
-  /// 표시하면 다 보낸 줄 안다.
-  bool get reportSent {
-    final completed = items.where(
-      (i) => i.visit.status == VisitStatus.completed,
-    );
-    return completed.isNotEmpty && completed.every((i) => i.reportSent);
+  /// 끝낸 일의 낱말(⑬) — 완료한 방문이 **모두** 가진 것만, 정해 둔 차례로(완료가 없으면 없다).
+  /// 일부만 끝냈는데 표시하면 다 끝낸 줄 안다.
+  List<VisitMark> get marks {
+    final completed = [
+      for (final i in items)
+        if (i.visit.status == VisitStatus.completed) i,
+    ];
+    if (completed.isEmpty) return const [];
+    return [
+      for (final m in VisitMark.values)
+        if (completed.every((i) => i.marks.contains(m))) m,
+    ];
   }
+
+  /// 완료한 방문이 모두 알림장을 보냈는가(완료가 없으면 false).
+  bool get reportSent => marks.contains(VisitMark.reportSent);
 
   /// 확인할 것의 수(③-B) — 보호자 항목은 구성원마다 같은 값이 오므로 한 번만(가장 큰 값),
   /// 아이 항목은 더한다.

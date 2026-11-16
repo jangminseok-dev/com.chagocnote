@@ -875,6 +875,15 @@ class AppStrings {
 
   /// '완료 · 알림장 보냄' — 이름 카드의 상태 꼬리표 뒤에 붙는다.
   static const reportSentMark = '알림장 보냄';
+
+  // ⑬ 줄의 낱말(설계 4.4 — 차례는 VisitMark). 남은 일은 낱말이 아니라 머리의 숫자다.
+  static const paidMark = '결제 완료';
+  static const passUsedMark = '정기권';
+  static const depositReceivedMark = '예약금 받음';
+
+  /// 하루 마무리에서 "보내지 않음"으로 넘긴 방문(방문 상세의 알림장 줄).
+  static const reportSkipped = '보내지 않기로 했어요';
+  static const reportUnskip = '되돌리기';
   static const reportViewed = '보호자가 확인했어요';
   static const reportNotViewed = '아직 안 열었어요';
   static const reportShareAgain = '다시 공유';

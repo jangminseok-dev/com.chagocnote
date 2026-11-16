@@ -1,4 +1,5 @@
 import 'package:chagocnote/features/visit/api/visit_marks.dart';
+import 'package:chagocnote/features/visit/screens/visit_labels.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -17,7 +18,7 @@ void main() {
   });
 
   test('낱말과 차례는 설계 4.4 의 표 그대로다', () {
-    expect([for (final m in VisitMark.values) m.label], [
+    expect([for (final m in VisitMark.values) markLabel(m)], [
       '결제 완료',
       '알림장 보냄',
       '정기권',

@@ -426,6 +426,26 @@ void main() {
       );
     });
 
+    testWidgets('결제한 카드에 "결제 완료"가 "알림장 보냄" 앞에 붙는다(⑬)', (tester) async {
+      final backend = _backend();
+      backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) => FakeResponse(
+        statusCode: 200,
+        data: feedJson(
+          items: [
+            feedItemJson(careNote: null, reportSent: true, marks: ['report_sent', 'paid']),
+          ],
+        ),
+      );
+      final app = build(backend);
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+
+      expect(
+        find.text('${AppStrings.paidMark} · ${AppStrings.reportSentMark}'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('카드를 누르면 방문 상세로 가고, [달력]을 누르면 달력으로 돌아온다', (tester) async {
       final app = build(feedBackend());
       await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');

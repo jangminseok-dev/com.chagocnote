@@ -1,15 +1,14 @@
-/// 줄의 낱말(⑬ 설계 4.4 — 코드·낱말·차례의 정본). 끝낸 일만 낱말이 되고 남은 일은 머리의 숫자다.
-/// 서버가 더한 코드는 버린다 — 옛 앱이 죽지 않게.
+/// 줄의 낱말(⑬ 설계 4.4 — 코드·차례의 정본, 낱말은 `screens/visit_labels.dart` 의 `markLabel`). 끝낸 일만 낱말이
+/// 되고 남은 일은 머리의 숫자다. 서버가 더한 코드는 버린다 — 옛 앱이 죽지 않게.
 enum VisitMark {
-  paid('paid', '결제 완료'),
-  reportSent('report_sent', '알림장 보냄'),
-  passUsed('pass_used', '정기권'),
-  depositReceived('deposit_received', '예약금 받음');
+  paid('paid'),
+  reportSent('report_sent'),
+  passUsed('pass_used'),
+  depositReceived('deposit_received');
 
-  const VisitMark(this.code, this.label);
+  const VisitMark(this.code);
 
   final String code;
-  final String label;
 }
 
 /// 서버의 `marks`(코드 목록)를 아는 것만, 정해 둔 차례로.

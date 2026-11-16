@@ -24,6 +24,7 @@ import '../../../design/widgets/app_sheet.dart';
 import '../../../design/widgets/pressable.dart';
 import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
+import '../api/visit_marks.dart';
 import '../api/visit_models.dart';
 import '../state/day_layout.dart';
 import '../state/day_view_mode.dart';
@@ -281,6 +282,14 @@ class _DayScreenState extends ConsumerState<DayScreen> {
   }
 }
 
+/// 줄의 표시 — 남은 일(확인 N·겹침·정리 안 됨)이 앞, 끝낸 일의 낱말(⑬)이 뒤. 넷을 넘으면 `+N` 으로 접는다.
+List<String> _groupWords(DayGroup group, {required bool unresolved}) => foldWords([
+  if (group.checkCount > 0) AppStrings.checkCount(group.checkCount),
+  if (group.overlapping) AppStrings.markOverlap,
+  if (unresolved && group.unresolved) AppStrings.markUnresolved,
+  for (final m in group.marks) markLabel(m),
+]);
+
 void _openGroup(BuildContext context, DayGroup group) =>
     context.push('/visits/${group.first.visitId}');
 
@@ -381,12 +390,7 @@ class _GroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final first = group.first;
-    final marks = [
-      if (group.checkCount > 0) AppStrings.checkCount(group.checkCount),
-      if (group.overlapping) AppStrings.markOverlap,
-      if (group.unresolved) AppStrings.markUnresolved,
-      if (group.reportSent) AppStrings.reportSentMark,
-    ];
+    final marks = _groupWords(group, unresolved: true);
     final status = group.uniformStatus;
     // 상태가 섞였으면 아직 진행 가능한 아이들의 상태로 버튼을 정한다(A2 잔여).
     final mixed = status == null;
@@ -646,10 +650,7 @@ class _Block extends StatelessWidget {
                       menusLabel(group.first.menus),
                       ownerLabel(group.first.customer),
                       statusLabel(group.uniformStatus ?? group.first.status),
-                      if (group.checkCount > 0)
-                        AppStrings.checkCount(group.checkCount),
-                      if (group.overlapping) AppStrings.markOverlap,
-                      if (group.reportSent) AppStrings.reportSentMark,
+                      ..._groupWords(group, unresolved: false),
                     ].join(' · '),
                     style: AppTypography.caption,
                     overflow: TextOverflow.ellipsis,
