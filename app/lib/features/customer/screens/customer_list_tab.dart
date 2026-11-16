@@ -15,6 +15,8 @@ import '../../auth/state/shop_selection.dart';
 import '../state/customer_list_controller.dart';
 import '../state/customer_view_mode.dart';
 import '../../../core/time/search_debouncer.dart';
+import '../state/consent_providers.dart';
+import '../state/intake_providers.dart';
 import 'received_intake_screens.dart';
 import 'sent_forms_screen.dart';
 import 'family_card_view.dart';
@@ -180,8 +182,12 @@ class _CustomerListTabState extends ConsumerState<CustomerListTab> {
                 : async,
             onRetry: () =>
                 ref.invalidate(customerListControllerProvider(query!)),
-            onRefresh: () =>
-                ref.refresh(customerListControllerProvider(query!).future),
+            onRefresh: () {
+              // 보호자가 그 사이 낸 문진표·닫힌 링크도 함께 다시 읽는다.
+              ref.invalidate(receivedIntakeProvider(query!.shopId));
+              ref.invalidate(sentFormsProvider(query.shopId));
+              return ref.refresh(customerListControllerProvider(query).future);
+            },
             builder: (state) => _CardList(
               state: state,
               mode: mode,

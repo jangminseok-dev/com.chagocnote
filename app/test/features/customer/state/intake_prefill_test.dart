@@ -72,4 +72,52 @@ void main() {
     expect(prefill.memo, '예민해요\n원하는 스타일: 짧게');
     expect(prefill.changed, {'weight', 'memo'});
   });
+
+  group('다시 받은 답의 지병', () {
+    final current = Pet.fromJson(petJson(petId: 11, name: '콩이'));     // 슬개골 탈구(메모 2기)
+    Map<String, dynamic> update(Map<String, dynamic> more) => {
+      'mode': 'update', 'pet_id': 11, 'pet_name': '콩이', 'species': null, 'breed': null, 'sex': null,
+      'neutered': null, 'birth_year': null, 'weight_kg': null, 'dislikes': null, 'style': null, 'memo_draft': '', ...more,
+    };
+
+    test('새로 적은 지병은 기존 지병 위에 더한다 — 매장이 적어 둔 지병과 메모는 남는다', () {
+      final prefill = prefillOf(_answer(update({
+        'no_known_conditions': false,
+        'conditions': [{'type_code': 'skin', 'label': '피부 질환', 'custom_label': null, 'note': '발 사이'}],
+      })), current: current);
+
+      expect([for (final c in prefill.conditions) (c.typeCode, c.note)], [('patella_luxation', '2기'), ('skin', '발 사이')]);
+      expect(prefill.noKnownConditions, isFalse);
+      expect(prefill.changed, {'conditions'});
+    });
+
+    test('같은 지병을 다시 적으면 답의 메모로 바뀌고, 메모 없이 적었으면 기존 메모가 남는다', () {
+      List<(String, String?)> merged(String? note) => [
+        for (final c in prefillOf(_answer(update({
+          'no_known_conditions': false,
+          'conditions': [{'type_code': 'patella_luxation', 'label': '슬개골 탈구', 'custom_label': null, 'note': note}],
+        })), current: current).conditions) (c.typeCode, c.note),
+      ];
+
+      expect(merged('3기로 진행'), [('patella_luxation', '3기로 진행')]);
+      expect(merged(null), [('patella_luxation', '2기')]);
+    });
+
+    test('지금 값과 같은 답은 바뀐 칸으로 치지 않는다', () {
+      final prefill = prefillOf(_answer(update({
+        'no_known_conditions': false,
+        'conditions': [{'type_code': 'patella_luxation', 'label': '슬개골 탈구', 'custom_label': null, 'note': '2기'}],
+      })), current: current);
+
+      expect(prefill.changed, isEmpty);
+    });
+
+    test('없어요를 고르면 비우고 바뀐 칸으로 알린다', () {
+      final prefill = prefillOf(_answer(update({'no_known_conditions': true, 'conditions': []})), current: current);
+
+      expect(prefill.noKnownConditions, isTrue);
+      expect(prefill.conditions, isEmpty);
+      expect(prefill.changed, {'conditions'});
+    });
+  });
 }

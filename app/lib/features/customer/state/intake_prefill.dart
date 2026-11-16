@@ -79,8 +79,9 @@ PetPrefill prefillOf(IntakeAnswer answer, {Pet? current}) {
   if (birthAnswered && (answer.birthDate != current.birthDate || answer.birthYear != current.birthYear)) {
     changed.add('birth');
   }
-  final conditionsAnswered = answer.noKnownConditions != null;
-  if (conditionsAnswered) changed.add('conditions');
+  final conditions = _mergeConditions(answer, current);
+  final noKnown = answer.noKnownConditions ?? current.noKnownConditions;
+  if (noKnown != current.noKnownConditions || !_sameConditions(conditions, current)) changed.add('conditions');
   final memo = draft == null ? current.memo : [?_text(current.memo), draft].join('\n');
   if (draft != null) changed.add('memo');
   return PetPrefill(
@@ -93,16 +94,39 @@ PetPrefill prefillOf(IntakeAnswer answer, {Pet? current}) {
     birthYear: birthAnswered ? answer.birthYear : current.birthYear,
     birthUnknown: birthAnswered ? answer.birthUnknown : (current.birthDate == null && current.birthYear == null),
     weightKg: pick('weight', answer.weightKg, current.weightKg),
-    noKnownConditions: conditionsAnswered ? answer.noKnownConditions : current.noKnownConditions,
-    conditions: conditionsAnswered
-        ? _conditions(answer)
-        : [
-            for (final c in current.conditions)
-              ConditionEntry(typeCode: c.typeCode, customLabel: c.customLabel, note: c.note),
-          ],
+    noKnownConditions: noKnown,
+    conditions: conditions,
     memo: memo,
     changed: changed,
   );
+}
+
+/// 다시 받은 답의 지병을 지금 지병 위에 **더한다** — 보호자는 바뀐 것만 적는다. 매장이 적어 둔 지병과 메모는 남고,
+/// 같은 지병을 다시 적었으면 답의 메모로 바뀐다(메모 없이 적었으면 기존 메모). `없어요` 를 골랐을 때만 비운다.
+List<ConditionEntry> _mergeConditions(IntakeAnswer answer, Pet current) {
+  if (answer.noKnownConditions == true) return const [];
+  final merged = [
+    for (final c in current.conditions) ConditionEntry(typeCode: c.typeCode, customLabel: c.customLabel, note: c.note),
+  ];
+  if (answer.noKnownConditions == null) return merged;
+  for (final added in _conditions(answer)) {
+    final at = merged.indexWhere((c) => c.typeCode == added.typeCode && c.customLabel == added.customLabel);
+    if (at < 0) {
+      merged.add(added);
+    } else if (_text(added.note) != null) {
+      merged[at] = added;
+    }
+  }
+  return merged;
+}
+
+bool _sameConditions(List<ConditionEntry> merged, Pet current) {
+  if (merged.length != current.conditions.length) return false;
+  for (final (i, c) in current.conditions.indexed) {
+    final m = merged[i];
+    if (m.typeCode != c.typeCode || m.customLabel != c.customLabel || m.note != c.note) return false;
+  }
+  return true;
 }
 
 /// 곧바로 등록할 수 있는 값. 빈 필수 칸이 있거나 메모가 넘치면 `null` — 폼에서 채운다.

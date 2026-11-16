@@ -88,4 +88,18 @@ void main() {
     expect(find.text(AppStrings.intakeShareFailed), findsOneWidget);
     expect(world.sent, hasLength(1));
   });
+
+  testWidgets('무지개다리 아이에게는 [문진표 다시 받기]가 없다 — 새 아이 문진표는 있다', (tester) async {
+    final base = VisitTestBackend({
+      'GET /v1/shops/3/pets/11': (o, b) =>
+          FakeResponse(statusCode: 200, data: petDetailJson(pet: petJson(passedAwayAt: '2026-01-05'))),
+    });
+    final setup = CustomerTestSetup(base.call);
+    addTearDown(setup.container.dispose);
+    useTallView(tester, height: 1800);
+    await pushOnHome<Object?>(tester, setup, '/pets/11?tab=owner');
+
+    expect(find.byKey(const ValueKey('intake-send-customer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('intake-send-pet')), findsNothing);
+  });
 }

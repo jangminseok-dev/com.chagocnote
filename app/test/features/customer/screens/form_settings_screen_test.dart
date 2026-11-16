@@ -356,4 +356,51 @@ void main() {
       expect(find.byKey(key), findsNothing);
     }
   });
+
+  testWidgets('질문을 고치다가 뒤로 가면 한 번 묻는다 — 남으면 적은 것이 그대로다', (tester) async {
+    final server = _Server();
+    await _open(tester, server, path: '/settings/forms/questions');
+    await _tap(tester, find.byKey(IntakeQuestionsScreen.addKey));
+    await tester.enterText(find.byKey(const ValueKey('intake-question-0')), '산책은 얼마나 하나요?');
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.back).last);
+    expect(find.text(AppStrings.formLeaveAsk), findsOneWidget);
+    await _tap(tester, find.text(AppStrings.formLeaveStay));
+    expect(find.text('산책은 얼마나 하나요?'), findsOneWidget);
+
+    await _tap(tester, find.bySemanticsLabel(AppStrings.back).last);
+    await _tap(tester, find.text(AppStrings.formLeave));
+    expect(find.byKey(ScreenKeys.intakeQuestions), findsNothing);
+    expect(server.questionPuts, isEmpty);
+  });
+
+  testWidgets('보관 기간을 줄이면 오래된 문진표가 지워진다고 한 번 묻고, 늘릴 때는 묻지 않는다', (tester) async {
+    final server = _Server();
+    await _open(tester, server);
+
+    await _tap(tester, find.widgetWithText(AppChoiceChip, '7일').last);
+    expect(find.text(AppStrings.formIntakeKeepShorterAsk(7)), findsOneWidget);
+    expect(server.puts, isEmpty);
+    await _tap(tester, find.text(AppStrings.cancel));
+    expect(server.puts, isEmpty);
+
+    await _tap(tester, find.widgetWithText(AppChoiceChip, '7일').last);
+    await _tap(tester, find.text(AppStrings.formIntakeKeepShorter));
+    expect(server.puts.single['intake_keep_days'], 7);
+  });
+
+  testWidgets('보호자가 받는 문진표의 차례가 그대로 보인다 — 끈 칸은 빠지고 더한 질문이 들어간다', (tester) async {
+    final server = _Server()..questions = [intakeQuestionJson(1, '산책은 얼마나 하나요?', required: true)];
+    await _open(tester, server);
+    Finder inPreview(String text) =>
+        find.descendant(of: find.byKey(const ValueKey('intake-preview')), matching: find.textContaining(text));
+
+    expect(find.text(AppStrings.formPreviewLabel), findsOneWidget);
+    for (final text in ['보호자 이름', '몸무게', '지병', '산책은 얼마나 하나요?', AppStrings.intakeQuestionRequired, '개인정보']) {
+      expect(inPreview(text), findsWidgets, reason: text);
+    }
+
+    await _tap(tester, find.byKey(const ValueKey('intake-field-weight')));
+    expect(inPreview('몸무게'), findsNothing);
+  });
 }

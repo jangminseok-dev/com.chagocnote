@@ -142,6 +142,11 @@ void main() {
     });
 
     await step('I6', '매장이 더한 질문 — 하나 더하고 꼭 답하기를 켜 저장하면 설정에 개수가 보인다', () async {
+      // 목록이 아래로 내려가 있다 — 다시 열어 위에서부터 찾는다(흐름 도구는 아래로만 굴린다).
+      router.pop();
+      await pumpFor(const Duration(milliseconds: 500));
+      router.push('/settings/forms');
+      await waitFor(find.byKey(ScreenKeys.formSettings));
       await tap(find.text(AppStrings.formIntakeQuestions(0)));
       await waitFor(find.byKey(ScreenKeys.intakeQuestions));
       await tap(find.byKey(IntakeQuestionsScreen.addKey));

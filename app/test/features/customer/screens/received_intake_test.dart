@@ -260,4 +260,42 @@ void main() {
     final (call, sent) = world.writes.single;
     expect((call, sent['intake_answer_id'], sent['weight_kg'], sent['memo']), ('updatePet', 51, 5.1, '예민해요\n원하는 스타일: 짧게'));
   });
+
+  testWidgets('넘친 메모는 폼에서 잘리지 않는다 — 넘친 글자 수를 보이고, 줄이기 전에는 보내지 않는다', (tester) async {
+    final long = '가' * 520;
+    final world = _World(answers: [intakeAnswerJson(memoDraft: long, memoOver: 20)]);
+    await world.open(tester, '/intake-answers/51/register');
+    TextField memo() => tester.widget<TextField>(find.widgetWithText(TextField, AppStrings.petMemoLabel));
+
+    expect(memo().controller!.text.length, 520);
+    expect(find.text(AppStrings.petMemoOver(20)), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, AppStrings.petMemoLabel), '가' * 510);   // 고쳐도 뒤가 잘리지 않는다
+    await settle(tester);
+    expect(memo().controller!.text.length, 510);
+    expect(find.text(AppStrings.petMemoOver(10)), findsOneWidget);
+    await _tap(tester, find.widgetWithText(AppButton, AppStrings.save));
+    expect(world.writes, isEmpty);
+
+    await tester.enterText(find.widgetWithText(TextField, AppStrings.petMemoLabel), '가' * 500);
+    await settle(tester);
+    expect(find.textContaining('넘쳐요'), findsNothing);
+    await _tap(tester, find.widgetWithText(AppButton, AppStrings.save));
+    expect((world.writes.single.$2['pet'] as Map)['memo'], '가' * 500);
+  });
+
+  testWidgets('고객 탭을 당겨 새로 읽으면 그 사이 받은 문진표의 줄이 생긴다', (tester) async {
+    final world = _World(answers: []);
+    await world.open(tester, '/home');
+    await _tap(tester, find.text(AppStrings.tabCustomers));
+    expect(find.textContaining('받은 문진표'), findsNothing);
+
+    world.answers.add(intakeAnswerJson());
+    tester.view.physicalSize = const Size(390, 844);   // 당김의 문턱은 화면 높이의 1/4 이다 — 긴 화면에서는 닿지 않는다
+    await settle(tester);
+    await tester.fling(find.textContaining('두부').hitTestable().first, const Offset(0, 400), 1000);
+    await settle(tester);
+
+    expect(find.text(AppStrings.receivedIntakeEntry(1)), findsOneWidget);
+  });
 }

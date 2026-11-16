@@ -127,6 +127,8 @@ class _PetFormState extends State<PetForm> {
     }
   }
 
+  static const _memoMax = 500;
+
   void _applyPrefill(PetPrefill prefill) {
     _name.text = prefill.name ?? '';
     _breed.text = prefill.breed ?? '';
@@ -256,7 +258,7 @@ class _PetFormState extends State<PetForm> {
     }
 
     setState(() => _errors = errors);
-    if (errors.isNotEmpty) return;
+    if (errors.isNotEmpty || _memo.text.characters.length > _memoMax) return;   // 넘친 메모는 칸 아래에서 말한다
 
     widget.onSubmit(
       PetFields(
@@ -456,12 +458,25 @@ class _PetFormState extends State<PetForm> {
           controller: _memo,
           minLines: 2,
           maxLines: 5,
-          inputFormatters: [LengthLimitingTextInputFormatter(500)],
+          // 문진표로 미리 채운 글은 자르지 않는다 — 넘친 글자 수를 보이고 사장이 줄인다(잘린 뒤 저장하면 답이 사라진다).
+          inputFormatters: [if (widget.prefill == null) LengthLimitingTextInputFormatter(_memoMax)],
+          onChanged: widget.prefill == null ? null : (_) => setState(() {}),
           decoration: const InputDecoration(
             labelText: AppStrings.petMemoLabel,
             hintText: AppStrings.petMemoHint,
           ),
         ),
+        if (_memo.text.characters.length > _memoMax)
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                AppStrings.petMemoOver(_memo.text.characters.length - _memoMax),
+                style: AppTypography.bodyStrong,
+              ),
+            ),
+          ),
         if (widget.errorText != null) ...[
           const SizedBox(height: AppSpacing.md),
           Text(widget.errorText!, style: AppTypography.caption),

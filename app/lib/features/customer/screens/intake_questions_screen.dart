@@ -10,6 +10,8 @@ import '../../../design/tokens/app_typography.dart';
 import '../../../design/widgets/app_back_button.dart';
 import '../../../design/widgets/app_button.dart';
 import '../../../design/widgets/app_card.dart';
+import '../../../design/widgets/app_sheet.dart';
+import '../../../design/widgets/app_sheet_action.dart';
 import '../../../design/widgets/app_snack_bar.dart';
 import '../../../design/widgets/app_switch.dart';
 import '../../../design/widgets/pressable.dart';
@@ -46,7 +48,30 @@ class _IntakeQuestionsScreenState extends ConsumerState<IntakeQuestionsScreen> {
   List<_Row>? _rows; // 읽은 뒤 한 번 채운다
   bool _dirty = false;
   bool _busy = false;
+  bool _left = false;
   String? _notice;
+
+  /// 고친 것이 있으면 나가기 전에 한 번 묻는다(글 고치기 화면과 같다).
+  Future<void> _askLeave() async {
+    final leave = await AppSheet.show<bool>(
+      context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: Text(AppStrings.formLeaveAsk, style: AppTypography.bodyStrong),
+          ),
+          AppSheetAction(label: AppStrings.formLeave, onTap: () => Navigator.of(context).pop(true)),
+          AppSheetAction(label: AppStrings.formLeaveStay, onTap: () => Navigator.of(context).pop(false)),
+        ],
+      ),
+    );
+    if (leave == true && mounted) {
+      setState(() => _left = true);
+      Navigator.of(context).pop();
+    }
+  }
 
   @override
   void dispose() {
@@ -81,6 +106,7 @@ class _IntakeQuestionsScreenState extends ConsumerState<IntakeQuestionsScreen> {
       ]);
       if (!mounted) return;
       AppSnackBar.show(context, AppStrings.intakeQuestionsSaved);
+      setState(() => _left = true);
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
@@ -98,6 +124,16 @@ class _IntakeQuestionsScreenState extends ConsumerState<IntakeQuestionsScreen> {
         ? const AsyncValue<List<IntakeQuestion>>.loading()
         : ref.watch(intakeQuestionsProvider(shopId));
     final canEdit = ref.watch(isOwnerProvider);
+    return PopScope(
+      canPop: _left || !_dirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _askLeave();
+      },
+      child: _screen(questions, shopId, canEdit: canEdit),
+    );
+  }
+
+  Widget _screen(AsyncValue<List<IntakeQuestion>> questions, int? shopId, {required bool canEdit}) {
     return Scaffold(
       key: ScreenKeys.intakeQuestions,
       body: AppBackground(
@@ -105,13 +141,13 @@ class _IntakeQuestionsScreenState extends ConsumerState<IntakeQuestionsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
                 child: Row(
                   children: [
-                    AppBackButton(),
-                    SizedBox(width: AppSpacing.sm),
-                    Text(AppStrings.intakeQuestionsTitle, style: AppTypography.titleKo),
+                    AppBackButton(onTap: () => Navigator.of(context).maybePop()),
+                    const SizedBox(width: AppSpacing.sm),
+                    const Text(AppStrings.intakeQuestionsTitle, style: AppTypography.titleKo),
                   ],
                 ),
               ),

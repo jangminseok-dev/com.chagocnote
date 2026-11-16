@@ -465,6 +465,14 @@ class AppStrings {
   static const intakeQuestionsNone = '더한 질문이 없어요. 기본 칸만 물어요.';
   static const intakeQuestionsSaved = '저장했어요. 다음에 여는 문진표부터 보여요.';
 
+  static String petMemoOver(int over) => '특이사항이 $over자 넘쳐요. 500자까지 줄여 주세요.';
+  static String formIntakeKeepShorterAsk(int days) => '$days일로 줄이면 받은 지 $days일이 넘은 문진표는 곧 지워져요.';
+  static const formIntakeKeepShorter = '줄이기';
+  static const intakePreviewGuardian = '보호자 이름·전화번호';
+  static const intakePreviewPetName = '아이 이름';
+  static const intakePreviewConditions = '지병';
+  static const intakePreviewPrivacy = '개인정보 안내와 동의';
+
   // 받은 문진표(⑪-C) — 다시 치지 않고 등록한다.
   static String receivedIntakeEntry(int count) => '받은 문진표 $count';
   static const receivedIntakeTitle = '받은 문진표';
