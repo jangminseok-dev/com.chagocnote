@@ -194,7 +194,12 @@ class _ConsentSignScreenState extends ConsumerState<ConsentSignScreen> {
           child: SafeArea(
             child: switch ((_stage, upToDate)) {
               (_Stage.done, _) => const _Finished(title: AppStrings.consentDoneTitle, text: AppStrings.consentDoneText),
-              (_, true) => const _Finished(title: AppStrings.consentUpToDateTitle, text: AppStrings.consentUpToDateText),
+              // 열자마자면 사장이 방금 누른 것이다 — 손 표시를 서명으로 바꾸는 길을 말한다.
+              // 보내는 사이에 그렇게 됐으면(보호자가 들고 있다) 받았다고만 말한다.
+              (_, true) => _Finished(
+                title: AppStrings.consentUpToDateTitle,
+                text: _stage == _Stage.upToDate ? AppStrings.consentUpToDateText : AppStrings.consentUpToDateHint,
+              ),
               _ => Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

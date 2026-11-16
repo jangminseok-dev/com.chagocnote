@@ -210,6 +210,30 @@ void main() {
     expect(find.text('다시 시도'), findsNothing);
   });
 
+  testWidgets('열자마자 더 받을 것이 없으면 손으로 적은 동의를 서명으로 바꾸는 길을 말한다', (tester) async {
+    final world = _World(
+      document: () => const FakeResponse(statusCode: 409, data: {'code': 'CONSENT_UP_TO_DATE', 'message': 'x'}),
+    );
+    await world.open(tester);
+
+    expect(find.textContaining('반려동물 화면에서 받은 기록을 지운 뒤'), findsOneWidget);
+  });
+
+  testWidgets('보내는 사이 다른 곳에서 이미 받았으면 이미 받은 동의라고만 말한다 — 지우라고 하지 않는다', (tester) async {
+    final world = _World(
+      sign: (_) => const FakeResponse(statusCode: 409, data: {'code': 'CONSENT_UP_TO_DATE', 'message': 'x'}),
+    );
+    await world.open(tester);
+    await _fill(tester);
+
+    await _submit(tester);
+
+    expect(find.text('이미 받은 동의예요'), findsOneWidget);
+    expect(find.text('지금은 더 받을 것이 없어요.'), findsOneWidget);
+    expect(find.textContaining('지운 뒤'), findsNothing);
+    expect(find.byKey(ConsentSignScreen.closeKey), findsOneWidget);
+  });
+
   testWidgets('보내기가 실패하면 스낵바로 알리고 적은 것은 그대로다', (tester) async {
     final world = _World(sign: (_) => const FakeResponse(statusCode: 500, data: {'code': 'INTERNAL_ERROR', 'message': 'x'}));
     await world.open(tester);

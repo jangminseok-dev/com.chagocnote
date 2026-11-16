@@ -10,9 +10,9 @@ const signatureMaxBytes = 65536;
 ///
 /// 흰 바탕에 검은 선이다 — 어두운 화면에서 보아도 선이 보인다. 600×240 으로 만들고,
 /// 65,536바이트를 넘으면 300×120 으로 다시 만든다(그래도 넘으면 그것을 돌려준다 — 서버가 거절한다).
-Future<Uint8List> signaturePng(List<List<ui.Offset>> strokes) async {
+Future<Uint8List> signaturePng(List<List<ui.Offset>> strokes, {int maxBytes = signatureMaxBytes}) async {
   final full = await _render(strokes, signatureWidth, signatureHeight);
-  if (full.length <= signatureMaxBytes) return full;
+  if (full.length <= maxBytes) return full;
   return _render(strokes, signatureWidth ~/ 2, signatureHeight ~/ 2);
 }
 

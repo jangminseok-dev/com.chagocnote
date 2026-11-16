@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -9,6 +11,9 @@ import '../../../l10n/app_strings.dart';
 import '../state/signature_png.dart';
 
 /// 서명의 선들. 점은 칸의 폭·높이에 대한 비율(0~1)이라 칸의 크기가 바뀌어도(화면을 돌려도) 그대로 그려진다.
+/// 서명 칸의 가장 큰 폭 — 아이패드에서도 손으로 쓰기 알맞은 크기까지만 커진다.
+const signaturePadMaxWidth = 560.0;
+
 class SignatureController extends ChangeNotifier {
   final List<List<Offset>> _strokes = [];
 
@@ -58,13 +63,8 @@ class _SignaturePadState extends State<SignaturePad> {
     (local.dy / size.height).clamp(0.0, 1.0),
   );
 
-  @override
-  Widget build(BuildContext context) {
-    final controller = widget.controller;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        AspectRatio(
+  Widget _canvas(SignatureController controller) {
+    return AspectRatio(
           aspectRatio: signatureWidth / signatureHeight,
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -123,6 +123,26 @@ class _SignaturePadState extends State<SignaturePad> {
                 ),
               );
             },
+          ),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = widget.controller;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // 칸이 화면을 다 덮으면 칸 밖을 끌어 굴릴 자리가 없다(가로로 돌린 폰) — 보이는 높이의 반, 폭 560 까지만.
+        Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: math.min(
+                signaturePadMaxWidth,
+                MediaQuery.sizeOf(context).height / 2 * signatureWidth / signatureHeight,
+              ),
+            ),
+            child: _canvas(controller),
           ),
         ),
         Pressable(

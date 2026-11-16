@@ -41,6 +41,29 @@ void main() {
     expect(controller.isEmpty, isTrue);
   });
 
+  testWidgets('폰을 가로로 돌려도 칸은 보이는 높이의 반을 넘지 않는다 — 칸 밖을 끌어 화면을 굴릴 자리가 남는다', (tester) async {
+    tester.view.physicalSize = const Size(844, 390);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(tester, width: 800);
+
+    final size = tester.getSize(find.byKey(SignaturePad.canvasKey));
+    expect(size.height, lessThanOrEqualTo(195));
+    expect(size.width / size.height, closeTo(2.5, 0.01));
+  });
+
+  testWidgets('아이패드처럼 넓어도 칸의 폭은 560 을 넘지 않는다', (tester) async {
+    tester.view.physicalSize = const Size(1366, 1024);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(tester, width: 1300);
+
+    final size = tester.getSize(find.byKey(SignaturePad.canvasKey));
+    expect((size.width, size.height), (560, 224));
+  });
+
   testWidgets('그으면 선이 남고 점은 칸에 대한 비율로 적힌다', (tester) async {
     final controller = await _pump(tester);
     var changes = 0;
@@ -136,6 +159,16 @@ void main() {
     expect(red(300, 120), lessThan(80));       // 가운데 — 선이 지난다
     expect(red(300, 30), greaterThan(240));    // 위쪽 — 흰 바탕
     expect(red(30, 120), greaterThan(240));    // 선의 왼쪽 밖
+  });
+
+  testWidgets('그림이 65,536바이트를 넘으면 300×120 으로 다시 만든다', (tester) async {
+    // 실제 서명은 상한을 넘기 어렵다 — 상한을 낮춰 그 길을 지나게 한다.
+    final png = (await tester.runAsync(() => signaturePng([
+      [const Offset(0.25, 0.5), const Offset(0.75, 0.5)],
+    ], maxBytes: 100)))!;
+
+    expect(ByteData.sublistView(png, 16, 24).getUint32(0), 300);
+    expect(ByteData.sublistView(png, 16, 24).getUint32(4), 120);
   });
 
   testWidgets('점 하나만 찍어도 그림에 남는다', (tester) async {

@@ -401,6 +401,8 @@ class AppStrings {
   static const consentDoneText = '동의서를 받았어요. 폰을 매장에 돌려주세요.';
   static const consentUpToDateTitle = '이미 받은 동의예요';
   static const consentUpToDateText = '지금은 더 받을 것이 없어요.';
+  static const consentUpToDateHint =
+      '지금은 더 받을 것이 없어요. 손으로 적은 동의를 서명으로 바꾸려면 반려동물 화면에서 받은 기록을 지운 뒤 다시 받아 주세요.';
   static const consentClose = '닫기';
   static const consentLeaveAsk = '서명을 그만둘까요?';
   static const consentLeave = '그만두기';
