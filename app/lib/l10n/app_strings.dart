@@ -990,6 +990,9 @@ class AppStrings {
       '보호자가 가족을 초대하면 같은 알림장·사진을 함께 봐요. 초대는 하루 동안, 한 사람만 쓸 수 있어요.';
   static const familyKeep = '줄여도 이미 함께 보는 가족은 그대로예요. 새 초대만 막아요.';
   static const familyNone = '0명이면 보호자가 가족을 초대할 수 없어요.';
+  // 보내기 전 미리보기의 리뷰 줄(⑫ 설계 8절 — 알림장마다 뺄 수 있다).
+  static const reportReviewSwitch = '리뷰 남기기 줄 넣기';
+  static const reportReviewSwitchHint = '이 알림장에만 적용돼요. 주소와 문구는 알림장 설정에서 바꿔요.';
 
   // 리뷰 남기기 줄(⑫ 설계 3.6) — 칸 아래의 까닭.
   static const reviewUrlNotHttps = 'https:// 로 시작하는 주소를 넣어 주세요.';
