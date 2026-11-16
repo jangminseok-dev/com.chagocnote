@@ -800,6 +800,26 @@ void main() {
     );
   });
 
+  testWidgets('하루 목록 골든 — 머리의 남은 일과 줄의 결제 완료(⑬)', (tester) async {
+    final items = _mockupItems(sent: true);
+    items.first['marks'] = ['paid', 'report_sent'];
+    final backend = _backend(items);
+    backend.routes['GET /v1/shops/3/visits'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: dayJson(date: _date, items: items, unpaid: 1, reportUnsent: 2),
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byKey(ScreenKeys.day),
+      matchesGoldenFile('goldens/day_list_remaining.png'),
+    );
+  });
+
   testWidgets('하루 시간표 골든', (tester) async {
     final setup = CustomerTestSetup(_backend().call, overrides: _today);
     addTearDown(setup.container.dispose);

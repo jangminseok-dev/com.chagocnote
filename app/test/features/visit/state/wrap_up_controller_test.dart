@@ -48,6 +48,12 @@ void main() {
     expect((state().current!.visit.visitId, state().position, state().total), (1, 1, 1));
   });
 
+  test('다시 읽어도 지금 장이 그대로면(완료를 열었다 닫았다·실패) 진행 수가 그대로다', () async {
+    await setup.container.read(wrapUpControllerProvider(key).future);
+    await ctl().done();
+    expect((state().current!.visit.visitId, state().position, state().total), (1, 1, 3));
+  });
+
   test('처음부터 장이 없으면 곧바로 끝이다', () async {
     cards = [];
     await setup.container.read(wrapUpControllerProvider(key).future);

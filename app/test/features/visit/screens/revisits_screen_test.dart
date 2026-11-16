@@ -1,8 +1,10 @@
 // 다시 올 때가 된 아이(⑬ 설계 3.3) — 지남·곧, [예약]·[안내], 주기 시트, 캘린더 탭의 줄.
+import 'package:chagocnote/core/plugs/care_marks_plug.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
 import 'package:chagocnote/features/customer/screens/grooming_cycle_row.dart';
+import 'package:chagocnote/features/visit/state/visit_commands.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,7 +80,12 @@ Future<CustomerTestSetup> _open(
   String role = 'owner',
   String path = '/revisits',
 }) async {
-  final setup = CustomerTestSetup(server.backend.call, role: role, overrides: _today);
+  // 앱처럼 customer 의 쓰기가 방문 쪽을 다시 읽게 하는 자리를 꽂는다(`app.dart`).
+  final setup = CustomerTestSetup(
+    server.backend.call,
+    role: role,
+    overrides: [..._today, careMarksChangedPlugProvider.overrideWith(careMarksChanged)],
+  );
   addTearDown(setup.container.dispose);
   useTallView(tester, height: 1400);
   await pushOnHome<Object?>(tester, setup, path);
@@ -206,6 +213,38 @@ void main() {
 
     await _tap(tester, find.text('보리'));
     expect(find.byKey(ScreenKeys.petDetail), findsOneWidget);
+  });
+
+  testWidgets('[더 보기]로 이어 읽은 둘째 쪽의 아이에게 안내해도 목록이 첫 쪽으로 줄지 않는다', (tester) async {
+    final server = _Server();
+    // 첫 쪽은 보리 하나와 다음 쪽 표시, 둘째 쪽은 두부.
+    var dubuNudged = false;
+    server.backend.routes['GET /v1/shops/3/revisits'] = (o, b) {
+      if (o.queryParameters['bucket'] == 'soon') return FakeResponse(statusCode: 200, data: revisitPageJson());
+      final second = o.queryParameters['cursor'] == 'c1';
+      return FakeResponse(
+        statusCode: 200,
+        data: second
+            ? revisitPageJson(items: [
+                revisitItemJson(petId: 102, name: '두부', lastVisitId: 502, nudgedOn: dubuNudged ? '2026-11-17' : null),
+              ])
+            : revisitPageJson(items: [revisitItemJson(petId: 101, name: '보리', lastVisitId: 501)], nextCursor: 'c1'),
+      );
+    };
+    server.backend.routes['PUT /v1/shops/3/pets/102/revisit-nudge'] = (o, b) {
+      dubuNudged = true;
+      return const FakeResponse(statusCode: 204);
+    };
+    await _open(tester, server);
+    await _tap(tester, _button(AppStrings.loadMore));
+    expect(find.text('두부'), findsOneWidget);
+
+    await _tap(tester, _button(AppStrings.revisitNudge).last);
+    await _tap(tester, _button(AppStrings.revisitNudgeSend));
+
+    expect(find.text('보리'), findsOneWidget);
+    expect(find.text('두부'), findsOneWidget);
+    expect(find.text(AppStrings.revisitNudgedOn(DateTime(2026, 11, 17), DateTime(2026, 11, 17))), findsOneWidget);
   });
 
   testWidgets('없으면 안내 한 줄', (tester) async {

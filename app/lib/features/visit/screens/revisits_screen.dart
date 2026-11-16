@@ -102,6 +102,8 @@ class _RevisitsScreenState extends ConsumerState<RevisitsScreen> {
     } catch (e) {
       if (mounted) AppSnackBar.show(context, messageFor(e));
     }
+    // '곧'의 아이가 바뀐다 — 불러온 만큼 다시 읽는다.
+    if (mounted) await _refresh(shopId);
   });
 
   @override

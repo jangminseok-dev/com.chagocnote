@@ -7,7 +7,6 @@ import '../api/media_api.dart';
 import '../api/revisit_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
-import '../api/wrap_up_models.dart';
 
 final mediaApiProvider = Provider<MediaApi>(
   (ref) => MediaApi(ref.watch(apiClientProvider)),
@@ -157,11 +156,3 @@ final revisitSettingsProvider = FutureProvider.autoDispose
         () => ref.read(visitApiProvider).revisitSettings(shopId),
       ),
     );
-
-/// 하루 마무리의 장(⑬).
-final dayWrapUpProvider = FutureProvider.autoDispose.family<DayWrapUp, DayKey>(
-  (ref, key) => runShopScoped(
-    ref,
-    () => ref.read(visitApiProvider).dayWrapUp(key.shopId, key.date),
-  ),
-);

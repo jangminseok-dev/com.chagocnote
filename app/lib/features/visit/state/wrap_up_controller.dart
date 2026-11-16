@@ -80,7 +80,10 @@ class WrapUpController extends AsyncNotifier<WrapUpState> {
       return;
     }
     if (!ref.mounted) return;
-    final passed = s.passed + 1;
+    // 지금 장이 그대로 남았으면(완료를 열었다 닫았다, 실패했다) 진행 수는 그대로다.
+    final before = s.current;
+    final gone = before != null && !queue.any((c) => cardKey(c) == cardKey(before));
+    final passed = gone ? s.passed + 1 : s.passed;
     final left = queue.where((c) => !s.skipped.contains(cardKey(c))).length;
     final total = passed + left > s.total ? passed + left : s.total;
     state = AsyncData(WrapUpState(queue: queue, skipped: s.skipped, passed: passed, total: total));
