@@ -58,6 +58,12 @@ class PetPassedAwayError(CustomerError):
     code = "PET_PASSED_AWAY"
 
 
+class IntakeAnswerNotFoundError(CustomerError):
+    """받은 문진표가 없다 — 이미 등록했거나 지웠거나 보관 기간이 지났다."""
+
+    code = "INTAKE_ANSWER_NOT_FOUND"
+
+
 class FormNotFoundError(CustomerError):
     """서류 요청이 없다(또는 다른 매장의 것, 서명이 틀린 토큰). 오류에 요청·고객의 값을 싣지 않는다."""
 

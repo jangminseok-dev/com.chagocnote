@@ -19,5 +19,6 @@ async def update_pet(
     ctx: ShopContext = Depends(require_permission("customer:write")),
     use_case: UpdatePetUseCase = Depends(get_update_pet_use_case),
 ) -> PetDetailSchema:
-    view = await use_case.update_pet(UpdatePetCommand(ctx=ctx, pet_id=pet_id, pet=body.to_input()))
+    view = await use_case.update_pet(UpdatePetCommand(ctx=ctx, pet_id=pet_id, pet=body.to_input(),
+                                                        intake_answer_id=body.intake_answer_id))
     return PetDetailSchema.of(view)

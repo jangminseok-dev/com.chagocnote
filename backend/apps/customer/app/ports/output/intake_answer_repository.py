@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+from customer.domain.entities.intake import IntakeAnswer
 from customer.domain.services.intake_rules import CleanAnswer
 from hub.app.dtos.shop_context import ShopContext
 
@@ -20,3 +21,31 @@ class IntakeAnswerRepository(ABC):
     async def first_guardian(self, form_id: int) -> tuple[str, str] | None:
         """그 링크로 받은 답 가운데 보호자를 적은 가장 앞의 것 (이름, 번호). 둘째 답부터 이것을 쓴다.
         그 답을 이미 등록·지웠으면 None — 그때는 보호자를 다시 묻는다."""
+
+    @abstractmethod
+    async def list_since(self, ctx: ShopContext, since: datetime) -> list[IntakeAnswer]:
+        """since 뒤에 받은 답(보관 기간 안의 것), 받은 시각 내림차순."""
+
+    @abstractmethod
+    async def get(self, ctx: ShopContext, answer_id: int, since: datetime) -> IntakeAnswer | None:
+        """없거나 다른 매장의 것이거나 보관 기간이 지났으면 None."""
+
+    @abstractmethod
+    async def delete(self, ctx: ShopContext, answer_id: int) -> bool:
+        """지웠으면 True. 없거나 다른 매장의 것이면 False — 등록이 같은 답을 두 번 쓰지 못한다."""
+
+    @abstractmethod
+    async def delete_for_customer(self, ctx: ShopContext, customer_id: int) -> None:
+        """그 고객에 이어 둔 답과 그 고객에게 보낸 링크의 답(익명화)."""
+
+    @abstractmethod
+    async def delete_for_pet(self, ctx: ShopContext, pet_id: int) -> None:
+        """그 아이의 정보를 다시 받은 답(아이를 지울 때)."""
+
+    @abstractmethod
+    async def delete_older(self, ctx: ShopContext, before: datetime) -> int:
+        """before 보다 앞서 받은 답을 지우고 그 수를 돌려준다(주기 작업)."""
+
+    @abstractmethod
+    async def shops_with_answers(self) -> list[int]:
+        """받은 답이 있는 매장 — 주기 작업이 매장마다 보관 기간을 읽으려고 쓴다. 매장을 가리지 않는 유일한 읽기다."""

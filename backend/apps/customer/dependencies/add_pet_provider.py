@@ -8,6 +8,7 @@ from customer.app.use_cases.add_pet_interactor import AddPetInteractor
 from customer.dependencies.customer_wiring import (
     build_condition_type_repository,
     build_customer_repository,
+    build_intake_answer_repository,
     build_customer_search,
     build_pet_repository,
 )
@@ -22,5 +23,5 @@ def get_add_pet_use_case(
     return AddPetInteractor(
         customers=build_customer_repository(db), pets=build_pet_repository(db),
         condition_types=build_condition_type_repository(db), search=build_customer_search(db),
-        today=seoul_today, events=events,
+        today=seoul_today, events=events, answers=build_intake_answer_repository(db),
     )

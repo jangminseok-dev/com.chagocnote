@@ -6,6 +6,7 @@ from datetime import datetime
 from customer.app.dtos.delete_customer_dto import DeleteCustomerCommand
 from customer.app.ports.input.delete_customer_use_case import DeleteCustomerUseCase
 from customer.app.ports.output.consent_form_repository import ConsentFormRepository
+from customer.app.ports.output.intake_answer_repository import IntakeAnswerRepository
 from customer.app.ports.output.intake_form_repository import IntakeFormRepository
 from customer.app.ports.output.consent_signature_repository import ConsentSignatureRepository
 from customer.app.ports.output.customer_repository import CustomerRepository
@@ -23,7 +24,7 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
         self, customers: CustomerRepository, search: CustomerSearchPort, ledger: VisitLedgerPort,
         guardians: GuardianLifecyclePort, index: SearchIndexPort,
         forms: ConsentFormRepository, signatures: ConsentSignatureRepository, now: Callable[[], datetime],
-        intakes: IntakeFormRepository | None = None,
+        intakes: IntakeFormRepository | None = None, answers: IntakeAnswerRepository | None = None,
     ) -> None:
         self._customers = customers
         self._search = search
@@ -34,6 +35,7 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
         self._signatures = signatures
         self._now = now
         self._intakes = intakes
+        self._answers = answers
 
     async def delete_customer(self, command: DeleteCustomerCommand) -> None:
         await self._customers.lock_active(command.ctx, command.customer_id)
@@ -45,6 +47,9 @@ class DeleteCustomerInteractor(DeleteCustomerUseCase):
         await self._signatures.delete_for_customer(command.ctx, command.customer_id)
         if self._intakes is not None:
             await self._intakes.close_for_customer(command.ctx, command.customer_id, self._now())
+        # 받은 문진표 — 이 고객에 이어 둔 답과 이 고객에게 보낸 링크의 답(이름·번호·적은 글)을 지운다.
+        if self._answers is not None:
+            await self._answers.delete_for_customer(command.ctx, command.customer_id)
         # 보호자 계정과의 연결을 끝낸다 — 익명화한 고객의 기록이 보호자 쪽에 남지 않게(⑦ 설계 G9).
         await self._guardians.end_for_customer(command.ctx.shop_id, command.customer_id)
         await self._ledger.clear_customer_memos(command.ctx, command.customer_id)   # 방문 메모의 개인정보(V11)

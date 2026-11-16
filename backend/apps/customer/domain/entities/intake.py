@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 
 QUESTION_MAX = 5
 QUESTION_LABEL_MAX = 100
@@ -61,3 +62,38 @@ class IntakeForm:
     def is_closed(self, now: datetime) -> bool:
         """끊었거나 기간이 지났다. 다 적은 요청은 닫힌 것이 아니다 — "보냈어요"를 보여야 한다."""
         return self.revoked_at is not None or (self.submitted_at is None and now >= self.expires_at)
+
+
+@dataclass(frozen=True)
+class AnswerCondition:
+    type_code: str
+    custom_label: str | None
+    note: str | None
+
+
+@dataclass(frozen=True)
+class IntakeAnswer:
+    """받은 문진표 하나(아이 한 마리). 끈 칸·모르겠어요·묻지 않은 칸은 None 이다."""
+
+    id: int
+    form_id: int
+    mode: str                          # 그 링크의 보내는 곳(new·add_pet·update)
+    pet_id: int | None                 # 다시 받기일 때 — 그 아이
+    matched_customer_id: int | None    # 미리 이어 둔 고객(번호가 같거나, 그 고객에게 보낸 링크)
+    guardian_name: str | None
+    guardian_phone: str | None
+    pet_name: str | None
+    species: str | None
+    breed: str | None
+    sex: str | None
+    neutered: bool | None
+    birth_date: date | None
+    birth_year: int | None
+    birth_unknown: bool
+    weight_kg: Decimal | None
+    no_known_conditions: bool | None
+    conditions: tuple[AnswerCondition, ...]
+    dislikes: str | None
+    style: str | None
+    extras: tuple[tuple[str, str], ...]     # (질문 글, 답) — 지운 질문의 답도 그 글과 함께 보인다
+    submitted_at: datetime

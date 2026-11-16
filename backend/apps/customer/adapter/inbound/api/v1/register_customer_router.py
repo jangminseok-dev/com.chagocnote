@@ -22,6 +22,7 @@ async def register_customer(
     use_case: RegisterCustomerUseCase = Depends(get_register_customer_use_case),
 ) -> CustomerDetailSchema:
     view = await use_case.register_customer(
-        RegisterCustomerCommand(ctx=ctx, customer=body.customer.to_input(), pet=body.pet.to_input())
+        RegisterCustomerCommand(ctx=ctx, customer=body.customer.to_input(), pet=body.pet.to_input(),
+                                intake_answer_id=body.intake_answer_id)
     )
     return CustomerDetailSchema.of(view)

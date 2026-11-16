@@ -59,6 +59,10 @@ from customer.adapter.inbound.api.v1.update_consent_text_router import update_co
 from customer.adapter.inbound.api.v1.list_intake_questions_router import list_intake_questions_router
 from customer.adapter.inbound.api.v1.issue_intake_form_router import issue_intake_form_router
 from customer.adapter.inbound.api.v1.submit_public_intake_router import submit_public_intake_router
+from customer.adapter.inbound.api.v1.list_intake_answers_router import list_intake_answers_router
+from customer.adapter.inbound.api.v1.get_intake_answer_router import get_intake_answer_router
+from customer.adapter.inbound.api.v1.delete_intake_answer_router import delete_intake_answer_router
+from customer.dependencies.form_sweeper_provider import start_form_sweeper
 from customer.adapter.inbound.api.v1.update_intake_questions_router import update_intake_questions_router
 from customer.adapter.inbound.api.v1.set_pet_grooming_consent_router import (
     set_pet_grooming_consent_router,
@@ -209,15 +213,19 @@ async def lifespan(app: FastAPI):
     task, stop = start_dispatcher()
     # 검색 색인기 — 같은 모양의 작업 하나(⑨ 설계 3.4). 임베딩 프로세스가 죽어 있어도 기동한다.
     indexer_task, indexer_stop = start_indexer()
+    # 서류 청소 — 보관 기간이 지난 문진표의 답을 하루 한 번 지운다(⑪ 설계 3.4).
+    sweeper_task, sweeper_stop = start_form_sweeper()
     try:
         yield
     finally:
         stop.set()
         indexer_stop.set()
+        sweeper_stop.set()
         wake()
         wake_indexer()
         await task
         await indexer_task
+        await sweeper_task
         await dispose_engine()
         await dispose_redis()
 
@@ -272,6 +280,9 @@ app.include_router(update_consent_text_router)
 app.include_router(list_intake_questions_router)
 app.include_router(issue_intake_form_router)
 app.include_router(submit_public_intake_router)
+app.include_router(list_intake_answers_router)
+app.include_router(get_intake_answer_router)
+app.include_router(delete_intake_answer_router)
 app.include_router(update_intake_questions_router)
 app.include_router(build_send_bundle_router)
 app.include_router(mark_pet_passed_away_router)

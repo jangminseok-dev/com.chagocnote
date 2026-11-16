@@ -13,3 +13,4 @@ class RegisterCustomerCommand:
     ctx: ShopContext
     customer: CustomerInput
     pet: PetInput
+    intake_answer_id: int | None = None   # 이 답으로 등록·반영한다 — 같은 트랜잭션에서 답을 지운다(⑪-C)
