@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { fetchForm, submitConsent, type OpenForm, type SubmittedForm } from '../lib/form'
+import { fetchForm, submitConsent, submitIntake, type OpenForm, type SubmittedForm } from '../lib/form'
 
 const TOKEN = 'ok'.padEnd(43, 'A')
 const OPEN: OpenForm = {
@@ -115,4 +115,25 @@ test('서명에서 그 밖의 상태 코드와 연결 실패는 503 이다', asy
   expect(await submitConsent(TOKEN, null, BODY)).toBe(503)
   fetchMock.mockRejectedValue(new TypeError('fetch failed'))
   expect(await submitConsent(TOKEN, null, BODY)).toBe(503)
+})
+
+
+test.each([204, 404, 410, 413, 422, 429])('문진표 제출은 백엔드의 상태 코드 %i 를 그대로 돌려준다', async (status) => {
+  respondWith(status)
+  const body = { guardian: null, pet: { name: '콩이' }, extras: [], privacy_agreed: true, done: true }
+  expect(await submitIntake(TOKEN, '203.0.113.7', body)).toBe(status)
+  expect(sent().url).toBe('http://backend:8000/v1/public/form/intake')
+  expect(sent().init?.method).toBe('POST')
+  expect(sent().headers.get('X-Form-Token')).toBe(TOKEN)
+  expect(JSON.parse(String(sent().init?.body))).toEqual(body)
+})
+
+test('문진표 제출 — 모르는 상태 코드와 연결 실패는 503, 토큰의 모양이 아니면 부르지 않고 404', async () => {
+  respondWith(500)
+  expect(await submitIntake(TOKEN, null, { pet: {} })).toBe(503)
+  fetchMock.mockRejectedValue(new Error('연결 실패'))
+  expect(await submitIntake(TOKEN, null, { pet: {} })).toBe(503)
+  fetchMock.mockReset()
+  expect(await submitIntake('짧은토큰', null, { pet: {} })).toBe(404)
+  expect(fetchMock).not.toHaveBeenCalled()
 })
