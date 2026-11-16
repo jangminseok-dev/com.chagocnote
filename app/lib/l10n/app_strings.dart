@@ -347,6 +347,21 @@ class AppStrings {
   static const signaturePadLabel = '서명하는 곳';
   static const signaturePadHint = '여기에 서명해 주세요';
   static const signatureAgain = '다시 쓰기';
+  // 보낼 것 시트(⑪-B) — 한 예약에 보호자에게 보낼 글을 한 번에.
+  static const bundleSheetTitle = '보호자에게 보낼 글';
+  static const bundleSheetHint = '글을 고치거나 빼고 보낼 수 있어요.';
+  static const bundlePartReservation = '예약 안내';
+  static const bundlePartConsent = '동의서';
+  static const bundleRemove = '빼기';
+  static const bundleRestore = '다시 넣기';
+  static const bundleReset = '처음 글로';
+  static const bundleSend = '보내기';
+  static const bundleLater = '나중에';
+  static const bundleEmpty = '보낼 글이 없어요. 글을 적거나 다시 넣어 주세요.';
+  static const bundleShareFailed = '공유 창을 열지 못했어요. 다시 눌러 주세요.';
+  static const bundleLoadFailed = '보낼 글을 불러오지 못했어요. 다시 눌러 주세요.';
+  static const bundleNothing = '지금은 보낼 글이 없어요.';
+  static const actionSendToGuardian = '보호자에게 보내기';
   static const consentSend = '동의서 보내기';
   static const consentShareAgain = '다시 공유';
   static const consentSignHere = '여기서 서명';

@@ -11,7 +11,10 @@ import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:chagocnote/features/visit/screens/send_bundle_sheet.dart';
+
 import '../../../support/customer_fixtures.dart';
+import '../../../support/form_settings_fixtures.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/visit_fixtures.dart';
@@ -105,6 +108,71 @@ void main() {
     expect(result.closed, isTrue);
     expect(result.value, DateTime(2026, 10, 2));
     expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
+  });
+
+  testWidgets('저장하면 보낼 것 시트가 뜨고 [보내기] 한 번으로 나간 뒤 화면이 닫힌다', (tester) async {
+    final backend = VisitTestBackend();
+    backend.routes['POST /v1/shops/3/visits/101/send-bundle'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: sendBundleJson());
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    final share = setup.shareSheet;
+    addTearDown(setup.container.dispose);
+    final result = await _open(tester, setup);
+    await _pickCustomer(tester);
+    await _tapLabel(tester, '14:00');
+
+    await tester.tap(_save());
+    await settle(tester);
+
+    expect(find.text(AppStrings.bundleSheetTitle), findsOneWidget);
+    expect(result.closed, isFalse);
+    await tester.tap(find.byKey(SendBundleSheet.sendKey));
+    await settle(tester);
+
+    expect(share.shared.single, contains(fakeBundleUrl));
+    expect(result.closed, isTrue);
+    expect(result.value, DateTime(2026, 10, 2));
+  });
+
+  testWidgets('시트를 [나중에]로 닫아도 예약은 저장돼 있고 화면이 닫힌다', (tester) async {
+    final backend = VisitTestBackend();
+    backend.routes['POST /v1/shops/3/visits/101/send-bundle'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: sendBundleJson(consent: false));
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    final result = await _open(tester, setup);
+    await _pickCustomer(tester);
+    await _tapLabel(tester, '14:00');
+    await tester.tap(_save());
+    await settle(tester);
+
+    await tester.tap(find.text(AppStrings.bundleLater));
+    await settle(tester);
+
+    expect(result.closed, isTrue);
+    expect(setup.calls.where((c) => c == 'POST /v1/shops/3/visits'), hasLength(1));
+  });
+
+  testWidgets('보낼 글을 읽지 못하거나 보낼 글이 없으면 시트 없이 닫힌다 — 저장은 끝난 것이다', (tester) async {
+    for (final response in [
+      const FakeResponse(statusCode: 500, data: {'code': 'INTERNAL_ERROR', 'message': 'x'}),
+      const FakeResponse(statusCode: 200, data: {'parts': []}),
+    ]) {
+      final backend = VisitTestBackend();
+      backend.routes['POST /v1/shops/3/visits/101/send-bundle'] = (o, b) => response;
+      final setup = CustomerTestSetup(backend.call, overrides: _today);
+      final result = await _open(tester, setup);
+      await _pickCustomer(tester);
+      await _tapLabel(tester, '14:00');
+
+      await tester.tap(_save());
+      await settle(tester);
+
+      expect(find.text(AppStrings.bundleSheetTitle), findsNothing);
+      expect(result.closed, isTrue);
+      expect(find.byType(SnackBar), findsNothing);
+      setup.container.dispose();
+    }
   });
 
   testWidgets('겹치는 칸은 줄을 긋고, 눌러도 막지 않고 경고만 보인다', (tester) async {

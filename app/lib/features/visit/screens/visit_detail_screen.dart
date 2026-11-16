@@ -35,6 +35,7 @@ import '../state/report_commands.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
 import 'record_photos.dart';
+import 'send_bundle_sheet.dart';
 import 'visit_actions.dart';
 import 'visit_checks_block.dart';
 import 'visit_labels.dart';
@@ -126,6 +127,12 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
               label: AppStrings.edit,
               onTap: () => Navigator.of(context).pop(_More.edit),
             ),
+          // 예약 안내와 동의서 링크를 한 번에(⑪-B) — 저장할 때 보내지 않았거나 다시 보낼 때.
+          if (status == VisitStatus.reserved)
+            AppSheetAction(
+              label: AppStrings.actionSendToGuardian,
+              onTap: () => Navigator.of(context).pop(_More.sendToGuardian),
+            ),
           if (status == VisitStatus.reserved)
             AppSheetAction(
               label: AppStrings.actionCompleteNow,
@@ -165,6 +172,16 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
     switch (choice) {
       case _More.edit:
         context.push('/visits/${detail.visit.visitId}/edit');
+      case _More.sendToGuardian:
+        final shopId = ref.read(selectedShopIdProvider);
+        if (shopId == null) return;
+        await openSendBundle(
+          context,
+          ref,
+          shopId: shopId,
+          visitId: detail.visit.visitId,
+          tellWhy: true,
+        );
       case _More.next:
         await _openNext(detail);
       case _More.completeNow:
@@ -899,6 +916,7 @@ class _GroupCard extends StatelessWidget {
 /// `···` 시트의 항목. 문자열 대신 닫힌 enum 이라 처리 `switch`가 완전 열거된다.
 enum _More {
   edit,
+  sendToGuardian,
   completeNow,
   revert,
   next,

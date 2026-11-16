@@ -29,6 +29,7 @@ import '../state/check_rules.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_prefill.dart';
 import '../state/visit_providers.dart';
+import 'send_bundle_sheet.dart';
 import 'visit_checks_block.dart';
 import 'visit_form.dart';
 import 'visit_labels.dart';
@@ -56,6 +57,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
   late int? _customerId =
       widget.draft?.customerId ?? widget.prefill?.customerId;
   bool _busy = false;
+  bool _saved = false; // 저장이 끝났다 — 보낼 것 시트가 떠 있는 동안 다시 저장하지 않는다
   String? _errorText;
 
   int? get _shopId => ref.read(selectedShopIdProvider);
@@ -68,7 +70,7 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
   Future<void> _save(VisitFormValue value, {bool walkIn = false}) async {
     final shopId = _shopId;
     final customerId = _customerId;
-    if (shopId == null || customerId == null || _busy) return;
+    if (shopId == null || customerId == null || _busy || _saved) return;
     setState(() {
       _busy = true;
       _errorText = null;
@@ -88,6 +90,21 @@ class _RegisterVisitScreenState extends ConsumerState<RegisterVisitScreen> {
               walkIn: walkIn,
             ),
           );
+      // 예약이면 보호자에게 보낼 글이 준비돼 있다(⑪-B) — 시트에서 한 번에 보낸다. 보내지 않고 닫아도,
+      // 글을 읽지 못해도 예약은 저장돼 있다(방문 상세의 [보호자에게 보내기]로 다시 연다).
+      if (!walkIn && mounted) {
+        // 저장은 끝났다 — 진행 표시를 멈추고, 시트가 떠 있는 동안 다시 저장되지 않게만 막는다.
+        setState(() {
+          _busy = false;
+          _saved = true;
+        });
+        await openSendBundle(
+          context,
+          ref,
+          shopId: shopId,
+          visitId: saved.visits.first.visitId,
+        );
+      }
       // 서버가 저장한 날짜를 돌려준다 — [지금 시작]은 보던 날과 다를 수 있다.
       if (mounted) context.pop(saved.visits.first.startsAt.day);
     } on ApiException catch (e) {
