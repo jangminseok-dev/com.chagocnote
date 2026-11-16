@@ -1,5 +1,6 @@
 import { koreanFullDate } from '../lib/format'
 import type { ReportPage } from '../lib/guardian'
+import { RememberList } from './BackToList'
 import styles from './Member.module.css'
 
 /** 지난 알림장 한 쪽(최신순). petId 가 있으면 그 아이의 알림장만 거른 목록이다. */
@@ -9,6 +10,7 @@ export function ReportList({ linkId, petId, page }: { linkId: number; petId: num
   const more = nextCursor === null ? null : `/me/${linkId}?${petId === null ? '' : `pet=${petId}&`}cursor=${encodeURIComponent(nextCursor)}`
   return (
     <main className={styles.page}>
+      <RememberList linkId={linkId} />
       <header data-section="list-head">
         <a className={styles.back} href="/me">
           내 기록
@@ -25,7 +27,7 @@ export function ReportList({ linkId, petId, page }: { linkId: number; petId: num
       ) : (
         <ul className={styles.reports}>
           {items.map((item) => (
-            <li key={item.report_id} data-section="item">
+            <li key={item.report_id} id={`r${item.report_id}`} data-section="item">
               <a href={`/me/${linkId}/${item.report_id}`}>
                 <span className={styles.cover}>
                   {item.cover && (

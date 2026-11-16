@@ -57,6 +57,8 @@ export function makeFullReport(overrides: Partial<Report> = {}): Report {
     total_amount: 70000,
     weight_kg: 4.2,
     shop: { name: 'Hiss Haus', phone: '02-123-4567', address: '서울 마포구 ○○로 12, 1층' },
+    review_url: 'https://m.place.naver.com/place/1/review',
+    review_text: '미용이 마음에 드셨다면 후기를 남겨 주세요',
     ...overrides,
   })
 }

@@ -34,6 +34,8 @@ export type Report = {
   total_amount?: number | null
   weight_kg?: number | null
   shop?: Shop | null
+  review_url?: string // 알림장 끝의 리뷰 줄(⑫) — 매장이 주소를 넣었고 이 알림장이 빼지 않았을 때만 온다
+  review_text?: string // 그 줄의 문구(매장의 글이거나 기본 문구 — 백엔드가 채워 준다)
 }
 
 export type ReportResult = { kind: 'ok'; report: Report } | { kind: ErrorKind }
@@ -83,3 +85,14 @@ export async function markViewed(token: string, clientIp: string | null): Promis
     return 503
   }
 }
+
+/** 리뷰 줄에 걸 주소 — `https:` 일 때만(백엔드도 보지만 한 번 더). 대문자 스킴도 `new URL` 이 소문자로 읽는다. 아니면 null. */
+export function safeReviewUrl(url: string | undefined): string | null {
+  if (url === undefined) return null
+  try {
+    return new URL(url).protocol === 'https:' ? url : null
+  } catch {
+    return null
+  }
+}
+
