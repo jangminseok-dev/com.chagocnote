@@ -314,6 +314,26 @@ class AppStrings {
   static const revisitTemplateLink = '안내 글 템플릿 바꾸기';
   static const revisitNudgeShareFailed = '공유 창을 열지 못했어요. 다시 해 주세요.';
 
+  // ⑬ 남은 일(하루 머리·달력 카드)과 하루 마무리.
+  static String remainingUnresolved(int n) => '$markUnresolved $n';
+  static String remainingUnpaid(int n) => '결제 안 적음 $n';
+  static String remainingReportUnsent(int n) => '알림장 안 보냄 $n';
+  static String calendarRemaining(int n) => '남은 일 $n';
+  static const wrapUpTitle = '하루 마무리';
+  static String wrapUpProgress(int index, int total) => '$total개 중 $index번째';
+  static const wrapUpKindUnresolved = '정리 안 된 예약';
+  static const wrapUpKindUnpaid = '결제 안 적음';
+  static const wrapUpKindReport = '알림장 안 보냄';
+  static const wrapUpSkip = '건너뛰기';
+  static const wrapUpReportPreview = '미리 보고 보내기';
+  static const wrapUpReportSkip = '보내지 않음';
+  static const wrapUpStopCounting = '알림장은 앞으로 남은 일로 세지 않기';
+  static const wrapUpDoneToday = '오늘 일을 다 마쳤어요';
+  static const wrapUpDonePast = '이날 일을 다 마쳤어요';
+  static String wrapUpDoneCounts(int completed, int reports) => '완료 $completed · 알림장 $reports';
+  static String wrapUpSkipped(int n) => '$n개는 남겨 뒀어요';
+  static const wrapUpReview = '다시 보기';
+
   // ⑬ 안내 글 템플릿.
   static const revisitMessageTitle = '안내 글 템플릿';
   static const revisitChipPet = '아이 이름';

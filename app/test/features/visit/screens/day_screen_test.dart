@@ -536,6 +536,36 @@ void main() {
     );
   });
 
+  testWidgets('머리에 남은 일의 수(⑬) — 0 인 것은 없고, 누르면 그 종류부터 하루 마무리가 열린다', (tester) async {
+    final backend = _backend();
+    backend.routes['GET /v1/shops/3/visits'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: dayJson(date: _date, items: _mockupItems(), unpaid: 2, reportUnsent: 1),
+    );
+    backend.routes['GET /v1/shops/3/days/$_date/wrap-up'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: wrapUpJson(
+        date: _date,
+        cards: [
+          wrapUpCardJson(kind: 'unpaid', visit: _v(1, '10:00', status: 'completed')),
+          wrapUpCardJson(kind: 'report_unsent', visit: _v(1, '10:00', status: 'completed')),
+        ],
+      ),
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    expect(find.text(AppStrings.remainingUnpaid(2)), findsOneWidget);
+    expect(find.text(AppStrings.remainingReportUnsent(1)), findsOneWidget);
+    expect(find.textContaining(AppStrings.markUnresolved), findsNothing);
+
+    await tester.tap(find.text(AppStrings.remainingReportUnsent(1)));
+    await settle(tester);
+    expect(find.byKey(ScreenKeys.wrapUp), findsOneWidget);
+    expect(find.text(AppStrings.wrapUpKindReport), findsOneWidget);
+  });
+
   testWidgets('시간표의 블록에도 "알림장 보냄"을 적는다', (tester) async {
     final setup = CustomerTestSetup(
       _backend(sentItems()).call,

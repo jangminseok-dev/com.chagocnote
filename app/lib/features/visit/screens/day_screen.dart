@@ -26,10 +26,12 @@ import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../api/visit_marks.dart';
 import '../api/visit_models.dart';
+import '../api/wrap_up_models.dart';
 import '../state/day_layout.dart';
 import '../state/day_view_mode.dart';
 import '../state/visit_commands.dart';
 import '../state/visit_providers.dart';
+import '../state/wrap_up_rules.dart';
 import 'visit_actions.dart';
 import 'visit_labels.dart';
 
@@ -86,6 +88,14 @@ class _DayScreenState extends ConsumerState<DayScreen> {
       if (mounted) setState(() => _errorText = messageFor(e));
     }
     if (mounted) setState(() => _busyVisitId = null);
+  }
+
+  /// 하루 마무리를 그 종류부터 연다(⑬). 돌아오면 그날을 다시 읽는다 — 장에서 끝낸 일이 머리의 수에서 빠진다.
+  Future<void> _openWrapUp(WrapUpKind kind) async {
+    await context.push('/days/${isoDay(widget.date)}/wrap-up?kind=${kind.code}');
+    if (!mounted) return;
+    final shopId = _shopId;
+    if (shopId != null) ref.invalidate(dayVisitsProvider((shopId: shopId, date: widget.date)));
   }
 
   /// `···` — 이 날을 임시 휴무로 표시하거나 해제한다(사장만, 같은 API 를 쓰는
@@ -249,6 +259,25 @@ class _DayScreenState extends ConsumerState<DayScreen> {
                         ].join(' · '),
                         style: AppTypography.bodyStrong,
                       ),
+                      // 남은 일(⑬) — 0 인 것은 없다. 누르면 그 종류부터 하루 마무리.
+                      if (remainingWords(data.counts).isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xs),
+                          child: Wrap(
+                            spacing: AppSpacing.md,
+                            children: [
+                              for (final (kind, word) in remainingWords(data.counts))
+                                Pressable(
+                                  semanticLabel: word,
+                                  onTap: () => _openWrapUp(kind),
+                                  child: Text(
+                                    word,
+                                    style: AppTypography.body.copyWith(decoration: TextDecoration.underline),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                     ],
                     if (_errorText != null)
                       Text(_errorText!, style: AppTypography.caption),

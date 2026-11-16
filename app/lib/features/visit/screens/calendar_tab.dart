@@ -25,6 +25,7 @@ import '../state/calendar_selection.dart';
 import '../state/calendar_view_mode.dart';
 import '../state/day_layout.dart';
 import '../state/visit_providers.dart';
+import '../state/wrap_up_rules.dart';
 import 'feed_view.dart';
 import 'visit_labels.dart';
 
@@ -64,6 +65,14 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
   }
 
   void _openDay(DateTime date) => context.push('/visits/day/${isoDay(date)}');
+
+  /// 고른 날의 하루 마무리(⑬). 돌아오면 그날과 달을 다시 읽는다 — 끝낸 일이 수에서 빠진다.
+  Future<void> _openWrapUp(DateTime date) async {
+    await context.push('/days/${isoDay(date)}/wrap-up');
+    if (!mounted) return;
+    ref.invalidate(dayVisitsProvider);
+    ref.invalidate(calendarMonthProvider);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +157,8 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
                 ),
               ),
             // 다시 올 때가 된 아이(⑬) — 달력과 따로 읽는다(늦어도 달력은 먼저 뜬다). 0·읽는 중·실패면 줄이 없다.
-            if ((ref.watch(revisitCountsProvider(shopId)).value?.total ?? 0) > 0)
+            if ((ref.watch(revisitCountsProvider(shopId)).value?.total ?? 0) >
+                0)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.sm),
                 child: _BannerLine(
@@ -179,6 +189,7 @@ class _CalendarTabState extends ConsumerState<CalendarTab> {
             date: selected,
             covers: data?.dayOf(selected)?.covers ?? const [],
             onOpen: () => _openDay(selected),
+            onWrapUp: () => _openWrapUp(selected),
           ),
         ),
       ],
@@ -198,7 +209,10 @@ class _BannerLine extends StatelessWidget {
     semanticLabel: text,
     onTap: onTap,
     child: AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       child: Row(
         children: [
           Text(text, style: AppTypography.bodyStrong),
@@ -428,8 +442,12 @@ class _DayCell extends StatelessWidget {
     } else {
       body = const SizedBox.shrink();
     }
+    final remaining = s?.remainingCount ?? 0;
     return Pressable(
-      semanticLabel: dayLabel(date),
+      // 남은 일(⑬)은 칸의 숫자로만 보이므로 이름표에 싣는다.
+      semanticLabel: remaining > 0
+          ? '${dayLabel(date)}, ${AppStrings.calendarRemaining(remaining)}'
+          : dayLabel(date),
       selected: isSelected,
       onTap: onTap,
       child: Container(
@@ -445,8 +463,8 @@ class _DayCell extends StatelessWidget {
           child: Stack(
             children: [
               Positioned(left: 4, top: 2, child: _DayNumber(date, isToday)),
-              // 정리 안 된 예약 수(설계 6.4 "날마다 수를").
-              if ((s?.unresolvedCount ?? 0) > 0)
+              // 그날의 남은 일 — 정리 안 된 예약 + 결제 안 적음 + 알림장 안 보냄(⑬ 설계 3.8, 지난 날·오늘만).
+              if (remaining > 0)
                 Positioned(
                   right: 3,
                   top: 1,
@@ -457,7 +475,7 @@ class _DayCell extends StatelessWidget {
                       borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
                     child: Text(
-                      '${s!.unresolvedCount}',
+                      '$remaining',
                       style: AppTypography.caption.copyWith(
                         fontSize: 8,
                         height: 1.4,
@@ -519,6 +537,7 @@ class _DayPreview extends ConsumerWidget {
     required this.date,
     required this.covers,
     required this.onOpen,
+    required this.onWrapUp,
   });
 
   final int shopId;
@@ -528,6 +547,9 @@ class _DayPreview extends ConsumerWidget {
   final List<String> covers;
   final VoidCallback onOpen;
 
+  /// 남은 일 줄 — 하루 마무리를 연다(⑬).
+  final VoidCallback onWrapUp;
+
   static const _maxRows = 4;
 
   @override
@@ -536,96 +558,138 @@ class _DayPreview extends ConsumerWidget {
     final data = day.value;
     final images = ref.watch(mediaImagesProvider);
     final groups = data == null ? const <DayGroup>[] : groupDay(data.items);
-    return Pressable(
-      semanticLabel: AppStrings.dayHeading(date.day, date.weekday),
-      onTap: onOpen,
-      child: AppGlassCard(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg,
-          AppSpacing.md,
-          AppSpacing.lg,
-          AppSpacing.md,
-        ),
-        child: ExcludeSemantics(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
+    final today = ref.watch(todayProvider);
+    final future = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).isAfter(DateTime(today.year, today.month, today.day));
+    // 지난 날·오늘의 남은 일(⑬ 설계 3.8) — 따로 누르는 줄(누르면 하루 마무리). 앞날은 확인할 것의 수만 글로.
+    final remaining = data == null || future ? '' : remainingLine(data.counts);
+    final checks = data != null && future ? data.counts.checks : 0;
+    return AppGlassCard(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.lg,
+        AppSpacing.md,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Pressable(
+            semanticLabel: AppStrings.dayHeading(date.day, date.weekday),
+            onTap: onOpen,
+            child: ExcludeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    AppStrings.dayHeading(date.day, date.weekday),
-                    style: AppTypography.bodyStrong,
-                  ),
-                  const Spacer(),
-                  if (data != null)
-                    Text(
-                      AppStrings.previewCounts(
-                        data.counts.visitCount,
-                        data.counts.completed,
+                  Row(
+                    children: [
+                      Text(
+                        AppStrings.dayHeading(date.day, date.weekday),
+                        style: AppTypography.bodyStrong,
                       ),
+                      const Spacer(),
+                      if (data != null)
+                        Text(
+                          AppStrings.previewCounts(
+                            data.counts.visitCount,
+                            data.counts.completed,
+                          ),
+                          style: AppTypography.caption,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  if (covers.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: AppPhotoFan(
+                        images: [for (final c in covers) images.of(c)],
+                      ),
+                    ),
+                  if (day.hasError)
+                    Text(
+                      loadMessageFor(day.error!),
                       style: AppTypography.caption,
+                    )
+                  else if (data != null && groups.isEmpty)
+                    Text(
+                      data.closedDay
+                          ? AppStrings.closedDayNote
+                          : AppStrings.dayEmpty,
+                      style: AppTypography.caption,
+                    )
+                  else
+                    for (final g in groups.take(_maxRows))
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 44,
+                              child: Text(
+                                hhmm(g.startsAt.wall),
+                                style: AppTypography.caption,
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                visitsTitle(g.visits),
+                                style: AppTypography.body,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              [
+                                statusLabel(g.uniformStatus ?? g.first.status),
+                                if (g.overlapping) AppStrings.markOverlap,
+                              ].join(' · '),
+                              style: AppTypography.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                  if (groups.length > _maxRows)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        AppStrings.moreGroups(groups.length - _maxRows),
+                        style: AppTypography.caption,
+                      ),
+                    ),
+                  if (checks > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        AppStrings.checkCount(checks),
+                        style: AppTypography.caption,
+                      ),
                     ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              if (covers.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: AppPhotoFan(
-                    images: [for (final c in covers) images.of(c)],
-                  ),
-                ),
-              if (day.hasError)
-                Text(loadMessageFor(day.error!), style: AppTypography.caption)
-              else if (data != null && groups.isEmpty)
-                Text(
-                  data.closedDay
-                      ? AppStrings.closedDayNote
-                      : AppStrings.dayEmpty,
-                  style: AppTypography.caption,
-                )
-              else
-                for (final g in groups.take(_maxRows))
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 44,
-                          child: Text(
-                            hhmm(g.startsAt.wall),
-                            style: AppTypography.caption,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            visitsTitle(g.visits),
-                            style: AppTypography.body,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          [
-                            statusLabel(g.uniformStatus ?? g.first.status),
-                            if (g.overlapping) AppStrings.markOverlap,
-                          ].join(' · '),
-                          style: AppTypography.caption,
-                        ),
-                      ],
-                    ),
-                  ),
-              if (groups.length > _maxRows)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    AppStrings.moreGroups(groups.length - _maxRows),
-                    style: AppTypography.caption,
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
+          if (remaining.isNotEmpty)
+            Pressable(
+              semanticLabel: remaining,
+              onTap: onWrapUp,
+              child: Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.sm),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(remaining, style: AppTypography.bodyStrong),
+                    ),
+                    const Icon(Icons.chevron_right, size: 18),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
