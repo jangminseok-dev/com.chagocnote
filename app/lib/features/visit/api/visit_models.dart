@@ -725,3 +725,22 @@ class DraftGuess {
   final bool who;
   final bool menu;
 }
+
+
+/// 보호자에게 보낼 글의 토막 하나(⑪-B). [kind] 는 `reservation`·`consent` — 서버가 종류를 더해도
+/// 글은 그대로 싣는다. **[text] 에는 서류 주소(토큰)가 들 수 있다 — 로그·오류 문구에 남기지 않는다.**
+class BundlePart {
+  const BundlePart({required this.kind, required this.text});
+
+  /// 글이 비었거나 모양이 깨진 토막은 `null` — 빈 글은 내보내지 않는다.
+  static BundlePart? tryParse(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final kind = raw['kind'];
+    final text = raw['text'];
+    if (kind is! String || text is! String || text.trim().isEmpty) return null;
+    return BundlePart(kind: kind, text: text);
+  }
+
+  final String kind;
+  final String text;
+}

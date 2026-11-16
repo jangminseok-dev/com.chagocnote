@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../customer/api/consent_models.dart';
 import '../../customer/state/consent_commands.dart';
+import '../../customer/state/consent_providers.dart';
 import '../../customer/state/customer_commands.dart';
 import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
@@ -136,6 +137,17 @@ class VisitCommands {
       return await _ref.read(consentCommandsProvider).send(shopId, [petId], forDate: forDate);
     } finally {
       refreshChecks();
+    }
+  }
+
+  /// 보호자에게 보낼 글의 토막들(⑪-B). 동의서 링크가 이때 만들어질 수 있다 — 성공하든 실패하든 확인할 것
+  /// (보낸 날)과 보낸 서류를 다시 읽는다.
+  Future<List<BundlePart>> sendBundle(int shopId, int visitId) async {
+    try {
+      return await runShopScoped(_ref, () => _api.sendBundle(shopId, visitId));
+    } finally {
+      refreshChecks();
+      _ref.invalidate(sentFormsProvider);
     }
   }
 
