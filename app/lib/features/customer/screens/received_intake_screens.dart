@@ -347,8 +347,43 @@ class _IntakeAnswerScreenState extends ConsumerState<IntakeAnswerScreen> {
         : a.matchedCustomer != null
         ? AppStrings.intakeTargetMatched(a.matchedCustomer!.name)
         : AppStrings.intakeTargetNew(a.guardianName ?? '');
+    // 등록 버튼은 목록 밖 아래에 붙여 둔다 — 답이 길어도 굴리지 않고 누른다(줄 → [이대로 등록], 누르기 두 번).
+    return Column(
+      children: [
+        Expanded(child: _answer(a, target, update: update, direct: direct, formPath: formPath)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_errorText != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Semantics(liveRegion: true, child: Text(_errorText!, style: AppTypography.bodyStrong)),
+                ),
+              AppButton(
+                key: IntakeAnswerScreen.registerKey,
+                label: update
+                    ? AppStrings.intakeApply
+                    : direct
+                    ? AppStrings.intakeRegisterNow
+                    : AppStrings.intakeFillAndRegister,
+                filled: true,
+                busy: _busy,
+                // 다 찼으면 곧바로 등록하고, 아니면 미리 채운 폼으로 간다(빈 칸만 채운다).
+                onPressed: direct ? () => _register(a, ready) : () => context.push(formPath),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _answer(IntakeAnswer a, String target, {required bool update, required bool direct, required String formPath}) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
       children: [
         Text(target, style: AppTypography.body),
         if (a.missing.isNotEmpty)
@@ -390,26 +425,8 @@ class _IntakeAnswerScreenState extends ConsumerState<IntakeAnswerScreen> {
           (AppStrings.intakeStyle, a.style),
           for (final extra in a.extras) (extra.label, extra.body),
         ], skipEmpty: true),
-        if (_errorText != null)
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.md),
-            child: Semantics(liveRegion: true, child: Text(_errorText!, style: AppTypography.bodyStrong)),
-          ),
         const SizedBox(height: AppSpacing.lg),
-        AppButton(
-          key: IntakeAnswerScreen.registerKey,
-          label: update
-              ? AppStrings.intakeApply
-              : direct
-              ? AppStrings.intakeRegisterNow
-              : AppStrings.intakeFillAndRegister,
-          filled: true,
-          busy: _busy,
-          // 다 찼으면 곧바로 등록하고, 아니면 미리 채운 폼으로 간다(빈 칸만 채운다).
-          onPressed: direct ? () => _register(a, ready) : () => context.push(formPath),
-        ),
         if (direct) ...[
-          const SizedBox(height: AppSpacing.sm),
           AppButton(
             key: IntakeAnswerScreen.editKey,
             label: AppStrings.intakeRegisterEdit,
@@ -453,11 +470,12 @@ class _Section extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.lg),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(title, style: AppTypography.caption),
           const SizedBox(height: AppSpacing.sm),
           AppCard(
+            key: ValueKey('intake-section-$title'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

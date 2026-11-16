@@ -88,4 +88,5 @@
 
 - 앱의 동의서 시뮬레이터 흐름(`app/integration_test/consent_flow_test.dart`, 7단계)은 준비(`infra/` 에서 `bash ../app/tool/prepare_consent_flow.sh`)가 노령 아이 둘의 내일 예약을 만들고 `--dart-define` 을 찍는다. **흐름이 서명하고 링크를 내고 끊으므로 기기마다 준비를 새로 돌린다**(검색 흐름과 다르다). 공유 시트는 받은 글을 적어 두는 것으로 갈아 끼운다 — 주소는 찍지 않고 개수와 같다·다르다만 본다. 서명 한 장 화면은 글이 길어 그림이 화면 아래에 있다 — 게으른 목록이라 `reveal` 로 내려서 찾는다.
 
+- 앱의 문진표 시뮬레이터 흐름(`app/integration_test/intake_flow_test.dart`, 6단계)은 준비(`infra/` 에서 `bash ../app/tool/prepare_intake_flow.sh`)가 매장과 **보호자가 미리 낸 답 하나**를 만든다(공개 제출 1번 — 횟수 제한에 든다). 흐름이 그 답을 등록해 없애므로 **기기마다 준비를 새로 돌린다**. 공유 시트는 받은 글을 적어 두는 것으로 갈아 끼운다. 캡처에는 개발 DB 의 가짜 이름·번호가 찍힌다 — 저장소에 넣지 않는다.
 - 앱의 서류 시뮬레이터 흐름(`app/integration_test/forms_flow_test.dart`, 6단계)은 준비(`infra/` 에서 `bash ../app/tool/prepare_forms_flow.sh`)가 노령 아이 하나만 만들고, 흐름이 예약을 잡는다 — **기기마다 준비를 새로 돌린다**(예약·설정을 바꾼다). 공유 시트는 받은 글을 적어 두는 것으로 갈아 끼운다. 서류 설정은 게으른 목록이라 아래의 칩은 `reveal` 로 내려서 본다. **예약을 저장하는 흐름은 모두 저장 뒤 보낼 것 시트를 닫아야 한다**(`flow_kit.dart` 의 `closeBundle` — `visit_flow`·`draft_flow` 는 같은 이름의 자체 도우미). 캡처에는 개발 DB 의 서류 주소가 찍힌다 — 저장소에 넣지 않는다.

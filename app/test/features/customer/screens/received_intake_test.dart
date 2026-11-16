@@ -106,6 +106,19 @@ void main() {
     }
   });
 
+  testWidgets('한 장의 등록 버튼은 굴리지 않아도 보이고(누르기 두 번), 답의 카드는 폭을 채운다', (tester) async {
+    final world = _World();
+    await world.open(tester, '/intake-answers/51');
+    tester.view.physicalSize = const Size(390, 700) * tester.view.devicePixelRatio;   // 보통 폰 — 답이 화면보다 길다
+    await settle(tester);
+
+    final button = tester.getRect(find.byKey(IntakeAnswerScreen.registerKey));
+    expect(button.bottom, lessThanOrEqualTo(700));
+    expect(find.byKey(IntakeAnswerScreen.registerKey).hitTestable(), findsOneWidget);
+    final card = tester.getSize(find.byKey(const ValueKey('intake-section-${AppStrings.intakeSectionPet}')));
+    expect(card.width, greaterThan(300));
+  });
+
   testWidgets('한 장은 보호자가 적은 답을 그대로 보이고, 다 찼으면 [이대로 등록] 한 번으로 새 고객이 된다', (tester) async {
     final world = _World(answers: [intakeAnswerJson(extras: [{'label': '산책은 얼마나 하나요?', 'body': '하루 한 번'}])]);
     await world.open(tester, '/intake-answers');
