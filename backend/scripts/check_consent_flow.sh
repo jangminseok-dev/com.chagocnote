@@ -134,7 +134,9 @@ visit2=$(call POST "$S/visits" "$owner" "$book2_req" | field "['visits'][0]['vis
 bundle=$(call POST "$S/visits/$visit2/send-bundle" "$owner")
 expect "12 묶음은 예약 안내와 동의서 링크다" "$(echo "$bundle" | kinds)" "reservation,consent"
 expect "12 묶음의 글에 빈 자리가 없다" "$(echo "$bundle" | python3 -c "import json,sys; print(any('{' in p['text'] for p in json.load(sys.stdin)['parts']))")" "False"
-same() { python3 -c "import json,sys,hashlib; print(hashlib.sha256(json.dumps(json.load(sys.stdin),sort_keys=True).encode()).hexdigest()[:12])"; }
+# 토막만 견준다 — created_form_id 는 처음에만 값이 있다.
+same() { python3 -c "import json,sys,hashlib; print(hashlib.sha256(json.dumps(json.load(sys.stdin)['parts'],sort_keys=True).encode()).hexdigest()[:12])"; }
+expect "12 처음 부른 묶음은 새로 만든 링크를 알려 준다" "$(echo "$bundle" | python3 -c "import json,sys; print(json.load(sys.stdin)['created_form_id'] is not None)")" "True"
 expect "12 다시 불러도 같은 묶음이다" "$(call POST "$S/visits/$visit2/send-bundle" "$owner" | same)" "$(echo "$bundle" | same)"
 token2=$(echo "$bundle" | python3 -c "import json,sys; print(json.load(sys.stdin)['parts'][1]['text'].rsplit('/f/',1)[1].split()[0])")
 digest2=$(pub "$token2" | field "['doc_digest']")
