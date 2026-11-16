@@ -78,6 +78,10 @@ class PetOrm(Base):
             name="ck_pets_grooming_consent_signature_needs_day",
         ),
         CheckConstraint("sex IN ('female', 'male')", name="ck_pets_sex"),
+        CheckConstraint(
+            "grooming_cycle_weeks IS NULL OR grooming_cycle_weeks BETWEEN 1 AND 52",
+            name="ck_pets_grooming_cycle_weeks",
+        ),
         CheckConstraint("weight_kg > 0", name="ck_pets_weight_positive"),
         CheckConstraint("birth_date IS NULL OR birth_year IS NULL", name="ck_pets_one_birth_field"),
     )
@@ -101,6 +105,9 @@ class PetOrm(Base):
     grooming_consent_by_member_id: Mapped[int | None] = mapped_column(BigInteger)
     # 받은 날을 찍은 서명(⑪). 손으로 적은 동의면 비어 있다. 서명 표와 FK 를 두지 않는다(서로를 가리키게 된다).
     grooming_consent_signature_id: Mapped[int | None] = mapped_column(BigInteger)
+    # ⑬ 직접 정한 미용 주기(주, 1~52 — 없으면 visit 이 지난 방문에서 계산한다)와 다시 올 때라고 안내한 날(0025).
+    grooming_cycle_weeks: Mapped[int | None] = mapped_column(SmallInteger)
+    revisit_nudged_on: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

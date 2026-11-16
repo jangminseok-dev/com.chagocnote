@@ -57,6 +57,11 @@ class VisitShopSettingsOrm(Base):
             "sales_monthly_goal IS NULL OR sales_monthly_goal BETWEEN 1 AND 100000000",
             name="ck_visit_shop_settings_sales_goal",
         ),
+        # ⑬ 다시 올 때(0025).
+        CheckConstraint("default_cycle_weeks BETWEEN 1 AND 52", name="ck_visit_shop_settings_default_cycle_weeks"),
+        CheckConstraint("revisit_soon_days BETWEEN 1 AND 30", name="ck_visit_shop_settings_revisit_soon_days"),
+        CheckConstraint("cycle_sample_visits BETWEEN 3 AND 12", name="ck_visit_shop_settings_cycle_sample_visits"),
+        CheckConstraint("cycle_min_gap_days BETWEEN 0 AND 28", name="ck_visit_shop_settings_cycle_min_gap_days"),
     )
 
     # tenancy 의 매장 ID. 스포크를 넘는 외래 키는 걸지 않는다.
@@ -75,6 +80,14 @@ class VisitShopSettingsOrm(Base):
     report_review_text: Mapped[str | None] = mapped_column(String(60))
     # ⑧ 매출 — 월 목표 금액(원). NULL 이면 목표가 없다.
     sales_monthly_goal: Mapped[int | None] = mapped_column(Integer)
+    # ⑬ 다시 올 때(0025) — 주기를 모르는 아이의 간격(주), '곧'으로 치는 날 수, 안내 글 템플릿(없으면 처음 글),
+    # 알림장을 안 보낸 방문을 남은 일로 세는가, 주기 계산에서 볼 최근 방문 수와 손질로 보고 뺄 날 수.
+    default_cycle_weeks: Mapped[int] = mapped_column(SmallInteger, server_default=text("4"))
+    revisit_soon_days: Mapped[int] = mapped_column(SmallInteger, server_default=text("7"))
+    revisit_message: Mapped[str | None] = mapped_column(String(300))
+    count_unsent_reports: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    cycle_sample_visits: Mapped[int] = mapped_column(SmallInteger, server_default=text("6"))
+    cycle_min_gap_days: Mapped[int] = mapped_column(SmallInteger, server_default=text("7"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -185,6 +198,8 @@ class VisitOrm(Base):
     memo: Mapped[str | None] = mapped_column(String(500))
     created_by_member_id: Mapped[int] = mapped_column(BigInteger)
     status_changed_by_member_id: Mapped[int | None] = mapped_column(BigInteger)
+    # ⑬ 하루 마무리에서 "알림장을 보내지 않음"으로 넘긴 때(0025). 남은 일에서 빠진다.
+    report_skipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
