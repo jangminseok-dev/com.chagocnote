@@ -82,8 +82,10 @@ test('아이를 누르면 지난 알림장이 한 장 있고, 누르면 알림�
   await page.waitForLoadState('networkidle')
   expect(viewed).toBe(0)
 
+  // 보던 목록(이 아이로 거른 목록)의 그 줄로 돌아간다(⑫ 보던 자리).
   await page.getByRole('link', { name: '지난 알림장' }).click()
-  await expectPath(page, /^\/me\/\d+$/, '전체 목록의 주소가 아니다')
+  await expectPath(page, /^\/me\/\d+\?pet=\d+$/, '보던 목록의 주소가 아니다')
+  await expect.poll(() => /^#r\d+$/.test(new URL(page.url()).hash), { message: '그 줄로 돌아오지 않았다' }).toBe(true)
 })
 
 test('한 장에서 사진을 크게 보고 뒤로 가면 크게 보기만 닫힌다', async ({ page }) => {
