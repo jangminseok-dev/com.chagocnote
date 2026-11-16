@@ -31,7 +31,7 @@
 - 가드 없이 `ShopContext`를 만드는 곳은 `hub/app/dtos/shop_context.py`의 둘뿐이다. 매장 멤버가 아닌 요청 경로(로그인 없는 공개 알림장·공개 서류, 로그인한 보호자의 읽기)에서는 `public_context`, 요청 밖(알림 디스패처·검색 색인기·서류 청소·운영자 스크립트)에서는 `system_context`. 둘 다 권한이 비어 있다. `public_context`는 포트 읽기와 **공개 서류 제출이 쓰는 표**(`customer_forms`·`consent_signatures`와 그 아래 표, 서명이 찍는 `pets`의 동의 칸 셋, 받은 문진표 `intake_answers`와 그 아래 표)에만 쓰고 고객·반려동물의 다른 칸은 쓰지 않는다. `system_context`는 포트 읽기(와 자기 스포크의 표 — 알림 표·검색 표·기한이 지난 받은 문진표 — 쓰기)에만 쓴다.
 - 인증 프로세스 전용 비밀값(JWT 개인키, `IDENTITY_TOKEN_ENC_KEY`, `KAKAO_ADMIN_KEY`)은 `core/auth_config.py`에만 있고 인증 프로세스(`auth_main.py`)만 읽는다. 이 모듈은 함수 안에서만 import한다. API 프로세스 경로에서 import하지 않는다.
 - 보호자 경로(`/v1/me/guardian/…`)는 `core/guardian_guard.py`의 `get_guardian_context`로 `GuardianContext`를 받는다. `guardian` 스포크는 `ShopContext`를 만들지 않고 고객·반려동물을 읽지 않는다. 보호자용 응답은 공개 알림장과 같은 스키마를 쓰고, 매장용 응답에 보호자가 누구인지 싣지 않는다.
-- 잠금 순서는 유저 행 → 매장 행(ID 오름차순) → 멤버 행 → 초대 행 → 보호자 연결 행이다(잇기·탈퇴). 고객 익명화는 고객 행 → 보호자 연결 행이다. 서류 쪽은 고객 행 → 서류 요청 행이다. 고객·방문 쪽은 고객 행 → 방문 행(ID 오름차순) → 알림 행이다 — 방문을 쓰는 유스케이스는 허브 포트 `CustomerDirectoryPort.lock_family`로 고객 행부터 잠그고, 알림 줄은 그 트랜잭션 안의 이벤트 구독자가 끝에 쓴다. 검색 쪽은 고객 행 → 검색 표다 — 색인기는 `lock_family`로 고객 행을 잠근 뒤 원본을 다시 읽어 같을 때만 검색 문서를 쓴다. 잠금을 쥔 채 외부 HTTP를 부르지 않는다(디스패처는 줄을 집어 커밋한 뒤 업체를 부르고, 색인기는 트랜잭션을 닫은 뒤 임베딩 프로세스를 부른다).
+- 잠금 순서는 유저 행 → 매장 행(ID 오름차순) → 멤버 행 → 초대 행 → 보호자 연결 행이다(잇기·탈퇴). 고객 익명화는 고객 행 → 보호자 연결 행이다. 서류 쪽은 고객 행 → 서류 요청 행이다. 보호자 연결 행 안에서는 기본 연결 → 가족 초대 → 가족 연결이다(⑫ — 가족이 스스로 끊을 때도 기본 연결 행부터, 탈퇴는 그 계정이 닿는 기본 연결 행을 ID 오름차순으로). 고객·방문 쪽은 고객 행 → 방문 행(ID 오름차순) → 알림 행이다 — 방문을 쓰는 유스케이스는 허브 포트 `CustomerDirectoryPort.lock_family`로 고객 행부터 잠그고, 알림 줄은 그 트랜잭션 안의 이벤트 구독자가 끝에 쓴다. 검색 쪽은 고객 행 → 검색 표다 — 색인기는 `lock_family`로 고객 행을 잠근 뒤 원본을 다시 읽어 같을 때만 검색 문서를 쓴다. 잠금을 쥔 채 외부 HTTP를 부르지 않는다(디스패처는 줄을 집어 커밋한 뒤 업체를 부르고, 색인기는 트랜잭션을 닫은 뒤 임베딩 프로세스를 부른다).
 - 발송 업체 API 키(`SOLAPI_*`)·전화번호·알림장 주소·`variables`·업체 응답 본문을 로그·오류 메시지·API 응답에 남기지 않는다. 로그는 message_id·매장·종류·결과만이다.
 - **검색어·걸린 문장(snippet)·검색 문서의 글·벡터를 로그·오류 메시지·예외 문자열·API 오류 응답에 남기지 않는다.** 로그는 shop_id·대상(scope·ref_id)·건수·걸린 시간·예외의 형 이름뿐이다. 임베딩 프로세스(`embed`)는 게이트웨이에 싣지 않고 compose 내부망에서만 부른다. 매장의 글을 밖(외부 API)으로 보내지 않는다.
 - 검색되는 글에 닿는 쓰기(기록 저장·삭제, 방문 등록·수정·옮기기, 고객·반려동물 등록·수정·삭제)는 허브 이벤트 `SearchSourceChanged`를 낸다. 고객 익명화는 이벤트 대신 `SearchIndexPort.forget_customer`를 그 트랜잭션에서 부른다. 그런 글을 쓰는 유스케이스를 새로 만들면 둘 중 하나를 한다.
@@ -51,7 +51,7 @@
     docker compose run --rm --no-deps auth python scripts/print_routes.py      # 개인키가 필요해서 auth 서비스에서 돌린다
     docker compose run --rm backend python scripts/grant_operator.py <user_id>   # 플랫폼 운영자 지정 (user_id 는 GET /v1/me 의 id)
     bash ../backend/scripts/check_notification_flow.sh                           # 알림톡 흐름 확인 (dev 는 가짜 게이트웨이, 실제 발송 없음)
-    bash ../backend/scripts/check_guardian_flow.sh                               # 보호자 회원 흐름 확인 (웹 세션 로그인 → 잇기 → 지난 알림장 → 끊기)
+    bash ../backend/scripts/check_guardian_flow.sh                               # 보호자 회원 흐름 확인 (웹 세션 로그인 → 잇기 → 지난 알림장 → 끊기 → 리뷰 줄 → 모아 보기·몸무게 → 가족 초대·끊기)
     bash ../backend/scripts/check_sales_flow.sh                                  # 매출 통계 흐름 확인 (방문 몇 개 → 요약의 숫자를 손계산과 견준다 → 목록 → 목표)
     bash ../backend/scripts/check_consent_flow.sh                                # 전자 동의서 흐름 확인 (보내기 → 로그인 없이 읽고 서명 → 지병 더하기 → 바뀐 토막만 → 현장 서명 → 끊기 → 서류 설정·글 고치기·보낼 것 묶음 → 익명화)
     bash ../backend/scripts/check_visit_checks_flow.sh                           # 확인할 것 흐름 확인 (노령·지병 아이 예약 → 동의 → 지병 더하기 → 노쇼·주의 → 미리 보기 → 막지 않음)

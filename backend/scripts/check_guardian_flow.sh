@@ -2,10 +2,11 @@
 # 개발 환경에서 보호자 회원 흐름을 게이트웨이를 거쳐 확인한다 — 웹 세션 로그인(30분·리프레시 없음) → 알림장 보내기 →
 # 받은 링크로 잇기 → 다시 잇기(같은 연결) → 다른 계정은 409 → 내 연결 목록 → 아이들 → 지난 알림장 목록 → 한 장(내부 메모 없음)
 # → 매장이 링크를 끊으면 목록에서 사라짐 → 다시 보내면 다시 보임 → 매장이 보는 연결 → 매장이 끊으면 보호자 읽기 404
-# → 다시 잇기 → 보호자가 끊기 → 닫힌 토큰으로 잇기 410.
+# → 다시 잇기 → 보호자가 끊기 → 닫힌 토큰으로 잇기 410 → (⑫) 알림장 끝의 리뷰 줄·알림장마다 빼기 → 모아 보기·몸무게
+# → 가족 초대·잇기·목록·한 명 끊기 → 매장의 끊기가 가족까지.
 # 사용: cd infra && docker compose up -d && bash ../backend/scripts/check_guardian_flow.sh
 # infra/ 에서 실행해야 한다(운영자 지정을 docker compose 로 한다). 개발 DB 에 확인용 매장·유저·고객·방문·알림장·연결이 남는다.
-# 알림장 토큰은 헤더(X-Report-Token)로만 넘기고 화면에 찍지 않는다 — 단계 이름과 상태 코드·판정만 보인다.
+# 알림장 토큰은 헤더(X-Report-Token)로, 가족 초대 코드는 헤더(X-Family-Invite)로만 넘기고 화면에 찍지 않는다 — 단계 이름과 상태 코드·판정만 보인다.
 set -euo pipefail
 BASE="${BASE:-http://127.0.0.1:8080}"
 STAMP="$(date +%s)"
@@ -94,7 +95,7 @@ expect "5 다시 보내면 다시 한 장이 보인다" "$(call GET "$L/$link_id
 GL="$S/customers/$customer_id/guardian-link"
 seen=$(call GET "$GL" "$owner_token")
 expect "6 매장은 연결됨을 본다" "$(echo "$seen" | field "['linked']")" "True"
-expect "6 매장 응답은 여부와 날짜뿐이다" "$(echo "$seen" | python3 -c "import json,sys; print(sorted(json.load(sys.stdin)))")" "['linked', 'linked_at']"
+expect "6 매장 응답은 여부와 날짜와 가족 수뿐이다" "$(echo "$seen" | python3 -c "import json,sys; print(sorted(json.load(sys.stdin)))")" "['family_count', 'linked', 'linked_at']"
 expect "6 매장이 연결을 끊는다" "$(status DELETE "$GL" "$owner_token")" "204"
 expect "6 끊긴 보호자의 읽기는 404" "$(call GET "$L/$link_id/reports" "$g_token" | field "['code']")" "GUARDIAN_LINK_NOT_FOUND"
 expect "6 끊긴 보호자의 목록은 비어 있다" "$(call GET "$L" "$g_token" | field "['items'].__len__()")" "0"
@@ -105,4 +106,38 @@ again=$(claim "$g_token" "$new_token" | field "['link_id']")
 expect "7 새 링크로 다시 이으면 새 연결이다" "$([ "$again" != "$link_id" ] && echo 예)" "예"
 expect "7 보호자가 끊는다" "$(status DELETE "$L/$again" "$g_token")" "204"
 expect "7 끊은 뒤 다시 끊으면 404" "$(status DELETE "$L/$again" "$g_token")" "404"
+
+# 8. 알림장 끝의 리뷰 줄(⑫) — 주소를 넣으면 나오고 알림장마다 뺄 수 있다
+public() { curl -s "$BASE/v1/public/report" -H "X-Report-Token: $1"; }
+settings_req='{"link_days":30,"show_menus":true,"show_shop_info":true,"show_weight":true,"show_amount":false,"review_url":"https://m.place.naver.com/place/1/review"}'
+expect "8 리뷰 주소 넣기 200" "$(status PUT "$S/report-settings" "$owner_token" "$settings_req")" "200"
+expect "8 알림장 끝에 기본 문구로 나온다" "$(public "$new_token" | field "['review_text']")" "미용이 마음에 드셨다면 후기를 남겨 주세요"
+call PUT "$V/report" "$owner_token" '{"hidden_media_ids":[],"show_review":false}' >/dev/null
+expect "8 이 알림장만 빼면 칸이 없다" "$(public "$new_token" | python3 -c "import json,sys; print('review_url' in json.load(sys.stdin))")" "False"
+call PUT "$V/report" "$owner_token" "$SEND" >/dev/null
+
+# 9. 모아 보기와 몸무게(⑫) — 다시 이은 연결로
+primary=$(claim "$g_token" "$new_token" | field "['link_id']")
+media=$(call GET "$L/$primary/media" "$g_token")
+expect "9 모아 보기의 칸" "$(echo "$media" | python3 -c "import json,sys; print(sorted(json.load(sys.stdin)))")" "['items', 'next_cursor', 'years']"
+expect "9 몸무게를 켠 매장은 몸무게가 보인다" "$(call GET "$L/$primary/pets/$pet_id/weights" "$g_token" | field "['items'][0]['weight_kg']")" "3.4"
+expect "9 받은 적 없는 아이는 404" "$(status GET "$L/$primary/pets/999999/weights" "$g_token")" "404"
+
+# 10. 가족과 함께 보기(⑫) — 초대 → 다른 계정이 잇기 → 같은 기록 → 한 명 끊기 → 매장의 끊기가 가족까지
+invite() { call POST "$L/$primary/family-invites" "$g_token" | field "['code']"; }
+join() { curl -s -X POST "$BASE/v1/me/guardian/family-links" -H "Authorization: Bearer $1" -H "X-Family-Invite: $2"; }
+fam_token=$(web_login "gflow-family-$STAMP" | field "['access_token']")
+code=$(invite)
+expect "10 초대 코드는 43글자다" "${#code}" "43"
+family=$(join "$fam_token" "$code" | field "['link_id']")
+expect "10 가족이 같은 알림장을 본다" "$(call GET "$L/$family/reports" "$fam_token" | field "['items'].__len__()")" "1"
+expect "10 쓴 초대는 다시 쓰지 못한다" "$(join "$other_token" "$code" | field "['code']")" "GUARDIAN_INVITE_NOT_FOUND"
+expect "10 기본 보호자는 가족 한 줄을 본다" "$(call GET "$L/$primary/family" "$g_token" | field "['items'][0]['unseen']")" "True"
+expect "10 매장은 가족의 수만 본다" "$(call GET "$GL" "$owner_token" | field "['family_count']")" "1"
+expect "10 가족은 초대하지 못한다" "$(status POST "$L/$family/family-invites" "$fam_token")" "404"
+expect "10 기본 보호자가 그 한 명을 끊는다" "$(status DELETE "$L/$primary/family/$family" "$g_token")" "204"
+expect "10 끊긴 가족의 읽기는 404" "$(status GET "$L/$family/reports" "$fam_token")" "404"
+family=$(join "$fam_token" "$(invite)" | field "['link_id']")
+expect "10 매장이 끊으면" "$(status DELETE "$GL" "$owner_token")" "204"
+expect "10 가족도 함께 끊긴다" "$(status GET "$L/$family/reports" "$fam_token")" "404"
 echo "전체 흐름 확인 완료"
