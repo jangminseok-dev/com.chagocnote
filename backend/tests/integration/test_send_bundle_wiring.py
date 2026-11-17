@@ -146,3 +146,64 @@ async def test_이미_보낸_링크가_있으면_묶음은_그것을_쓰고_새�
     got = (await bundle(wired, shop_id, headers, visit_id)).json()
 
     assert got["created_form_id"] is None and sent["url"] in got["parts"][1]["text"]
+
+
+# --- ⑭ 반복 예약 -------------------------------------------------------------------------------------------------------
+
+async def _series(wired, shop_id, headers, customer_id, pet_id, count=3):
+    booked = await wired.api.post(f"/v1/shops/{shop_id}/visits", headers=headers, json={
+        "customer_id": customer_id, "pet_ids": [pet_id], "starts_at": _at(3, 14),
+        "repeat": {"interval_weeks": 4, "count": count}})
+    assert booked.status_code == 201, booked.text
+    return [v["visit_id"] for v in booked.json()["visits"]]
+
+
+def _series_lines(text: str) -> list[str]:
+    return [line for line in text.split("\n") if line.startswith("· ")]
+
+
+async def test_반복_묶음의_첫_회차로_부르면_예약_토막에_회차가_전부_있다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet())
+    first, *_ = await _series(wired, shop_id, headers, customer_id, pet_id)
+
+    response = await bundle(wired, shop_id, headers, first)
+    assert kinds(response) == ["reservation"]
+    text = response.json()["parts"][0]["text"]
+    assert "4주마다 3번 예약했어요" in text
+    assert len(_series_lines(text)) == 3
+
+
+async def test_둘째_회차로_부르면_그_뒤만이고_취소한_회차는_빠진다(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, pet_id = await _family(wired, shop_id, headers, _pet())
+    first, second, third, fourth = await _series(wired, shop_id, headers, customer_id, pet_id, count=4)
+    canceled = await wired.api.post(f"/v1/shops/{shop_id}/visits/transitions", headers=headers, json={
+        "visit_ids": [third], "action": "cancel", "cancel_reason": "customer_request"})
+    assert canceled.status_code == 200, canceled.text
+
+    text = (await bundle(wired, shop_id, headers, second)).json()["parts"][0]["text"]
+    assert "4주마다 2번 예약했어요" in text and len(_series_lines(text)) == 2
+    last = (await bundle(wired, shop_id, headers, fourth)).json()["parts"][0]["text"]
+    assert "주마다" not in last   # 남은 회차가 하나면 목록이 없다
+
+
+async def test_콩이만_옮긴_가족_묶음의_보낼_글은_그_아이들의_회차만(wired):
+    shop_id, headers, _ = await _shop(wired)
+    customer_id, kong = await _family(wired, shop_id, headers, _pet())
+    dubu = await add_pet(wired, shop_id, headers, customer_id, _pet(name="두부"))
+    booked = await wired.api.post(f"/v1/shops/{shop_id}/visits", headers=headers, json={
+        "customer_id": customer_id, "pet_ids": [kong, dubu], "starts_at": _at(3, 14),
+        "repeat": {"interval_weeks": 1, "count": 3}})
+    assert booked.status_code == 201, booked.text
+    visits = booked.json()["visits"]
+    kong_ids = [v["visit_id"] for v in visits if v["pet"]["pet_id"] == kong]
+    dubu_ids = [v["visit_id"] for v in visits if v["pet"]["pet_id"] == dubu]
+    moved = await wired.api.post(f"/v1/shops/{shop_id}/visits/reschedule", headers=headers, json={
+        "visit_ids": [kong_ids[1]], "starts_at": _at(11, 14), "scope": "following", "family": False})
+    assert moved.status_code == 200, moved.text
+
+    text = (await bundle(wired, shop_id, headers, dubu_ids[1])).json()["parts"][0]["text"]
+    assert "1주마다 2번 예약했어요" in text and len(_series_lines(text)) == 2
+    detail = (await wired.api.get(f"/v1/shops/{shop_id}/visits/{dubu_ids[2]}", headers=headers)).json()
+    assert (detail["series"]["position"], detail["series"]["total"], detail["series"]["is_last"]) == (3, 3, True)

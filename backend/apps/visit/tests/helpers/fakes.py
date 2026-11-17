@@ -45,6 +45,7 @@ from visit.app.ports.output.visit_feed_repository import FeedPage, VisitFeedRepo
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.app.ports.output.visit_series_repository import VisitSeriesRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.domain.value_objects.sales import (
     DaySales,
@@ -58,11 +59,13 @@ from visit.domain.entities.menu import Menu
 from visit.domain.entities.visit import ACTIVE_STATUSES, Visit
 from visit.domain.entities.visit_record import VisitRecord
 from visit.domain.entities.visit_report import VisitReport
+from visit.domain.entities.visit_series import VisitSeries
 from visit.domain.errors import (
     MenuNameTakenError,
     MenuNotFoundError,
     VisitDuplicateError,
     VisitNotFoundError,
+    VisitSeriesNotFoundError,
 )
 from visit.domain.services.report_rules import hide
 from visit.domain.state.visit_status import STARTED_STATUSES
@@ -288,7 +291,8 @@ class FakeVisits(
             self.seed(shop_id=ctx.shop_id, customer_id=n.customer_id, pet_id=n.pet_id, starts_at=n.starts_at,
                       duration_minutes=n.duration_minutes, status=n.status, started_at=n.started_at,
                       menu_ids=n.menu_ids, memo=n.memo, created_by_member_id=n.created_by_member_id,
-                      status_changed_by_member_id=n.created_by_member_id if n.started_at else None)
+                      status_changed_by_member_id=n.created_by_member_id if n.started_at else None,
+                      series_id=n.series_id)
             for n in visits
         ]
         self.journal.append(("create_visits", [v.id for v in created]))
@@ -328,6 +332,26 @@ class FakeVisits(
             self.rows[v.id] = replace(v, starts_at=starts_at)
         self.journal.append(("reschedule", sorted(visit_ids)))
         return [self.rows[i] for i in sorted(visit_ids)]
+
+    async def move_each(self, ctx, moves):
+        # pg 처럼 한 줄씩 옮기며 유일 색인을 본다 — 하나라도 걸리면 아무것도 바꾸지 않는다(세이브포인트).
+        before = dict(self.rows)
+        for visit_id, starts_at in moves:
+            current = self._owned(ctx, visit_id)
+            if current.is_active and self._clash(ctx, current.customer_id, current.pet_id, starts_at,
+                                                 ignore=(visit_id,)):
+                self.rows = before
+                raise VisitDuplicateError("같은 시각에 이미 저장된 예약이 있습니다.")
+            self.rows[visit_id] = replace(current, starts_at=starts_at)
+        self.journal.append(("move_each", [visit_id for visit_id, _ in moves]))
+        return [self.rows[i] for i in sorted(visit_id for visit_id, _ in moves)]
+
+    async def list_series(self, ctx, series_id):
+        return [v for v in self._mine(ctx) if v.series_id == series_id]
+
+    async def active_at(self, ctx, customer_id, starts):
+        return [v for v in self._mine(ctx)
+                if v.customer_id == customer_id and v.status in ACTIVE_STATUSES and v.starts_at in set(starts)]
 
     async def set_report_skipped(self, ctx, visit_id, at):
         self.rows[visit_id] = replace(self._owned(ctx, visit_id), report_skipped_at=at)
@@ -386,6 +410,12 @@ class FakeVisits(
 
     def _upcoming(self, v, since) -> bool:
         return v.status == "in_progress" or (v.status == "reserved" and v.starts_at >= since)
+
+    async def next_active_after(self, ctx, customer_id, pet_ids, after):
+        found = [v.starts_at for v in self._mine(ctx)
+                 if v.customer_id == customer_id and v.status in ACTIVE_STATUSES and v.starts_at > after
+                 and (v.pet_id in pet_ids if pet_ids else v.pet_id is None)]
+        return min(found, default=None)
 
     async def pets_with_upcoming(self, ctx, pet_ids, since):
         return {v.pet_id for v in self._mine(ctx) if v.pet_id in pet_ids and self._upcoming(v, since)}
@@ -728,6 +758,33 @@ class FakeShopProfile(ShopProfilePort):
 
     async def public_profile(self, shop_id):
         return self.shops.get(shop_id)
+
+
+class FakeSeries(VisitSeriesRepository):
+    """visit_series 표 스텁(⑭)."""
+
+    def __init__(self, journal: Journal | None = None) -> None:
+        self.journal = journal if journal is not None else Journal()
+        self.rows: dict[int, VisitSeries] = {}
+
+    def seed(self, series_id: int, interval_weeks: int = 4, shop_id: int = 1, customer_id: int = 1) -> VisitSeries:
+        row = VisitSeries(id=series_id, shop_id=shop_id, customer_id=customer_id, interval_weeks=interval_weeks,
+                          created_by_member_id=11, created_at=kst(11, 1))
+        self.rows[series_id] = row
+        return row
+
+    async def create(self, ctx, customer_id, interval_weeks, member_id):
+        row = VisitSeries(id=len(self.rows) + 1, shop_id=ctx.shop_id, customer_id=customer_id,
+                          interval_weeks=interval_weeks, created_by_member_id=member_id, created_at=kst(11, 17))
+        self.rows[row.id] = row
+        self.journal.append(("create_series", customer_id, interval_weeks))
+        return row
+
+    async def get(self, ctx, series_id):
+        row = self.rows.get(series_id)
+        if row is None or row.shop_id != ctx.shop_id:
+            raise VisitSeriesNotFoundError("반복 예약 묶음을 찾을 수 없습니다.")
+        return row
 
 
 class FakeEvents(DomainEventPort):

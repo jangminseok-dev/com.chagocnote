@@ -4,7 +4,7 @@ import pytest
 
 from hub.app.dtos.visit_events import VisitReserved
 from hub.app.errors import FamilyPetNotFoundError
-from visit.app.dtos.register_visit_dto import RegisterVisitCommand
+from visit.app.dtos.register_visit_dto import RegisterVisitCommand, RepeatRequest
 from visit.app.use_cases.register_visit_interactor import RegisterVisitInteractor
 from visit.domain.errors import (
     MenuNotAvailableError,
@@ -20,6 +20,7 @@ from visit.tests.helpers.fakes import (
     FakeEvents,
     FakeMenus,
     FakeSchedule,
+    FakeSeries,
     FakeVisits,
     Journal,
 )
@@ -33,7 +34,8 @@ def _setup(settings=None):
     menus, visits, directory = FakeMenus(journal), FakeVisits(journal), FakeDirectory(journal)
     directory.family(1, pets=(101, 102))
     events = FakeEvents(journal)
-    interactor = RegisterVisitInteractor(visits, visits, menus, schedule, directory, events=events, now=lambda: NOW)
+    interactor = RegisterVisitInteractor(visits, visits, menus, schedule, directory, events=events, now=lambda: NOW,
+                                         series=FakeSeries(journal))
     return journal, schedule, menus, visits, directory, interactor, events
 
 
@@ -194,3 +196,89 @@ async def test_만든_방문마다_다시_색인하라고_알린다():
     booked = await interactor.register_visit(_command(pet_ids=(101, 102), memo="발톱 짧게"))
     walk_in = await interactor.register_visit(_command(pet_ids=(), starts_at=None, walk_in=True))
     assert events.changed == [("visit", v.visit_id) for v in (*booked.visits, *walk_in.visits)]
+
+
+# --- ⑭ 반복 예약 -----------------------------------------------------------------------------------------------------
+
+def _repeat(**overrides):
+    return _command(pet_ids=(101, 102), repeat=RepeatRequest(**({"interval_weeks": 4, "count": 3} | overrides)))
+
+
+async def test_반복이면_회차마다_가족_방문을_만들고_같은_묶음에_넣는다():
+    journal, _, _, visits, _, interactor, _ = _setup()
+    result = await interactor.register_visit(_repeat())
+    rows = sorted(visits.rows.values(), key=lambda v: (v.starts_at, v.id))
+    assert [(v.starts_at, v.pet_id) for v in rows] == [
+        (kst(10, 2, 14), 101), (kst(10, 2, 14), 102), (kst(10, 30, 14), 101), (kst(10, 30, 14), 102),
+        (kst(11, 27, 14), 101), (kst(11, 27, 14), 102)]
+    assert {v.series_id for v in rows} == {result.series.id}
+    names = [entry[0] for entry in journal]
+    assert names.index("lock_family") < names.index("create_series") < names.index("create_visits")
+    assert ("create_series", 1, 4) in journal
+    assert len(result.visits) == 6
+    assert result.series.interval_weeks == 4
+    assert [o.starts_at.isoformat() for o in result.series.occurrences] == [
+        "2026-10-02T14:00:00+09:00", "2026-10-30T14:00:00+09:00", "2026-11-27T14:00:00+09:00"]
+    assert result.warnings == result.series.occurrences[0].warnings
+
+
+async def test_첫_회차만_접수_안내이고_나머지는_리마인드만():
+    _, _, _, _, _, interactor, events = _setup()
+    await interactor.register_visit(_repeat())
+    assert [(e.starts_at, e.series_followup, e.family_pet_ids) for e in events.published] == [
+        (kst(10, 2, 14), False, (101, 102)), (kst(10, 2, 14), False, (101, 102)),
+        (kst(10, 30, 14), True, (101, 102)), (kst(10, 30, 14), True, (101, 102)),
+        (kst(11, 27, 14), True, (101, 102)), (kst(11, 27, 14), True, (101, 102))]
+
+
+async def test_첫_회차를_빼면_둘째_회차가_접수_안내를_받는다():
+    _, _, _, visits, _, interactor, events = _setup()
+    await interactor.register_visit(_repeat(skip=(1,)))
+    assert sorted({v.starts_at for v in visits.rows.values()}) == [kst(10, 30, 14), kst(11, 27, 14)]
+    assert [(e.starts_at, e.series_followup) for e in events.published][::2] == [
+        (kst(10, 30, 14), False), (kst(11, 27, 14), True)]
+
+
+async def test_빼고_남은_회차가_하나면_VISIT_INPUT():
+    _, _, _, visits, _, interactor, _ = _setup()
+    with pytest.raises(VisitInputError):
+        await interactor.register_visit(_repeat(count=2, skip=(2,)))
+    assert visits.rows == {}
+
+
+async def test_지금_시작에는_반복을_싣지_못한다():
+    _, _, _, _, _, interactor, _ = _setup()
+    with pytest.raises(VisitInputError):
+        await interactor.register_visit(_command(starts_at=None, walk_in=True,
+                                                 repeat=RepeatRequest(interval_weeks=4, count=3)))
+
+
+async def test_1년을_넘는_회차는_조용히_빠진다():
+    _, _, _, visits, _, interactor, _ = _setup()
+    result = await interactor.register_visit(_command(repeat=RepeatRequest(interval_weeks=12, count=6)))
+    assert len(result.series.occurrences) == 5
+    assert len(visits.rows) == 5
+
+
+async def test_방문마다_검색_이벤트를_낸다():
+    _, _, _, visits, _, interactor, events = _setup()
+    await interactor.register_visit(_repeat())
+    assert sorted(ref for _, ref in events.changed) == sorted(visits.rows)
+
+
+async def test_회차가_이미_예약된_시각이면_전부_VISIT_DUPLICATE():
+    _, _, _, visits, _, interactor, events = _setup()
+    taken = visits.seed(pet_id=101, starts_at=kst(10, 30, 14))
+    with pytest.raises(VisitDuplicateError):
+        await interactor.register_visit(_repeat())
+    assert list(visits.rows) == [taken.id]
+    assert events.published == []
+
+
+async def test_repeat_없는_예전_요청은_묶음_없이_지금처럼():
+    journal, _, _, visits, _, interactor, events = _setup()
+    result = await interactor.register_visit(_command())
+    assert result.series is None
+    assert [v.series_id for v in visits.rows.values()] == [None]
+    assert [e.series_followup for e in events.published] == [False]
+    assert "create_series" not in [entry[0] for entry in journal]

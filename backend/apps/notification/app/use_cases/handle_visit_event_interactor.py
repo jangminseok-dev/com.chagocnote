@@ -88,7 +88,9 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         if event.revived:
             kept = await self._leave_group(ctx, event, event.starts_at, "reverted", (NEXT_VISIT,), keep_stranded=True)
             await self._messages.cancel_pending(ctx, "reverted", event.visit_id, kinds=(NEXT_VISIT,), except_ids=kept)
-        if not event.revived and await self._allowed(ctx, settings, CONFIRM, event.visit_id):
+        # 반복 예약의 둘째 회차부터(⑭)도 접수 안내 없이 리마인드만 — 접수 안내는 첫 회차 한 통이다.
+        if not event.revived and not event.series_followup and await self._allowed(
+                ctx, settings, CONFIRM, event.visit_id):
             await self._create_for_group(ctx, event, CONFIRM, now)
         at = reminder_at(event.starts_at, settings.reminder_time, ctx.timezone, now)
         if at is not None and await self._allowed(ctx, settings, REMINDER, event.visit_id):
@@ -107,13 +109,16 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         at = reminder_at(event.starts_at, settings.reminder_time, ctx.timezone, now)
         if at is not None and await self._allowed(ctx, settings, REMINDER):
             await self._create_for_group(ctx, event, REMINDER, at)
-        if await self._allowed(ctx, settings, CHANGE):
+        # `이후 전부` 의 나머지 회차(⑭ quiet)는 변경 안내 없이 리마인드만 — 안내는 가장 가까운 회차 한 통이다.
+        if not event.quiet and await self._allowed(ctx, settings, CHANGE):
             await self._create_for_group(ctx, event, CHANGE, now, previous_starts_at=_iso(event.previous_starts_at))
 
     async def _canceled(self, ctx: ShopContext, settings: NotificationSettings, event: VisitCanceled, now: datetime):
         kept = await self._leave_group(ctx, event, event.starts_at, "visit_canceled", _GROUP_KINDS, keep_stranded=True)
         await self._messages.cancel_pending(ctx, "visit_canceled", event.visit_id, except_ids=kept)   # N17
-        if event.reason == "shop_reason" and await self._allowed(ctx, settings, CANCEL, event.visit_id):
+        # `이후 전부` 의 나머지 회차(⑭ quiet)는 안내 없이 거두기만 — 취소 안내는 가장 가까운 회차 한 통이다.
+        if not event.quiet and event.reason == "shop_reason" and await self._allowed(
+                ctx, settings, CANCEL, event.visit_id):
             await self._create_for_group(ctx, event, CANCEL, now)
 
     async def _closed(self, ctx: ShopContext, settings: NotificationSettings, event: VisitClosed) -> None:

@@ -4,6 +4,7 @@ from datetime import timedelta
 import pytest
 
 from hub.app.dtos.pet_revisit import PetRevisitFact
+from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.dtos.visit_events import VisitCanceled, VisitClosed, VisitReserved
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
 from visit.app.use_cases.transition_visits_interactor import TransitionVisitsInteractor
@@ -24,9 +25,13 @@ from visit.tests.helpers.fakes import (
     FakeMenus,
     FakeReportRepository,
     FakeRevisitSettingsRepository,
+    FakeShopProfile,
     FakeVisits,
     Journal,
 )
+
+SHOPS = FakeShopProfile({1: ShopProfile(shop_id=1, name="Hiss Haus", phone=None, address=None, timezone="Asia/Seoul",
+                                        open=True)})
 
 NOW = kst(9, 23, 15)
 
@@ -39,7 +44,7 @@ def _with_reports(visits=None):
     reports = FakeReportRepository(visits)
     events = FakeEvents(journal)
     interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), reports, directory, events=events,
-                                            now=lambda: NOW, settings=FakeRevisitSettingsRepository())
+                                            now=lambda: NOW, settings=FakeRevisitSettingsRepository(), shops=SHOPS)
     return journal, visits, reports, interactor, events
 
 
@@ -48,9 +53,9 @@ def _setup():
     return journal, visits, interactor, events
 
 
-def _act(ids, action, reason=None, member_id=11):
+def _act(ids, action, reason=None, member_id=11, **change):
     return TransitionVisitsCommand(ctx=ctx(member_id=member_id), visit_ids=tuple(ids), action=action,
-                                   cancel_reason=reason)
+                                   cancel_reason=reason, **change)
 
 
 async def test_가족_묶음을_한_번에_완료하고_최근_방문을_알린다():
@@ -163,7 +168,7 @@ async def test_되돌리기_잠그는_사이_반려동물이_바뀌면_다시_�
     visits._swap_visit_id = canceled.id
     interactor = TransitionVisitsInteractor(visits, visits, FakeMenus(), FakeReportRepository(visits), directory,
                                             events=FakeEvents(journal), now=lambda: NOW,
-                                            settings=FakeRevisitSettingsRepository())
+                                            settings=FakeRevisitSettingsRepository(), shops=SHOPS)
     with pytest.raises(VisitStateConflictError):
         await interactor.transition_visits(_act([canceled.id], "revert"))
 
@@ -338,3 +343,87 @@ async def test_되돌리기는_revived_인_VisitReserved_를_발행하고_시작
     [event] = events.published
     assert (type(event), event.visit_id, event.starts_at, event.revived) == (
         VisitReserved, canceled.id, kst(9, 30, 14), True)
+
+
+# --- ⑭ 이후 전부 취소 -------------------------------------------------------------------------------------------------
+
+WEEKLY = (kst(10, 2, 14), kst(10, 9, 14), kst(10, 16, 14), kst(10, 23, 14))
+
+
+def _weekly(visits, statuses):
+    rows = {}
+    for at in WEEKLY:
+        for pet in (101, 102):
+            status = statuses.get((at, pet), "reserved")
+            extra = {}
+            if status == "canceled":
+                extra = dict(canceled_at=kst(9, 20), cancel_reason="customer_request")
+            if status in ("in_progress", "completed"):
+                extra = dict(started_at=at)
+            if status == "completed":
+                extra["completed_at"] = at
+            rows[(at, pet)] = visits.seed(customer_id=1, pet_id=pet, starts_at=at, series_id=7, status=status, **extra)
+    return rows
+
+
+MIXED = {(WEEKLY[0], 101): "completed", (WEEKLY[0], 102): "completed", (WEEKLY[2], 101): "canceled",
+         (WEEKLY[3], 102): "in_progress"}
+
+
+async def test_이후_전부_취소는_뒤의_예약됨만_취소한다():
+    _, visits, interactor, _ = _setup()
+    rows = _weekly(visits, MIXED)
+    anchors = [rows[(WEEKLY[1], 101)].id, rows[(WEEKLY[1], 102)].id]
+    result = await interactor.transition_visits(_act(anchors, "cancel", "customer_request", scope="following"))
+    canceled = {key for key, row in rows.items() if visits.rows[row.id].status == "canceled"}
+    assert canceled == {(WEEKLY[1], 101), (WEEKLY[1], 102), (WEEKLY[2], 101), (WEEKLY[2], 102), (WEEKLY[3], 101)}
+    assert visits.rows[rows[(WEEKLY[3], 102)].id].status == "in_progress"
+    assert [visits.rows[rows[(WEEKLY[0], p)].id].status for p in (101, 102)] == ["completed", "completed"]
+    assert sorted(v.visit_id for v in result.visits) == sorted(
+        rows[k].id for k in ((WEEKLY[1], 101), (WEEKLY[1], 102), (WEEKLY[2], 102), (WEEKLY[3], 101)))
+
+
+async def test_취소_안내는_가장_가까운_회차_한_통():
+    _, visits, interactor, events = _setup()
+    rows = _weekly(visits, {})
+    anchors = [rows[(WEEKLY[2], 101)].id, rows[(WEEKLY[2], 102)].id]
+    await interactor.transition_visits(_act(anchors, "cancel", "shop_reason", scope="following"))
+    canceled = sorted((e.starts_at, e.pet_id, e.quiet, e.family_pet_ids) for e in events.published
+                      if isinstance(e, VisitCanceled))
+    assert canceled == [(WEEKLY[2], 101, False, (101, 102)), (WEEKLY[2], 102, False, (101, 102)),
+                        (WEEKLY[3], 101, True, (101, 102)), (WEEKLY[3], 102, True, (101, 102))]
+
+
+async def test_notice_에_취소한_회차가_전부():
+    _, visits, interactor, _ = _setup()
+    rows = _weekly(visits, {})
+    result = await interactor.transition_visits(
+        _act([rows[(WEEKLY[2], 101)].id], "cancel", "customer_request", scope="following", family=False))
+    [part] = result.notice
+    assert part.kind == "series_cancel"
+    assert part.text == "[Hiss Haus] 예약을 취소했어요.\n아이101\n· 10월 16일(금) 오후 2:00\n· 10월 23일(금) 오후 2:00"
+    assert visits.rows[rows[(WEEKLY[2], 102)].id].status == "reserved"
+
+
+async def test_이후_전부는_취소에만():
+    _, visits, interactor, _ = _setup()
+    rows = _weekly(visits, {})
+    with pytest.raises(VisitInputError):
+        await interactor.transition_visits(_act([rows[(WEEKLY[1], 101)].id], "no_show", scope="following"))
+
+
+async def test_예약됨이_아닌_회차에서_이후_전부_취소는_409():
+    _, visits, interactor, _ = _setup()
+    rows = _weekly(visits, {(WEEKLY[1], 101): "in_progress"})
+    with pytest.raises(VisitStateConflictError):
+        await interactor.transition_visits(
+            _act([rows[(WEEKLY[1], 101)].id], "cancel", "customer_request", scope="following"))
+
+
+async def test_전이의_scope_없는_예전_요청은_지금처럼():
+    _, visits, interactor, events = _setup()
+    rows = _weekly(visits, {})
+    result = await interactor.transition_visits(_act([rows[(WEEKLY[1], 101)].id], "cancel", "customer_request"))
+    assert [k for k, row in rows.items() if visits.rows[row.id].status == "canceled"] == [(WEEKLY[1], 101)]
+    assert result.notice == []
+    assert [e.quiet for e in events.published if isinstance(e, VisitCanceled)] == [False]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 
@@ -72,7 +73,7 @@ class VisitPgRepository(
                             shop_id=ctx.shop_id, customer_id=new.customer_id, pet_id=new.pet_id,
                             starts_at=new.starts_at, duration_minutes=new.duration_minutes,
                             status=new.status, started_at=new.started_at, memo=new.memo,
-                            created_by_member_id=new.created_by_member_id,
+                            created_by_member_id=new.created_by_member_id, series_id=new.series_id,
                             status_changed_by_member_id=(
                                 new.created_by_member_id if new.started_at is not None else None
                             ),
@@ -137,6 +138,28 @@ class VisitPgRepository(
                 .values(starts_at=starts_at)
             )
         return await self.get_many(ctx, visit_ids)
+
+    async def move_each(self, ctx: ShopContext, moves: Sequence[tuple[int, datetime]]) -> list[Visit]:
+        async with self._duplicate_guard():
+            for visit_id, starts_at in moves:
+                await self._session.execute(
+                    update(VisitOrm)
+                    .where(VisitOrm.id == visit_id, VisitOrm.shop_id == ctx.shop_id)
+                    .values(starts_at=starts_at)
+                )
+        return await self.get_many(ctx, [visit_id for visit_id, _ in moves])
+
+    async def list_series(self, ctx: ShopContext, series_id: int) -> list[Visit]:
+        return await self._read(ctx, select(VisitOrm).where(VisitOrm.series_id == series_id))
+
+    async def active_at(self, ctx: ShopContext, customer_id: int, starts: Sequence[datetime]) -> list[Visit]:
+        if not starts:
+            return []
+        return await self._read(
+            ctx,
+            select(VisitOrm).where(VisitOrm.customer_id == customer_id, VisitOrm.status.in_(ACTIVE_STATUSES),
+                                   VisitOrm.starts_at.in_(list(starts))),
+        )
 
     async def set_report_skipped(self, ctx: ShopContext, visit_id: int, at: datetime | None) -> None:
         await self._session.execute(
@@ -250,6 +273,19 @@ class VisitPgRepository(
             )
         )
         return set(rows.scalars())
+
+    async def next_active_after(
+        self, ctx: ShopContext, customer_id: int, pet_ids: Sequence[int], after: datetime,
+    ) -> datetime | None:
+        who = VisitOrm.pet_id.in_(list(pet_ids)) if pet_ids else VisitOrm.pet_id.is_(None)
+        return (
+            await self._session.execute(
+                select(func.min(VisitOrm.starts_at)).where(
+                    VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id, who,
+                    VisitOrm.status.in_(ACTIVE_STATUSES), VisitOrm.starts_at > after,
+                )
+            )
+        ).scalar_one()
 
     async def revisit_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[RevisitCandidate]:
         day = func.date(func.timezone(ctx.timezone, VisitOrm.starts_at))

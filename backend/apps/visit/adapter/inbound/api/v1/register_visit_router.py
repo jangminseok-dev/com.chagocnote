@@ -6,7 +6,7 @@ from visit.adapter.inbound.api.schemas.register_visit_schema import (
     RegisteredVisitsSchema,
     RegisterVisitRequestSchema,
 )
-from visit.app.dtos.register_visit_dto import RegisterVisitCommand
+from visit.app.dtos.register_visit_dto import RegisterVisitCommand, RepeatRequest
 from visit.app.ports.input.register_visit_use_case import RegisterVisitUseCase
 from visit.dependencies.register_visit_provider import get_register_visit_use_case
 
@@ -24,6 +24,8 @@ async def register_visit(
             ctx=ctx, customer_id=body.customer_id, pet_ids=tuple(body.pet_ids), starts_at=body.starts_at,
             duration_minutes=body.duration_minutes, menu_ids=tuple(body.menu_ids),
             memo=body.memo or None, walk_in=body.walk_in,
+            repeat=None if body.repeat is None else RepeatRequest(
+                interval_weeks=body.repeat.interval_weeks, count=body.repeat.count, skip=tuple(body.repeat.skip)),
         )
     )
     return RegisteredVisitsSchema.of(view)

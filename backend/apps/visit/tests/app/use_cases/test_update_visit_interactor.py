@@ -1,5 +1,7 @@
+from dataclasses import replace
 import pytest
 
+from hub.app.dtos.shop_profile import ShopProfile
 from hub.app.dtos.visit_events import VisitRescheduled
 from hub.app.errors import FamilyPetNotFoundError
 from visit.app.dtos.update_visit_dto import UpdateVisitCommand
@@ -8,7 +10,9 @@ from visit.domain.errors import (
     MenuNotAvailableError,
     VisitCrossesMidnightError,
     VisitDuplicateError,
+    VisitInputError,
     VisitNotFoundError,
+    VisitSeriesConflictError,
     VisitStateConflictError,
 )
 from visit.tests.helpers.builders import ctx, kst
@@ -17,6 +21,7 @@ from visit.tests.helpers.fakes import (
     FakeEvents,
     FakeMenus,
     FakeSchedule,
+    FakeShopProfile,
     FakeVisits,
     Journal,
 )
@@ -30,8 +35,10 @@ def _setup():
     directory.family(1, pets=(101, 102, 103), passed=(103,))
     directory.family(2, pets=(201,))
     events = FakeEvents(journal)
+    shops = FakeShopProfile({1: ShopProfile(shop_id=1, name="Hiss Haus", phone=None, address=None,
+                                            timezone="Asia/Seoul", open=True)})
     interactor = UpdateVisitInteractor(visits, visits, menus, FakeSchedule(), directory, events=events,
-                                       now=lambda: NOW)
+                                       now=lambda: NOW, shops=shops)
     return journal, visits, menus, interactor, events
 
 
@@ -148,3 +155,83 @@ async def test_고치면_시각이_그대로여도_다시_색인하라고_알린
     await interactor.update_visit(_command(visit, memo="드라이를 무서워해요"))
     assert events.changed == [("visit", visit.id)]
     assert events.published == []      # 보호자에게 알릴 일은 아니다
+
+
+# --- ⑭ 이후 전부 ------------------------------------------------------------------------------------------------------
+
+WEEKLY = (kst(10, 2, 14), kst(10, 9, 14), kst(10, 16, 14))
+
+
+def _weekly(visits, pets=(101,)):
+    return {(at, pet): visits.seed(customer_id=1, pet_id=pet, starts_at=at, series_id=7, duration_minutes=90)
+            for at in WEEKLY for pet in pets}
+
+
+async def test_이후_전부_고치기는_메뉴_소요_메모를_같게_한다():
+    _, visits, menus, interactor, events = _setup()
+    bath = menus.seed("목욕")
+    rows = _weekly(visits)
+    second = rows[(WEEKLY[1], 101)]
+    result = await interactor.update_visit(_command(second, duration_minutes=120, menu_ids=(bath.id,),
+                                                    memo="발톱 짧게", scope="following"))
+    later = [visits.rows[rows[(at, 101)].id] for at in WEEKLY]
+    assert [(v.duration_minutes, v.menu_ids, v.memo) for v in later] == [
+        (90, (), None), (120, (bath.id,), "발톱 짧게"), (120, (bath.id,), "발톱 짧게")]
+    assert result.visit.visit_id == second.id
+    assert [e for e in events.published if isinstance(e, VisitRescheduled)] == []   # 시각이 그대로면 알림 없음
+    assert result.notice == []
+    assert sorted(ref for _, ref in events.changed) == sorted(rows[(at, 101)].id for at in WEEKLY[1:])
+
+
+async def test_시각을_바꾸면_같은_차이만큼_밀고_안내는_한_통():
+    _, visits, _, interactor, events = _setup()
+    rows = _weekly(visits)
+    second = rows[(WEEKLY[1], 101)]
+    result = await interactor.update_visit(_command(second, starts_at=kst(10, 9, 16), scope="following"))
+    assert [visits.rows[rows[(at, 101)].id].starts_at for at in WEEKLY] == [
+        kst(10, 2, 14), kst(10, 9, 16), kst(10, 16, 16)]
+    moved = [e for e in events.published if isinstance(e, VisitRescheduled)]
+    assert sorted((e.previous_starts_at, e.quiet) for e in moved) == [(WEEKLY[1], False), (WEEKLY[2], True)]
+    assert [p.kind for p in result.notice] == ["series_change"]
+
+
+async def test_이후_전부_고치기도_걸린_회차는_409():
+    _, visits, _, interactor, _ = _setup()
+    rows = _weekly(visits)
+    visits.seed(customer_id=1, pet_id=101, starts_at=kst(10, 16, 16))
+    with pytest.raises(VisitSeriesConflictError):
+        await interactor.update_visit(_command(rows[(WEEKLY[1], 101)], starts_at=kst(10, 9, 16), scope="following"))
+    assert visits.rows[rows[(WEEKLY[1], 101)].id].starts_at == WEEKLY[1]
+
+
+async def test_이후_전부에서_아이를_바꾸면_VISIT_INPUT():
+    _, visits, _, interactor, _ = _setup()
+    rows = _weekly(visits)
+    with pytest.raises(VisitInputError):
+        await interactor.update_visit(_command(rows[(WEEKLY[1], 101)], pet_id=102, scope="following"))
+
+
+async def test_고치기의_scope_없는_예전_요청은_이_예약만():
+    _, visits, _, interactor, _ = _setup()
+    rows = _weekly(visits)
+    result = await interactor.update_visit(_command(rows[(WEEKLY[1], 101)], memo="이번만"))
+    assert [visits.rows[rows[(at, 101)].id].memo for at in WEEKLY] == [None, "이번만", None]
+    assert result.notice == []
+
+
+async def test_이후_전부_고치기의_알림도_옮기는_차례대로_낸다():
+    _, visits, _, interactor, events = _setup()
+    rows = _weekly(visits)
+    await interactor.update_visit(_command(rows[(WEEKLY[0], 101)], starts_at=WEEKLY[1], scope="following"))
+    assert [e.previous_starts_at for e in events.published if isinstance(e, VisitRescheduled)] == list(reversed(WEEKLY))
+
+
+async def test_이후_전부_고치기의_소요로_자정을_넘는_뒤_회차는_걸린_회차():
+    _, visits, _, interactor, _ = _setup()
+    rows = _weekly(visits)
+    late = rows[(WEEKLY[2], 101)]
+    visits.rows[late.id] = replace(late, starts_at=kst(10, 16, 22))
+    with pytest.raises(VisitSeriesConflictError) as caught:
+        await interactor.update_visit(_command(rows[(WEEKLY[1], 101)], duration_minutes=150, scope="following"))
+    assert [(c["visit_id"], c["reason"]) for c in caught.value.details["conflicts"]] == [(late.id, "crosses_midnight")]
+    assert visits.rows[rows[(WEEKLY[1], 101)].id].duration_minutes == 90

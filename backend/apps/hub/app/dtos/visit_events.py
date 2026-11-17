@@ -26,18 +26,24 @@ class VisitEvent:
 @dataclass(frozen=True)
 class VisitReserved(VisitEvent):
     revived: bool = False     # 되돌리기로 다시 예약됨이 된 경우 True(접수 안내는 보내지 않고 리마인드만 다시 만든다)
+    # ⑭ 한꺼번에 잡은 반복 예약의 둘째 회차부터 True — 접수 안내는 첫 회차 한 통, 나머지는 리마인드만.
+    series_followup: bool = False
     family_pet_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
 class VisitRescheduled(VisitEvent):
     previous_starts_at: datetime
+    # ⑭ `이후 전부` 에서 가장 가까운 회차가 아닌 방문이면 True — 변경 안내 없이 리마인드만 옮긴다.
+    quiet: bool = False
     family_pet_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
 class VisitCanceled(VisitEvent):
     reason: str               # "customer_request" | "shop_reason" (visit.domain.entities.visit.CANCEL_REASONS 와 같은 값)
+    # ⑭ `이후 전부` 에서 가장 가까운 회차가 아닌 방문이면 True — 취소 안내 없이 대기 줄만 거둔다.
+    quiet: bool = False
     family_pet_ids: tuple[int, ...] = ()
 
 

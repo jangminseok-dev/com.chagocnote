@@ -22,6 +22,7 @@ async def update_visit(
         UpdateVisitCommand(
             ctx=ctx, visit_id=visit_id, starts_at=body.starts_at, pet_id=body.pet_id,
             duration_minutes=body.duration_minutes, menu_ids=tuple(body.menu_ids), memo=body.memo or None,
+            scope=body.scope, family=body.family, skip_visit_ids=tuple(body.skip_visit_ids),
         )
     )
     return UpdatedVisitSchema.of(view)

@@ -69,7 +69,7 @@ def _revert(session, visit_id):
     visits = VisitPgRepository(session)
     return TransitionVisitsInteractor(
         visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session),
-        events=FakeEvents(), now=_now, settings=RevisitSettingsPgRepository(session),
+        events=FakeEvents(), now=_now, settings=RevisitSettingsPgRepository(session), shops=FakeShopProfile(),
     ).transition_visits(TransitionVisitsCommand(ctx=SHOP, visit_ids=(visit_id,), action="revert",
                                                 cancel_reason=None))
 

@@ -15,6 +15,7 @@ from visit.dependencies.visit_wiring import (
     build_record_repository,
     build_report_repository,
     build_visit_repository,
+    build_visit_series_repository,
 )
 from visit.domain.services.visit_schedule import utc_now
 
@@ -29,4 +30,5 @@ def get_get_visit_use_case(
         visits=visits, history=visits, ledger=visits, menus=build_menu_repository(db), directory=directory,
         records=build_record_repository(db), library=library, reports=build_report_repository(db), now=utc_now,
         link_key=REPORT_LINK_KEY, web_base_url=REPORT_WEB_BASE_URL, checks=build_check_repository(db),
+        series=build_visit_series_repository(db),
     )

@@ -34,3 +34,14 @@ async def test_권한과_상태_충돌():
     stub = Recorder(error=VisitStateConflictError("완료"))
     async with client(build_app(update_visit_router, get_update_visit_use_case, stub)) as c:
         assert error_of(await c.put("/v1/shops/3/visits/1", json=BODY)) == (409, "VISIT_STATE_CONFLICT")
+
+
+async def test_이후_전부_칸_셋을_명령으로_옮긴다():
+    stub = Recorder(UpdatedVisitView(visit=visit_view(), warnings=[]))
+    async with client(build_app(update_visit_router, get_update_visit_use_case, stub, STAFF)) as c:
+        response = await c.put("/v1/shops/3/visits/1", json={**BODY, "scope": "following", "skip_visit_ids": [4]})
+        assert response.json()["notice"] == []
+        assert error_of(await c.put("/v1/shops/3/visits/1", json={**BODY, "scope": "later"})) == (
+            422, "VALIDATION_ERROR")
+    command = stub.calls[0]
+    assert (command.scope, command.family, command.skip_visit_ids) == ("following", True, (4,))

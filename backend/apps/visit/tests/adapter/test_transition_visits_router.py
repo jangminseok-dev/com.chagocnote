@@ -1,4 +1,5 @@
 from visit.adapter.inbound.api.v1.transition_visits_router import transition_visits_router
+from visit.app.dtos.build_send_bundle_dto import BundlePartView
 from visit.app.dtos.transition_visits_dto import TransitionedVisitsView
 from visit.dependencies.transition_visits_provider import get_transition_visits_use_case
 from visit.domain.errors import VisitNotYetError, VisitStateConflictError
@@ -37,3 +38,17 @@ async def test_권한과_상태_오류():
                             (VisitNotYetError("아직"), (409, "VISIT_NOT_YET"))):
         response, _ = await _post({"visit_ids": [1], "action": "start"}, stub=Recorder(error=error))
         assert error_of(response) == expected
+
+
+async def test_이후_전부_취소의_칸_셋과_notice():
+    stub = Recorder(TransitionedVisitsView(visits=[visit_view(1)], notice=[
+        BundlePartView(kind="series_cancel", text="[Hiss Haus] 예약을 취소했어요.")]))
+    body = {"visit_ids": [1], "action": "cancel", "cancel_reason": "customer_request", "scope": "following",
+            "family": False, "skip_visit_ids": [5]}
+    async with client(build_app(transition_visits_router, get_transition_visits_use_case, stub, STAFF)) as c:
+        response = await c.post("/v1/shops/3/visits/transitions", json=body)
+        plain = await c.post("/v1/shops/3/visits/transitions", json={**body, "scope": "this"})
+    assert response.json()["notice"] == [{"kind": "series_cancel", "text": "[Hiss Haus] 예약을 취소했어요."}]
+    command = stub.calls[0]
+    assert (command.scope, command.family, command.skip_visit_ids) == ("following", False, (5,))
+    assert plain.status_code == 200 and stub.calls[1].scope == "this"

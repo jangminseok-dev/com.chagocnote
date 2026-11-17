@@ -22,6 +22,8 @@ from visit.domain.errors import (
     VisitNotFoundError,
     VisitNotYetError,
     VisitReportSentError,
+    VisitSeriesConflictError,
+    VisitSeriesNotFoundError,
     VisitStateConflictError,
 )
 
@@ -49,4 +51,6 @@ VISIT_ERROR_STATUS: dict[type[Exception], int] = {
     VisitNotCompletedError: 409,
     VisitReportSentError: 409,
     TooManyReportRequestsError: 429,
+    VisitSeriesNotFoundError: 404,
+    VisitSeriesConflictError: 409,
 }

@@ -4,13 +4,15 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from visit.adapter.inbound.api.schemas.build_send_bundle_schema import BundlePartSchema
 from visit.adapter.inbound.api.schemas.register_visit_schema import EntityId, unique_ids
+from visit.adapter.inbound.api.schemas.series_scope_schema import SeriesScopeFields
 from visit.adapter.inbound.api.schemas.visit_view_schema import VisitSchema
 from visit.app.dtos.transition_visits_dto import TransitionedVisitsView
 
 
-class TransitionVisitsRequestSchema(BaseModel):
-    """cancel_reason 은 cancel 일 때만, 반드시(어기면 422)."""
+class TransitionVisitsRequestSchema(SeriesScopeFields):
+    """cancel_reason 은 cancel 일 때만, 반드시(어기면 422). scope=following 은 cancel 에만(⑭)."""
 
     visit_ids: Annotated[list[EntityId], Field(min_length=1, max_length=10)]
     action: Literal["start", "complete", "cancel", "no_show", "revert"]
@@ -21,6 +23,7 @@ class TransitionVisitsRequestSchema(BaseModel):
 
 class TransitionedVisitsSchema(BaseModel):
     visits: list[VisitSchema]
+    notice: list[BundlePartSchema]   # ⑭ 이후 전부 취소 뒤 보호자에게 보낼 글 — 그 밖에는 빈 목록
 
     @classmethod
     def of(cls, view: TransitionedVisitsView) -> TransitionedVisitsSchema:

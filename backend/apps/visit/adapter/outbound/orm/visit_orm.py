@@ -181,6 +181,7 @@ class VisitOrm(Base):
         Index("ix_visits_shop_starts_at", "shop_id", "starts_at"),
         Index("ix_visits_shop_customer", "shop_id", "customer_id"),
         Index("ix_visits_shop_pet", "shop_id", "pet_id"),
+        Index("ix_visits_series", "series_id", postgresql_where=text("series_id IS NOT NULL")),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -200,10 +201,29 @@ class VisitOrm(Base):
     status_changed_by_member_id: Mapped[int | None] = mapped_column(BigInteger)
     # ⑬ 하루 마무리에서 "알림장을 보내지 않음"으로 넘긴 때(0025). 남은 일에서 빠진다.
     report_skipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # ⑭ 한꺼번에 잡은 반복 예약의 묶음(0026). 같은 스포크의 표라 외래 키가 있다.
+    series_id: Mapped[int | None] = mapped_column(ForeignKey("visit_series.id", name="fk_visits_series_id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class VisitSeriesOrm(Base):
+    """한꺼번에 잡은 반복 예약의 묶음(⑭). 간격은 보여 주려고만 남긴다 — 뒤에서 예약을 만들어 내지 않는다."""
+
+    __tablename__ = "visit_series"
+    __table_args__ = (
+        CheckConstraint("interval_weeks BETWEEN 1 AND 12", name="ck_visit_series_interval_weeks"),
+        Index("ix_visit_series_shop_customer", "shop_id", "customer_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    shop_id: Mapped[int] = mapped_column(BigInteger)
+    customer_id: Mapped[int] = mapped_column(BigInteger)
+    interval_weeks: Mapped[int] = mapped_column(SmallInteger)
+    created_by_member_id: Mapped[int] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class VisitMenuOrm(Base):

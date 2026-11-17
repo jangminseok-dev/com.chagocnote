@@ -26,12 +26,13 @@ from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
 from visit.adapter.outbound.pg.revisit_settings_pg_repository import RevisitSettingsPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
+from visit.adapter.outbound.pg.visit_series_pg_repository import VisitSeriesPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.app.dtos.register_visit_dto import RegisterVisitCommand
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
 from visit.app.use_cases.register_visit_interactor import RegisterVisitInteractor
 from visit.app.use_cases.transition_visits_interactor import TransitionVisitsInteractor
-from visit.tests.helpers.fakes import FakeEvents
+from visit.tests.helpers.fakes import FakeEvents, FakeShopProfile
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
 from visit.domain.errors import VisitDuplicateError, VisitStateConflictError
 from visit.tests.helpers.builders import ctx, kst
@@ -55,7 +56,7 @@ def _register(session, customer_id, pet_ids, starts_at=kst(10, 2, 14)):
     visits = VisitPgRepository(session)
     interactor = RegisterVisitInteractor(
         visits, visits, MenuPgRepository(session), SchedulePgRepository(session),
-        _directory(session), events=FakeEvents(), now=lambda: NOW,
+        _directory(session), events=FakeEvents(), now=lambda: NOW, series=VisitSeriesPgRepository(session),
     )
     return interactor.register_visit(RegisterVisitCommand(
         ctx=SHOP, customer_id=customer_id, pet_ids=tuple(pet_ids), starts_at=starts_at, duration_minutes=None,
@@ -68,6 +69,7 @@ def _transition(session, visit_ids, action, reason=None):
     interactor = TransitionVisitsInteractor(
         visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session),
         events=FakeEvents(), now=lambda: NOW, settings=RevisitSettingsPgRepository(session),
+        shops=FakeShopProfile(),
     )
     return interactor.transition_visits(TransitionVisitsCommand(
         ctx=SHOP, visit_ids=tuple(visit_ids), action=action, cancel_reason=reason,

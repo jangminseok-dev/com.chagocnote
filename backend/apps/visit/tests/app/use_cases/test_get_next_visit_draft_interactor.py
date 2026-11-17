@@ -1,20 +1,22 @@
 import pytest
 
 from hub.app.dtos.pet_revisit import PetRevisitFact
-from visit.app.dtos.get_next_visit_draft_dto import GetNextVisitDraftQuery
+from visit.app.dtos.get_next_visit_draft_dto import GetNextVisitDraftQuery, RepeatDraftView
 from visit.app.use_cases.get_next_visit_draft_interactor import GetNextVisitDraftInteractor
 from visit.domain.errors import VisitNotFoundError, VisitStateConflictError
 from visit.domain.value_objects.revisit_settings import RevisitSettings
 from visit.tests.helpers.builders import ctx, kst
-from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeRevisitSettingsRepository, FakeVisits
+from visit.tests.helpers.fakes import FakeDirectory, FakeMenus, FakeRevisitSettingsRepository, FakeSeries, FakeVisits
 
 NOW = kst(9, 23, 18)
+_SERIES = FakeSeries()
+_SERIES.seed(7, interval_weeks=4)
 
 
 def _setup():
     visits, menus, directory, settings = FakeVisits(), FakeMenus(), FakeDirectory(), FakeRevisitSettingsRepository()
     interactor = GetNextVisitDraftInteractor(
-        visits, visits, menus, directory=directory, settings=settings, now=lambda: NOW)
+        visits, visits, menus, directory=directory, settings=settings, now=lambda: NOW, series=_SERIES)
     return visits, menus, directory, settings, interactor
 
 
@@ -120,3 +122,44 @@ async def test_취소_노쇼한_방문이나_다른_매장_방문은_안_된다(
     theirs = _done(visits, pet_id=201, starts_at=kst(9, 23, 14), shop_id=2)
     with pytest.raises(VisitNotFoundError):
         await interactor.get_next_visit_draft(GetNextVisitDraftQuery(ctx=ctx(shop_id=1), visit_id=theirs.id))
+
+
+# --- ⑭ 이어 잡기와 다음 예약 ---------------------------------------------------------------------------------------
+
+async def test_묶음의_마지막_회차면_같은_간격으로_이어_잡을_초안을_준다():
+    visits, _, _, _, interactor = _setup()
+    visits.seed(pet_id=101, starts_at=kst(8, 26, 14), series_id=7, status="completed", started_at=kst(8, 26, 14),
+                completed_at=kst(8, 26, 15))
+    last = visits.seed(pet_id=101, starts_at=kst(9, 23, 14), series_id=7)
+    draft = await _draft(interactor, last.id)
+    assert draft.repeat == RepeatDraftView(interval_weeks=4, count=6, starts_at=draft.repeat.starts_at)
+    assert draft.repeat.starts_at.isoformat() == "2026-10-21T14:00:00+09:00"
+
+
+async def test_마지막이_아니면_repeat_는_None():
+    visits, _, _, _, interactor = _setup()
+    first = visits.seed(pet_id=101, starts_at=kst(9, 23, 14), series_id=7)
+    visits.seed(pet_id=101, starts_at=kst(10, 21, 14), series_id=7)
+    assert (await _draft(interactor, first.id)).repeat is None
+    plain = visits.seed(pet_id=102, starts_at=kst(9, 23, 15))
+    assert (await _draft(interactor, plain.id)).repeat is None
+
+
+async def test_그_아이에게_뒤_예약이_있으면_upcoming_starts_at():
+    visits, _, _, _, interactor = _setup()
+    now_visit = visits.seed(pet_id=101, starts_at=kst(9, 23, 14))
+    visits.seed(pet_id=101, starts_at=kst(10, 30, 11))
+    visits.seed(pet_id=101, starts_at=kst(10, 21, 14))
+    visits.seed(pet_id=101, starts_at=kst(10, 7, 14), status="canceled", canceled_at=kst(9, 1),
+                cancel_reason="customer_request")
+    visits.seed(pet_id=102, starts_at=kst(9, 30, 14))   # 다른 아이
+    draft = await _draft(interactor, now_visit.id)
+    assert draft.upcoming_starts_at.isoformat() == "2026-10-21T14:00:00+09:00"
+
+
+async def test_뒤_예약이_없으면_None():
+    visits, _, _, _, interactor = _setup()
+    now_visit = visits.seed(pet_id=101, starts_at=kst(9, 23, 14))
+    visits.seed(pet_id=101, starts_at=kst(9, 1, 14))   # 앞선 예약은 다음이 아니다
+    draft = await _draft(interactor, now_visit.id)
+    assert (draft.upcoming_starts_at, draft.repeat) == (None, None)

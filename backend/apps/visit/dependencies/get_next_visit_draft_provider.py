@@ -11,6 +11,7 @@ from visit.dependencies.visit_wiring import (
     build_menu_repository,
     build_revisit_settings_repository,
     build_visit_repository,
+    build_visit_series_repository,
 )
 from visit.domain.services.visit_schedule import utc_now
 
@@ -22,4 +23,5 @@ def get_get_next_visit_draft_use_case(
     return GetNextVisitDraftInteractor(
         visits=visits, history=visits, menus=build_menu_repository(db), directory=directory,
         settings=build_revisit_settings_repository(db), now=utc_now,
+        series=build_visit_series_repository(db),
     )

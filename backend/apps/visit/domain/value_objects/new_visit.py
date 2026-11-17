@@ -17,3 +17,4 @@ class NewVisit:
     menu_ids: tuple[int, ...]
     memo: str | None
     created_by_member_id: int
+    series_id: int | None = None   # ⑭ 반복 예약의 묶음

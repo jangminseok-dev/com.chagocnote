@@ -183,6 +183,28 @@ async def test_되돌린_예약은_reminder_만_만든다():
     assert world.pending() == [(REMINDER, kst(10, 15, 18))]
 
 
+async def test_반복의_둘째_회차부터는_접수_안내_없이_리마인드만():
+    world = _World()
+    await world.handle(_event(VisitReserved, series_followup=True))
+    assert world.pending() == [(REMINDER, kst(10, 15, 18))]
+
+
+async def test_조용한_일정_변경은_변경_안내_없이_리마인드만_옮긴다():
+    world = _World()
+    await world.handle(_event(VisitReserved))
+    await world.handle(_event(VisitRescheduled, starts_at=kst(10, 20, 14), previous_starts_at=STARTS, quiet=True))
+    kinds = [k for k, _ in world.pending()]
+    assert kinds.count(CHANGE) == 0 and kinds.count(REMINDER) == 1
+
+
+async def test_조용한_취소는_취소_안내_없이_대기_줄만_거둔다():
+    world = _World()
+    await world.handle(_event(VisitReserved))
+    await world.handle(_event(VisitCanceled, reason="shop_reason", quiet=True))
+    assert world.pending() == []
+    assert [r for r in world.rows() if r[0] == CANCEL] == []
+
+
 async def test_같은_예약이_두_번_오면_둘째는_묶음의_줄로_보아_아무것도_만들지_않는다():
     """같은 보호자·같은 시각·같은 종류의 대기 줄이 있으면 만들지 않는 묶음 규칙이 중복 발행도 삼킨다 — 색인 위반까지 가지 않는다."""
     world = _World()

@@ -7,3 +7,4 @@ _MAX_BIGINT = 9_223_372_036_854_775_807
 
 VisitId = Annotated[int, Path(ge=1, le=_MAX_BIGINT)]
 MenuId = Annotated[int, Path(ge=1, le=_MAX_BIGINT)]
+SeriesId = Annotated[int, Path(ge=1, le=_MAX_BIGINT)]

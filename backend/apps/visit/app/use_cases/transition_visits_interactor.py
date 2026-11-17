@@ -8,6 +8,7 @@ from hub.app.dtos.shop_context import ShopContext
 from hub.app.dtos.visit_events import VisitCanceled, VisitClosed, VisitEvent, VisitReserved
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.domain_event_port import DomainEventPort
+from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.dtos.transition_visits_dto import TransitionedVisitsView, TransitionVisitsCommand
 from visit.app.ports.input.transition_visits_use_case import TransitionVisitsUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
@@ -17,12 +18,14 @@ from visit.app.ports.output.visit_history_repository import VisitHistoryReposito
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
 from visit.app.services.completion_effects import apply_completion_effects
 from visit.app.services.revisit import pet_cycles
-from visit.app.services.visit_locking import lock_visits
+from visit.app.services.series_scope import FOLLOWING, lock_scope, notice_parts
 from visit.app.services.visit_reader import describe_visits
-from visit.domain.entities.visit import Visit
-from visit.domain.errors import VisitStateConflictError
+from visit.domain.entities.visit import RESERVED, Visit
+from visit.domain.errors import VisitInputError, VisitStateConflictError
+from visit.domain.services.send_bundle import SERIES_CANCEL
 from visit.domain.services.visit_cycle import COMPUTED, MANUAL, NONE
 from visit.domain.services.visit_schedule import local_date
+from visit.domain.services.visit_series import earliest_ids
 from visit.domain.state.visit_state import pets_to_confirm, transition
 
 
@@ -32,7 +35,7 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
     def __init__(
         self, visits: VisitWriteRepository, history: VisitHistoryRepository, menus: MenuRepository,
         reports: ReportRepository, directory: CustomerDirectoryPort, events: DomainEventPort,
-        now: Callable[[], datetime], settings: RevisitSettingsRepository,
+        now: Callable[[], datetime], settings: RevisitSettingsRepository, *, shops: ShopProfilePort,
     ) -> None:
         self._visits = visits
         self._history = history
@@ -42,12 +45,23 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
         self._events = events
         self._now = now
         self._settings = settings
+        self._shops = shops
 
     async def transition_visits(self, command: TransitionVisitsCommand) -> TransitionedVisitsView:
         ctx, ids = command.ctx, list(command.visit_ids)
+        following = command.scope == FOLLOWING
+        if following and command.action != "cancel":
+            raise VisitInputError("이후 전부는 취소에만 쓸 수 있어요.")
         # 시간을 다시 차지하는 행동(되돌리기)만 그 아이가 무지개다리를 건넜는지 가족 확인을 거친다(V7).
         pet_ids = pets_to_confirm(command.action, await self._visits.get_many(ctx, ids))
-        locked = await lock_visits(ctx, ids, self._visits, self._directory, pet_ids)
+        scope = await lock_scope(
+            ctx, ids, following=following, family=command.family, skip_ids=frozenset(command.skip_visit_ids),
+            visits=self._visits, directory=self._directory, pet_ids=pet_ids)
+        if scope.series_id is not None and any(v.status != RESERVED for v in scope.anchors):
+            raise VisitStateConflictError("이후 전부는 예약됨인 예약에서만 취소할 수 있어요.")
+        # 이후 전부(⑭)면 같은 묶음의 뒤 예약됨까지 — 잠근 뒤 다시 읽은 대상(`series_scope`). 아니면 요청한 방문뿐.
+        locked = scope.targets
+        ids = [v.id for v in locked]
         # 가족 확인은 잠그기 전 반려동물로 판단했다 — 잠근 뒤 다시 본 값이 다르면(그 사이 다른 요청이 반려동물을
         # 바꿨을 수 있다) 낡은 확인이라 다시 불러오게 한다.
         if pets_to_confirm(command.action, locked) != pet_ids:
@@ -63,14 +77,17 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
         await apply_completion_effects(ctx, locked, changed, self._history, self._directory)
         # 쓰기가 다 끝난 뒤에 알린다 — 구독자가 던지면 전이도 함께 롤백된다(설계 5.1, N13).
         # 가족 묶음은 같은 보호자(잠금이 보장)·같은 시작 시각인 것끼리다.
+        # 이후 전부의 나머지 회차는 조용히(취소 안내 없이 대기 줄만 거둔다, P12) — 안내는 가장 가까운 회차 한 통.
+        nearest = earliest_ids(locked) if scope.series_id is not None else frozenset(v.id for v in changed)
         for visit in changed:
             family = tuple(sorted(v.pet_id for v in changed if v.starts_at == visit.starts_at and v.pet_id is not None))
-            event = await self._event_for(ctx, command.action, command.cancel_reason, visit, now, family)
+            event = await self._event_for(ctx, command.action, command.cancel_reason, visit, now, family,
+                                          quiet=visit.id not in nearest)
             if event is not None:
                 await self._events.publish(event)
-        return TransitionedVisitsView(
-            visits=await describe_visits(ctx, changed, self._directory, self._menus)
-        )
+        views = await describe_visits(ctx, changed, self._directory, self._menus)
+        notice = [] if scope.series_id is None else await notice_parts(ctx, SERIES_CANCEL, views, self._shops)
+        return TransitionedVisitsView(visits=views, notice=notice)
 
     async def _cycle_of(self, ctx: ShopContext, pet_id: int | None, now: datetime) -> dict:
         """다음 예약 제안의 주 수에 쓸 아이의 주기(⑬ 설계 3.4) — 이번 완료까지 넣어 계산한다(이미 완료로 썼다).
@@ -88,13 +105,13 @@ class TransitionVisitsInteractor(TransitionVisitsUseCase):
 
     async def _event_for(
         self, ctx: ShopContext, action: str, cancel_reason: str | None, visit: Visit, now: datetime,
-        family: tuple[int, ...],
+        family: tuple[int, ...], *, quiet: bool = False,
     ) -> VisitEvent | None:
         """행동마다 알릴 사실. 시작은 알릴 것이 없다. 되돌리기의 결과는 늘 예약됨이다(`VisitState.revert`)."""
         common = dict(ctx=ctx, visit_id=visit.id, customer_id=visit.customer_id, pet_id=visit.pet_id,
                       starts_at=visit.starts_at, occurred_at=now, family_pet_ids=family)
         if action == "cancel":
-            return VisitCanceled(**common, reason=cancel_reason)
+            return VisitCanceled(**common, reason=cancel_reason, quiet=quiet)
         if action == "complete":
             previous = await self._history.latest_completed_start_excluding(
                 ctx, visit.customer_id, visit.pet_id, visit.id)

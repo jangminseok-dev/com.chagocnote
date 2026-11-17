@@ -2,7 +2,14 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from visit.domain.services.send_bundle import build_bundle, fill
+from visit.domain.services.send_bundle import (
+    SERIES_CANCEL,
+    SERIES_CHANGE,
+    BundlePart,
+    build_bundle,
+    fill,
+    series_notice,
+)
 
 SEOUL = ZoneInfo("Asia/Seoul")
 AT = datetime(2026, 11, 17, 14, 30, tzinfo=SEOUL)     # 화요일
@@ -85,3 +92,29 @@ def test_빈_자리는_그_둘레만_정리하고_나머지_글은_그대로다(
 
 def test_값에_든_중괄호는_다시_채우지_않는다():
     assert fill("{아이} {링크}", {"{아이}": "{링크}", "{링크}": "https://web.test/f/x"}) == "{링크} https://web.test/f/x"
+
+
+def test_반복_묶음이면_예약_토막_끝에_회차를_전부_적는다():
+    later = datetime(2026, 12, 15, 14, 30, tzinfo=SEOUL)
+    parts = bundle(consent_url=None, consent_pet_names=[], series_starts=[AT, later], interval_weeks=4)
+
+    assert [p.kind for p in parts] == ["reservation"]
+    assert parts[0].text == (
+        "[차곡 살롱] 예약이 접수됐어요.\n11월 17일(화) 오후 2:30\n초코\n목욕 · 위생미용"
+        "\n\n4주마다 2번 예약했어요\n· 11월 17일(화) 오후 2:30\n· 12월 15일(화) 오후 2:30")
+
+
+def test_회차가_하나면_목록을_붙이지_않는다():
+    parts = bundle(consent_url=None, consent_pet_names=[], series_starts=[AT], interval_weeks=4)
+    assert "주마다" not in parts[0].text
+
+
+def test_이후_전부의_안내_글은_바뀐_회차를_전부_적는다():
+    first = datetime(2026, 12, 18, 14, 0, tzinfo=SEOUL)
+    second = datetime(2027, 1, 15, 14, 0, tzinfo=SEOUL)
+    part = series_notice(SERIES_CANCEL, shop_name="Hiss Haus", pet_names=["콩이", "두부"], starts=[second, first, first])
+
+    assert part == BundlePart(
+        "series_cancel", "[Hiss Haus] 예약을 취소했어요.\n콩이 · 두부\n· 12월 18일(금) 오후 2:00\n· 1월 15일(금) 오후 2:00")
+    change = series_notice(SERIES_CHANGE, shop_name="Hiss Haus", pet_names=[], starts=[first])
+    assert change == BundlePart("series_change", "[Hiss Haus] 예약 날짜를 바꿨어요.\n· 12월 18일(금) 오후 2:00")
