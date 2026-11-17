@@ -1,6 +1,6 @@
 # visit — 방문(예약부터 완료까지), 미용 기록, 매장 일정, 메뉴표
 
-소유 데이터: `visits`, `visit_menus`, `visit_records`, `visit_record_items`, `visit_record_media`, `visit_reports`, `visit_shop_settings`(일정 설정·알림장 설정·다시 올 때 설정 칸), `visit_weekly_closures`, `visit_closed_dates`, `service_menus`, Redis의 공개 알림장 조회 횟수.
+소유 데이터: `visits`, `visit_series`(⑭ 반복 예약의 묶음), `visit_menus`, `visit_records`, `visit_record_items`, `visit_record_media`, `visit_reports`, `visit_shop_settings`(일정 설정·알림장 설정·다시 올 때 설정 칸), `visit_weekly_closures`, `visit_closed_dates`, `service_menus`, Redis의 공개 알림장 조회 횟수.
 
 - 방문 하나는 반려동물 한 마리의 방문이다. `pet_id`가 NULL 이면 보호자만의 방문이다. 두 마리를 한 번에 잡으면 방문이 둘이고, 같은 보호자 + 같은 시작 시각이 가족 묶음이다(저장하지 않고 계산한다).
 - `visits`의 `shop_id`·`customer_id`·`pet_id`는 다른 스포크의 ID 라 외래 키가 없다. 이름·품종 같은 보호자·반려동물 정보는 복사하지 않고 허브 포트 `CustomerDirectoryPort.briefs`로 읽는다(`app/services/visit_reader.py`).
@@ -22,10 +22,10 @@
 
 | 인터랙터 | 발행 | 위치 |
 |---|---|---|
-| `RegisterVisitInteractor` | 만든 방문마다 `VisitReserved(revived=False)` — `status == reserved` 일 때만(`walk_in` 은 없음) | `create_many` 뒤, 경고 계산 앞 |
-| `UpdateVisitInteractor` | `starts_at` 이 바뀌었을 때만 `VisitRescheduled(previous_starts_at)` | `update_details` 뒤 |
-| `RescheduleVisitsInteractor` | 옮긴 방문마다 `VisitRescheduled(previous_starts_at=잠근 행의 starts_at)` | `reschedule` 뒤, `ensure`·경고 앞 |
-| `TransitionVisitsInteractor` | `cancel` → `VisitCanceled(reason)`, `complete` → `VisitClosed("completed", previous_completed_at=latest_completed_start_excluding(…), cycle_weeks·cycle_source·default_cycle_weeks=그 아이의 주기(⑬))`, `no_show` → `VisitClosed("no_show", None)`, `revert` → `VisitReserved(revived=True)` | `apply_changes`·`apply_completion_effects` 뒤, 응답 앞 |
+| `RegisterVisitInteractor` | 만든 방문마다 `VisitReserved(revived=False)` — `status == reserved` 일 때만(`walk_in` 은 없음). 반복(⑭)이면 가장 이른 회차가 아닌 방문은 `series_followup=True`, `family_pet_ids` 는 회차마다 | `create_many` 뒤, 경고 계산 앞 |
+| `UpdateVisitInteractor` | `starts_at` 이 바뀌었을 때만 `VisitRescheduled(previous_starts_at)`. `이후 전부`(⑭)는 바뀐 방문마다 옮긴 차례대로, 가장 가까운 회차가 아니면 `quiet=True` | `update_details` 뒤 |
+| `RescheduleVisitsInteractor` | 옮긴 방문마다 `VisitRescheduled(previous_starts_at=잠근 행의 starts_at)`. `이후 전부`(⑭)는 옮긴 차례대로(늦게 미는 묶음은 늦은 회차부터 — 앞 회차가 단 알림 줄을 뒤 회차의 '빠짐'이 지우지 않게), 가장 가까운 회차가 아니면 `quiet=True` | `reschedule`·`move_each` 뒤, `ensure`·경고 앞 |
+| `TransitionVisitsInteractor` | `cancel` → `VisitCanceled(reason)`(`이후 전부` 취소는 가장 가까운 회차가 아니면 `quiet=True`), `complete` → `VisitClosed("completed", previous_completed_at=latest_completed_start_excluding(…), cycle_weeks·cycle_source·default_cycle_weeks=그 아이의 주기(⑬))`, `no_show` → `VisitClosed("no_show", None)`, `revert` → `VisitReserved(revived=True)` | `apply_changes`·`apply_completion_effects` 뒤, 응답 앞 |
 | `SendVisitReportInteractor` | 새 링크를 만들었을 때만 `VisitReportIssued(url, expires_at)` — 살아 있는 링크의 다시 공유는 발행하지 않는다 | `describe_link` 뒤, 응답 앞 |
 | `RevokeVisitReportInteractor` | 살아 있는 링크를 끊었을 때 `VisitReportRevoked` — 끊을 것이 없으면(404) 발행하지 않는다. 익명화가 끊는 링크는 이벤트 없음 | `revoke` 뒤 |
 
@@ -77,3 +77,9 @@
   - **남은 일** — `unpaid`(완료이고 paid 아님), `report_unsent`(완료이고 기록이 있고 알림장 줄이 **한 번도** 없고 넘기지 않았고 매장이 세기로 함 — 끊었거나 기간이 끝난 링크는 보낸 것), `unresolved`(지금 규칙). **지난 날·오늘만이고 익명화한 고객의 방문은 뺀다**(기록·알림장·넘기기가 가족 잠금 404 라 끝낼 수 없다 — `app/services/remaining_work.py`). 하루 `counts` 의 `unpaid`·`report_unsent`·`checks`(확인할 것이 있는 살아 있는 방문 수), 달력 칸의 `unpaid_count`·`report_unsent_count`(알림장 줄·고객 요약을 그달에 한 번씩), 하루 마무리가 같은 판정이다. 달력은 주기·`revisit_facts` 를 부르지 않는다.
   - **알림장 넘기기** `PUT|DELETE /visits/{id}/report-skip`(`record:write`, 204) — `visits.report_skipped_at`. 넘기기는 완료이고 기록이 있는 방문만(아니면 409 `VISIT_STATE_CONFLICT`), 되돌리기는 언제나 된다. 잠금은 고객 행 → 방문 행(`lock_visits`). 방문 상세에 `report_skipped`. 쓰기 포트를 받는 유스케이스가 이것까지 다섯이다(`test_visit_port_segregation`).
   - **하루 마무리** `GET /days/{date}/wrap-up`(매장 멤버) → `{date, cards: [{kind, visit, photo_url, prefill}]}`. 차례는 정리 안 된 예약 → 결제 안 적음 → 알림장 안 보냄, 종류 안에서는 시작 시각·방문 ID 순. 장은 방문 하나의 남은 일 하나다(가족 묶음도 방문마다). 그 장을 끝내는 권한(`reservation:write`·`sales:write`·`record:write`)이 없으면 그 종류의 장이 없다. 결제 장의 `prefill` — 총액은 기록의 총액 → 기록 항목 합 → 예약 메뉴의 정가 합(값 없는 메뉴는 빼고, 없으면 null — 앱의 기록 화면 채움 규칙과 같다), 결제 수단은 기록의 것 → 그 고객이 수단을 적은 가장 늦은(시작 시각) 기록(`VisitRecordRepository.latest_payment_methods`). `photo_url` 은 아이의 프로필 사진. 앞날은 빈 목록. 쓰기는 지금 있는 경로들(상태 바꾸기·기록 저장·알림장 보내기·넘기기)이다.
+- **반복 예약**(⑭-1, 0026). 낱말의 뜻은 설계 `2026-11-16-pass-recurring-design.md` 3.7, 결정과 API 는 `_docs/decisions/017-pass-recurring.md`.
+  - 한꺼번에 잡은 예약들은 같은 묶음(`visit_series` — 보호자·간격 1~12주, 보여 주려고만 남긴다)이고 `visits.series_id` 로 가리킨다. 규칙으로 뒤에서 예약을 만들어 내지 않는다.
+  - **회차·이후 전부·걸린 회차·자리는 `domain/services/visit_series.py` 의 순수 함수다**(`plan_occurrences` — 같은 요일·같은 벽시계 시각, 1년 범위 밖은 빠진다 · `repeat_interval` · `following_of` · `move_order` · `conflicts_of` · `series_position`). 보낼 글 토막(`series_lines`·`series_notice`)은 `send_bundle.py`.
+  - `GET /visits/repeat-defaults?customer_id=&pet_ids=`(간격 = ⑬ 의 아이 주기를 1~12 로 자른 값·가족이면 짧은 쪽, 모르면 매장의 기본 간격 · 횟수 6), `GET /visits/repeat-preview`(회차마다 시각·경고·`taken`, `beyond_horizon`), `POST /visits` 의 `repeat: {interval_weeks, count, skip}`(회차 × 아이를 `create_many` 한 번, `walk_in` 과 함께 못 쓴다, 남은 회차가 둘 미만이면 422) — 둘은 `/visits/{visit_id}` 보다 **앞에** include 한다. `GET /visit-series/{series_id}`(상태 무관 시각 순), 방문 상세의 `series`(자리는 취소를 뺀 회차), 다음 예약 초안의 `upcoming_starts_at`·`repeat`(마지막 회차면 이어 잡기). 보낼 것 묶음은 묶음의 예약이면 그 예약부터의 예약됨 회차를 예약 토막 끝에 전부 적는다.
+  - **`이 예약만 / 이후 전부`** — 옮기기·고치기·전이(취소만)의 요청 칸 `scope`(기본 `this`)·`family`(기본 참)·`skip_visit_ids`(`schemas/series_scope_schema.py`). 잠금과 대상은 `app/services/series_scope.py` 의 `lock_scope` 한 곳 — 고객 행 → 묶음의 대상 방문을 **한 번에** ID 오름차순 잠금 → 잠근 값으로 다시 고른다(같은 묶음 · 이 회차 이상 · 예약됨, `family` 가 거짓이면 그 아이만). 묶음이 없는 방문의 `following` 은 `this` 다. 옮기기는 벽시계 차이만큼 민다(`move_each` 는 주어진 차례로 한 줄씩 — 주마다 묶음을 1주 밀어도 유일 색인에 걸리지 않게 늦은 회차부터). 걸린 회차(`taken`·`out_of_range`)가 하나라도 있으면 **쓰기 전에** 409 `VISIT_SERIES_CONFLICT` 와 `details.conflicts`(`ensure_free`). 고치기는 메뉴·소요·메모를 같게 하고 아이 바꾸기는 422, 앵커가 예약됨이어야 한다. 응답의 `notice` 는 바뀐(취소한) 회차를 전부 적은 글 하나(시각이 그대로인 고치기는 빈 목록). 방문마다 `SearchSourceChanged`.
+  - 보낼 글(`notice`·묶음 토막)과 아이 이름을 로그·오류에 싣지 않는다. 오류의 `details` 는 ID·시각·사유뿐이다.
