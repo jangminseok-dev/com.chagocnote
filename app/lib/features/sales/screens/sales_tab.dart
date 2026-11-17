@@ -358,7 +358,7 @@ class _SalesBody extends ConsumerWidget {
           _LinkLine(
             text: AppStrings.salesDuePets(s.duePetCount),
             style: AppTypography.body,
-            onTap: () => open('/sales/due-pets'),
+            onTap: () => open('/revisits?bucket=due'),
           ),
         if (s.unrecordedCount > 0)
           _LinkLine(

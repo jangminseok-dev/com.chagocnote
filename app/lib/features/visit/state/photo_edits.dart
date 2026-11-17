@@ -83,3 +83,9 @@ RecordInput recordInputOf(VisitRecord record, List<MediaPlacement> media) =>
       ],
       media: media,
     );
+
+/// 사진 자리를 바꾸지 않는 전체 교체의 사진 자리 — 서버가 준 차례(전 → 후, 칸마다 순서) 그대로(⑬ 하루 마무리의
+/// 결제 장이 총액·수단만 바꿀 때).
+List<MediaPlacement> keptPlacements(List<RecordMedia> media) => placementsOf([
+  for (final m in [...media]..sort(_byPhaseThenOrder)) FormMedia(m, m.phase),
+]);

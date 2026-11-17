@@ -27,6 +27,7 @@ import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/record_models.dart';
 import '../api/report_models.dart';
+import '../api/visit_marks.dart';
 import '../api/visit_models.dart';
 import '../state/check_rules.dart';
 import '../state/photo_edits.dart';
@@ -270,6 +271,22 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
     }
   }
 
+  /// 하루 마무리에서 넘긴 알림장을 되돌린다(⑬) — 다시 남은 일로 센다. 실패는 스낵바, 화면은 다시 읽은 값.
+  Future<void> _unskipReport(VisitDetail detail) async {
+    final shopId = _shopId;
+    if (shopId == null || _busy || _asking) return;
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(visitCommandsProvider)
+          .unskipReport(shopId, detail.visit.visitId);
+    } catch (e) {
+      if (mounted) AppSnackBar.show(context, messageFor(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _openNext(VisitDetail detail) async {
     final shopId = _shopId;
     if (shopId == null || _busy || _asking) return;
@@ -340,6 +357,7 @@ class _VisitDetailScreenState extends ConsumerState<VisitDetailScreen> {
                     errorText: _errorText,
                     onAction: (action) => _act(detail, action),
                     onShareReport: (origin) => _shareReport(detail, origin),
+                    onUnskipReport: () => _unskipReport(detail),
                   ),
                 ),
               ),
@@ -358,6 +376,7 @@ class _Body extends ConsumerWidget {
     required this.errorText,
     required this.onAction,
     required this.onShareReport,
+    required this.onUnskipReport,
   });
 
   final VisitDetail detail;
@@ -365,6 +384,7 @@ class _Body extends ConsumerWidget {
   final String? errorText;
   final ValueChanged<VisitAction> onAction;
   final ValueChanged<Rect> onShareReport;
+  final VoidCallback onUnskipReport;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -404,7 +424,7 @@ class _Body extends ConsumerWidget {
           onTap: (i) => context.push(
             '/visits/${visit.visitId}/photos/${gallery[i].mediaId}',
           ),
-          overlay: _WhoCard(visit: visit, reportSent: report.live),
+          overlay: _WhoCard(visit: visit, marks: detail.marks),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -488,8 +508,13 @@ class _Body extends ConsumerWidget {
                 value:
                     '${previous == null ? AppStrings.none : dayLabel(previous.startsAt.wall)} · ${AppStrings.noShowCount(detail.noShowCount)}',
               ),
+              // 하루 마무리에서 "보내지 않음"으로 넘긴 방문(⑬) — 여기서 되돌린다.
+              if (visit.status == VisitStatus.completed &&
+                  !report.live &&
+                  detail.reportSkipped)
+                _SkippedReportCard(busy: busy, onUnskip: onUnskipReport)
               // 아직 안 보낸 완료 방문 — 기록이 있어야 보낼 수 있다(없으면 서버가 409 로 거절한다).
-              if (visit.status == VisitStatus.completed && !report.live)
+              else if (visit.status == VisitStatus.completed && !report.live)
                 _InfoCard(
                   label: AppStrings.reportLabel,
                   value: record == null
@@ -602,10 +627,12 @@ class _DetailChecksState extends ConsumerState<_DetailChecks> {
 /// 넘기기 위의 이름 카드(기준 목업) — 이름, 품종·몸무게, 상태. 목업은 글래스지만 스크롤 화면이라 불투명
 /// 카드다(기반 설계 6.2, `glass_boundary_test`). 알림장을 보냈으면 상태 뒤에 "알림장 보냄"이 붙는다.
 class _WhoCard extends StatelessWidget {
-  const _WhoCard({required this.visit, required this.reportSent});
+  const _WhoCard({required this.visit, required this.marks});
 
   final Visit visit;
-  final bool reportSent;
+
+  /// 끝낸 일의 낱말(⑬ — 결제 완료·알림장 보냄 …).
+  final List<VisitMark> marks;
 
   @override
   Widget build(BuildContext context) {
@@ -638,9 +665,10 @@ class _WhoCard extends StatelessWidget {
               ),
             ),
             AppChip(
-              label: reportSent
-                  ? '${statusLabel(visit.status)} · ${AppStrings.reportSentMark}'
-                  : statusLabel(visit.status),
+              label: [
+                statusLabel(visit.status),
+                for (final m in marks) markLabel(m),
+              ].join(' · '),
             ),
           ],
         ),
@@ -839,6 +867,41 @@ class _ReportCard extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 알림장을 보내지 않기로 한 방문(⑬) — 줄과 [되돌리기].
+class _SkippedReportCard extends StatelessWidget {
+  const _SkippedReportCard({required this.busy, required this.onUnskip});
+
+  final bool busy;
+  final VoidCallback onUnskip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+      child: AppCard(
+        child: Row(
+          children: [
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(AppStrings.reportLabel, style: AppTypography.caption),
+                  SizedBox(height: AppSpacing.xs),
+                  Text(AppStrings.reportSkipped, style: AppTypography.body),
+                ],
+              ),
+            ),
+            AppButton(
+              label: AppStrings.reportUnskip,
+              onPressed: busy ? null : onUnskip,
             ),
           ],
         ),

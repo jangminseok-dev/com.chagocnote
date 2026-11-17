@@ -9,6 +9,7 @@ import 'package:chagocnote/design/widgets/app_photo_fan.dart';
 import 'package:chagocnote/design/widgets/app_photo_tile.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/features/visit/state/calendar_selection.dart';
+import 'package:chagocnote/features/visit/state/visit_providers.dart';
 import 'package:chagocnote/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -275,6 +276,78 @@ void main() {
     expect(find.text(AppStrings.yearMonth(2026, 8)), findsOneWidget);
   });
 
+  testWidgets('다시 올 때가 된 아이(⑬) — 0 이면 줄이 없고, 있으면 곧+지남의 수이고 누르면 목록이 열린다', (tester) async {
+    final backend = _backend();
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _pumpHome(tester, setup);
+    expect(find.textContaining('다시 올 때가 된 아이'), findsNothing);
+
+    backend.routes['GET /v1/shops/3/revisits/counts'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: {'soon': 3, 'due': 4});
+    backend.routes['GET /v1/shops/3/revisits'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: revisitPageJson());
+    setup.container.invalidate(revisitCountsProvider);
+    await settle(tester);
+    expect(find.text(AppStrings.revisitBanner(7)), findsOneWidget);
+
+    await tester.tap(find.text(AppStrings.revisitBanner(7)));
+    await settle(tester);
+    expect(find.byKey(ScreenKeys.revisits), findsOneWidget);
+  });
+
+  testWidgets('칸의 숫자는 그날의 남은 일(정리 + 결제 + 알림장)이고 이름표에 싣는다(⑬)', (tester) async {
+    final backend = _backend();
+    backend.routes['GET /v1/shops/3/visits/calendar'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: calendarJson(
+        days: {
+          // 날짜 숫자와 겹치지 않게 큰 수 — 10 + 20 + 11.
+          15: {'visit_count': 3, 'completed_count': 3, 'unresolved_count': 10, 'unpaid_count': 20, 'report_unsent_count': 11},
+        },
+      ),
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _pumpHome(tester, setup);
+
+    expect(find.text('41'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(AppStrings.calendarRemaining(41))), findsOneWidget);
+  });
+
+  testWidgets('고른 날 카드 — 지난 날·오늘의 남은 일은 따로 누르는 줄(누르면 하루 마무리), 앞날은 확인 N', (tester) async {
+    final backend = _backend();
+    backend.routes['GET /v1/shops/3/visits'] = (o, b) {
+      final date = o.queryParameters['date'] as String;
+      return FakeResponse(
+        statusCode: 200,
+        data: date == '2026-09-22'
+            ? dayJson(date: date, unpaid: 2, reportUnsent: 1)
+            : dayJson(date: date, checks: 1),
+      );
+    };
+    backend.routes['GET /v1/shops/3/days/2026-09-22/wrap-up'] = (o, b) =>
+        FakeResponse(statusCode: 200, data: wrapUpJson(date: '2026-09-22'));
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _pumpHome(tester, setup);
+
+    final line = '${AppStrings.remainingUnpaid(2)} · ${AppStrings.remainingReportUnsent(1)}';
+    expect(find.text(line), findsOneWidget);
+
+    // 앞날(25일)을 고르면 확인할 것의 수.
+    await tester.tap(find.bySemanticsLabel(RegExp('9월 25일')).first);
+    await settle(tester);
+    expect(find.text(AppStrings.checkCount(1)), findsOneWidget);
+    expect(find.text(line), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel(RegExp('9월 22일')).first);
+    await settle(tester);
+    await tester.tap(find.text(line));
+    await settle(tester);
+    expect(find.byKey(ScreenKeys.wrapUp), findsOneWidget);
+  });
+
   testWidgets('미리보기를 누르면 고른 날의 하루 화면으로 간다', (tester) async {
     final setup = CustomerTestSetup(_backend().call, overrides: _today);
     addTearDown(setup.container.dispose);
@@ -422,6 +495,26 @@ void main() {
         find.text(
           '${AppStrings.mediaCount(3)} · ${AppStrings.reportSentMark}',
         ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('결제한 카드에 "결제 완료"가 "알림장 보냄" 앞에 붙는다(⑬)', (tester) async {
+      final backend = _backend();
+      backend.routes['GET /v1/shops/3/visits/feed'] = (o, b) => FakeResponse(
+        statusCode: 200,
+        data: feedJson(
+          items: [
+            feedItemJson(careNote: null, reportSent: true, marks: ['report_sent', 'paid']),
+          ],
+        ),
+      );
+      final app = build(backend);
+      await app.setup.prefs.write(PrefsKeys.calendarViewMode, 'feed');
+      await _pumpHome(tester, app.setup);
+
+      expect(
+        find.text('${AppStrings.paidMark} · ${AppStrings.reportSentMark}'),
         findsOneWidget,
       );
     });

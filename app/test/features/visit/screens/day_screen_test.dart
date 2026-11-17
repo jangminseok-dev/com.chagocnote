@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/time/grooming_cycle.dart';
 import 'package:chagocnote/core/storage/prefs_store.dart';
 import 'package:chagocnote/core/time/today_provider.dart';
 import 'package:chagocnote/design/widgets/app_button.dart';
@@ -321,7 +322,7 @@ void main() {
       });
       expect(find.text(AppStrings.completeTitle), findsOneWidget);
       expect(
-        find.text(AppStrings.nextPreview('10월 21일 수 13:00')),
+        find.textContaining(AppStrings.nextDraftLine(4, '10월 21일 수 13:00', draftSourceLabel(CycleSource.none))),
         findsOneWidget,
       );
       await tester.tap(_button(AppStrings.close));
@@ -493,6 +494,76 @@ void main() {
     // 가족은 한 아이만 보냈으면 적지 않는다.
     expect(find.text('목욕 · 이수진'), findsOneWidget);
     expect(find.text('목욕 · 박하늘'), findsOneWidget);
+  });
+
+  testWidgets('결제한 방문의 카드와 시간표 블록에 "결제 완료"가 "알림장 보냄" 앞에 붙는다(⑬)', (tester) async {
+    final items = [
+      dayItemJson(
+        _v(1, '10:00', status: 'completed'),
+        reportSent: true,
+        marks: ['report_sent', 'paid'],
+      ),
+      dayItemJson(_v(4, '14:00', status: 'completed', pet: '몽이', owner: '박하늘', customerId: 9)),
+    ];
+    final setup = CustomerTestSetup(_backend(items).call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    expect(
+      find.text('목욕 · 김민지 · ${AppStrings.paidMark} · ${AppStrings.reportSentMark}'),
+      findsOneWidget,
+    );
+    expect(find.text('목욕 · 박하늘'), findsOneWidget);
+  });
+
+  testWidgets('시간표 블록에도 "결제 완료"를 적는다(⑬)', (tester) async {
+    final items = [
+      dayItemJson(
+        _v(1, '10:00', status: 'completed'),
+        reportSent: true,
+        marks: ['report_sent', 'paid'],
+      ),
+    ];
+    final setup = CustomerTestSetup(_backend(items).call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await setup.prefs.write(PrefsKeys.dayViewMode, 'timeline');
+    await _open(tester, setup);
+    expect(
+      find.text(
+        '목욕 · 김민지 · ${AppStrings.statusCompleted} · ${AppStrings.paidMark} · ${AppStrings.reportSentMark}',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('머리에 남은 일의 수(⑬) — 0 인 것은 없고, 누르면 그 종류부터 하루 마무리가 열린다', (tester) async {
+    final backend = _backend();
+    backend.routes['GET /v1/shops/3/visits'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: dayJson(date: _date, items: _mockupItems(), unpaid: 2, reportUnsent: 1),
+    );
+    backend.routes['GET /v1/shops/3/days/$_date/wrap-up'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: wrapUpJson(
+        date: _date,
+        cards: [
+          wrapUpCardJson(kind: 'unpaid', visit: _v(1, '10:00', status: 'completed')),
+          wrapUpCardJson(kind: 'report_unsent', visit: _v(1, '10:00', status: 'completed')),
+        ],
+      ),
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+
+    expect(find.text(AppStrings.remainingUnpaid(2)), findsOneWidget);
+    expect(find.text(AppStrings.remainingReportUnsent(1)), findsOneWidget);
+    expect(find.textContaining(AppStrings.markUnresolved), findsNothing);
+
+    await tester.tap(find.text(AppStrings.remainingReportUnsent(1)));
+    await settle(tester);
+    expect(find.byKey(ScreenKeys.wrapUp), findsOneWidget);
+    expect(find.text(AppStrings.wrapUpKindReport), findsOneWidget);
   });
 
   testWidgets('시간표의 블록에도 "알림장 보냄"을 적는다', (tester) async {
@@ -726,6 +797,26 @@ void main() {
     await expectLater(
       find.byKey(ScreenKeys.day),
       matchesGoldenFile('goldens/day_list.png'),
+    );
+  });
+
+  testWidgets('하루 목록 골든 — 머리의 남은 일과 줄의 결제 완료(⑬)', (tester) async {
+    final items = _mockupItems(sent: true);
+    items.first['marks'] = ['paid', 'report_sent'];
+    final backend = _backend(items);
+    backend.routes['GET /v1/shops/3/visits'] = (o, b) => FakeResponse(
+      statusCode: 200,
+      data: dayJson(date: _date, items: items, unpaid: 1, reportUnsent: 2),
+    );
+    final setup = CustomerTestSetup(backend.call, overrides: _today);
+    addTearDown(setup.container.dispose);
+    await _open(tester, setup);
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+
+    await expectLater(
+      find.byKey(ScreenKeys.day),
+      matchesGoldenFile('goldens/day_list_remaining.png'),
     );
   });
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:chagocnote/core/proxy/media_images.dart';
 import 'package:chagocnote/core/proxy/media_picker.dart';
 import 'package:chagocnote/core/router/screen_keys.dart';
+import 'package:chagocnote/core/time/grooming_cycle.dart';
 import 'package:chagocnote/features/visit/api/record_models.dart';
 import 'package:chagocnote/features/visit/state/upload_job.dart';
 import 'package:chagocnote/features/visit/state/upload_queue.dart';
@@ -16,6 +17,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:chagocnote/features/visit/screens/send_bundle_sheet.dart';
 
+import '../../../support/customer_fixtures.dart';
 import '../../../support/customer_test_app.dart';
 import '../../../support/form_settings_fixtures.dart';
 import '../../../support/upload_fakes.dart';
@@ -40,6 +42,9 @@ class _Server {
           group: [if (withBori) _bori()],
           record: record,
           report: report,
+          // 서버 계약 — 살아 있는 링크면 report_sent, 결제를 적었으면 paid(⑬).
+          marks: [if (paid) 'paid', if (report['status'] == 'live') 'report_sent'],
+          reportSkipped: reportSkipped,
         ),
       ),
       'GET /v1/shops/3/visits/102': (o, b) => FakeResponse(
@@ -81,6 +86,10 @@ class _Server {
         report = reportLinkJson();
         return const FakeResponse(statusCode: 204);
       },
+      'DELETE /v1/shops/3/visits/101/report-skip': (o, b) {
+        reportSkipped = false;
+        return const FakeResponse(statusCode: 204);
+      },
     });
   }
 
@@ -88,8 +97,11 @@ class _Server {
   String? cancelReason;
   Map<String, dynamic>? record;
   Map<String, dynamic> report = reportLinkJson();
+  bool paid = false;
+  bool reportSkipped = false;
   final bool withBori;
   final transitions = <Map<String, dynamic>>[];
+  final settingsPuts = <Map<String, dynamic>>[];
   final recordPuts = <Map<String, dynamic>>[];
   late final VisitTestBackend backend;
 
@@ -245,11 +257,12 @@ void main() {
     });
     // 시트는 다음 예약이 언제로 잡히는지 미리 보인다(완료한 뒤 초안을 읽는다).
     expect(find.text(AppStrings.completeTitle), findsOneWidget);
+    // 줄은 간격의 출처를 말한다(⑬) — 이 초안은 매장 기본 간격으로 어림했다.
     expect(
-      find.text(AppStrings.nextPreview('10월 30일 금 14:00')),
+      find.text(AppStrings.nextDraftLine(4, '10월 30일 금 14:00', draftSourceLabel(CycleSource.none))),
       findsOneWidget,
     );
-    expect(find.text(AppStrings.completeAndNextCaption(4)), findsOneWidget);
+    expect(find.text(AppStrings.nextDraftCaption), findsOneWidget);
     await _tap(tester, _button(AppStrings.close));
 
     expect(find.byKey(ScreenKeys.registerVisit), findsNothing);
@@ -317,7 +330,101 @@ void main() {
 
     expect(server.transitions.single['action'], 'complete');
     expect(find.text(AppStrings.completeTitle), findsOneWidget);
-    expect(find.textContaining('→'), findsNothing);
+    expect(find.textContaining('주 뒤'), findsNothing);
+    expect(find.text(AppStrings.changeInterval), findsNothing);
+  });
+
+  group('완료 시트의 다음 예약 줄(⑬)', () {
+    /// 미용 중인 두부(101, 아이 11) — 초안을 읽을 때마다 [drafts] 의 다음 것을 준다(마지막 것은 계속).
+    _Server server(List<Map<String, dynamic>> drafts, {Map<String, dynamic>? revisit}) {
+      final s = _Server(status: 'in_progress');
+      var read = 0;
+      s.backend.routes['GET /v1/shops/3/visits/101/next-draft'] = (o, b) =>
+          FakeResponse(statusCode: 200, data: drafts[(read++).clamp(0, drafts.length - 1)]);
+      s.backend.routes['GET /v1/shops/3/pets/11'] = (o, b) => FakeResponse(
+        statusCode: 200,
+        data: petDetailJson(pet: petJson(), revisit: revisit ?? petRevisitJson()),
+      );
+      s.backend.routes['PUT /v1/shops/3/pets/11/grooming-cycle'] = (o, b) =>
+          const FakeResponse(statusCode: 204);
+      s.backend.routes['GET /v1/shops/3/revisit-settings'] = (o, b) =>
+          FakeResponse(statusCode: 200, data: revisitSettingsJson());
+      s.backend.routes['PUT /v1/shops/3/revisit-settings'] = (o, body) {
+        s.settingsPuts.add(bodyOf(body));
+        return FakeResponse(statusCode: 200, data: revisitSettingsJson(defaultWeeks: 6));
+      };
+      return s;
+    }
+
+    Future<CustomerTestSetup> complete(WidgetTester tester, _Server s, {String role = 'owner'}) async {
+      final setup = CustomerTestSetup(s.backend.call, role: role, overrides: _today);
+      addTearDown(setup.container.dispose);
+      await _open(tester, setup);
+      await _tap(tester, _button(AppStrings.actionComplete));
+      await _tap(tester, _button(AppStrings.completeWithoutRecord));
+      return setup;
+    }
+
+    testWidgets('계산한 간격·직접 정한 간격의 줄', (tester) async {
+      await complete(
+        tester,
+        server([nextDraftJson(startsAt: '2026-11-13T14:00:00+09:00', cycleWeeks: 6, cycleSource: 'computed')]),
+      );
+      expect(
+        find.text(AppStrings.nextDraftLine(6, '11월 13일 금 14:00', draftSourceLabel(CycleSource.computed))),
+        findsOneWidget,
+      );
+      expect(find.text('6주 뒤 11월 13일 금 14:00 · 보통 오는 간격'), findsOneWidget);
+      // 어림이 아니면 매장의 기본 간격을 바꾸는 줄이 없다.
+      expect(find.text(AppStrings.changeDefaultInterval), findsNothing);
+    });
+
+    testWidgets('[간격 바꾸기]는 그 아이의 주기 시트 — 저장하면 초안을 다시 읽어 줄과 [다음 예약 잡기]가 따라간다', (tester) async {
+      final s = server([
+        nextDraftJson(startsAt: '2026-11-13T14:00:00+09:00', cycleWeeks: 6, cycleSource: 'computed'),
+        nextDraftJson(startsAt: '2026-11-20T14:00:00+09:00', cycleWeeks: 7, cycleSource: 'manual'),
+      ]);
+      final setup = await complete(tester, s);
+
+      await _tap(tester, find.text(AppStrings.changeInterval));
+      await _tap(tester, find.bySemanticsLabel(AppStrings.stepUp));
+      await _tap(tester, _button(AppStrings.save).last);
+
+      expect(setup.calls, contains('PUT /v1/shops/3/pets/11/grooming-cycle'));
+      expect(setup.calls.where((c) => c.endsWith('/next-draft')), hasLength(2));
+      expect(find.text('7주 뒤 11월 20일 금 14:00 · 직접 정한 간격'), findsOneWidget);
+
+      await _tap(tester, _button(AppStrings.actionNextReservation));
+      expect(find.byKey(ScreenKeys.registerVisit), findsOneWidget);
+      expect(find.text(AppStrings.saveReservation('11월 20일 금 14:00')), findsOneWidget);
+      // 바뀐 초안을 이미 읽었다 — 다시 읽지 않는다.
+      expect(setup.calls.where((c) => c.endsWith('/next-draft')), hasLength(2));
+    });
+
+    testWidgets('어림이면 사장에게 [기본 간격 바꾸기]가 있고, 고른 값만 보내고 초안을 다시 읽는다', (tester) async {
+      final s = server([
+        nextDraftJson(cycleWeeks: 4, cycleSource: 'none'),
+        nextDraftJson(startsAt: '2026-11-13T14:00:00+09:00', cycleWeeks: 6, cycleSource: 'none'),
+      ]);
+      await complete(tester, s);
+
+      await _tap(tester, find.text(AppStrings.changeDefaultInterval));
+      await _tap(tester, find.bySemanticsLabel(AppStrings.stepUp));
+      await _tap(tester, find.bySemanticsLabel(AppStrings.stepUp));
+      await _tap(tester, _button(AppStrings.save).last);
+
+      expect(s.settingsPuts, [
+        {'default_cycle_weeks': 6},
+      ]);
+      expect(find.text('6주 뒤 11월 13일 금 14:00 · 매장 기본 간격(어림)'), findsOneWidget);
+    });
+
+    testWidgets('직원에게는 [기본 간격 바꾸기]가 없고 [간격 바꾸기]는 있다', (tester) async {
+      await complete(tester, server([nextDraftJson(cycleWeeks: 4, cycleSource: 'none')]), role: 'staff');
+
+      expect(find.text(AppStrings.changeDefaultInterval), findsNothing);
+      expect(find.text(AppStrings.changeInterval), findsOneWidget);
+    });
   });
 
   testWidgets('기록 화면에서 뒤로 가면 완료하지 않고 시트도 없다', (tester) async {
@@ -1116,6 +1223,45 @@ void main() {
         expect(_button(AppStrings.reportShareAgain), findsNothing);
       },
     );
+
+    testWidgets('결제를 적은 방문의 이름 카드에 "결제 완료"가 붙는다(⑬)', (tester) async {
+      await open(tester, sent()..paid = true);
+
+      expect(
+        find.text('완료 · ${AppStrings.paidMark} · ${AppStrings.reportSentMark}'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('하루 마무리에서 넘긴 방문은 "보내지 않기로 했어요"와 [되돌리기] — 누르면 되돌리고 다시 읽는다(⑬)', (
+      tester,
+    ) async {
+      final server = done()..reportSkipped = true;
+      final setup = await open(tester, server);
+
+      expect(find.text(AppStrings.reportSkipped), findsOneWidget);
+      expect(find.text(AppStrings.reportNotSent), findsNothing);
+      await _tap(tester, _button(AppStrings.reportUnskip));
+
+      expect(
+        setup.calls.where((c) => c == 'DELETE /v1/shops/3/visits/101/report-skip'),
+        hasLength(1),
+      );
+      expect(find.text(AppStrings.reportSkipped), findsNothing);
+      expect(find.text(AppStrings.reportNotSent), findsOneWidget);
+    });
+
+    testWidgets('되돌리기가 실패하면 문구를 보이고 그대로 둔다', (tester) async {
+      final server = done()..reportSkipped = true;
+      server.backend.routes['DELETE /v1/shops/3/visits/101/report-skip'] = (o, b) =>
+          const FakeResponse(statusCode: 500, data: {'code': 'INTERNAL', 'message': 'x'});
+      await open(tester, server);
+
+      await _tap(tester, _button(AppStrings.reportUnskip));
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.text(AppStrings.reportSkipped), findsOneWidget);
+    });
 
     testWidgets('알림장을 보내기 전 골든', (tester) async {
       await open(tester, done());

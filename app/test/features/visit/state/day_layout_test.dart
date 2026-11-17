@@ -1,3 +1,4 @@
+import 'package:chagocnote/features/visit/api/visit_marks.dart';
 import 'package:chagocnote/features/visit/api/visit_models.dart';
 import 'package:chagocnote/features/visit/state/day_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ DayVisitItem _item(
   bool reportSent = false,
   int customerChecks = 0,
   int petChecks = 0,
+  List<String>? marks,
 }) => DayVisitItem.fromJson(
   dayItemJson(
     visitJson(
@@ -25,6 +27,7 @@ DayVisitItem _item(
     reportSent: reportSent,
     customerCheckCount: customerChecks,
     petCheckCount: petChecks,
+    marks: marks,
   ),
 );
 
@@ -66,6 +69,25 @@ void main() {
     ]).single;
 
     expect(allCanceled.endsAt, DateTime(2026, 10, 2, 15, 30));
+  });
+
+  test('묶음의 낱말(⑬)은 완료한 방문이 모두 가진 것만이다 — 차례는 결제 완료 → 알림장 보냄', () {
+    DayVisitItem item(int id, String status, List<String> marks) =>
+        _item(id, '13:00', group: 'a', status: status, marks: marks);
+    List<VisitMark> marks(List<DayVisitItem> items) => groupDay(items).single.marks;
+
+    expect(
+      marks([
+        item(1, 'completed', ['report_sent', 'paid']),
+        item(2, 'completed', ['paid']),
+      ]),
+      [VisitMark.paid],
+    );
+    // 한 아이만 결제했으면 뜨지 않는다.
+    expect(marks([item(1, 'completed', ['paid']), item(2, 'completed', [])]), isEmpty);
+    // 취소한 아이는 셈에 들지 않는다.
+    expect(marks([item(1, 'completed', ['paid']), item(2, 'canceled', [])]), [VisitMark.paid]);
+    expect(marks([item(1, 'reserved', []), item(2, 'canceled', [])]), isEmpty);
   });
 
   test('묶음은 완료한 방문이 모두 보냈을 때만 보냄이다', () {

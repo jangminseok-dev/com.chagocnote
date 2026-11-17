@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/plugs/care_marks_plug.dart';
 import '../../customer/api/consent_models.dart';
 import '../../customer/state/consent_commands.dart';
 import '../../customer/state/consent_providers.dart';
@@ -8,6 +9,7 @@ import '../../customer/state/customer_list_controller.dart';
 import '../../customer/state/customer_providers.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/record_models.dart';
+import '../api/revisit_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
 import 'feed_controller.dart';
@@ -170,12 +172,42 @@ class VisitCommands {
     _ref.invalidate(visitChecksProvider);
   }
 
+  /// 알림장을 보내지 않음으로 넘긴다(⑬ 하루 마무리). 남은 일의 수가 바뀐다.
+  Future<void> skipReport(int shopId, int visitId) =>
+      _visitWrite(() => _api.skipReport(shopId, visitId));
+
+  /// 넘긴 것을 되돌린다(방문 상세).
+  Future<void> unskipReport(int shopId, int visitId) =>
+      _visitWrite(() => _api.unskipReport(shopId, visitId));
+
+  /// 매장의 다시 올 때 설정(⑬) — 보낸 칸만 바뀐다. 사장만(서버가 403). 묶음·남은 일의 수·하루 마무리가
+  /// 이 값으로 정해지므로 **성공하든 실패하든** 함께 다시 읽는다.
+  Future<RevisitSettings> updateRevisitSettings(
+    int shopId,
+    Map<String, Object?> changes,
+  ) async {
+    try {
+      return await runShopScoped(
+        _ref,
+        () => _api.updateRevisitSettings(shopId, changes),
+      );
+    } finally {
+      _ref.invalidate(revisitSettingsProvider);
+      _ref.invalidate(revisitCountsProvider);
+      _ref.invalidate(dayVisitsProvider);
+      _ref.invalidate(calendarMonthProvider);
+    }
+  }
+
   Future<T> _visitWrite<T>(Future<T> Function() action) async {
     try {
       return await runShopScoped(_ref, action);
     } finally {
       _ref.invalidate(dayVisitsProvider);
       _ref.invalidate(calendarMonthProvider);
+      // 다시 올 때의 수(⑬)가 방문에 따라 바뀐다. 목록은 무효화하지 않는다 — 목록 화면이 다녀오면 스스로
+      // reload() 한다(무효화하면 [더 보기]로 이어 읽은 줄이 첫 쪽으로 준다).
+      _ref.invalidate(revisitCountsProvider);
       _ref.invalidate(visitDetailProvider);
       _ref.invalidate(visitSlotsProvider);
       _ref.invalidate(feedControllerProvider);
@@ -207,3 +239,14 @@ class VisitCommands {
 final visitCommandsProvider = Provider<VisitCommands>(
   (ref) => VisitCommands(ref),
 );
+
+/// 확인할 것·다시 올 때를 다시 읽게 한다 — 미용 동의·주의 표시가 바뀌면 방문 상세의 묶음, 하루 목록의 수,
+/// 미리 보기가 낡고, 아이의 주기·안내한 날(⑬)이 바뀌면 다시 올 때의 수가 낡는다(목록은 목록 화면이 다녀오면
+/// 스스로 reload() 한다 — 무효화하면 이어 읽은 줄이 첫 쪽으로 준다).
+/// `app.dart`가 `careMarksChangedPlugProvider`에 꽂는다(customer 는 visit 를 import 하지 않는다).
+CareMarksChanged careMarksChanged(Ref ref) => () {
+  ref.invalidate(visitDetailProvider);
+  ref.invalidate(dayVisitsProvider);
+  ref.invalidate(visitChecksProvider);
+  ref.invalidate(revisitCountsProvider);
+};

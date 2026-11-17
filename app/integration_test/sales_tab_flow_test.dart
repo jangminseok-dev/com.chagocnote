@@ -196,17 +196,18 @@ void main() {
       await backToTab();
     });
 
-    await step('S8', '다시 올 때가 지난 아이 — 목록에서 반려동물 상세로 간다', () async {
+    await step('S8', '다시 올 때가 지난 아이 — 다시 올 때가 된 아이 화면(지남)에서 반려동물 상세로 간다(⑬)', () async {
       await openMonth();
       await tap(find.text(AppStrings.salesDuePets(1)));
-      await waitFor(find.byKey(ScreenKeys.duePets));
+      await waitFor(find.byKey(ScreenKeys.revisits));
       await waitFor(find.text('보리'));
-      await shot('S8-due-pets');
-      soft(find.text('8주 전').evaluate().isNotEmpty, '마지막 방문이 8주 전이 아니다');
+      await shot('S8-revisits');
+      // 한 번 온 아이는 매장 기본 간격(4주)으로 어림한다 — 60일 전 → 주로 반올림해 9주 전(서버의 안내 글과 같은 셈).
+      soft(find.text('9주 전에 왔어요 · 어림').evaluate().isNotEmpty, '마지막 방문이 9주 전(어림)이 아니다');
       await tap(find.text('보리'));
       await waitFor(find.byKey(ScreenKeys.petDetail));
       router.pop();
-      await waitFor(find.byKey(ScreenKeys.duePets));
+      await waitFor(find.byKey(ScreenKeys.revisits));
       await backToTab();
     });
 

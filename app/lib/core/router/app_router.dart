@@ -18,7 +18,6 @@ import '../../features/customer/screens/pet_form_screen.dart';
 import '../../features/customer/screens/customer_edit_screen.dart';
 import '../../features/customer/screens/register_customer_screen.dart';
 import '../../features/home/screens/home_shell.dart';
-import '../../features/sales/screens/due_pets_screen.dart';
 import '../../features/sales/screens/sales_visits_screen.dart';
 import '../../features/search/screens/search_screen.dart';
 import '../../features/shop/screens/members_screen.dart';
@@ -38,6 +37,11 @@ import '../../features/visit/screens/report_preview_screen.dart';
 import '../../features/visit/screens/settings/menu_settings_screen.dart';
 import '../../features/visit/screens/settings/notification_settings_screen.dart';
 import '../../features/visit/screens/settings/report_settings_screen.dart';
+import '../../features/visit/api/revisit_models.dart';
+import '../../features/visit/api/wrap_up_models.dart';
+import '../../features/visit/screens/revisits_screen.dart';
+import '../../features/visit/screens/wrap_up_screen.dart';
+import '../../features/visit/screens/settings/revisit_message_screen.dart';
 import '../../features/visit/screens/settings/schedule_settings_screen.dart';
 import '../../features/visit/screens/visit_detail_screen.dart';
 import '../../features/visit/screens/visit_edit_screen.dart';
@@ -123,6 +127,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/schedule',
         builder: (context, state) => const ScheduleSettingsScreen(),
       ),
+      // 다시 올 때가 된 아이에게 보낼 글의 템플릿(⑬).
+      GoRoute(
+        path: '/settings/revisit-message',
+        builder: (context, state) => const RevisitMessageScreen(),
+      ),
       GoRoute(
         path: '/settings/menus',
         builder: (context, state) => const MenuSettingsScreen(),
@@ -205,9 +214,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/sales/visits',
         builder: (context, state) => SalesVisitsScreen(query: state.uri.queryParameters),
       ),
+      // 다시 올 때가 된 아이(⑬) — bucket=soon 이면 곧으로 연다(없으면 지남).
       GoRoute(
-        path: '/sales/due-pets',
-        builder: (context, state) => const DuePetsScreen(),
+        path: '/revisits',
+        builder: (context, state) => RevisitsScreen(
+          initial: RevisitBucket.parse(state.uri.queryParameters['bucket']),
+        ),
       ),
       // 기록 찾기(⑨). pet_id 를 주면 그 아이 안에서만 찾는다 — pet 은 화면 위에 보일 이름이다.
       GoRoute(
@@ -253,6 +265,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/visits/draft',
         builder: (context, state) => DraftScreen(text: state.extra as String),
+      ),
+      // 하루 마무리(⑬) — kind 를 주면 그 종류의 장부터 연다.
+      GoRoute(
+        path: '/days/:date/wrap-up',
+        builder: (context, state) => WrapUpScreen(
+          date: parseDay(state.pathParameters['date']!),
+          start: WrapUpKind.tryParse(state.uri.queryParameters['kind']),
+        ),
       ),
       GoRoute(
         path: '/visits/day/:date',

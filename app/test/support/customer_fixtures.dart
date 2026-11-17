@@ -163,9 +163,11 @@ Map<String, dynamic> petDetailJson({
   String phoneMasked = '010-12··-5678',
   List<Map<String, dynamic>> siblings = const [],
   Map<String, dynamic>? caution,
+  Map<String, dynamic>? revisit,
 }) => {
   'pet': pet ?? petJson(customerId: customerId),
   'caution': caution,
+  'revisit': revisit,
   'owner': {
     'customer_id': customerId,
     'name': ownerName,
@@ -202,4 +204,27 @@ Map<String, dynamic> guardianLinkJson({
   'linked': linked,
   'linked_at': linked ? linkedAt : null,
   'family_count': linked ? familyCount : 0,
+};
+
+/// 반려동물 상세의 주기(⑬) — 서버가 계산해 준다.
+Map<String, dynamic> petRevisitJson({
+  int cycleWeeks = 6,
+  String cycleSource = 'computed',
+  int intervalCount = 3,
+  int? lastIntervalWeeks = 6,
+  String? lastVisitDate = '2026-10-01',
+  String? dueDate = '2026-11-12',
+  bool? estimated,
+  bool hasUpcoming = false,
+  String? nudgedOn,
+}) => {
+  'cycle_weeks': cycleWeeks,
+  'cycle_source': cycleSource,
+  'interval_count': intervalCount,
+  'last_interval_weeks': lastIntervalWeeks,
+  'last_visit_date': lastVisitDate,
+  'due_date': dueDate,
+  'estimated': estimated ?? (cycleSource == 'single' || cycleSource == 'none'),
+  'has_upcoming': hasUpcoming,
+  'nudged_on': nudgedOn,
 };

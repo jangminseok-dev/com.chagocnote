@@ -256,6 +256,93 @@ class AppStrings {
   static const durationLabel = '소요';
   static const shorter = '소요 줄이기';
   static const longer = '소요 늘리기';
+
+  // 숫자 시트의 [−]·[+](⑬).
+  static const stepDown = '줄이기';
+  static const stepUp = '늘리기';
+  static String weeksUnit(int n) => '$n주';
+  static String daysUnit(int n) => '$n일';
+  static String visitsUnit(int n) => '$n번';
+
+  // ⑬ 예약 설정의 다시 올 때(설계 3.7 — 줄 이름만 읽고 무슨 일이 생기는지 알게).
+  static const revisitSectionTitle = '다시 올 때';
+  static const revisitDefaultWeeksLabel = '처음 온 아이의 다음 미용은 몇 주 뒤로 잡을까요';
+  static String revisitDefaultWeeksNote(int weeks) =>
+      "한 번 온 아이: $weeks주 뒤로 잡고, $weeks주가 지나면 '지남'에 올라요";
+  static const revisitSoonDaysLabel = "다시 올 날 며칠 전부터 '곧'에 올릴까요";
+  static String revisitSoonDaysNote(int days) => "다시 올 날 $days일 전부터 '곧'에 올려요";
+  static String revisitSoonCountNote(int count) => "지금 $count마리가 '곧'에 있어요";
+  static const revisitMessageLabel = '다시 올 때가 된 아이에게 보낼 글';
+  static const revisitCountUnsentLabel = '알림장을 안 보낸 방문을 남은 일로 세기';
+  static const revisitCountUnsentNote = '끄면 하루 머리와 달력에서 세지 않아요';
+  static const revisitSampleVisitsLabel = '미용 주기를 계산할 때 최근 몇 번의 방문을 볼까요';
+  static String revisitSampleVisitsNote(int visits) =>
+      '최근 $visits번의 방문 사이 간격의 가운데 값을 써요';
+  static const revisitMinGapLabel = '며칠 안에 다시 온 방문은 손질로 보고 뺄까요';
+  static String revisitMinGapNote(int days) =>
+      days == 0 ? '모든 방문을 셈에 넣어요' : '$days일 안에 다시 온 방문은 주기 계산에서 빼요';
+
+  // ⑬ 반려동물 상세의 미용 주기 줄·시트.
+  static const cycleLabel = '미용 주기';
+  static const cycleHasUpcoming = '다음 예약이 잡혀 있어요';
+  static String cycleSheetPreview(DateTime due) => '이렇게 정하면 다음은 ${due.month}월 ${due.day}일쯤이에요';
+  static const cycleReset = '계산한 값으로 돌아가기';
+
+  /// 다시 올 때라고 안내한 날 — 오늘이면 `오늘 안내`.
+  static String revisitNudgedOn(DateTime day, DateTime today) =>
+      day.year == today.year && day.month == today.month && day.day == today.day
+      ? '오늘 안내'
+      : '${day.month}월 ${day.day}일에 안내';
+
+  // ⑬ 다시 올 때가 된 아이(목록).
+  static const revisitsTitle = '다시 올 때가 된 아이';
+  static String revisitBanner(int count) => '다시 올 때가 된 아이 $count';
+  static String revisitsDueTab(int? count) => count == null ? '지남' : '지남 $count';
+  static String revisitsSoonTab(int? count) => count == null ? '곧' : '곧 $count';
+  static String revisitSoonHeader(int days) => '$days일 안';
+  static const revisitChange = '바꾸기';
+  static const revisitsDueEmpty = '다시 올 때가 지난 아이가 없어요';
+  static const revisitsSoonEmpty = '곧 올 아이가 없어요';
+  static const revisitBook = '예약';
+  static const revisitNudge = '안내';
+  static String revisitDueLine(int weeks, int days) => '$weeks주마다 · $days일 지남';
+  static String revisitSoonLine(int weeks, int days) =>
+      days == 0 ? '$weeks주마다 · 오늘쯤' : '$weeks주마다 · $days일 뒤쯤';
+  static String revisitEstimatedLine(int weeksAgo) => '$weeksAgo주 전에 왔어요 · 어림';
+  static const revisitNudgeTitle = '안내 글';
+  static const revisitNudgeSend = '보내기';
+  static const revisitTemplateLink = '안내 글 템플릿 바꾸기';
+  static const revisitNudgeShareFailed = '공유 창을 열지 못했어요. 다시 해 주세요.';
+
+  // ⑬ 남은 일(하루 머리·달력 카드)과 하루 마무리.
+  static String remainingUnresolved(int n) => '$markUnresolved $n';
+  static String remainingUnpaid(int n) => '결제 안 적음 $n';
+  static String remainingReportUnsent(int n) => '알림장 안 보냄 $n';
+  static String calendarRemaining(int n) => '남은 일 $n';
+  static const wrapUpTitle = '하루 마무리';
+  static String wrapUpProgress(int index, int total) => '$total개 중 $index번째';
+  static const wrapUpKindUnresolved = '정리 안 된 예약';
+  static const wrapUpKindUnpaid = '결제 안 적음';
+  static const wrapUpKindReport = '알림장 안 보냄';
+  static const wrapUpSkip = '건너뛰기';
+  static const wrapUpReportPreview = '미리 보고 보내기';
+  static const wrapUpReportSkip = '보내지 않음';
+  static const wrapUpStopCounting = '알림장은 앞으로 남은 일로 세지 않기';
+  static const wrapUpDoneToday = '오늘 일을 다 마쳤어요';
+  static const wrapUpDonePast = '이날 일을 다 마쳤어요';
+  static String wrapUpDoneCounts(int completed, int reports) => '완료 $completed · 알림장 $reports';
+  static String wrapUpSkipped(int n) => '$n개는 남겨 뒀어요';
+  static const wrapUpReview = '다시 보기';
+
+  // ⑬ 안내 글 템플릿.
+  static const revisitMessageTitle = '안내 글 템플릿';
+  static const revisitChipPet = '아이 이름';
+  static const revisitChipWeeks = '지난 주 수';
+  static const revisitChipShop = '매장 이름';
+  static const revisitSamplePet = '콩이';
+  static const revisitMessageEmpty = '글을 적어 주세요';
+  static const revisitMessageTooLong = '300자까지 적을 수 있어요';
+  static const revisitMessageSaved = '안내 글을 바꿨어요';
   static const visitMemoHint = '메모 (선택)';
   static const prefilledFromLast = '지난번과 같게 채웠어요. 그대로 저장해도 돼요.';
   static const pickPetFirst = '반려동물이나 "보호자만"을 골라 주세요';
@@ -308,9 +395,25 @@ class AppStrings {
   static const markClosedDate = '이 날 휴무로 표시';
   static const unmarkClosedDate = '휴무 해제';
 
-  static String nextPreview(String when) => '→ $when';
-  static String completeAndNextCaption(int weeks) =>
-      '$weeks주 뒤 같은 요일·시간·메뉴로 채워진 예약 화면이 열려요.';
+  /// 완료 시트의 다음 예약 줄(⑬ 설계 3.4) — 간격의 출처([source] — `draftSourceLabel`)를 말한다.
+  static String nextDraftLine(int weeks, String when, String source) =>
+      '$weeks주 뒤 $when · $source';
+
+  // ⑬ 미용 주기의 말(설계 3.1 의 표 — `core/time/grooming_cycle.dart` 가 고른다).
+  static String cycleManual(int weeks) => '$weeks주마다 와요 · 직접 정함';
+  static String cycleComputed(int weeks) => '보통 $weeks주마다 와요 · 지난 방문에서 계산';
+  static String cycleSingle(int weeks) => '지난번에는 $weeks주 만에 왔어요';
+  static const cycleOnce = '아직 한 번 왔어요';
+  static const cycleSet = '미용 주기 정하기';
+  static String cycleEstimateNote(int defaultWeeks) => '다음은 매장 기본 간격($defaultWeeks주)으로 어림해요';
+  static String cycleDue(DateTime due, {required bool estimated}) =>
+      '다음은 ${due.month}월 ${due.day}일쯤${estimated ? '(어림)' : ''}';
+  static const draftSourceComputed = '보통 오는 간격';
+  static const draftSourceManual = '직접 정한 간격';
+  static const draftSourceEstimated = '매장 기본 간격(어림)';
+  static const nextDraftCaption = '같은 요일·시간·메뉴로 채워진 예약 화면이 열려요.';
+  static const changeInterval = '간격 바꾸기';
+  static const changeDefaultInterval = '기본 간격 바꾸기';
   static const cancelReasonTitle = '취소 사유를 골라 주세요';
   static const noShowConfirm = '노쇼로 기록할까요? 보호자의 노쇼 횟수에 더해져요.';
 
@@ -649,11 +752,6 @@ class AppStrings {
   static const salesVisitsMenu = '메뉴의 방문';
   static String salesVisitsOfMenu(String menu) => '$menu 한 방문';
   static const salesVisitsEmpty = '해당하는 방문이 없어요';
-  static const salesDuePetsTitle = '다시 올 때가 지난 아이';
-  static const salesDuePetsEmpty = '다시 올 때가 지난 아이가 없어요';
-  static const salesToday = '오늘';
-  static String salesDaysAgo(int days) => '$days일 전';
-  static String salesWeeksAgo(int weeks) => '$weeks주 전';
   static const salesShowAllMenus = '모두 보기';
   static const salesSetGoal = '이번 달 목표 정하기';
   static const salesGoalTitle = '이번 달 목표';
@@ -665,7 +763,6 @@ class AppStrings {
   static const salesShareFailed = '공유 화면을 열지 못했어요. 다시 시도해 주세요.';
   static const salesUnitHeads = '마리';
   static String salesVisitRowLabel(String who, String date) => '$who $date 방문 보기';
-  static String salesDuePetRowLabel(String name, String since) => '$name $since';
   static String salesMenuRowLabel(String menu) => '$menu 한 방문 보기';
   static String salesFactLabel(String label, int count) => '$label $count건 보기';
   // 영문 장식(구역 이름 옆) — 화면 읽기에서는 뺀다.
@@ -875,6 +972,15 @@ class AppStrings {
 
   /// '완료 · 알림장 보냄' — 이름 카드의 상태 꼬리표 뒤에 붙는다.
   static const reportSentMark = '알림장 보냄';
+
+  // ⑬ 줄의 낱말(설계 4.4 — 차례는 VisitMark). 남은 일은 낱말이 아니라 머리의 숫자다.
+  static const paidMark = '결제 완료';
+  static const passUsedMark = '정기권';
+  static const depositReceivedMark = '예약금 받음';
+
+  /// 하루 마무리에서 "보내지 않음"으로 넘긴 방문(방문 상세의 알림장 줄).
+  static const reportSkipped = '보내지 않기로 했어요';
+  static const reportUnskip = '되돌리기';
   static const reportViewed = '보호자가 확인했어요';
   static const reportNotViewed = '아직 안 열었어요';
   static const reportShareAgain = '다시 공유';
@@ -918,6 +1024,9 @@ class AppStrings {
   static const notificationTemplateRejected = '반려됐어요 · 운영자가 확인 중';
   static const notificationReminderTimeLabel = '보내는 시각';
   static const notificationNextVisitWeeksLabel = '지난 미용 뒤';
+
+  /// ⑬ — 알림톡의 고정 주 수보다 아이의 값이 앞선다.
+  static const notificationNextVisitWeeksNote = '아이에게 직접 정한 주기가 있으면 그 값이 앞서요';
   static String notificationWeeks(int weeks) => '$weeks주';
   static const notificationWeeksAuto = '지난 방문 간격대로';
   static const notificationCooldownLabel = '다시 보내지 않는 기간';

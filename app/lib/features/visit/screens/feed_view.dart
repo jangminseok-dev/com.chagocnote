@@ -19,6 +19,7 @@ import '../../../l10n/app_strings.dart';
 import '../../auth/state/shop_selection.dart';
 import '../../customer/state/customer_input.dart';
 import '../api/feed_models.dart';
+import '../api/visit_marks.dart';
 import '../state/feed_controller.dart';
 import 'visit_labels.dart';
 
@@ -202,7 +203,7 @@ class FeedCard extends ConsumerWidget {
     final name = pet?.name ?? ownerLabel(item.customer);
     final marks = [
       if (item.mediaCount > 0) AppStrings.mediaCount(item.mediaCount),
-      if (item.reportSent) AppStrings.reportSentMark,
+      ...foldWords([for (final m in item.marks) markLabel(m)]),
     ];
     return Pressable(
       semanticLabel: '$name ${dayLabel(item.completedAt.wall)}',

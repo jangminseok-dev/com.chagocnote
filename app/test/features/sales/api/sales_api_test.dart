@@ -199,24 +199,6 @@ void main() {
     expect(SalesVisitFilter.of(null), isNull);
   });
 
-  test('다시 올 때가 지난 아이 — 경로와 커서', () async {
-    final s = _build(
-      (options, body) => FakeResponse(
-        statusCode: 200,
-        data: salesPageJson([duePetJson(101, '보리', '2026-09-10')]),
-      ),
-    );
-
-    final page = await s.api.duePets(3);
-    await s.api.duePets(3, cursor: 'c9');
-
-    expect(s.adapter.requests.first.path, '/v1/shops/3/sales/due-pets');
-    expect(s.adapter.requests.first.queryParameters, isEmpty);
-    expect(s.adapter.requests.last.queryParameters, {'cursor': 'c9'});
-    expect((page.items.single.pet.petId, page.items.single.lastVisitDate), (101, DateTime(2026, 9, 10)));
-    expect(page.nextCursor, isNull);
-  });
-
   test('목표를 정하고 지운다 — PUT 본문과 저장된 값', () async {
     final bodies = <Object?>[];
     final s = _build((options, body) {

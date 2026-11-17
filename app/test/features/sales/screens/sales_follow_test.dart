@@ -22,11 +22,12 @@ import '../../../support/customer_test_app.dart';
 import '../../../support/fake_http_client_adapter.dart';
 import '../../../support/sales_fixtures.dart';
 import '../../../support/upload_fakes.dart';
+import '../../../support/visit_fixtures.dart';
 import '../../../support/visit_test_backend.dart';
 
 const _summary = '/v1/shops/3/sales/summary';
 const _visits = '/v1/shops/3/sales/visits';
-const _duePets = '/v1/shops/3/sales/due-pets';
+const _revisits = '/v1/shops/3/revisits';
 const _goal = '/v1/shops/3/sales/goal';
 
 FakeResponse _ok(Object json) => FakeResponse(statusCode: 200, data: json);
@@ -37,7 +38,7 @@ class _World {
   _World({
     Map<String, dynamic> Function(RequestOptions o)? summary,
     FutureOr<FakeResponse> Function(RequestOptions o)? visits,
-    FutureOr<FakeResponse> Function(RequestOptions o)? duePets,
+    FutureOr<FakeResponse> Function(RequestOptions o)? revisits,
     FutureOr<FakeResponse> Function(int? amount)? putGoal,
   }) {
     final base = VisitTestBackend();
@@ -50,7 +51,8 @@ class _World {
           visitQueries.add(Map.of(o.queryParameters));
           return (visits ?? (_) => _ok(salesPageJson([])))(o);
         }
-        if (o.path == _duePets) return (duePets ?? (_) => _ok(salesPageJson([])))(o);
+        if (o.path == _revisits) return (revisits ?? (_) => _ok(revisitPageJson()))(o);
+        if (o.path == '$_revisits/counts') return _ok({'soon': 0, 'due': 7});
         if (o.path == _goal && o.method == 'PUT') {
           final amount = bodyOf(b)['monthly_amount'] as int?;
           goalBodies.add(bodyOf(b));
@@ -275,44 +277,20 @@ void main() {
     });
   });
 
-  group('다시 올 때가 지난 아이', () {
-    testWidgets('줄을 누르면 목록이 열리고, 아이를 누르면 반려동물 상세로 간다', (tester) async {
+  group('다시 올 때가 지난 아이(⑬ — 다시 올 때가 된 아이 화면의 지남)', () {
+    testWidgets('줄을 누르면 다시 올 때가 된 아이 화면이 지남으로 열린다', (tester) async {
       final w = _World(
-        duePets: (o) => _ok(
-          salesPageJson([
-            duePetJson(101, '보리', '2026-09-12', photo: 'https://media.test/101.jpg'),
-            duePetJson(102, '코코', '2026-09-18'),
-          ]),
-        ),
+        revisits: (o) => _ok(revisitPageJson(items: [revisitItemJson(name: '보리'), revisitItemJson(petId: 12, name: '코코')])),
       );
       await w.open(tester);
 
       await tester.tap(find.text('다시 올 때가 지난 아이 7마리'));
       await settle(tester);
 
-      expect(find.byKey(ScreenKeys.duePets), findsOneWidget);
-      expect(find.text('9주 전'), findsOneWidget);
-      expect(find.text('8주 전'), findsOneWidget);
-
-      await tester.tap(find.text('코코'));
-      await settle(tester);
-      expect(find.byKey(ScreenKeys.petDetail), findsOneWidget);
-    });
-
-    testWidgets('지난 달을 보다가 눌러도 기간을 싣지 않고, 없으면 안내가 보인다', (tester) async {
-      final w = _World(
-        summary: (o) => o.queryParameters['anchor'] == '2026-11-14' ? salesSummaryJson() : _october(),
-      );
-      await w.open(tester);
-      await tester.tap(find.bySemanticsLabel(AppStrings.salesPrev));
-      await settle(tester);
-
-      await tester.tap(find.text('다시 올 때가 지난 아이 7마리'));
-      await settle(tester);
-
-      expect(find.text(AppStrings.salesDuePetsEmpty), findsOneWidget);
-      final request = w.setup.adapter.requests.lastWhere((r) => r.path == _duePets);
-      expect(request.queryParameters, isEmpty);
+      expect(find.byKey(ScreenKeys.revisits), findsOneWidget);
+      expect(find.text('보리'), findsOneWidget);
+      final request = w.setup.adapter.requests.lastWhere((r) => r.path == _revisits);
+      expect(request.queryParameters, {'bucket': 'due'});
     });
   });
 
@@ -624,22 +602,6 @@ void main() {
     await w.push(tester, '/sales/visits?span=month&anchor=2026-11-14&filter=unrecorded');
 
     await expectLater(find.byKey(ScreenKeys.salesVisits), matchesGoldenFile('goldens/sales_visits.png'));
-  });
-
-  testWidgets('골든 — 다시 올 때가 지난 아이', (tester) async {
-    final w = _World(
-      duePets: (o) => _ok(
-        salesPageJson([
-          duePetJson(101, '보리', '2026-07-04', photo: 'https://media.test/101.jpg'),
-          duePetJson(102, '코코', '2026-09-12'),
-          duePetJson(103, '두부', '2026-09-18', photo: 'https://media.test/103.jpg'),
-        ]),
-      ),
-    );
-    await w.open(tester, size: const Size(390, 844));
-    await w.push(tester, '/sales/due-pets');
-
-    await expectLater(find.byKey(ScreenKeys.duePets), matchesGoldenFile('goldens/due_pets.png'));
   });
 
   testWidgets('[더 보기]로 이어 읽은 뒤 방문에 다녀와도 읽은 줄이 그대로다', (tester) async {

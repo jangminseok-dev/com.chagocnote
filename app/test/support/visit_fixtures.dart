@@ -78,6 +78,7 @@ Map<String, dynamic> dayItemJson(
   bool reportSent = false,
   int customerCheckCount = 0,
   int petCheckCount = 0,
+  List<String>? marks,
 }) => {
   'visit': visit,
   'group_key':
@@ -90,12 +91,16 @@ Map<String, dynamic> dayItemJson(
   'report_sent': reportSent,
   'customer_check_count': customerCheckCount,
   'pet_check_count': petCheckCount,
+  'marks': marks ?? [if (reportSent) 'report_sent'],
 };
 
 Map<String, dynamic> dayJson({
   String date = '2026-10-02',
   bool closedDay = false,
   List<Map<String, dynamic>> items = const [],
+  int unpaid = 0,
+  int reportUnsent = 0,
+  int checks = 0,
 }) {
   int count(String status) =>
       items.where((i) => (i['visit'] as Map)['status'] == status).length;
@@ -111,6 +116,9 @@ Map<String, dynamic> dayJson({
       'canceled': count('canceled'),
       'no_show': count('no_show'),
       'unresolved': items.where((i) => i['unresolved'] == true).length,
+      'unpaid': unpaid,
+      'report_unsent': reportUnsent,
+      'checks': checks,
     },
     'items': items,
   };
@@ -137,6 +145,8 @@ Map<String, dynamic> calendarJson({
           'completed_count': days[d]?['completed_count'] ?? 0,
           'open_count': days[d]?['open_count'] ?? 0,
           'unresolved_count': days[d]?['unresolved_count'] ?? 0,
+          'unpaid_count': days[d]?['unpaid_count'] ?? 0,
+          'report_unsent_count': days[d]?['report_unsent_count'] ?? 0,
           'closed_day': closedDays.contains(d),
           'cover': days[d]?['cover'],
           'covers': days[d]?['covers'] ?? const <String>[],
@@ -207,6 +217,8 @@ Map<String, dynamic> visitDetailJson({
   Map<String, dynamic>? record,
   Map<String, dynamic>? report,
   List<Map<String, dynamic>> checks = const [],
+  List<String> marks = const [],
+  bool reportSkipped = false,
 }) {
   final v = visit ?? visitJson();
   return {
@@ -219,6 +231,8 @@ Map<String, dynamic> visitDetailJson({
     'cover': null,
     'report': report ?? reportLinkJson(),
     'checks': checks,
+    'marks': marks,
+    'report_skipped': reportSkipped,
   };
 }
 
@@ -282,6 +296,7 @@ Map<String, dynamic> feedItemJson({
   String? careNote = '귀 청소했어요',
   int mediaCount = 0,
   bool reportSent = false,
+  List<String>? marks,
 }) => {
   'visit_id': visitId,
   'customer': customer ?? visitCustomerJson(),
@@ -292,6 +307,7 @@ Map<String, dynamic> feedItemJson({
   'care_note': careNote,
   'media_count': mediaCount,
   'report_sent': reportSent,
+  'marks': marks ?? [if (reportSent) 'report_sent'],
 };
 
 Map<String, dynamic> feedJson({
@@ -512,13 +528,97 @@ Map<String, dynamic> nextDraftJson({
   int durationMinutes = 90,
   List<Map<String, dynamic>>? menus,
   int intervalWeeks = 4,
+  int? cycleWeeks,
+  String cycleSource = 'none',
 }) => {
   'customer_id': customerId,
   'pet_ids': petIds,
   'starts_at': startsAt,
   'duration_minutes': durationMinutes,
   'menus': menus ?? [menuBriefJson()],
-  'interval_weeks': intervalWeeks,
+  'interval_weeks': cycleWeeks ?? intervalWeeks,
+  'cycle_weeks': cycleWeeks ?? intervalWeeks,
+  'cycle_source': cycleSource,
+};
+
+/// 다시 올 때가 된 아이 한 줄(⑬). 안내 글은 가짜다 — 진짜 글을 테스트에 옮겨 적지 않는다.
+Map<String, dynamic> revisitItemJson({
+  int petId = 11,
+  String name = '두부',
+  String? photoUrl,
+  String lastVisitDate = '2026-10-01',
+  int lastVisitId = 501,
+  int cycleWeeks = 6,
+  String cycleSource = 'computed',
+  int? lastIntervalWeeks = 6,
+  String dueDate = '2026-11-12',
+  bool estimated = false,
+  String? nudgedOn,
+  String message = '안내 글',
+}) => {
+  'pet': {'pet_id': petId, 'name': name, 'photo_url': photoUrl},
+  'last_visit_date': lastVisitDate,
+  'last_visit_id': lastVisitId,
+  'cycle_weeks': cycleWeeks,
+  'cycle_source': cycleSource,
+  'last_interval_weeks': lastIntervalWeeks,
+  'due_date': dueDate,
+  'estimated': estimated,
+  'nudged_on': nudgedOn,
+  'message': message,
+};
+
+Map<String, dynamic> revisitPageJson({
+  List<Map<String, dynamic>> items = const [],
+  String? nextCursor,
+}) => {'items': items, 'next_cursor': nextCursor};
+
+/// 하루 마무리의 한 장(⑬). [paymentMethod]·[totalAmount] 는 결제 장의 채움 값이다.
+Map<String, dynamic> wrapUpCardJson({
+  String kind = 'unpaid',
+  Map<String, dynamic>? visit,
+  String? photoUrl,
+  int? totalAmount,
+  String? paymentMethod,
+}) => {
+  'kind': kind,
+  'visit': visit ?? visitJson(status: kind == 'unresolved' ? 'reserved' : 'completed'),
+  'photo_url': photoUrl,
+  'prefill': kind == 'unpaid'
+      ? {'total_amount': totalAmount, 'payment_method': paymentMethod}
+      : null,
+};
+
+Map<String, dynamic> wrapUpJson({
+  String date = '2026-10-02',
+  List<Map<String, dynamic>> cards = const [],
+}) => {'date': date, 'cards': cards};
+
+const defaultRevisitMessage =
+    '안녕하세요, {매장}예요.\n{아이}가 미용한 지 {주}주가 됐어요.\n편하신 날 알려 주시면 예약 잡아 드릴게요.';
+
+Map<String, dynamic> revisitSettingsJson({
+  int defaultWeeks = 4,
+  int soonDays = 7,
+  String? message,
+  bool countUnsent = true,
+  int sampleVisits = 6,
+  int minGapDays = 7,
+}) => {
+  'default_cycle_weeks': defaultWeeks,
+  'revisit_soon_days': soonDays,
+  'revisit_message': message,
+  'count_unsent_reports': countUnsent,
+  'cycle_sample_visits': sampleVisits,
+  'cycle_min_gap_days': minGapDays,
+  'defaults': {
+    'default_cycle_weeks': 4,
+    'revisit_soon_days': 7,
+    'revisit_message': defaultRevisitMessage,
+    'count_unsent_reports': true,
+    'cycle_sample_visits': 6,
+    'cycle_min_gap_days': 7,
+  },
 };
 
 Map<String, dynamic> settingsJson({

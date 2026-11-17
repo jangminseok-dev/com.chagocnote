@@ -72,6 +72,9 @@ class VisitTestBackend {
     // 예약 등록은 확인할 것을 묻는다(③-B) — 따로 정하지 않은 테스트에는 아무것도 없다.
     'GET /v1/shops/3/visit-checks': (o, b) =>
         FakeResponse(statusCode: 200, data: checksPreviewJson()),
+    // 캘린더 탭은 다시 올 때가 된 아이의 수를 따로 읽는다(⑬) — 따로 정하지 않은 테스트에는 없다.
+    'GET /v1/shops/3/revisits/counts': (o, b) =>
+        FakeResponse(statusCode: 200, data: {'soon': 0, 'due': 0}),
   };
 
   static Map<String, dynamic> _family() => familyJson(

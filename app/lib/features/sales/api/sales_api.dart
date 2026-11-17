@@ -44,17 +44,6 @@ class SalesApi {
     return SalesPage.fromJson(data, SalesVisitItem.fromJson);
   }
 
-  /// 다시 올 때가 지난 아이 — 오래된 순 20마리씩.
-  Future<SalesPage<DuePetItem>> duePets(int shopId, {String? cursor}) async {
-    final data =
-        await _client.get(
-              '/v1/shops/$shopId/sales/due-pets',
-              queryParameters: {'cursor': ?cursor},
-            )
-            as Map<String, dynamic>;
-    return SalesPage.fromJson(data, DuePetItem.fromJson);
-  }
-
   /// 월 목표를 정한다. null 이면 지운다. 저장된 값을 돌려준다.
   Future<int?> setGoal(int shopId, int? monthlyAmount) async {
     final data =

@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/proxy/providers.dart';
-import '../../../core/plugs/care_marks_plug.dart';
 import '../../auth/state/shop_scoped.dart';
 import '../api/check_models.dart';
 import '../api/media_api.dart';
+import '../api/revisit_models.dart';
 import '../api/visit_api.dart';
 import '../api/visit_models.dart';
 
@@ -142,10 +142,17 @@ final visitChecksProvider = FutureProvider.autoDispose
       ),
     );
 
-/// 확인할 것을 다시 읽게 한다 — 미용 동의·주의 표시가 바뀌면 방문 상세의 묶음, 하루 목록의 수,
-/// 미리 보기가 낡는다. `app.dart`가 `careMarksChangedPlugProvider`에 꽂는다.
-CareMarksChanged careMarksChanged(Ref ref) => () {
-  ref.invalidate(visitDetailProvider);
-  ref.invalidate(dayVisitsProvider);
-  ref.invalidate(visitChecksProvider);
-};
+/// 다시 올 때가 된 아이의 곧·지남 수(⑬) — 캘린더 탭의 줄과 목록 화면의 세그먼트.
+final revisitCountsProvider = FutureProvider.autoDispose.family<RevisitCounts, int>(
+  (ref, shopId) =>
+      runShopScoped(ref, () => ref.read(visitApiProvider).revisitCounts(shopId)),
+);
+
+/// 매장의 다시 올 때 설정(⑬).
+final revisitSettingsProvider = FutureProvider.autoDispose
+    .family<RevisitSettings, int>(
+      (ref, shopId) => runShopScoped(
+        ref,
+        () => ref.read(visitApiProvider).revisitSettings(shopId),
+      ),
+    );

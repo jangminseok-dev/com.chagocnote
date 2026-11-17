@@ -2,7 +2,9 @@ import '../../../core/proxy/api_client.dart';
 import 'check_models.dart';
 import 'feed_models.dart';
 import 'record_models.dart';
+import 'revisit_models.dart';
 import 'visit_models.dart';
+import 'wrap_up_models.dart';
 
 /// 예약·방문·매장 일정·메뉴표 API. 경로는 모두 `/v1/shops/{shopId}` 아래다.
 class VisitApi {
@@ -283,6 +285,50 @@ class VisitApi {
 
   Future<Menu> archiveMenu(int shopId, int menuId) async => Menu.fromJson(
     await _client.post('/v1/shops/$shopId/menus/$menuId/archive')
+        as Map<String, dynamic>,
+  );
+
+  /// 다시 올 때가 된 아이 한 쪽(⑬, 20개). 지남은 오래 지난 순, 곧은 가까운 순.
+  Future<RevisitPage> revisits(
+    int shopId,
+    RevisitBucket bucket, {
+    String? cursor,
+  }) async => RevisitPage.fromJson(
+    await _get('/v1/shops/$shopId/revisits', {
+      'bucket': bucket.code,
+      'cursor': ?cursor,
+    }),
+  );
+
+  /// 곧·지남의 수(⑬). 캘린더 탭이 달력과 따로 읽는다.
+  Future<RevisitCounts> revisitCounts(int shopId) async =>
+      RevisitCounts.fromJson(await _get('/v1/shops/$shopId/revisits/counts'));
+
+  /// 하루 마무리의 장(⑬). 앞날은 빈 목록이다.
+  Future<DayWrapUp> dayWrapUp(int shopId, DateTime day) async => DayWrapUp.fromJson(
+    await _get('/v1/shops/$shopId/days/${isoDay(day)}/wrap-up'),
+  );
+
+  /// 알림장을 보내지 않음으로 넘긴다(⑬ — 완료이고 기록이 있는 방문만, 아니면 409).
+  Future<void> skipReport(int shopId, int visitId) async {
+    await _client.put('/v1/shops/$shopId/visits/$visitId/report-skip');
+  }
+
+  /// 넘긴 것을 되돌린다(방문 상세).
+  Future<void> unskipReport(int shopId, int visitId) async {
+    await _client.delete('/v1/shops/$shopId/visits/$visitId/report-skip');
+  }
+
+  Future<RevisitSettings> revisitSettings(int shopId) async =>
+      RevisitSettings.fromJson(await _get('/v1/shops/$shopId/revisit-settings'));
+
+  /// 매장의 다시 올 때 설정 — 보낸 칸만 바뀐다(빠진 칸은 서버가 지금 값으로 둔다).
+  /// `revisit_message: null` 은 처음 글로 돌아가기다.
+  Future<RevisitSettings> updateRevisitSettings(
+    int shopId,
+    Map<String, Object?> changes,
+  ) async => RevisitSettings.fromJson(
+    await _client.put('/v1/shops/$shopId/revisit-settings', data: changes)
         as Map<String, dynamic>,
   );
 }
