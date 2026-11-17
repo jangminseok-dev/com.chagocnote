@@ -172,6 +172,7 @@ from visit.adapter.inbound.api.v1.get_visit_calendar_router import get_visit_cal
 from visit.adapter.inbound.api.v1.get_visit_checks_router import get_visit_checks_router
 from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_defaults_router
 from visit.adapter.inbound.api.v1.get_visit_report_router import get_visit_report_router
+from visit.adapter.inbound.api.v1.get_repeat_defaults_router import get_repeat_defaults_router
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
@@ -182,6 +183,7 @@ from visit.adapter.inbound.api.v1.list_visit_feed_router import list_visit_feed_
 from visit.adapter.inbound.api.v1.list_visit_slots_router import list_visit_slots_router
 from visit.adapter.inbound.api.v1.mark_report_viewed_router import mark_report_viewed_router
 from visit.adapter.inbound.api.v1.parse_visit_draft_router import parse_visit_draft_router
+from visit.adapter.inbound.api.v1.preview_repeat_router import preview_repeat_router
 from visit.adapter.inbound.api.v1.put_visit_record_router import put_visit_record_router
 from visit.adapter.inbound.api.v1.read_public_report_router import read_public_report_router
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
@@ -329,6 +331,8 @@ app.include_router(list_visit_feed_router)
 app.include_router(list_visit_slots_router)
 app.include_router(get_visit_defaults_router)
 app.include_router(get_visit_checks_router)
+app.include_router(get_repeat_defaults_router)   # /visits/{visit_id} 보다 앞(⑭)
+app.include_router(preview_repeat_router)
 app.include_router(list_day_visits_router)
 app.include_router(register_visit_router)
 app.include_router(reschedule_visits_router)

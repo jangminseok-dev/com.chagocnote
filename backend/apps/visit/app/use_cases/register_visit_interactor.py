@@ -13,17 +13,12 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_board_repository import VisitBoardRepository
 from visit.app.ports.output.visit_write_repository import VisitWriteRepository
+from visit.app.services.booking_inputs import chosen_duration
 from visit.app.services.visit_reader import describe_visits
 from visit.app.services.visit_warnings import warnings_after_save
 from visit.domain.entities.visit import IN_PROGRESS, RESERVED
-from visit.domain.errors import MenuNotAvailableError, VisitInputError
-from visit.domain.services.visit_duration import default_duration
-from visit.domain.services.visit_schedule import (
-    check_duration,
-    check_same_day,
-    check_start,
-    floor_to_step,
-)
+from visit.domain.errors import VisitInputError
+from visit.domain.services.visit_schedule import check_same_day, check_start, floor_to_step
 from visit.domain.value_objects.new_visit import NewVisit
 
 
@@ -46,13 +41,7 @@ class RegisterVisitInteractor(RegisterVisitUseCase):
         if command.walk_in == (command.starts_at is not None):
             raise VisitInputError("예약 시각과 '지금 시작' 중 하나만 보내 주세요.")
         settings = await self._schedule.ensure(ctx)
-        menus = await self._menus.list_active_by_ids(ctx, list(command.menu_ids))
-        if len(menus) != len(command.menu_ids):
-            raise MenuNotAvailableError("고를 수 없는 메뉴가 있습니다.")
-        duration = command.duration_minutes
-        if duration is None:
-            duration = default_duration(menus, settings.default_duration_minutes)
-        check_duration(duration)
+        duration = await chosen_duration(ctx, command.menu_ids, command.duration_minutes, self._menus, settings)
         if command.walk_in:
             starts_at, status, started_at = floor_to_step(now, tz), IN_PROGRESS, now
         else:
