@@ -26,6 +26,7 @@ from visit.adapter.outbound.pg.report_pg_repository import ReportPgRepository
 from visit.adapter.outbound.pg.revisit_settings_pg_repository import RevisitSettingsPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
+from visit.adapter.outbound.pg.visit_series_pg_repository import VisitSeriesPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.app.dtos.register_visit_dto import RegisterVisitCommand
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
@@ -55,7 +56,7 @@ def _register(session, customer_id, pet_ids, starts_at=kst(10, 2, 14)):
     visits = VisitPgRepository(session)
     interactor = RegisterVisitInteractor(
         visits, visits, MenuPgRepository(session), SchedulePgRepository(session),
-        _directory(session), events=FakeEvents(), now=lambda: NOW,
+        _directory(session), events=FakeEvents(), now=lambda: NOW, series=VisitSeriesPgRepository(session),
     )
     return interactor.register_visit(RegisterVisitCommand(
         ctx=SHOP, customer_id=customer_id, pet_ids=tuple(pet_ids), starts_at=starts_at, duration_minutes=None,
