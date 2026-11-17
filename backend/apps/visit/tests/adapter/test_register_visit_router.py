@@ -1,5 +1,5 @@
 from visit.adapter.inbound.api.v1.register_visit_router import register_visit_router
-from visit.app.dtos.register_visit_dto import RegisteredVisitsView
+from visit.app.dtos.register_visit_dto import RegisteredSeriesView, RegisteredVisitsView, SeriesOccurrenceView
 from visit.dependencies.register_visit_provider import get_register_visit_use_case
 from visit.domain.errors import (
     MenuNotAvailableError,
@@ -7,6 +7,7 @@ from visit.domain.errors import (
     VisitDuplicateError,
 )
 from visit.tests.helpers.api import READ_ONLY, STAFF, Recorder, build_app, client, error_of
+from visit.tests.helpers.builders import kst
 from visit.tests.helpers.views import visit_view
 
 BODY = {"customer_id": 1, "pet_ids": [101, 102], "starts_at": "2026-10-02T14:00:00+09:00",
@@ -66,3 +67,32 @@ async def test_도메인_오류는_설계의_코드와_상태다():
     ):
         response, _ = await _post(BODY, stub=Recorder(error=error))
         assert error_of(response) == expected
+
+
+async def test_repeat_칸을_명령으로_옮긴다():
+    response, stub = await _post(BODY | {"repeat": {"interval_weeks": 4, "count": 6, "skip": [2, 5]}})
+    assert response.status_code == 201
+    repeat = stub.calls[0].repeat
+    assert (repeat.interval_weeks, repeat.count, repeat.skip) == (4, 6, (2, 5))
+    response, stub = await _post(BODY)
+    assert stub.calls[0].repeat is None
+
+
+async def test_count_1_interval_13_skip_범위_밖은_422():
+    for repeat in ({"interval_weeks": 4, "count": 1}, {"interval_weeks": 13, "count": 6},
+                   {"interval_weeks": 0, "count": 6}, {"interval_weeks": 4, "count": 13},
+                   {"interval_weeks": 4, "count": 6, "skip": [7]}, {"interval_weeks": 4, "count": 6, "skip": [0]},
+                   {"interval_weeks": 4, "count": 6, "skip": [2, 2]}):
+        response, stub = await _post(BODY | {"repeat": repeat})
+        assert response.status_code == 422, repeat
+        assert stub.calls == []
+
+
+async def test_응답에_series_가_있다():
+    view = RegisteredVisitsView(visits=[visit_view()], warnings=[], series=RegisteredSeriesView(
+        id=9, interval_weeks=4, occurrences=[SeriesOccurrenceView(starts_at=kst(10, 2, 14), warnings=["overlap"])]))
+    response, _ = await _post(BODY, Recorder(view))
+    assert response.json()["series"] == {"id": 9, "interval_weeks": 4, "occurrences": [
+        {"starts_at": "2026-10-02T05:00:00Z", "warnings": ["overlap"]}]}
+    response, _ = await _post(BODY)
+    assert response.json()["series"] is None

@@ -12,6 +12,7 @@ from visit.dependencies.visit_wiring import (
     build_menu_repository,
     build_schedule_repository,
     build_visit_repository,
+    build_visit_series_repository,
 )
 from visit.domain.services.visit_schedule import utc_now
 
@@ -24,4 +25,5 @@ def get_register_visit_use_case(
     return RegisterVisitInteractor(
         visits=visits, board=visits, menus=build_menu_repository(db),
         schedule=build_schedule_repository(db), directory=directory, events=events, now=utc_now,
+        series=build_visit_series_repository(db),
     )

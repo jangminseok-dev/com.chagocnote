@@ -88,7 +88,9 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         if event.revived:
             kept = await self._leave_group(ctx, event, event.starts_at, "reverted", (NEXT_VISIT,), keep_stranded=True)
             await self._messages.cancel_pending(ctx, "reverted", event.visit_id, kinds=(NEXT_VISIT,), except_ids=kept)
-        if not event.revived and await self._allowed(ctx, settings, CONFIRM, event.visit_id):
+        # 반복 예약의 둘째 회차부터(⑭)도 접수 안내 없이 리마인드만 — 접수 안내는 첫 회차 한 통이다.
+        if not event.revived and not event.series_followup and await self._allowed(
+                ctx, settings, CONFIRM, event.visit_id):
             await self._create_for_group(ctx, event, CONFIRM, now)
         at = reminder_at(event.starts_at, settings.reminder_time, ctx.timezone, now)
         if at is not None and await self._allowed(ctx, settings, REMINDER, event.visit_id):

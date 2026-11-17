@@ -8,6 +8,15 @@ from visit.app.dtos.visit_view_dto import VisitView
 
 
 @dataclass(frozen=True)
+class RepeatRequest:
+    """반복 예약(⑭) — interval_weeks 주마다 count 번(첫 예약 포함). skip 은 빼는 회차 번호(1 부터)."""
+
+    interval_weeks: int
+    count: int
+    skip: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
 class RegisterVisitCommand:
     """반려동물 N마리 → 방문 N개. pet_ids 가 비면 보호자만의 방문 하나.
 
@@ -23,9 +32,24 @@ class RegisterVisitCommand:
     menu_ids: tuple[int, ...]
     memo: str | None
     walk_in: bool
+    repeat: RepeatRequest | None = None
+
+
+@dataclass(frozen=True)
+class SeriesOccurrenceView:
+    starts_at: datetime     # 매장 시간대
+    warnings: list[str]     # 그 회차의 경고 — 미리 본 뒤 그 사이 예약이 생겼을 수 있어 다시 싣는다(P16)
+
+
+@dataclass(frozen=True)
+class RegisteredSeriesView:
+    id: int
+    interval_weeks: int
+    occurrences: list[SeriesOccurrenceView]   # 실제로 잡은 회차(뺀 것·1년 밖은 없다)
 
 
 @dataclass(frozen=True)
 class RegisteredVisitsView:
     visits: list[VisitView]
-    warnings: list[str]   # overlap · closed_day · outside_hours — 막지 않는 경고
+    warnings: list[str]   # overlap · closed_day · outside_hours — 막지 않는 경고(반복이면 첫 회차의 것)
+    series: RegisteredSeriesView | None = None   # ⑭ 반복으로 잡았을 때만
