@@ -1,3 +1,4 @@
+from dataclasses import replace
 import pytest
 
 from hub.app.dtos.shop_profile import ShopProfile
@@ -223,3 +224,14 @@ async def test_이후_전부_고치기의_알림도_옮기는_차례대로_낸�
     rows = _weekly(visits)
     await interactor.update_visit(_command(rows[(WEEKLY[0], 101)], starts_at=WEEKLY[1], scope="following"))
     assert [e.previous_starts_at for e in events.published if isinstance(e, VisitRescheduled)] == list(reversed(WEEKLY))
+
+
+async def test_이후_전부_고치기의_소요로_자정을_넘는_뒤_회차는_걸린_회차():
+    _, visits, _, interactor, _ = _setup()
+    rows = _weekly(visits)
+    late = rows[(WEEKLY[2], 101)]
+    visits.rows[late.id] = replace(late, starts_at=kst(10, 16, 22))
+    with pytest.raises(VisitSeriesConflictError) as caught:
+        await interactor.update_visit(_command(rows[(WEEKLY[1], 101)], duration_minutes=150, scope="following"))
+    assert [(c["visit_id"], c["reason"]) for c in caught.value.details["conflicts"]] == [(late.id, "crosses_midnight")]
+    assert visits.rows[rows[(WEEKLY[1], 101)].id].duration_minutes == 90

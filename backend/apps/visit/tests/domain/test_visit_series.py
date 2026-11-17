@@ -4,6 +4,7 @@ from datetime import timedelta
 from visit.domain.entities.visit import CANCELED, COMPLETED, IN_PROGRESS, RESERVED
 from visit.domain.services.visit_cycle import PetCycle
 from visit.domain.services.visit_series import (
+    CROSSES_MIDNIGHT,
     CYCLE,
     OUT_OF_RANGE,
     SHOP,
@@ -128,7 +129,9 @@ def test_걸린_회차는_같은_아이의_살아_있는_예약과_1년_범위_�
     assert conflicts_of(moves, [], NOW, TZ) == []
     outside = visit(id=9, starts_at=kst(12, 11, 14))                 # 묶음 밖의 같은 아이 예약
     sibling = visit(id=10, pet_id=102, starts_at=kst(12, 4, 14))     # 형제 아이 — 같은 시각이어도 가족 묶음일 뿐
+    # 2회차가 걸려 제자리(12/4)에 서면 그리로 가려던 1회차도 걸린다 — 한 번에 둘 다
     assert conflicts_of(moves, [outside, sibling], NOW, TZ) == [
+        SeriesConflict(visit_id=1, pet_id=101, starts_at=kst(12, 4, 14), reason=TAKEN),
         SeriesConflict(visit_id=2, pet_id=101, starts_at=kst(12, 11, 14), reason=TAKEN)]
     far = [(a, NOW + timedelta(days=380))]
     assert [c.reason for c in conflicts_of(far, [], NOW, TZ)] == [OUT_OF_RANGE]
@@ -150,3 +153,33 @@ def test_자리는_취소를_빼고_가족은_한_번_세며_취소된_방문은
     assert series_position(rows, rows[3]) == SeriesPosition(4, 5, False)
     assert series_position(rows, rows[5]) == SeriesPosition(5, 5, True)
     assert series_position(rows, rows[4]) == SeriesPosition(5, 6, False)
+
+
+# --- 최종 검토에서 고친 것 ---------------------------------------------------------------------------------------------
+
+def test_걸린_회차를_빼면_이어서_걸리는_회차까지_한_번에_싣는다():
+    """주마다 묶음을 1주 밀 때 마지막 회차가 걸리면, 그 회차는 제자리에 서고 앞 회차가 그 자리에 걸린다 — 끝까지 따라간다."""
+    rows = [visit(id=i + 1, starts_at=kst(11, 20, 14) + WEEK * i) for i in range(4)]
+    moves = [(v, v.starts_at + WEEK) for v in rows]
+    outside = visit(id=9, starts_at=rows[3].starts_at + WEEK)          # 4회차의 새 자리에 묶음 밖 예약
+    assert [c.visit_id for c in conflicts_of(moves, [outside], NOW, TZ)] == [1, 2, 3, 4]
+    assert conflicts_of(moves, [], NOW, TZ) == []
+
+
+def test_뒤_회차가_자정을_넘게_되면_걸린_회차다():
+    late = visit(id=2, starts_at=kst(11, 27, 21), duration_minutes=120)
+    moves = [(visit(id=1, starts_at=kst(11, 20, 14)), kst(11, 20, 17)), (late, kst(11, 27, 23))]
+    assert [(c.visit_id, c.reason) for c in conflicts_of(moves, [], NOW, TZ)] == [(2, CROSSES_MIDNIGHT)]
+    assert conflicts_of(moves, [], NOW, TZ, duration_minutes=30) == []   # 고치기는 새 소요로 본다
+
+
+def test_자리는_그_아이의_회차로_센다():
+    """콩이만 4회차부터 하루 민 가족 — 시각이 갈려도 아이마다 6번이다."""
+    rows = []
+    for i in range(6):
+        at = kst(11, 20, 14) + WEEK * i
+        rows.append(visit(id=10 + i, pet_id=101, starts_at=at + (timedelta(days=1) if i >= 3 else timedelta()),
+                          series_id=7))
+        rows.append(visit(id=20 + i, pet_id=102, starts_at=at, series_id=7))
+    assert series_position(rows, rows[6]) == SeriesPosition(4, 6, False)    # 콩이 4회차
+    assert series_position(rows, rows[11]) == SeriesPosition(6, 6, True)    # 두부 6회차

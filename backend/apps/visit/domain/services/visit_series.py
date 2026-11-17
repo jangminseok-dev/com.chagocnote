@@ -12,13 +12,15 @@ from zoneinfo import ZoneInfo
 
 from visit.domain.entities.visit import CANCELED, RESERVED, Visit
 from visit.domain.services.visit_cycle import COMPUTED, MANUAL, PetCycle, next_start
-from visit.domain.services.visit_schedule import BOOKING_HORIZON_DAYS, local_date
+from visit.domain.errors import VisitCrossesMidnightError
+from visit.domain.services.visit_schedule import BOOKING_HORIZON_DAYS, check_same_day, local_date
 
 MIN_INTERVAL_WEEKS, MAX_INTERVAL_WEEKS = 1, 12
 MIN_COUNT, MAX_COUNT, DEFAULT_COUNT = 2, 12, 6
 
 TAKEN = "taken"                 # 그 아이(아이가 없으면 보호자)에게 그 시각 살아 있는 예약이 이미 있다
 OUT_OF_RANGE = "out_of_range"   # 예약 가능 범위(오늘 기준 1년) 밖
+CROSSES_MIDNIGHT = "crosses_midnight"   # 옮기면 끝나는 시각이 그날 자정을 넘는다
 
 CYCLE = "cycle"   # 간격 기본값의 근거 — 그 아이의 주기(직접 정한 값·계산한 값)
 SHOP = "shop"     # 매장의 기본 간격
@@ -134,21 +136,51 @@ def _same_slot(a: Visit, b: Visit) -> bool:
     return b.pet_id is None and a.customer_id == b.customer_id
 
 
+def _crosses_midnight(starts_at: datetime, minutes: int, tz: str) -> bool:
+    try:
+        check_same_day(starts_at, minutes, tz)
+    except VisitCrossesMidnightError:
+        return True
+    return False
+
+
 def conflicts_of(
     moves: Sequence[tuple[Visit, datetime]], occupied: Sequence[Visit], now: datetime, tz: str,
+    duration_minutes: int | None = None,
 ) -> list[SeriesConflict]:
-    """옮겨 갈 자리에 걸리는 회차. occupied 는 그 보호자의 새 시각들의 살아 있는 방문 — 옮기는 방문은 부르는 쪽이 뺀다."""
-    found = []
-    for visit, new in sorted(moves, key=lambda m: (m[0].starts_at, m[0].id)):
-        if not within_horizon(new, now, tz):
-            found.append(SeriesConflict(visit.id, visit.pet_id, new, OUT_OF_RANGE))
-        elif any(o.starts_at == new and _same_slot(visit, o) for o in occupied):
-            found.append(SeriesConflict(visit.id, visit.pet_id, new, TAKEN))
-    return found
+    """옮겨 갈 자리에 걸리는 회차. occupied 는 그 보호자의 새 시각들의 살아 있는 방문 — 옮기는 방문은 부르는 쪽이 뺀다.
+
+    걸린 회차는 빼고 다시 보내면 제자리에 선다 — 그러면 그 옛 자리로 가려던 앞 회차가 다시 걸린다(주마다 묶음을 1주
+    밀 때). 그래서 걸린 회차를 제자리에 선 것으로 놓고 더 걸리는 것이 없을 때까지 따라가 한 번에 돌려준다.
+    duration_minutes 가 있으면(고치기의 새 소요) 그 값으로 자정을 본다.
+    """
+    ordered = sorted(moves, key=lambda m: (m[0].starts_at, m[0].id))
+    staying = list(occupied)
+    found: dict[int, SeriesConflict] = {}
+    grew = True
+    while grew:
+        grew = False
+        for visit, new in ordered:
+            if visit.id in found:
+                continue
+            reason = None
+            if not within_horizon(new, now, tz):
+                reason = OUT_OF_RANGE
+            elif _crosses_midnight(new, duration_minutes or visit.duration_minutes, tz):
+                reason = CROSSES_MIDNIGHT
+            elif any(o.starts_at == new and _same_slot(visit, o) for o in staying):
+                reason = TAKEN
+            if reason is not None:
+                found[visit.id] = SeriesConflict(visit.id, visit.pet_id, new, reason)
+                staying.append(visit)   # 빼면 옛 시각에 남는다
+                grew = True
+    return [found[v.id] for v, _ in ordered if v.id in found]
 
 
 def series_position(series: Sequence[Visit], visit: Visit) -> SeriesPosition:
-    """묶음 안의 자리(`6번 중 3번째`) — 취소를 뺀 회차(가족은 한 번)로 센다. 그 방문 자신이 취소됐으면 자신은 넣는다."""
-    starts = sorted({v.starts_at for v in series if v.status != CANCELED or v.id == visit.id} | {visit.starts_at})
+    """묶음 안의 자리(`6번 중 3번째`) — 그 아이(아이가 없으면 보호자만의 방문)의 회차를 취소를 빼고 센다. 가족의
+    시각이 `콩이만` 옮기기로 갈려도 아이마다 맞다. 그 방문 자신이 취소됐으면 자신은 넣는다."""
+    mine = [v for v in series if v.pet_id == visit.pet_id]
+    starts = sorted({v.starts_at for v in mine if v.status != CANCELED or v.id == visit.id} | {visit.starts_at})
     position = starts.index(visit.starts_at) + 1
     return SeriesPosition(position, len(starts), position == len(starts))

@@ -70,15 +70,16 @@ async def lock_scope(
 
 async def ensure_free(
     ctx: ShopContext, moves: Sequence[tuple[Visit, datetime]], visits: VisitLookupRepository, now: datetime,
+    duration_minutes: int | None = None,
 ) -> None:
     """옮겨 갈 자리에 걸리는 회차가 있으면 아무것도 쓰기 전에 VISIT_SERIES_CONFLICT(P15) — 그 아이의 다른 예약,
-    1년 범위 밖. 옮기는 방문들끼리는 같은 차이만큼 움직이므로 서로 걸리지 않는다."""
+    1년 범위 밖, 자정 넘김(duration_minutes 가 있으면 그 소요로 본다). 빼면 제자리에 서서 이어 걸리는 회차까지 싣는다."""
     if not moves:
         return
     moving = {v.id for v, _ in moves}
     occupied = [o for o in await visits.active_at(ctx, moves[0][0].customer_id, [new for _, new in moves])
                 if o.id not in moving]
-    conflicts = conflicts_of(moves, occupied, now, ctx.timezone)
+    conflicts = conflicts_of(moves, occupied, now, ctx.timezone, duration_minutes)
     if conflicts:
         raise VisitSeriesConflictError(conflicts, ctx.timezone)
 

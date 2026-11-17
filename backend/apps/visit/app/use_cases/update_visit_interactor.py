@@ -108,10 +108,8 @@ class UpdateVisitInteractor(UpdateVisitUseCase):
             raise MenuNotAvailableError("고를 수 없는 메뉴가 있습니다.")
         delta = wall_delta(anchor.starts_at, command.starts_at, tz)
         moves = [(v, wall_shift(v.starts_at, delta, tz)) for v in scope.targets]
-        for _, new in moves:
-            check_same_day(new, command.duration_minutes, tz)
-        if delta:
-            await ensure_free(ctx, moves, self._visits, now)
+        check_same_day(command.starts_at, command.duration_minutes, tz)   # 앵커는 422, 뒤 회차는 걸린 회차로
+        await ensure_free(ctx, moves, self._visits, now, command.duration_minutes)
         updated = [
             await self._visits.update_details(ctx, v.id, new, v.pet_id, command.duration_minutes, command.menu_ids,
                                               command.memo)

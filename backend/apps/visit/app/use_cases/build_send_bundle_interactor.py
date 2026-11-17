@@ -71,7 +71,7 @@ class BuildSendBundleInteractor(BuildSendBundleUseCase):
         texts = await self._forms.bundle_texts(ctx)
         link = await self._forms.consent_link(ctx, tuple(v.pet_id for v in asking), on) if asking else None
         menu_names = list(dict.fromkeys(menu.name for view in views for menu in view.menus))
-        series_starts, interval_weeks = await self._series_starts(ctx, visit)
+        series_starts, interval_weeks = await self._series_starts(ctx, visit, {v.pet_id for v in group})
         parts = build_bundle(
             shop_name=shop.name, pet_names=list(pet_names.values()), starts_at=views[0].starts_at,
             menu_names=menu_names, reservation_text=texts.reservation, consent_text=texts.consent,
@@ -83,12 +83,12 @@ class BuildSendBundleInteractor(BuildSendBundleUseCase):
             created_form_id=link.form_id if link is not None and link.created else None,
         )
 
-    async def _series_starts(self, ctx, visit) -> tuple[list[datetime], int | None]:
-        """반복 묶음이면 이 예약부터의 예약됨 회차 시각들(매장 시간대)과 묶음 간격(⑭) — 접수 안내 한 통에 전부 적는다."""
+    async def _series_starts(self, ctx, visit, pets: set[int | None]) -> tuple[list[datetime], int | None]:
+        """반복 묶음이면 이 예약부터의 예약됨 회차 시각들(매장 시간대, 이 가족 묶음의 아이들 것만)과 묶음 간격(⑭)."""
         if visit.series_id is None:
             return [], None
         series = await self._series.get(ctx, visit.series_id)
         zone = ZoneInfo(ctx.timezone)
         starts = sorted({v.starts_at.astimezone(zone) for v in await self._visits.list_series(ctx, visit.series_id)
-                         if v.status == RESERVED and v.starts_at >= visit.starts_at})
+                         if v.status == RESERVED and v.starts_at >= visit.starts_at and v.pet_id in pets})
         return starts, series.interval_weeks

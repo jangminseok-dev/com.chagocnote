@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -243,3 +244,15 @@ async def test_이후_전부의_알림은_옮기는_차례대로_낸다():
     rows = _weekly(visits)
     await interactor.reschedule_visits(_following([rows[(WEEKLY[0], 101)].id], starts_at=WEEKLY[1]))
     assert [e.previous_starts_at for e in events.published if isinstance(e, VisitRescheduled)] == list(reversed(WEEKLY))
+
+
+async def test_자정을_넘게_되는_뒤_회차는_걸린_회차로_알린다():
+    """뒤 회차 하나만 이 예약만으로 21시로 옮겨 둔 묶음 — 이후 전부를 2시간 밀면 그 회차는 자정을 넘는다. 422 로 막지
+    않고 빼고 다시 보낼 수 있게 걸린 회차로 준다."""
+    _, visits, interactor, _ = _setup()
+    rows = _weekly(visits)
+    late = rows[(WEEKLY[2], 101)]
+    visits.rows[late.id] = replace(late, starts_at=kst(10, 16, 21))
+    with pytest.raises(VisitSeriesConflictError) as caught:
+        await interactor.reschedule_visits(_following([rows[(WEEKLY[1], 101)].id], starts_at=kst(10, 9, 16)))
+    assert [(c["visit_id"], c["reason"]) for c in caught.value.details["conflicts"]] == [(late.id, "crosses_midnight")]

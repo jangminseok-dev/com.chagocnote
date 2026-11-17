@@ -57,8 +57,7 @@ class RescheduleVisitsInteractor(RescheduleVisitsUseCase):
             # 이후 전부(⑭) — 이 회차가 움직인 벽시계 차이만큼 뒤의 예약됨을 모두 민다. 걸린 회차가 있으면 쓰기 전에 409.
             delta = wall_delta(locked[0].starts_at, command.starts_at, tz)
             moves = [(v, wall_shift(v.starts_at, delta, tz)) for v in scope.targets]
-            for visit, new in moves:
-                check_same_day(new, visit.duration_minutes, tz)
+            # 앵커는 위에서 422 로 본다. 뒤 회차의 자정 넘김은 걸린 회차로 알려 빼고 다시 보낼 수 있게 한다.
             await ensure_free(ctx, moves, self._visits, now)
             ordered = [(v.id, new) for v, new in move_order(moves)]
             by_id = {v.id: v for v in await self._visits.move_each(ctx, ordered)}
