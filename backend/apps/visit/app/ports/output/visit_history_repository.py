@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from datetime import date, datetime
 
 from hub.app.dtos.shop_context import ShopContext
@@ -57,3 +58,10 @@ class VisitHistoryRepository(ABC):
     async def revisit_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[RevisitCandidate]:
         """마지막 완료 방문이 today 로부터 한 해 안이고, 앞으로의 예약(since 이후의 예약됨, 날짜와 상관없이 미용 중)이
         없는 아이들 — 마지막 방문의 날 순. 아이 수와 상관없이 질의 하나다."""
+
+    @abstractmethod
+    async def next_active_after(
+        self, ctx: ShopContext, customer_id: int, pet_ids: Sequence[int], after: datetime,
+    ) -> datetime | None:
+        """그 아이들(빈 목록이면 그 보호자의 아이 없는 방문)의 살아 있는 방문 가운데 starts_at > after 인 가장 이른 시각(⑭).
+        완료 시트가 "다음 예약 12월 18일"을 보이는 데 쓴다."""

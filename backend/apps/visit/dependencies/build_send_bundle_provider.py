@@ -9,7 +9,12 @@ from hub.app.ports.shop_profile_port import ShopProfilePort
 from visit.app.ports.input.build_send_bundle_use_case import BuildSendBundleUseCase
 from visit.app.use_cases.build_send_bundle_interactor import BuildSendBundleInteractor
 from visit.dependencies.hub_ports import get_customer_directory, get_guardian_forms, get_shop_profile
-from visit.dependencies.visit_wiring import build_check_repository, build_menu_repository, build_visit_repository
+from visit.dependencies.visit_wiring import (
+    build_check_repository,
+    build_menu_repository,
+    build_visit_repository,
+    build_visit_series_repository,
+)
 from visit.domain.services.visit_schedule import utc_now
 
 
@@ -23,4 +28,5 @@ def get_build_send_bundle_use_case(
     return BuildSendBundleInteractor(
         visits=visits, history=visits, menus=build_menu_repository(db), checks=build_check_repository(db),
         directory=directory, forms=forms, shops=shops, now=utc_now,
+        series=build_visit_series_repository(db),
     )

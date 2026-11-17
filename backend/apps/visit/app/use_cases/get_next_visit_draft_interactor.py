@@ -5,18 +5,20 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
-from visit.app.dtos.get_next_visit_draft_dto import GetNextVisitDraftQuery, NextVisitDraftView
+from visit.app.dtos.get_next_visit_draft_dto import GetNextVisitDraftQuery, NextVisitDraftView, RepeatDraftView
 from visit.app.dtos.visit_view_dto import MenuBriefView
 from visit.app.ports.input.get_next_visit_draft_use_case import GetNextVisitDraftUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.revisit_settings_repository import RevisitSettingsRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_lookup_repository import VisitLookupRepository
+from visit.app.ports.output.visit_series_repository import VisitSeriesRepository
 from visit.app.services.revisit import pet_cycles, shortest
 from visit.domain.entities.visit import CANCELED, COMPLETED, NO_SHOW
 from visit.domain.errors import VisitStateConflictError
 from visit.domain.services.visit_cycle import next_start
 from visit.domain.services.visit_schedule import local_date
+from visit.domain.services.visit_series import DEFAULT_COUNT, series_position
 
 
 class GetNextVisitDraftInteractor(GetNextVisitDraftUseCase):
@@ -27,6 +29,7 @@ class GetNextVisitDraftInteractor(GetNextVisitDraftUseCase):
     def __init__(
         self, visits: VisitLookupRepository, history: VisitHistoryRepository, menus: MenuRepository, *,
         directory: CustomerDirectoryPort, settings: RevisitSettingsRepository, now: Callable[[], datetime],
+        series: VisitSeriesRepository,
     ) -> None:
         self._visits = visits
         self._history = history
@@ -34,6 +37,7 @@ class GetNextVisitDraftInteractor(GetNextVisitDraftUseCase):
         self._directory = directory
         self._settings = settings
         self._now = now
+        self._series = series
 
     async def get_next_visit_draft(self, query: GetNextVisitDraftQuery) -> NextVisitDraftView:
         ctx = query.ctx
@@ -57,6 +61,8 @@ class GetNextVisitDraftInteractor(GetNextVisitDraftUseCase):
             cycles = list(by_pet.values())
         weeks, source = shortest(cycles, settings)
         active = {m.id: m for m in await self._menus.list_active_by_ids(ctx, list(visit.menu_ids))}
+        zone = ZoneInfo(ctx.timezone)
+        upcoming = await self._history.next_active_after(ctx, visit.customer_id, pet_ids, visit.starts_at)
         return NextVisitDraftView(
             customer_id=visit.customer_id,
             pet_ids=pet_ids,
@@ -66,4 +72,17 @@ class GetNextVisitDraftInteractor(GetNextVisitDraftUseCase):
             interval_weeks=weeks,
             cycle_weeks=weeks,
             cycle_source=source,
+            upcoming_starts_at=None if upcoming is None else upcoming.astimezone(zone),
+            repeat=await self._repeat_of(ctx, visit),
         )
+
+    async def _repeat_of(self, ctx, visit) -> RepeatDraftView | None:
+        """반복 묶음의 마지막 회차면 같은 간격·같은 요일·시각으로 이어 잡을 초안(⑭ 설계 3.7). 횟수는 기본값."""
+        if visit.series_id is None:
+            return None
+        if not series_position(await self._visits.list_series(ctx, visit.series_id), visit).is_last:
+            return None
+        series = await self._series.get(ctx, visit.series_id)
+        starts = next_start(visit.starts_at, series.interval_weeks, ctx.timezone)
+        return RepeatDraftView(interval_weeks=series.interval_weeks, count=DEFAULT_COUNT,
+                               starts_at=starts.astimezone(ZoneInfo(ctx.timezone)))

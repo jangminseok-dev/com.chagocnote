@@ -174,6 +174,7 @@ from visit.adapter.inbound.api.v1.get_visit_defaults_router import get_visit_def
 from visit.adapter.inbound.api.v1.get_visit_report_router import get_visit_report_router
 from visit.adapter.inbound.api.v1.get_repeat_defaults_router import get_repeat_defaults_router
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
+from visit.adapter.inbound.api.v1.get_visit_series_router import get_visit_series_router
 from visit.adapter.inbound.api.v1.get_visit_settings_router import get_visit_settings_router
 from visit.adapter.inbound.api.v1.list_closed_dates_router import list_closed_dates_router
 from visit.adapter.inbound.api.v1.list_day_visits_router import list_day_visits_router
@@ -339,6 +340,7 @@ app.include_router(reschedule_visits_router)
 app.include_router(transition_visits_router)
 app.include_router(parse_visit_draft_router)
 app.include_router(get_visit_router)
+app.include_router(get_visit_series_router)
 app.include_router(update_visit_router)
 app.include_router(get_next_visit_draft_router)
 app.include_router(put_visit_record_router)

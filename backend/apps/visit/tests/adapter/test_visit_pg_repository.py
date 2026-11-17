@@ -293,3 +293,18 @@ async def test_active_at_은_그_보호자의_살아_있는_방문만(db_session
     found = await repo.active_at(A, 1, [kst(12, 4, 14), kst(12, 11, 14)])
     assert [v.id for v in found] == [live]
     assert await repo.active_at(B, 1, [kst(12, 4, 14)]) == []
+
+
+async def test_next_active_after_는_그_아이들의_뒤_예약_가운데_가장_이른_것(db_session):
+    repo = VisitPgRepository(db_session)
+    await insert_visit(db_session, kst(12, 4, 14), pet_id=101)
+    await insert_visit(db_session, kst(12, 1, 14), pet_id=102)
+    await insert_visit(db_session, kst(11, 30, 14), status="canceled", pet_id=101)
+    await insert_visit(db_session, kst(11, 29, 14), pet_id=103)
+    await insert_visit(db_session, kst(11, 28, 14), pet_id=None)
+    after = kst(11, 27, 14)
+    assert await repo.next_active_after(A, 1, [101, 102], after) == kst(12, 1, 14)
+    assert await repo.next_active_after(A, 1, [101], after) == kst(12, 4, 14)
+    assert await repo.next_active_after(A, 1, [], after) == kst(11, 28, 14)   # 보호자만의 방문
+    assert await repo.next_active_after(A, 1, [101], kst(12, 4, 14)) is None
+    assert await repo.next_active_after(B, 1, [101, 102], after) is None

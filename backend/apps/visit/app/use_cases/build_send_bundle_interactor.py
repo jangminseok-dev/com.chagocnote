@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.guardian_form_port import GuardianFormPort
@@ -12,6 +13,7 @@ from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.visit_check_repository import VisitCheckRepository
 from visit.app.ports.output.visit_history_repository import VisitHistoryRepository
 from visit.app.ports.output.visit_lookup_repository import VisitLookupRepository
+from visit.app.ports.output.visit_series_repository import VisitSeriesRepository
 from visit.app.services.visit_checks import CheckTarget, read_checks
 from visit.app.services.visit_reader import describe_visits
 from visit.domain.entities.visit import RESERVED
@@ -31,7 +33,7 @@ class BuildSendBundleInteractor(BuildSendBundleUseCase):
     def __init__(
         self, visits: VisitLookupRepository, history: VisitHistoryRepository, menus: MenuRepository,
         checks: VisitCheckRepository, directory: CustomerDirectoryPort, forms: GuardianFormPort,
-        shops: ShopProfilePort, now: Callable[[], datetime],
+        shops: ShopProfilePort, now: Callable[[], datetime], series: VisitSeriesRepository,
     ) -> None:
         self._visits = visits
         self._history = history
@@ -41,6 +43,7 @@ class BuildSendBundleInteractor(BuildSendBundleUseCase):
         self._forms = forms
         self._shops = shops
         self._now = now
+        self._series = series
 
     async def build_send_bundle(self, command: BuildSendBundleCommand) -> SendBundleView:
         ctx = command.ctx
@@ -68,12 +71,24 @@ class BuildSendBundleInteractor(BuildSendBundleUseCase):
         texts = await self._forms.bundle_texts(ctx)
         link = await self._forms.consent_link(ctx, tuple(v.pet_id for v in asking), on) if asking else None
         menu_names = list(dict.fromkeys(menu.name for view in views for menu in view.menus))
+        series_starts, interval_weeks = await self._series_starts(ctx, visit)
         parts = build_bundle(
             shop_name=shop.name, pet_names=list(pet_names.values()), starts_at=views[0].starts_at,
             menu_names=menu_names, reservation_text=texts.reservation, consent_text=texts.consent,
             consent_pet_names=[pet_names[v.id] for v in asking if v.id in pet_names], consent_url=None if link is None else link.url,
+            series_starts=series_starts, interval_weeks=interval_weeks,
         )
         return SendBundleView(
             parts=[BundlePartView(kind=part.kind, text=part.text) for part in parts],
             created_form_id=link.form_id if link is not None and link.created else None,
         )
+
+    async def _series_starts(self, ctx, visit) -> tuple[list[datetime], int | None]:
+        """반복 묶음이면 이 예약부터의 예약됨 회차 시각들(매장 시간대)과 묶음 간격(⑭) — 접수 안내 한 통에 전부 적는다."""
+        if visit.series_id is None:
+            return [], None
+        series = await self._series.get(ctx, visit.series_id)
+        zone = ZoneInfo(ctx.timezone)
+        starts = sorted({v.starts_at.astimezone(zone) for v in await self._visits.list_series(ctx, visit.series_id)
+                         if v.status == RESERVED and v.starts_at >= visit.starts_at})
+        return starts, series.interval_weeks

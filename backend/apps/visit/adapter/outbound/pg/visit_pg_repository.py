@@ -274,6 +274,19 @@ class VisitPgRepository(
         )
         return set(rows.scalars())
 
+    async def next_active_after(
+        self, ctx: ShopContext, customer_id: int, pet_ids: Sequence[int], after: datetime,
+    ) -> datetime | None:
+        who = VisitOrm.pet_id.in_(list(pet_ids)) if pet_ids else VisitOrm.pet_id.is_(None)
+        return (
+            await self._session.execute(
+                select(func.min(VisitOrm.starts_at)).where(
+                    VisitOrm.shop_id == ctx.shop_id, VisitOrm.customer_id == customer_id, who,
+                    VisitOrm.status.in_(ACTIVE_STATUSES), VisitOrm.starts_at > after,
+                )
+            )
+        ).scalar_one()
+
     async def revisit_candidates(self, ctx: ShopContext, today: date, since: datetime) -> list[RevisitCandidate]:
         day = func.date(func.timezone(ctx.timezone, VisitOrm.starts_at))
         latest = (

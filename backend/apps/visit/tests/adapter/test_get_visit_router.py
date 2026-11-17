@@ -1,8 +1,9 @@
+from dataclasses import replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from visit.adapter.inbound.api.v1.get_visit_router import get_visit_router
-from visit.app.dtos.get_visit_dto import PreviousVisitView, VisitDetailView
+from visit.app.dtos.get_visit_dto import PreviousVisitView, SeriesBriefView, VisitDetailView
 from visit.app.dtos.report_view_dto import ReportLinkView
 from visit.dependencies.get_visit_provider import get_get_visit_use_case
 from visit.domain.errors import VisitNotFoundError
@@ -40,3 +41,12 @@ async def test_없는_방문은_404_범위를_넘는_ID_는_422_다():
     async with client(build_app(get_visit_router, get_get_visit_use_case, stub)) as c:
         assert error_of(await c.get("/v1/shops/3/visits/9")) == (404, "VISIT_NOT_FOUND")
         assert error_of(await c.get("/v1/shops/3/visits/9223372036854775808")) == (422, "VALIDATION_ERROR")
+
+
+async def test_묶음에_든_방문은_series_한_칸을_싣는다():
+    stub = Recorder(replace(DETAIL, series=SeriesBriefView(id=7, interval_weeks=4, position=3, total=6, is_last=False)))
+    async with client(build_app(get_visit_router, get_get_visit_use_case, stub, STAFF)) as c:
+        body = (await c.get("/v1/shops/3/visits/1")).json()
+    assert body["series"] == {"id": 7, "interval_weeks": 4, "position": 3, "total": 6, "is_last": False}
+    async with client(build_app(get_visit_router, get_get_visit_use_case, Recorder(DETAIL), STAFF)) as c:
+        assert (await c.get("/v1/shops/3/visits/1")).json()["series"] is None

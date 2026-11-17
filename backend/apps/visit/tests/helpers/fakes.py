@@ -411,6 +411,12 @@ class FakeVisits(
     def _upcoming(self, v, since) -> bool:
         return v.status == "in_progress" or (v.status == "reserved" and v.starts_at >= since)
 
+    async def next_active_after(self, ctx, customer_id, pet_ids, after):
+        found = [v.starts_at for v in self._mine(ctx)
+                 if v.customer_id == customer_id and v.status in ACTIVE_STATUSES and v.starts_at > after
+                 and (v.pet_id in pet_ids if pet_ids else v.pet_id is None)]
+        return min(found, default=None)
+
     async def pets_with_upcoming(self, ctx, pet_ids, since):
         return {v.pet_id for v in self._mine(ctx) if v.pet_id in pet_ids and self._upcoming(v, since)}
 

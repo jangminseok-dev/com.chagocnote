@@ -23,6 +23,7 @@ from visit.tests.helpers.fakes import (
     FakeRecords,
     FakeReportRepository,
     FakeSchedule,
+    FakeSeries,
     FakeVisits,
 )
 
@@ -220,7 +221,7 @@ def _detail(visits, directory, checks):
     return GetVisitInteractor(
         visits, visits, visits, FakeMenus(), directory, FakeRecords(visits), FakeLibrary(),
         FakeReportRepository(visits), now=lambda: NOW, link_key=bytes(range(32)),
-        web_base_url="https://r.example", checks=checks,
+        web_base_url="https://r.example", checks=checks, series=FakeSeries(),
     )
 
 

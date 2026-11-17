@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from hub.app.ports.customer_directory_port import CustomerDirectoryPort
 from hub.app.ports.media_library_port import MediaLibraryPort
 from visit.app.dtos.check_view_dto import CheckView
-from visit.app.dtos.get_visit_dto import GetVisitQuery, PreviousVisitView, VisitDetailView
+from visit.app.dtos.get_visit_dto import GetVisitQuery, PreviousVisitView, SeriesBriefView, VisitDetailView
 from visit.app.ports.input.get_visit_use_case import GetVisitUseCase
 from visit.app.ports.output.menu_repository import MenuRepository
 from visit.app.ports.output.report_repository import ReportRepository
@@ -16,6 +16,7 @@ from visit.app.ports.output.visit_history_repository import VisitHistoryReposito
 from visit.app.ports.output.visit_ledger_repository import VisitLedgerRepository
 from visit.app.ports.output.visit_lookup_repository import VisitLookupRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.app.ports.output.visit_series_repository import VisitSeriesRepository
 from visit.app.services.cover_reader import cover_urls
 from visit.app.services.record_reader import describe_record
 from visit.app.services.report_reader import describe_link
@@ -24,6 +25,7 @@ from visit.app.services.visit_reader import describe_visits
 from visit.domain.entities.visit import ACTIVE_STATUSES
 from visit.domain.services.visit_schedule import local_date
 from visit.domain.services.visit_marks import marks_of
+from visit.domain.services.visit_series import series_position
 
 
 class GetVisitInteractor(GetVisitUseCase):
@@ -31,7 +33,7 @@ class GetVisitInteractor(GetVisitUseCase):
         self, visits: VisitLookupRepository, history: VisitHistoryRepository, ledger: VisitLedgerRepository,
         menus: MenuRepository, directory: CustomerDirectoryPort, records: VisitRecordRepository,
         library: MediaLibraryPort, reports: ReportRepository, now: Callable[[], datetime], link_key: bytes,
-        web_base_url: str, checks: VisitCheckRepository,
+        web_base_url: str, checks: VisitCheckRepository, series: VisitSeriesRepository,
     ) -> None:
         self._visits = visits
         self._history = history
@@ -45,6 +47,7 @@ class GetVisitInteractor(GetVisitUseCase):
         self._link_key = link_key
         self._web_base_url = web_base_url
         self._checks = checks
+        self._series = series
 
     async def get_visit(self, query: GetVisitQuery) -> VisitDetailView:
         ctx = query.ctx
@@ -72,7 +75,17 @@ class GetVisitInteractor(GetVisitUseCase):
             checks=await self._read_checks(ctx, visit, now),
             marks=marks_of(visit, record, live is not None),
             report_skipped=visit.report_skipped_at is not None,
+            series=await self._series_of(ctx, visit),
         )
+
+    async def _series_of(self, ctx, visit) -> SeriesBriefView | None:
+        """반복 묶음 한 줄(⑭) — 묶음에 든 방문만. 자리는 취소를 뺀 회차로 센다(`series_position`)."""
+        if visit.series_id is None:
+            return None
+        series = await self._series.get(ctx, visit.series_id)
+        place = series_position(await self._visits.list_series(ctx, visit.series_id), visit)
+        return SeriesBriefView(id=series.id, interval_weeks=series.interval_weeks, position=place.position,
+                               total=place.total, is_last=place.is_last)
 
     async def _read_checks(self, ctx, visit, now: datetime) -> list[CheckView]:
         """확인할 것은 살아 있는 방문(예약됨·미용 중)에만 있다. 자기 자신과 뒤의 방문은 이력으로 세지 않는다."""

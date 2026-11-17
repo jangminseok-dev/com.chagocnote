@@ -2,7 +2,7 @@ from datetime import timedelta
 
 import pytest
 
-from visit.app.dtos.get_visit_dto import GetVisitQuery
+from visit.app.dtos.get_visit_dto import GetVisitQuery, SeriesBriefView
 from visit.app.use_cases.get_visit_interactor import GetVisitInteractor
 from visit.domain.errors import VisitNotFoundError
 from visit.tests.helpers.builders import ctx, kst, record
@@ -14,6 +14,7 @@ from visit.tests.helpers.fakes import (
     FakeMenus,
     FakeRecords,
     FakeReportRepository,
+    FakeSeries,
     FakeVisits,
 )
 
@@ -22,10 +23,11 @@ KEY = bytes(range(32))
 NO_LINK = ("none", None, None, None, None)
 
 
-def _interactor(visits, directory, records, library, reports=None):
+def _interactor(visits, directory, records, library, reports=None, series=None):
     return GetVisitInteractor(
         visits, visits, visits, FakeMenus(), directory, records, library, reports or FakeReportRepository(visits),
-        now=lambda: NOW, link_key=KEY, web_base_url="https://r.example", checks=FakeChecks())
+        now=lambda: NOW, link_key=KEY, web_base_url="https://r.example", checks=FakeChecks(),
+        series=series or FakeSeries())
 
 
 def _setup():
@@ -141,3 +143,37 @@ async def test_끊었거나_기간이_지난_링크는_none_이다():
     await reports.create(ctx(), expired.id, bytes(16), NOW, NOW - timedelta(days=7))   # 지금 끝난다
     for visit in (revoked, expired):
         assert _link(await interactor.get_visit(GetVisitQuery(ctx=ctx(), visit_id=visit.id))) == NO_LINK
+
+
+# --- ⑭ 반복 묶음 ------------------------------------------------------------------------------------------------------
+
+def _with_series():
+    visits, directory, series = FakeVisits(), FakeDirectory(), FakeSeries()
+    directory.family(1, pets=(101, 102))
+    series.seed(7, interval_weeks=4)
+    return visits, series, _interactor(visits, directory, FakeRecords(visits), FakeLibrary(), series=series)
+
+
+async def test_묶음에_든_방문은_간격과_자리를_준다():
+    visits, _, interactor = _with_series()
+    made = [visits.seed(pet_id=101, starts_at=at, series_id=7) for at in (kst(10, 1, 14), kst(10, 29, 14), kst(11, 26, 14))]
+    detail = await interactor.get_visit(GetVisitQuery(ctx=ctx(), visit_id=made[1].id))
+    assert detail.series == SeriesBriefView(id=7, interval_weeks=4, position=2, total=3, is_last=False)
+
+
+async def test_묶음이_없으면_series_는_None():
+    visits, _, interactor = _with_series()
+    plain = visits.seed(pet_id=101, starts_at=kst(10, 1, 14))
+    assert (await interactor.get_visit(GetVisitQuery(ctx=ctx(), visit_id=plain.id))).series is None
+
+
+async def test_가족의_뒤_회차가_취소되면_앞_회차가_마지막이다():
+    visits, _, interactor = _with_series()
+    for at in (kst(10, 1, 14), kst(10, 29, 14), kst(11, 26, 14)):
+        canceled = at == kst(11, 26, 14)
+        for pet in (101, 102):
+            visits.seed(pet_id=pet, starts_at=at, series_id=7, status="canceled" if canceled else "reserved",
+                        canceled_at=at if canceled else None, cancel_reason="customer_request" if canceled else None)
+    second = next(v for v in visits.rows.values() if v.starts_at == kst(10, 29, 14) and v.pet_id == 102)
+    detail = await interactor.get_visit(GetVisitQuery(ctx=ctx(), visit_id=second.id))
+    assert detail.series == SeriesBriefView(id=7, interval_weeks=4, position=2, total=2, is_last=True)
