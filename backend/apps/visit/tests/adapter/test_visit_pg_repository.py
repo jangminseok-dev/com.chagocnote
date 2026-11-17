@@ -5,6 +5,7 @@ import pytest
 from visit.adapter.outbound.pg.menu_pg_repository import MenuPgRepository
 from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
+from visit.adapter.outbound.pg.visit_series_pg_repository import VisitSeriesPgRepository
 from visit.domain.errors import VisitDuplicateError, VisitInputError, VisitNotFoundError
 from visit.domain.state.visit_state import StatusChange
 from visit.domain.value_objects.new_visit import NewVisit
@@ -16,10 +17,11 @@ pytestmark = pytest.mark.integration
 A, B = ctx(shop_id=1), ctx(shop_id=2)
 
 
-def new(pet_id=101, customer_id=1, starts_at=None, minutes=90, status="reserved", started_at=None, menu_ids=()):
+def new(pet_id=101, customer_id=1, starts_at=None, minutes=90, status="reserved", started_at=None, menu_ids=(),
+        series_id=None):
     return NewVisit(customer_id=customer_id, pet_id=pet_id, starts_at=starts_at or kst(10, 2, 14),
                     duration_minutes=minutes, status=status, started_at=started_at, menu_ids=menu_ids,
-                    memo=None, created_by_member_id=11)
+                    memo=None, created_by_member_id=11, series_id=series_id)
 
 
 async def _menu_ids(session, shop=A):
@@ -235,3 +237,59 @@ async def test_피드_커서가_틀리면_VisitInputError(db_session):
     for bad in ("zz", "W10", "WyIyMDI2LTA5LTAxVDA1OjAwOjAwIiwgMV0"):   # 깨진 값, 빈 목록, 시간대 없는 시각
         with pytest.raises(VisitInputError):
             await VisitPgRepository(db_session).list_completed(A, bad, 5, None)
+
+
+async def _weekly(session, shop=A, pets=(101,)):
+    """주마다 세 번의 반복 묶음(⑭) — 11/20·11/27·12/4 14:00."""
+    series = await VisitSeriesPgRepository(session).create(shop, customer_id=1, interval_weeks=1, member_id=11)
+    starts = (kst(11, 20, 14), kst(11, 27, 14), kst(12, 4, 14))
+    made = await VisitPgRepository(session).create_many(
+        shop, [new(pet, starts_at=at, series_id=series.id) for at in starts for pet in pets])
+    return series, made
+
+
+async def test_create_many_가_series_id_를_적는다(db_session):
+    series, made = await _weekly(db_session)
+    assert {v.series_id for v in made} == {series.id}
+    [plain] = await VisitPgRepository(db_session).create_many(A, [new(102)])
+    assert plain.series_id is None
+
+
+async def test_주마다_묶음을_1주_늦게_옮겨도_늦은_회차부터면_유일_색인에_걸리지_않는다(db_session):
+    _, (a, b, c) = await _weekly(db_session)
+    repo = VisitPgRepository(db_session)
+    moved = await repo.move_each(A, [(c.id, kst(12, 11, 14)), (b.id, kst(12, 4, 14)), (a.id, kst(11, 27, 14))])
+    assert [(v.id, v.starts_at) for v in moved] == [
+        (a.id, kst(11, 27, 14)), (b.id, kst(12, 4, 14)), (c.id, kst(12, 11, 14))]
+
+
+async def test_move_each_가_묶음_밖_예약과_겹치면_VISIT_DUPLICATE(db_session):
+    _, (a, _, _) = await _weekly(db_session)
+    repo = VisitPgRepository(db_session)
+    await repo.create_many(A, [new(101, starts_at=kst(11, 21, 14))])
+    with pytest.raises(VisitDuplicateError):
+        await repo.move_each(A, [(a.id, kst(11, 21, 14))])
+    assert (await repo.get(A, a.id)).starts_at == kst(11, 20, 14)   # 세이브포인트 — 세션은 계속 쓴다
+
+
+async def test_list_series_는_상태와_상관없이_시작_시각_순이고_다른_매장의_것은_없다(db_session):
+    series, made = await _weekly(db_session, pets=(102, 101))
+    repo = VisitPgRepository(db_session)
+    await repo.apply_changes(A, [(made[0].id, StatusChange(
+        status="canceled", started_at=None, completed_at=None, canceled_at=kst(11, 19, 9),
+        cancel_reason="customer_request"))], 11)
+    listed = await repo.list_series(A, series.id)
+    assert [v.id for v in listed] == sorted(v.id for v in made)   # 시각 순, 같은 시각은 ID 순
+    assert listed[0].status == "canceled"
+    assert await repo.list_series(B, series.id) == []
+
+
+async def test_active_at_은_그_보호자의_살아_있는_방문만(db_session):
+    repo = VisitPgRepository(db_session)
+    live = await insert_visit(db_session, kst(12, 4, 14), pet_id=101)
+    await insert_visit(db_session, kst(12, 4, 14), status="canceled", pet_id=101)
+    await insert_visit(db_session, kst(12, 4, 14), customer_id=2, pet_id=201)
+    await insert_visit(db_session, kst(12, 5, 14), pet_id=101)
+    found = await repo.active_at(A, 1, [kst(12, 4, 14), kst(12, 11, 14)])
+    assert [v.id for v in found] == [live]
+    assert await repo.active_at(B, 1, [kst(12, 4, 14)]) == []

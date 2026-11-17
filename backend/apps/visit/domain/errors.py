@@ -1,3 +1,13 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
+
+if TYPE_CHECKING:   # visit_series 가 visit_schedule → errors 를 import 하므로 실행 때는 읽지 않는다
+    from visit.domain.services.visit_series import SeriesConflict
+
+
 class VisitError(Exception):
     """visit 도메인 오류의 바탕. code 는 응답 본문의 code 로 나간다."""
 
@@ -134,3 +144,25 @@ class TooManyReportRequestsError(VisitError):
     """공개 알림장 조회가 너무 잦다. 코드는 초대 코드 시도 제한(tenancy)과 같다. 429."""
 
     code = "TOO_MANY_ATTEMPTS"
+
+
+class VisitSeriesNotFoundError(VisitError):
+    """반복 묶음이 없거나 다른 매장의 것(⑭)."""
+
+    code = "VISIT_SERIES_NOT_FOUND"
+
+
+class VisitSeriesConflictError(VisitError):
+    """`이후 전부` 의 옮길 자리에 걸린 회차가 있다(⑭) — 아무것도 바꾸지 않았다. details 에는 방문·아이 ID, 매장
+    시간대의 시각, 사유(taken·out_of_range)만 싣는다(이름·글은 싣지 않는다)."""
+
+    code = "VISIT_SERIES_CONFLICT"
+
+    def __init__(self, conflicts: Sequence[SeriesConflict], tz: str) -> None:
+        super().__init__("이미 예약이 있거나 잡을 수 없는 회차가 있어요.")
+        zone = ZoneInfo(tz)
+        self.details = {"conflicts": [
+            {"visit_id": c.visit_id, "pet_id": c.pet_id, "starts_at": c.starts_at.astimezone(zone).isoformat(),
+             "reason": c.reason}
+            for c in conflicts
+        ]}

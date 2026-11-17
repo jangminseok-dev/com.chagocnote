@@ -14,6 +14,7 @@ from visit.adapter.outbound.pg.schedule_pg_repository import SchedulePgRepositor
 from visit.adapter.outbound.pg.visit_check_pg_repository import VisitCheckPgRepository
 from visit.adapter.outbound.pg.visit_record_pg_repository import VisitRecordPgRepository
 from visit.adapter.outbound.pg.visit_pg_repository import VisitPgRepository
+from visit.adapter.outbound.pg.visit_series_pg_repository import VisitSeriesPgRepository
 from core.public_redis_limiter import PublicRedisLimiter
 from visit.app.ports.output.menu_repository import MenuRepository
 from hub.app.ports.public_limiter_port import PublicLimiterPort
@@ -24,6 +25,7 @@ from visit.app.ports.output.sales_repository import SalesRepository
 from visit.app.ports.output.schedule_repository import ScheduleRepository
 from visit.app.ports.output.visit_check_repository import VisitCheckRepository
 from visit.app.ports.output.visit_record_repository import VisitRecordRepository
+from visit.app.ports.output.visit_series_repository import VisitSeriesRepository
 
 
 def build_schedule_repository(db: AsyncSession) -> ScheduleRepository:
@@ -70,3 +72,7 @@ def build_sales_goal_repository(db: AsyncSession) -> SalesGoalRepository:
 
 def build_public_report_limiter() -> PublicLimiterPort:
     return PublicRedisLimiter(get_redis(), "visit:report")
+
+
+def build_visit_series_repository(db: AsyncSession) -> VisitSeriesRepository:
+    return VisitSeriesPgRepository(db)

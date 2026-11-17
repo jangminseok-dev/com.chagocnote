@@ -32,10 +32,12 @@ def install_error_handlers(app: FastAPI, domain_errors: dict[type[Exception], in
 
     def _make(status_code: int):
         async def _handler(_: Request, exc: Exception) -> JSONResponse:
-            return JSONResponse(
-                status_code=status_code,
-                content={"code": getattr(exc, "code"), "message": str(exc)},
-            )
+            content = {"code": getattr(exc, "code"), "message": str(exc)}
+            # 오류가 부르는 쪽이 고칠 거리를 함께 줄 때만(⑭ 의 걸린 회차) — 이름·글·토큰은 담지 않는다.
+            details = getattr(exc, "details", None)
+            if details is not None:
+                content["details"] = details
+            return JSONResponse(status_code=status_code, content=content)
 
         return _handler
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from collections.abc import Sequence
 from datetime import datetime
 
 from hub.app.dtos.shop_context import ShopContext
@@ -31,6 +32,12 @@ class VisitWriteRepository(VisitLookupRepository):
     @abstractmethod
     async def reschedule(self, ctx: ShopContext, visit_ids: list[int], starts_at: datetime) -> list[Visit]:
         """여러 방문의 시작 시각을 한 번에 바꾼다. 중복 예약이 되면 VisitDuplicateError(전부 되돌린다)."""
+
+    @abstractmethod
+    async def move_each(self, ctx: ShopContext, moves: Sequence[tuple[int, datetime]]) -> list[Visit]:
+        """방문마다 다른 시각으로 — **주어진 차례대로** 한 줄씩 옮긴다(⑭ `이후 전부`). 차례는 부르는 쪽이
+        `visit_series.move_order` 로 정한다(같은 아이가 다음 회차의 옛 자리로 갈 때 유일 색인에 걸리지 않게).
+        중복 예약이 되면 VisitDuplicateError(전부 되돌린다). 다시 읽은 방문을 ID 순으로 돌려준다."""
 
     @abstractmethod
     async def apply_changes(

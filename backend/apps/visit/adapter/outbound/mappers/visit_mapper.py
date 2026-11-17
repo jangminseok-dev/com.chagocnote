@@ -22,4 +22,5 @@ def to_visit(orm: VisitOrm, menu_ids: list[int]) -> Visit:
         created_by_member_id=orm.created_by_member_id,
         status_changed_by_member_id=orm.status_changed_by_member_id,
         report_skipped_at=orm.report_skipped_at,
+        series_id=orm.series_id,
     )
