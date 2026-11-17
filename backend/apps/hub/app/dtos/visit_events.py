@@ -42,6 +42,8 @@ class VisitRescheduled(VisitEvent):
 @dataclass(frozen=True)
 class VisitCanceled(VisitEvent):
     reason: str               # "customer_request" | "shop_reason" (visit.domain.entities.visit.CANCEL_REASONS 와 같은 값)
+    # ⑭ `이후 전부` 에서 가장 가까운 회차가 아닌 방문이면 True — 취소 안내 없이 대기 줄만 거둔다.
+    quiet: bool = False
     family_pet_ids: tuple[int, ...] = ()
 
 

@@ -21,6 +21,7 @@ async def transition_visits(
 ) -> TransitionedVisitsSchema:
     view = await use_case.transition_visits(
         TransitionVisitsCommand(ctx=ctx, visit_ids=tuple(body.visit_ids), action=body.action,
-                                cancel_reason=body.cancel_reason)
+                                cancel_reason=body.cancel_reason, scope=body.scope, family=body.family,
+                                skip_visit_ids=tuple(body.skip_visit_ids))
     )
     return TransitionedVisitsSchema.of(view)

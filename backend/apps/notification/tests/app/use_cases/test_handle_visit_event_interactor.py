@@ -197,6 +197,14 @@ async def test_조용한_일정_변경은_변경_안내_없이_리마인드만_�
     assert kinds.count(CHANGE) == 0 and kinds.count(REMINDER) == 1
 
 
+async def test_조용한_취소는_취소_안내_없이_대기_줄만_거둔다():
+    world = _World()
+    await world.handle(_event(VisitReserved))
+    await world.handle(_event(VisitCanceled, reason="shop_reason", quiet=True))
+    assert world.pending() == []
+    assert [r for r in world.rows() if r[0] == CANCEL] == []
+
+
 async def test_같은_예약이_두_번_오면_둘째는_묶음의_줄로_보아_아무것도_만들지_않는다():
     """같은 보호자·같은 시각·같은 종류의 대기 줄이 있으면 만들지 않는 묶음 규칙이 중복 발행도 삼킨다 — 색인 위반까지 가지 않는다."""
     world = _World()

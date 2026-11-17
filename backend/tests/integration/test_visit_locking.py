@@ -32,7 +32,7 @@ from visit.app.dtos.register_visit_dto import RegisterVisitCommand
 from visit.app.dtos.transition_visits_dto import TransitionVisitsCommand
 from visit.app.use_cases.register_visit_interactor import RegisterVisitInteractor
 from visit.app.use_cases.transition_visits_interactor import TransitionVisitsInteractor
-from visit.tests.helpers.fakes import FakeEvents
+from visit.tests.helpers.fakes import FakeEvents, FakeShopProfile
 from visit.app.use_cases.visit_ledger_interactor import VisitLedgerInteractor
 from visit.domain.errors import VisitDuplicateError, VisitStateConflictError
 from visit.tests.helpers.builders import ctx, kst
@@ -69,6 +69,7 @@ def _transition(session, visit_ids, action, reason=None):
     interactor = TransitionVisitsInteractor(
         visits, visits, MenuPgRepository(session), ReportPgRepository(session), _directory(session),
         events=FakeEvents(), now=lambda: NOW, settings=RevisitSettingsPgRepository(session),
+        shops=FakeShopProfile(),
     )
     return interactor.transition_visits(TransitionVisitsCommand(
         ctx=SHOP, visit_ids=tuple(visit_ids), action=action, cancel_reason=reason,

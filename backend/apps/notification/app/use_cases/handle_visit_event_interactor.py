@@ -116,7 +116,9 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
     async def _canceled(self, ctx: ShopContext, settings: NotificationSettings, event: VisitCanceled, now: datetime):
         kept = await self._leave_group(ctx, event, event.starts_at, "visit_canceled", _GROUP_KINDS, keep_stranded=True)
         await self._messages.cancel_pending(ctx, "visit_canceled", event.visit_id, except_ids=kept)   # N17
-        if event.reason == "shop_reason" and await self._allowed(ctx, settings, CANCEL, event.visit_id):
+        # `이후 전부` 의 나머지 회차(⑭ quiet)는 안내 없이 거두기만 — 취소 안내는 가장 가까운 회차 한 통이다.
+        if not event.quiet and event.reason == "shop_reason" and await self._allowed(
+                ctx, settings, CANCEL, event.visit_id):
             await self._create_for_group(ctx, event, CANCEL, now)
 
     async def _closed(self, ctx: ShopContext, settings: NotificationSettings, event: VisitClosed) -> None:

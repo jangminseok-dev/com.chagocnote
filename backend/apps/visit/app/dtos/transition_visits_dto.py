@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from hub.app.dtos.shop_context import ShopContext
+from visit.app.dtos.build_send_bundle_dto import BundlePartView
 from visit.app.dtos.visit_view_dto import VisitView
 
 
@@ -17,8 +18,13 @@ class TransitionVisitsCommand:
     visit_ids: tuple[int, ...]
     action: str
     cancel_reason: str | None
+    # ⑭ `이 예약만 / 이후 전부`(취소에만) — 빠지면 지금처럼 이 예약만
+    scope: str = "this"
+    family: bool = True
+    skip_visit_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
 class TransitionedVisitsView:
     visits: list[VisitView]
+    notice: list[BundlePartView] = field(default_factory=list)   # ⑭ 이후 전부 취소 뒤 보호자에게 보낼 글
