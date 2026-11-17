@@ -120,7 +120,7 @@ class UpdateVisitInteractor(UpdateVisitUseCase):
         if delta:
             nearest = earliest_ids(scope.targets)
             previous = {v.id: v.starts_at for v in scope.targets}
-            for visit in sorted(updated, key=lambda v: (v.starts_at, v.id)):
+            for visit in updated:   # 옮긴 차례대로 — 다음 회차의 옛 자리의 알림 줄을 지우지 않게(옮기기와 같다)
                 family = tuple(sorted(v.pet_id for v in updated
                                       if v.starts_at == visit.starts_at and v.pet_id is not None))
                 await self._events.publish(VisitRescheduled(

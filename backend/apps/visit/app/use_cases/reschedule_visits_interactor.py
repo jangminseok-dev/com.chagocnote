@@ -60,7 +60,10 @@ class RescheduleVisitsInteractor(RescheduleVisitsUseCase):
             for visit, new in moves:
                 check_same_day(new, visit.duration_minutes, tz)
             await ensure_free(ctx, moves, self._visits, now)
-            moved = await self._visits.move_each(ctx, [(v.id, new) for v, new in move_order(moves)])
+            ordered = [(v.id, new) for v, new in move_order(moves)]
+            by_id = {v.id: v for v in await self._visits.move_each(ctx, ordered)}
+            # 알림도 옮긴 차례대로 — 다음 회차의 옛 자리로 가는 회차가 그 자리의 알림 줄을 지우지 않게(자리를 비운 뒤 든다).
+            moved = [by_id[visit_id] for visit_id, _ in ordered]
             nearest = earliest_ids(scope.targets)
         previous = {v.id: v.starts_at for v in scope.targets}
         for visit in moved:

@@ -234,3 +234,12 @@ async def test_scope_없는_예전_요청은_지금처럼():
     assert visits.rows[rows[(WEEKLY[2], 101)].id].starts_at == WEEKLY[2]
     [event] = [e for e in events.published if isinstance(e, VisitRescheduled)]
     assert event.quiet is False
+
+
+async def test_이후_전부의_알림은_옮기는_차례대로_낸다():
+    """주마다 묶음을 1주 밀면 2회차가 3회차의 옛 자리로 간다 — 3회차가 먼저 그 자리를 떠나야(알림 묶음 줄에서 빠져야)
+    2회차가 새로 단 줄이 지워지지 않는다. 늦게 미는 묶음은 늦은 회차부터 알린다."""
+    _, visits, interactor, events = _setup()
+    rows = _weekly(visits)
+    await interactor.reschedule_visits(_following([rows[(WEEKLY[0], 101)].id], starts_at=WEEKLY[1]))
+    assert [e.previous_starts_at for e in events.published if isinstance(e, VisitRescheduled)] == list(reversed(WEEKLY))

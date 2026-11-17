@@ -216,3 +216,10 @@ async def test_고치기의_scope_없는_예전_요청은_이_예약만():
     result = await interactor.update_visit(_command(rows[(WEEKLY[1], 101)], memo="이번만"))
     assert [visits.rows[rows[(at, 101)].id].memo for at in WEEKLY] == [None, "이번만", None]
     assert result.notice == []
+
+
+async def test_이후_전부_고치기의_알림도_옮기는_차례대로_낸다():
+    _, visits, _, interactor, events = _setup()
+    rows = _weekly(visits)
+    await interactor.update_visit(_command(rows[(WEEKLY[0], 101)], starts_at=WEEKLY[1], scope="following"))
+    assert [e.previous_starts_at for e in events.published if isinstance(e, VisitRescheduled)] == list(reversed(WEEKLY))
