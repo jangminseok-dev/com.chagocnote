@@ -20,6 +20,7 @@ async def reschedule_visits(
     use_case: RescheduleVisitsUseCase = Depends(get_reschedule_visits_use_case),
 ) -> RescheduledVisitsSchema:
     view = await use_case.reschedule_visits(
-        RescheduleVisitsCommand(ctx=ctx, visit_ids=tuple(body.visit_ids), starts_at=body.starts_at)
+        RescheduleVisitsCommand(ctx=ctx, visit_ids=tuple(body.visit_ids), starts_at=body.starts_at, scope=body.scope,
+                                family=body.family, skip_visit_ids=tuple(body.skip_visit_ids))
     )
     return RescheduledVisitsSchema.of(view)

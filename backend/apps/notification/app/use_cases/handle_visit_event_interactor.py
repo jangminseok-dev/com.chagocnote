@@ -109,7 +109,8 @@ class HandleVisitEventInteractor(HandleVisitEventUseCase):
         at = reminder_at(event.starts_at, settings.reminder_time, ctx.timezone, now)
         if at is not None and await self._allowed(ctx, settings, REMINDER):
             await self._create_for_group(ctx, event, REMINDER, at)
-        if await self._allowed(ctx, settings, CHANGE):
+        # `이후 전부` 의 나머지 회차(⑭ quiet)는 변경 안내 없이 리마인드만 — 안내는 가장 가까운 회차 한 통이다.
+        if not event.quiet and await self._allowed(ctx, settings, CHANGE):
             await self._create_for_group(ctx, event, CHANGE, now, previous_starts_at=_iso(event.previous_starts_at))
 
     async def _canceled(self, ctx: ShopContext, settings: NotificationSettings, event: VisitCanceled, now: datetime):

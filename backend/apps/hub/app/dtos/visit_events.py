@@ -34,6 +34,8 @@ class VisitReserved(VisitEvent):
 @dataclass(frozen=True)
 class VisitRescheduled(VisitEvent):
     previous_starts_at: datetime
+    # ⑭ `이후 전부` 에서 가장 가까운 회차가 아닌 방문이면 True — 변경 안내 없이 리마인드만 옮긴다.
+    quiet: bool = False
     family_pet_ids: tuple[int, ...] = ()
 
 
