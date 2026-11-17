@@ -1,78 +1,141 @@
 # 차곡노트
 
-반려동물 미용 매장과 보호자를 잇는 플랫폼이다. 매장은 예약·고객·미용 기록을 관리하고, 보호자는 매장이 보낸 미용 알림장을 받아 본다. 이름은 기록이 "차곡차곡" 쌓인다는 뜻이다.
+반려동물 미용 매장이 예약, 고객, 미용 기록을 한 앱에서 관리하고, 보호자에게는 링크 하나로 미용 알림장을 보내는 서비스입니다.
 
-| 영역 | 스택 | 위치 |
+포트폴리오 소개 페이지: https://chagocnote.jangminseok.com <br>
+상태: 개발 중입니다. 아직 운영 서버에 배포하지 않았습니다.
+
+[![backend](https://github.com/jangminseok-dev/com.chagocnote/actions/workflows/backend.yml/badge.svg)](https://github.com/jangminseok-dev/com.chagocnote/actions/workflows/backend.yml)
+[![app](https://github.com/jangminseok-dev/com.chagocnote/actions/workflows/app.yml/badge.svg)](https://github.com/jangminseok-dev/com.chagocnote/actions/workflows/app.yml)
+[![web](https://github.com/jangminseok-dev/com.chagocnote/actions/workflows/web.yml/badge.svg)](https://github.com/jangminseok-dev/com.chagocnote/actions/workflows/web.yml)
+
+<p>
+  <img src="app/test/features/home/screens/goldens/home_shell.png" width="240" alt="예약 달력 화면">
+  <img src="app/test/features/visit/screens/goldens/record_screen.png" width="240" alt="미용 완료 기록 화면">
+  <img src="app/test/features/visit/screens/goldens/report_preview.png" width="240" alt="보호자 알림장 보내기 화면">
+</p>
+
+위 화면은 앱 화면 테스트가 비교 기준으로 쓰는 이미지입니다. 들어 있는 이름과 숫자는 테스트용으로 지어낸 값입니다.
+
+## 한눈에 보기
+
+| 항목 | 내용 |
+|---|---|
+| 기간 | 2026-09-20 ~ 2026-11-17 (main 첫 커밋과 마지막 커밋 날짜, 아직 진행 중) |
+| 인원과 역할 | 1인 개발입니다. 설계, 서버, 매장용 앱, 보호자용 웹, 개발 환경을 혼자 맡았습니다. |
+| 상태 | 개발 중 (운영 배포 전) |
+| 주요 기술 | Python 3.13, FastAPI, SQLAlchemy 2, PostgreSQL(pgvector), Redis, Flutter, Next.js 16, Docker Compose, GitHub Actions |
+
+## 주요 기능
+
+- **예약 달력**: 한 달 달력에서 날짜마다 예약 수를 보고, 하루 일정을 시간순으로 확인합니다. 보호자가 보낸 카카오톡 글을 붙여 넣으면 날짜, 시각, 메뉴를 짐작해 예약 칸을 미리 채웁니다. 사장님이 확인해야 저장되고, 지금은 정해 둔 규칙으로 글을 읽습니다.
+- **미용 기록**: 미용 전후 사진과 영상을 방문 기록에 붙입니다. 올리는 도중에 인터넷이 끊겨도 남은 단계부터 이어서 올립니다. 메모는 손으로 치지 않고 말로 받아쓸 수 있습니다.
+- **보호자 알림장**: 보호자는 앱 설치나 로그인 없이 매장이 보낸 링크로 그날의 사진, 영상, 케어 메모를 봅니다. 매장 내부 메모는 보이지 않고, 매장은 링크를 언제든 끊을 수 있습니다.
+- **알림톡 자동 발송**: 예약 접수, 전날 안내, 예약 변경과 취소, 알림장을 매장 카카오톡 채널 이름으로 보내도록 만들었습니다. 개발 환경에서는 실제로 보내지 않는 가짜 발송으로 흐름을 확인합니다.
+- **보호자 회원과 서류**: 로그인한 보호자는 지난 알림장과 몸무게 변화를 모아 보고 가족을 초대할 수 있습니다. 첫 방문 문진표와 미용 동의서도 링크로 보내 보호자가 로그인 없이 적고 서명합니다.
+- **찾기, 매출, 다시 올 때**: 전화번호 뒷자리, 이름, 초성으로 고객을 찾고, 미용 기록의 글을 낱말이나 비슷한 뜻으로 찾습니다. 달마다 매출과 목표를 보고, 아이마다 미용 주기를 계산해 다시 올 때가 된 아이를 알려 줍니다.
+
+## 구조
+
+```mermaid
+flowchart LR
+    APP["매장 앱 (Flutter)"] --> GW["게이트웨이 (Caddy)"]
+    GUEST["보호자 브라우저"] --> WEB["보호자 웹 (Next.js)"]
+    GW -->|"/v1/auth/*"| AUTH["인증 서버"]
+    GW --> API["API 서버 (FastAPI)"]
+    WEB --> AUTH
+    WEB --> API
+    AUTH --> DB[("PostgreSQL + pgvector")]
+    API --> DB
+    API --> REDIS[("Redis")]
+    API --> EMBED["임베딩 프로세스"]
+    APP -->|"사진과 영상 직접 업로드"| S3[("오브젝트 스토리지 (MinIO 호환)")]
+    API --> KAKAO["알림톡 발송 업체"]
+```
+
+사장님은 매장 앱을 쓰고, 보호자는 링크로 웹 알림장을 엽니다. 로그인 토큰에 서명하는 키는 인증 서버만 가지고, API 서버는 토큰을 확인만 합니다. 사진과 영상은 서버를 거치지 않고, 서버가 내준 임시 업로드 주소로 오브젝트 스토리지에 바로 올라갑니다.
+
+서버 코드는 매장, 고객, 방문, 미디어, 알림, 보호자, 검색 같은 기능 모듈(`backend/apps/`)로 나뉩니다. 모듈끼리는 서로의 코드를 직접 가져다 쓰지 않고 가운데의 `hub` 모듈에 정해 둔 약속만 봅니다. 여러 매장이 한 데이터베이스를 함께 쓰므로, 매장 데이터를 다루는 요청은 매번 그 사람이 매장 소속인지 다시 확인합니다. 자세한 규칙은 [`_docs/architecture.md`](_docs/architecture.md)에 있습니다.
+
+## AI와 함께 만든 방식
+
+이 저장소는 Claude Code로 만들었습니다. 사람은 무엇을 만들지와 어디까지 허용할지를 정하고, 결과는 테스트와 자동 검사로 확인합니다.
+
+- **규칙 문서로 에이전트를 묶습니다.** 루트 [`CLAUDE.md`](CLAUDE.md)를 포함해 `CLAUDE.md`가 22개 있습니다. 예를 들어 "모듈끼리 직접 가져다 쓰지 않는다", "알림장 링크 값과 전화번호를 로그에 남기지 않는다", "검색어와 검색 결과 문장을 로그에 남기지 않는다", "데이터베이스 잠금 순서" 같은 규칙을 적어 두고, 에이전트가 작업 전에 읽게 합니다.
+- **설계를 먼저 쓰고, 계획을 쓰고, 구현합니다.** `docs/superpowers/specs/`에 설계 문서 21개, `docs/superpowers/plans/`에 구현 계획 47개가 있습니다. 기능 묶음마다 설계, 계획, 구현, 테스트, 최종 검토 순서로 진행했습니다.
+- **계획의 코드를 먼저 따로 돌려 봅니다.** 계획을 확정하기 전에 별도 참조 브랜치에서 계획의 코드를 실행해 테스트가 통과하는지 봅니다. 코드를 일부러 망가뜨렸을 때 테스트가 실패하는지도 확인합니다. 커밋 메시지에 그 기록이 남아 있습니다(예: `8f293c5` "참조 구현에서 먼저 검증(변이 179)", `a139001` "단위 1294→1867, 통합 405→485, 변이 116").
+- **설계와 다르게 간 것은 결정 기록으로 남깁니다.** [`_docs/decisions/`](_docs/decisions/)에 결정 기록이 16개 있습니다. 일부러 막지 않은 동작과 감수하는 위험도 여기에 적었습니다.
+- **커밋 기록**: main의 커밋 658개 가운데 633개에 Claude 공동 작성자 표시가 있습니다. 사람이 직접 고른 사항을 "사용자 결정"으로 밝힌 커밋은 6개입니다(예: `4df958e` CI에서 바뀐 영역만 검사, `1dc625c` 개발용 저장소 이미지 교체, `4647b70` 의존성 버전 고정).
+
+## 검증
+
+| 영역 | 무엇으로 확인하나 | 테스트 파일 수 |
 |---|---|---|
-| 백엔드 | Python 3.13 · FastAPI · SQLAlchemy 2.0(asyncio) · Alembic | `backend/` |
-| 앱 | Flutter 3.41 이상 | `app/` |
-| 웹 (보호자 알림장) | Next.js 16 (App Router) · TypeScript · pnpm | `web/` |
-| 개발 환경 | Docker Compose (pgvector · redis · minio · backend · auth · gateway · web) | `infra/` |
-| 설계·계획 | 서브 프로젝트별 문서 | `docs/superpowers/` |
+| 서버 | pytest 단위 테스트와, 실제 PostgreSQL과 Redis에 붙는 통합 테스트 | `test_*.py` 408개 |
+| 서버 구조 | import-linter 계약 6종 (계층 방향, 모듈끼리 독립, 도메인 순수성 등) | `backend/.importlinter` |
+| 서버 흐름 | 게이트웨이를 거쳐 실제 요청을 보내는 흐름 확인 스크립트 | `backend/scripts/check_*_flow.sh` 16개 |
+| 매장 앱 | `flutter analyze`(경고 0), 위젯 테스트와 화면 비교 이미지 52장, 시뮬레이터 흐름 테스트 | 단위 175개, 흐름 18개 |
+| 보호자 웹 | Vitest 단위 테스트, 빌드와 형 검사, 가짜 백엔드로 서버 응답 검사, Playwright 브라우저 테스트 | 단위 29개, 브라우저 5개 |
+| 기록 검색 품질 | 지어낸 미용 기록 60개와 질문 30개로 정답이 위 5개 안에 드는지 셉니다. 기준 24개, 결과 26개 ([결정 기록 013](_docs/decisions/013-record-search.md)) | `backend/scripts/check_search_quality.py` |
 
-## 처음 띄우기
+GitHub Actions 워크플로 3개([backend](.github/workflows/backend.yml), [app](.github/workflows/app.yml), [web](.github/workflows/web.yml))가 푸시마다 바뀐 영역의 검사를 돌립니다. 화면 비교 이미지, 브라우저 테스트, 흐름 스크립트는 개발 서버나 맥 환경이 필요해서 로컬에서만 돌립니다.
 
-    cd infra
-    docker compose build backend
-    docker compose run --rm --no-deps backend python scripts/generate_dev_env.py   # .env 와 .env.auth 를 만든다 (이미 있으면 건너뛴다)
-    docker compose up -d                                                            # 게이트웨이 http://127.0.0.1:8080, 보호자 웹 http://127.0.0.1:3010
-    bash ../backend/scripts/check_auth_flow.sh                                      # 로그인 흐름 확인
-    bash ../backend/scripts/check_shop_flow.sh                                      # 매장 개설·합류 흐름 확인
-    bash ../backend/scripts/check_account_flow.sh                                   # 회원 탈퇴 흐름 확인
-    bash ../backend/scripts/check_customer_flow.sh                                  # 고객·반려동물 흐름 확인
-    bash ../backend/scripts/check_report_flow.sh                                    # 알림장 흐름 확인 (버킷 준비 뒤 — _docs/harness.md)
-    bash ../backend/scripts/check_notification_flow.sh                              # 알림톡 흐름 확인 (가짜 게이트웨이, 실제 발송 없음)
+로그인 없이 열리는 주소는 허용 목록에 있는 것만 가능합니다. 서버에 등록된 모든 주소를 자동으로 훑어, 소속 확인이 빠진 주소가 생기면 테스트가 실패합니다(`dcc2659`, [`backend/tests/route_inspection.py`](backend/tests/route_inspection.py)).
 
-`REPORT_LINK_KEY_B64`(알림장 링크의 서명 키, 32바이트 이상을 base64 로)는 필수다. 없으면 API 프로세스와 인증 프로세스가 둘 다 기동하지 않는다. `generate_dev_env.py`는 `.env`가 이미 있으면 아무것도 하지 않으므로, ⑤ 이전에 만든 개발 환경은 한 줄을 직접 더한다. 먼저 `.env`가 줄바꿈으로 끝나는지 본다(끝나지 않으면 앞 줄에 붙는다). 아래 명령은 값을 출력하지 않고, 이미 있으면 아무것도 하지 않는다. 키를 바꾸면 보낸 링크가 모두 닫힌다.
+검토와 테스트로 잡아 고친 예입니다.
 
-    docker compose run --rm --no-deps backend python -c "
-    import base64, secrets
-    from pathlib import Path
-    env = Path('/work/.env')
-    if 'REPORT_LINK_KEY_B64=' not in env.read_text():
-        with env.open('a') as f:
-            f.write('REPORT_LINK_KEY_B64=' + base64.b64encode(secrets.token_bytes(32)).decode() + '\n')
-    "
+- `b01917f` 알림장 링크의 실패 횟수 제한을 처음에는 IP 단위로 걸었습니다. 같은 공인 IP를 쓰는 보호자 전체가 남의 실패 때문에 막힐 수 있어서, 서명이 틀린 요청에만 제한을 걸도록 고쳤습니다.
+- `a4fd5e0` 데이터베이스 오류 로그에 SQL 파라미터(고객 정보가 들어갈 수 있는 값)가 새지 않게 막았습니다.
+- `e2d67ef`, `60914cb` 같은 리프레시 토큰이 동시에 두 번 쓰이면 알아채지 못하던 경합과, 모든 세션을 끊는 도중의 경합을 고쳤습니다.
 
-`REPORT_WEB_BASE_URL`(보호자 웹의 주소, 기본 `http://127.0.0.1:3010`)과 `REPORT_WEB_SECRET`(웹 서버와 나누는 비밀값, 기본은 빈 값)은 없어도 백엔드는 뜬다. 웹은 `REPORT_WEB_SECRET`이 없으면 뜨지 않는다 — compose 의 `web`(`next dev`)은 "환경 변수 REPORT_WEB_SECRET 이 없다." 를 찍고 끝난다. 새로 만든 개발 환경(`generate_dev_env.py`)에는 무작위 값이 들어가고, 기존 `.env`에 키 한 줄만 더한 환경에는 없다. 백엔드와 `web`은 같은 `.env`를 읽으므로 한 줄이면 두 쪽이 같은 값이 된다. 아래 명령은 값을 출력하지 않고, 값이 있으면 아무것도 하지 않는다(값이 빈 `REPORT_WEB_SECRET=` 줄만 있으면 그 줄을 지우고 새로 쓴다. `.env`가 줄바꿈으로 끝나지 않아도 된다). 이미 떠 있는 backend 는 다시 만들 때까지 새 값을 모른다 — 그동안에도 웹은 열리고, 백엔드가 웹이 알려 준 접속 주소를 믿지 않을 뿐이다.
+## 시작하기
 
-    docker compose run --rm --no-deps backend python -c "
-    import re, secrets
-    from pathlib import Path
-    env = Path('/work/.env')
-    text = env.read_text()
-    if not re.search(r'^REPORT_WEB_SECRET=.', text, re.M):
-        text = re.sub(r'^REPORT_WEB_SECRET=$\n?', '', text, flags=re.M)
-        if text and not text.endswith('\n'):
-            text += '\n'
-        env.write_text(text + 'REPORT_WEB_SECRET=' + secrets.token_urlsafe(32) + '\n')
-    "
+필요한 것: Docker(Compose 포함). 앱은 Flutter 3.41 이상, 웹 테스트는 Node.js와 pnpm이 맥에 있어야 합니다. 서버는 맥에 파이썬 환경을 만들지 않고 컨테이너 안에서만 돌립니다.
 
-`SOLAPI_API_KEY`·`SOLAPI_API_SECRET`(알림톡 발송 업체 솔라피의 API 키)은 개발 환경에서 비워 둔다 — 둘 다 비어 있고 `APP_ENV=dev`면 가짜 게이트웨이가 붙어 실제 발송 없이 흐름을 확인할 수 있다(토큰·인증번호 `000000`, 번호 끝 `0000`은 실패). 운영은 둘 다 필수이고, 하나만 있거나 비어 있으면 API 프로세스가 기동하지 않는다. 함께 쓰는 키 둘은 없어도 된다 — `SOLAPI_BALANCE_WARN_KRW`(잔액 경고 기준, 기본 30000원 — 디스패처가 하루 한 번 잔액을 보고 아래면 WARNING 로그)와 `NOTIFICATION_DAILY_CAP`(매장별 하루 발송 상한, 기본 300 — 넘으면 보내지 않고 1시간 뒤로 미룬다). 알림톡은 건당 과금(솔라피 13원, 문자 대체 18~45원)이라 실제 키는 운영에만 둔다.
+```bash
+cd infra
+docker compose build backend
+docker compose run --rm --no-deps backend python scripts/generate_dev_env.py   # .env 와 .env.auth 를 만든다
+docker compose up -d       # 게이트웨이 http://127.0.0.1:8080, 보호자 웹 http://127.0.0.1:3010
+bash ../backend/scripts/check_auth_flow.sh                                      # 로그인 흐름 확인
+```
 
-개발 환경에서는 제공자 `dev`로 이름만 넣어 로그인한다. 운영자는 `docker compose run --rm backend python scripts/grant_operator.py <user_id>`로 지정한다.
+테스트는 이렇게 돌립니다.
 
-백엔드가 떠 있으면 `app/tool/run_dev.sh`로 앱을 켠다(iOS 시뮬레이터 기준, `app/CLAUDE.md` 참고).
+```bash
+# 서버 (infra/ 에서)
+docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m "not integration and not network"
+docker compose run --rm backend pytest apps tests -q -p no:cacheprovider -m integration
+docker compose run --rm --no-deps backend lint-imports --config .importlinter
 
-## 보호자 웹
+# 앱 (app/ 에서)
+flutter analyze
+flutter test
 
-`web/`은 보호자가 매장이 보낸 링크(`/r/<토큰>`)로 여는 알림장 한 장이다. Next.js 서버가 백엔드 공개 API 를 부르고, 보호자의 브라우저는 백엔드를 직접 부르지 않는다. 개발 서버는 compose 의 `web` 서비스(`next dev`, http://127.0.0.1:3010)이고 `docker compose up -d`가 함께 띄운다. 첫 기동 때 컨테이너 안에서 `pnpm install`을 한다(볼륨 `web_node_modules`). 앱에서 보낸 알림장 링크를 맥 브라우저로 열면 이 서버가 그린다.
+# 웹 (web/ 에서, pnpm install 먼저)
+pnpm test
+pnpm build
+```
 
-테스트와 빌드는 맥에서 `web/`에 들어가 돌린다(node·pnpm 필요, `pnpm install` 먼저).
+개발 환경에서는 제공자 `dev`로 이름만 넣어 로그인합니다. 서버가 떠 있으면 `app/tool/run_dev.sh`로 앱을 켭니다(iOS 시뮬레이터 기준). 필수 환경 변수(`REPORT_LINK_KEY_B64`, `REPORT_WEB_SECRET`, 알림톡 키)와 이미 만든 개발 환경에 값을 더하는 방법은 [docs/SETUP.md](docs/SETUP.md)에 있습니다. 검증 명령 전체는 [`_docs/harness.md`](_docs/harness.md)에 있습니다.
 
-    pnpm test                    # 컴포넌트·단위
-    pnpm build                   # 빌드와 형 검사
-    pnpm check:server            # 빌드 뒤. 가짜 백엔드로 서버 응답 검사
-    pnpm e2e:prepare && pnpm e2e # 실제 브라우저 (개발 스택과 web 이 떠 있어야 한다)
+## 폴더 구조
 
-운영은 Vercel 에 둘 예정이다(아직 배포하지 않았다). 설정은 `API_BASE_URL`(백엔드 주소)과 `REPORT_WEB_SECRET` 둘이고 둘 다 필수다. 규칙은 `web/CLAUDE.md`.
+| 위치 | 내용 |
+|---|---|
+| `backend/` | 서버. 기능 모듈은 `apps/`, 공통 기반은 `core/`, DB 변경 이력은 `alembic/`, 확인 스크립트는 `scripts/` |
+| `app/` | 매장용 Flutter 앱 (iOS, Android) |
+| `web/` | 보호자 웹. 알림장, 내 기록, 동의서와 문진표 |
+| `embed/` | 기록 검색의 뜻 검색에 쓰는 임베딩 프로세스 (CPU에서 도는 작은 모델) |
+| `infra/` | Docker Compose 개발 환경과 게이트웨이 설정 |
+| `_docs/` | 아키텍처 규칙, 검증 명령, 결정 기록 |
+| `docs/` | 설계 문서, 구현 계획, 개발 환경 설정 |
 
-## 더 읽을 것
+## 문서
 
-- `CLAUDE.md` — 꼭 지킬 규칙과 명령어
-- `app/CLAUDE.md` — 앱에만 해당하는 규칙과 명령어
-- `web/CLAUDE.md` — 웹에만 해당하는 규칙과 명령어
-- `_docs/architecture.md` — 계층, 수직 슬라이스, 허브-스포크, 허브 포트 조립, 폴더 작명 규칙
-- `_docs/harness.md` — 검증 명령
-- `_docs/decisions/` — 결정 기록
-- `docs/superpowers/specs/` · `docs/superpowers/plans/` — 설계 문서와 구현 계획
+- [CLAUDE.md](CLAUDE.md): 꼭 지킬 규칙과 명령어 ([앱](app/CLAUDE.md), [웹](web/CLAUDE.md)은 따로 있습니다)
+- [_docs/architecture.md](_docs/architecture.md): 계층, 기능 모듈과 허브, 폴더 이름 규칙
+- [_docs/harness.md](_docs/harness.md): 검증 명령 전체
+- [_docs/decisions/](_docs/decisions/): 결정 기록
+- [docs/SETUP.md](docs/SETUP.md): 개발 환경 설정과 보호자 웹 안내 (예전 README 내용)
+- [docs/superpowers/specs/](docs/superpowers/specs/), [docs/superpowers/plans/](docs/superpowers/plans/): 설계 문서와 구현 계획
